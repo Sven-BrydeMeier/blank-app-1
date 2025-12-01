@@ -4,12 +4,12 @@ import io
 import re
 import zipfile
 from datetime import datetime, date
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
+import pandas as pd
+import fitz  # PyMuPDF
 import streamlit as st
 from pypdf import PdfReader, PdfWriter
-import fitz  # PyMuPDF
-import pandas as pd
 from xlsxwriter.utility import xl_col_to_name
 
 
@@ -101,6 +101,14 @@ def is_leerseite(text: str) -> bool:
         return True
     cleaned = re.sub(r"\s+", "", text)
     return cleaned == ""
+
+
+def render_status_badge(label: str, ok: bool, hint: str = "") -> None:
+    """Zeigt einen gut lesbaren Statusindikator mit Emoji an."""
+    icon = "🟢" if ok else "🔴"
+    state = "aktiv" if ok else "nicht verbunden"
+    extra = f"<br/><small>{hint}</small>" if hint else ""
+    st.markdown(f"**{icon} {label}:** {state}{extra}", unsafe_allow_html=True)
 
 
 def split_pdf_with_t_and_empty(pdf_bytes: bytes, page_texts: List[str]):
@@ -657,6 +665,32 @@ def main():
     st.set_page_config(page_title="Posteingang RHM | MASTER-WORKFLOW", layout="wide")
     st.title("📥 Automatisierter Posteingang (RHM | Anwälte)")
 
+    # Seitenleiste: API-Key & ChatGPT-Verbindungsstatus
+    st.sidebar.header("Verbindungsmonitor")
+    api_key = st.sidebar.text_input(
+        "OpenAI API-Key",
+        type="password",
+        help="Der Schlüssel wird nur clientseitig geprüft, es erfolgt kein externer Aufruf in dieser Demo.",
+    )
+
+    if "api_status" not in st.session_state:
+        st.session_state.api_status = False
+        st.session_state.chat_status = False
+        st.session_state.api_message = "Noch nicht geprüft."
+
+    if st.sidebar.button("API-Key prüfen"):
+        valid = bool(re.match(r"^sk-[A-Za-z0-9]{20,}$", api_key.strip()))
+        st.session_state.api_status = valid
+        st.session_state.chat_status = valid
+        st.session_state.api_message = "Schlüssel-Format gültig." if valid else "Ungültiges Format – bitte erneut eingeben."
+
+    render_status_badge("API-Schlüssel", st.session_state.api_status, st.session_state.api_message)
+    render_status_badge(
+        "ChatGPT-Verarbeitung",
+        st.session_state.chat_status,
+        "Aktiv, sobald ein gültiger API-Key hinterlegt ist.",
+    )
+
     st.markdown(
         "1. **Tagespost-PDF** hochladen (OCR, gesamter Posteingang, mit T-Trennblättern).  \n"
         "2. **aktenregister.xlsx** hochladen (Tabellenblatt „akten“).  \n"
@@ -762,6 +796,18 @@ def main():
         # Ergebnis-Bereich
         # -------------------------------------------------
         st.subheader("Ergebnisse")
+
+        # Statistik
+        st.markdown("#### Verarbeitungsstatistik")
+        metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+        metrics_col1.metric("Seiten insgesamt", num_pages)
+        metrics_col2.metric("T-Trennblätter", len(t_pages))
+        metrics_col3.metric("Leerseiten entfernt", len(empty_pages))
+        metrics_col4.metric("Erzeugte Dokumente", len(docs_bytes))
+
+        st.markdown("#### Zuordnung nach Sachbearbeiter")
+        zuordnung_df = pd.DataFrame.from_dict(zuordnung, orient="index", columns=["Dokumente"])
+        st.bar_chart(zuordnung_df)
 
         # Downloads pro Sachbearbeiter
         for sb in ["SQ", "TS", "M", "FÜ", "CV", SACHBEARBEITER_DEFAULT]:
