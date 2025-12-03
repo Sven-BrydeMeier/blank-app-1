@@ -1,809 +1,985 @@
-# app.py
-
-import io
-import re
-import zipfile
-from datetime import datetime, date
-from typing import List, Dict, Any, Optional
+"""
+Immobilien-Transaktionsplattform
+Rollen: Makler, Käufer, Verkäufer, Finanzierer, Notar
+"""
 
 import streamlit as st
-from pypdf import PdfReader, PdfWriter
-import fitz  # PyMuPDF
-import pandas as pd
-from xlsxwriter.utility import xl_col_to_name
-
-
-# ---------------------------------------------------------
-# Konfiguration / Konstanten
-# ---------------------------------------------------------
-
-SACHBEARBEITER_KUERZEL = ["SQ", "TS", "M", "CV", "FÜ"]
-SACHBEARBEITER_DEFAULT = "nicht-zugeordnet"
-
-STICHWORT_LISTE = [
-    "Beschluss", "Urteil", "Veräußerungsanzeige", "Negativzeugnis",
-    "Arbeitsbescheinigung", "Schaden", "Kündigung", "Vergleich",
-    "Rechnung", "Mahnung", "Fristsetzung"
-]
-
-DATUM_REGEX = r"\b(?:0?[1-9]|[12][0-9]|3[01])\.(?:0?[1-9]|1[0-2])\.(?:19|20)\d{2}\b"
-
-# interne Aktenzeichen:
-# 151/20M  | 294/20SQ | 98/23FÜ  | 411/20M1 | 99/23CVa
-INTERNES_AZ_MIT_KUERZEL_REGEX = r"\b(\d{1,4}/\d{2})(SQ|M|TS|FÜ|CV)([0-9A-Za-z]*)\b"
-INTERNES_AZ_OHNE_KUERZEL_REGEX = r"\b(\d{1,4}/\d{2})\b"
-
-
-# ---------------------------------------------------------
-# Hilfsfunktionen: Allgemein
-# ---------------------------------------------------------
-
-def normalize_akte_value(val: Any) -> str:
-    """
-    ' 151/20 ' -> '151/20'
-    Entfernt Whitespace, NBSP etc.
-    """
-    if pd.isna(val):
-        return ""
-    s = str(val).replace("\xa0", " ")
-    return s.strip()
-
-
-def slugify_name(s: str) -> str:
-    """
-    Umlaute ersetzen, Sonderzeichen entfernen, Leerzeichen mit '_'.
-    """
-    if not s:
-        return ""
-    s = s.strip()
-    repl = {
-        "ä": "ae", "ö": "oe", "ü": "ue",
-        "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
-        "ß": "ss"
-    }
-    for k, v in repl.items():
-        s = s.replace(k, v)
-    # unerwünschte Zeichen entfernen
-    s = re.sub(r"[^A-Za-z0-9._\- ]+", "", s)
-    s = re.sub(r"\s+", "_", s)
-    return s[:120]
-
-
-def extract_page_texts(pdf_bytes: bytes) -> List[str]:
-    """Extrahiert Text pro Seite mit PyMuPDF (robust gegen OCR-PDFs)."""
-    texts = []
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-        for page in doc:
-            texts.append(page.get_text("text") or "")
-    return texts
-
-
-def is_t_trennblatt(text: str) -> bool:
-    """
-    Trennblatt: Seite, deren OCR-Text im Wesentlichen nur aus einem großen 'T' besteht.
-    """
-    if text is None:
-        return False
-    cleaned = text.strip()
-    if not cleaned:
-        return False
-    # alle Whitespaces entfernen
-    compact = re.sub(r"\s+", "", cleaned)
-    return compact == "T"
-
-
-def is_leerseite(text: str) -> bool:
-    """
-    Leere Seite: kein verwertbarer Text (nur Whitespace etc.).
-    Leerseiten werden entfernt, aber NICHT als Trennblätter gewertet.
-    """
-    if text is None:
-        return True
-    cleaned = re.sub(r"\s+", "", text)
-    return cleaned == ""
-
-
-def split_pdf_with_t_and_empty(pdf_bytes: bytes, page_texts: List[str]):
-    """
-    Split nach T-Seiten (Trennblätter), Leerseiten werden vorher entfernt.
-    Rückgabe:
-      - docs_bytes: Liste von PDF-Bytes (ein Einzeldokument pro Segment)
-      - docs_meta:  Liste von Dicts mit start_page / end_page (1-basiert, original)
-      - t_pages:    Liste von 1-basierten Seitennummern der T-Seiten
-      - empty_pages:Liste von 1-basierten Seitennummern der Leerseiten
-    """
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    num_pages = len(reader.pages)
-
-    t_pages = []
-    empty_pages = []
-
-    docs_bytes: List[bytes] = []
-    docs_meta: List[Dict[str, int]] = []
-
-    current_writer = PdfWriter()
-    current_pages: List[int] = []
-
-    for i in range(num_pages):
-        text = page_texts[i] if i < len(page_texts) else ""
-        page_no = i + 1  # 1-basiert für Logging
-
-        if is_t_trennblatt(text):
-            t_pages.append(page_no)
-            # aktuelles Dokument beenden (falls Seiten vorhanden)
-            if len(current_writer.pages) > 0:
-                buf = io.BytesIO()
-                current_writer.write(buf)
-                docs_bytes.append(buf.getvalue())
-                docs_meta.append({
-                    "start_page": current_pages[0],
-                    "end_page": current_pages[-1],
-                })
-                current_writer = PdfWriter()
-                current_pages = []
-            # T-Seite selbst nicht übernehmen
-            continue
-
-        if is_leerseite(text):
-            empty_pages.append(page_no)
-            # Leerseite weder Dokumenttrenner noch Inhalt -> einfach überspringen
-            continue
-
-        # normale Seite -> in aktuelles Dokument aufnehmen
-        current_writer.add_page(reader.pages[i])
-        current_pages.append(page_no)
-
-    # letztes Dokument, falls offen
-    if len(current_writer.pages) > 0:
-        buf = io.BytesIO()
-        current_writer.write(buf)
-        docs_bytes.append(buf.getvalue())
-        docs_meta.append({
-            "start_page": current_pages[0],
-            "end_page": current_pages[-1],
-        })
-
-    return docs_bytes, docs_meta, t_pages, empty_pages
-
-
-# ---------------------------------------------------------
-# Aktenregister laden
-# ---------------------------------------------------------
-
-def load_aktenregister(excel_file) -> tuple[pd.DataFrame, Dict[str, Dict[str, Any]]]:
-    """
-    Lädt aktenregister.xlsx, Tabelle 'akten'.
-    Zeile 1 ignorieren, Zeile 2 = Header, Daten ab Zeile 3.
-    Liefert:
-      - df (voll)
-      - index: dict {akte_clean: row_dict}
-    """
-    df = pd.read_excel(excel_file, sheet_name="akten", header=1)
-    # Akte & SB normalisieren
-    if "Akte" not in df.columns or "SB" not in df.columns:
-        raise ValueError("Spalten 'Akte' und/oder 'SB' im Tabellenblatt 'akten' nicht gefunden.")
-
-    df["Akte_clean"] = df["Akte"].apply(normalize_akte_value)
-    df["SB_clean"] = df["SB"].apply(lambda x: str(x).strip() if not pd.isna(x) else "")
-
-    index: Dict[str, Dict[str, Any]] = {}
-    for _, row in df.iterrows():
-        akte_clean = row["Akte_clean"]
-        if akte_clean:
-            index[akte_clean] = row.to_dict()
-
-    return df, index
-
-
-# ---------------------------------------------------------
-# Aktenzeichen-Erkennung
-# ---------------------------------------------------------
-
-def find_internes_az_candidates(text: str) -> List[Dict[str, str]]:
-    """
-    Findet Kandidaten für interne Aktenzeichen im Text (mit und ohne Kürzel).
-    Rückgabe: Liste von Dicts mit keys: stamm, kuerzel (optional), raw.
-    """
-    candidates = []
-
-    # 1. Muster mit Kürzel
-    for m in re.finditer(INTERNES_AZ_MIT_KUERZEL_REGEX, text):
-        stamm = m.group(1)
-        kuerzel = m.group(2)
-        raw = m.group(0)
-        candidates.append({"stamm": stamm, "kuerzel": kuerzel, "raw": raw})
-
-    # 2. Muster ohne Kürzel
-    for m in re.finditer(INTERNES_AZ_OHNE_KUERZEL_REGEX, text):
-        stamm = m.group(1)
-        # Nur aufnehmen, wenn nicht bereits mit Kürzel erfasst
-        if not any(c["stamm"] == stamm for c in candidates):
-            candidates.append({"stamm": stamm, "kuerzel": "", "raw": m.group(0)})
-
-    # 3. Speziell hinter „Ihr Zeichen / Ihr AZ / Ihr Aktenzeichen“
-    suchphrasen = ["Ihr Zeichen", "Ihr AZ", "Ihr Az.", "Ihr Aktenzeichen"]
-    lower = text.lower()
-    for phrase in suchphrasen:
-        pos = lower.find(phrase.lower())
-        while pos != -1:
-            snippet = text[pos:pos + 80]  # ein Stück dahinter
-            # Zahl/Slash-Zahl + evtl. Kürzel extrahieren
-            m_full = re.search(INTERNES_AZ_MIT_KUERZEL_REGEX, snippet)
-            m_stamm = re.search(INTERNES_AZ_OHNE_KUERZEL_REGEX, snippet)
-            if m_full:
-                stamm = m_full.group(1)
-                kuerzel = m_full.group(2)
-                raw = m_full.group(0)
-                if not any(c["raw"] == raw for c in candidates):
-                    candidates.append({"stamm": stamm, "kuerzel": kuerzel, "raw": raw})
-            elif m_stamm:
-                stamm = m_stamm.group(1)
-                raw = m_stamm.group(0)
-                if not any(c["raw"] == raw for c in candidates):
-                    candidates.append({"stamm": stamm, "kuerzel": "", "raw": raw})
-            pos = lower.find(phrase.lower(), pos + 1)
-
-    return candidates
-
-
-def detect_internal_and_external_az(
-    text: str,
-    akten_index: Dict[str, Dict[str, Any]]
-) -> Dict[str, Any]:
-    """
-    Liefert:
-      - internes_aktenzeichen (kanonisch, z.B. 151/20M)
-      - internes_aktenzeichen_stamm (z.B. 151/20)
-      - internes_aktenzeichen_kuerzel
-      - aktenregister_row (oder None)
-      - externe_aktenzeichen (Liste)
-    """
-    internes_az = None
-    internes_stamm = None
-    internes_kuerzel = None
-    akten_row = None
-
-    candidates = find_internes_az_candidates(text)
-
-    # Priorität: solche Kandidaten, die im Aktenregister vorkommen
-    for cand in candidates:
-        stamm = cand["stamm"]
-        akte_clean = normalize_akte_value(stamm)
-        if akte_clean in akten_index:
-            internes_stamm = stamm
-            internes_kuerzel = cand["kuerzel"] or akten_index[akte_clean]["SB_clean"]
-            internes_az = f"{akte_clean}{internes_kuerzel}"
-            akten_row = akten_index[akte_clean]
-            break
-
-    # Falls keiner im Register gefunden, aber es gibt Kandidaten → nimm den ersten
-    if internes_az is None and candidates:
-        cand = candidates[0]
-        internes_stamm = cand["stamm"]
-        internes_kuerzel = cand["kuerzel"] or ""
-        internes_az = f"{internes_stamm}{internes_kuerzel}"
-
-    # externe Aktenzeichen (vereinfachte Heuristik)
-    externe_az = []
-    # typische Einleitungen
-    for m in re.finditer(r"\b(Az\.?|Aktenzeichen|Unser Zeichen|Schadennummer|Versicherungsnummer)\b[: ]+(.{1,40})", text):
-        raw = m.group(2).strip()
-        # wenn es nicht unser internes Muster ist, als extern werten
-        if not re.search(INTERNES_AZ_MIT_KUERZEL_REGEX, raw) and not re.search(INTERNES_AZ_OHNE_KUERZEL_REGEX, raw):
-            externe_az.append(raw)
-
-    # Duplikate raus
-    externe_az = list(dict.fromkeys(externe_az))
-
-    return {
-        "internes_aktenzeichen": internes_az,
-        "internes_aktenzeichen_stamm": internes_stamm,
-        "internes_aktenzeichen_kuerzel": internes_kuerzel,
-        "aktenregister_row": akten_row,
-        "externe_aktenzeichen": externe_az,
-    }
-
-
-# ---------------------------------------------------------
-# Mandant / Gegner / Absendertyp / Datum / Frist
-# ---------------------------------------------------------
-
-def guess_mandant_gegner_from_kurzbez(kurzbez: str) -> tuple[Optional[str], Optional[str]]:
-    """
-    Kurzbez.: z.B. 'Duchatz ./. Grull'
-    """
-    if not kurzbez:
-        return None, None
-    m = re.search(r"(.+?)\s+\./\.\s+(.+)", kurzbez)
-    if m:
-        return m.group(1).strip(), m.group(2).strip()
-    return kurzbez.strip(), None
-
-
-def guess_mandant_gegner_from_text(text: str) -> tuple[Optional[str], Optional[str]]:
-    m = re.search(r"(.+?)\s+\./\.\s+(.+)", text)
-    if m:
-        mandant = m.group(1).strip().splitlines()[0]
-        gegner = m.group(2).strip().splitlines()[0]
-        return mandant, gegner
-    return None, None
-
-
-def find_datums(text: str) -> List[datetime]:
-    dates = []
-    for m in re.findall(DATUM_REGEX, text):
-        try:
-            dates.append(datetime.strptime(m, "%d.%m.%Y"))
-        except Exception:
-            pass
-    return dates
-
-
-def detect_absendertyp(text: str) -> str:
-    lower = text.lower()
-    if any(w in lower for w in ["amtsgericht", "landgericht", "arbeitsgericht", "sozialgericht", "oberlandesgericht", "bundesgericht"]):
-        return "Gericht"
-    if any(w in lower for w in ["ministerium", "amt ", "behörde", "landesamt", "stadt ", "gemeinde ", "finanzamt", "jobcenter", "agentur für arbeit", "landkreis"]):
-        return "Behörde"
-    if any(w in lower for w in ["versicherung", "versicherungsnummer", "schadennummer", "huk", "allianz", "r+v", "devk", "vhv", "gothaer", "kravag"]):
-        return "Versicherung"
-    return "sonstiger Dritter"
-
-
-def detect_frist(text: str) -> Dict[str, Any]:
-    """
-    Sehr vereinfachte Fristerkennung:
-    - sucht nach 'Frist' + Datum
-    - gibt ein dict mit datum, typ, quelle, textauszug zurück oder leere Werte
-    """
-    # Beispiel 'Frist bis zum 10.12.2024'
-    for m in re.finditer(r"(Frist[^.\n]{0,80})(" + DATUM_REGEX + ")", text, flags=re.IGNORECASE):
-        umfeld = m.group(0)
-        dat_str = m.group(2)
-        try:
-            dat = datetime.strptime(dat_str, "%d.%m.%Y").date()
-            return {
-                "fristdatum": dat,
-                "fristtyp": "Frist laut Schreiben",
-                "fristquelle": umfeld.strip(),
-                "textauszug": umfeld.strip(),
-            }
-        except Exception:
-            continue
-
-    # keine Frist gefunden
-    return {
-        "fristdatum": None,
-        "fristtyp": "",
-        "fristquelle": "",
-        "textauszug": "",
-    }
-
-
-# ---------------------------------------------------------
-# Sachbearbeiter-Zuordnung
-# ---------------------------------------------------------
-
-def determine_sachbearbeiter(
-    text: str,
-    internes_az_kuerzel: Optional[str],
-    aktenregister_row: Optional[Dict[str, Any]]
-) -> str:
-    """
-    Sachbearbeiter nach Master-Prompt:
-    Regel 0: Aktenregister (SB-Spalte) vorrangig
-    Regel 1: internes Aktenzeichen / Kürzel im Text
-    Regel 2: Rechtsgebiet-Heuristik
-    Regel 3: 'nicht-zugeordnet'
-    """
-
-    # Regel 0 – Aktenregister
-    if aktenregister_row is not None:
-        sb = str(aktenregister_row.get("SB_clean") or "").strip()
-        if sb:
-            return sb
-
-    # Regel 1 – internes Aktenzeichen / Kürzel
-    if internes_az_kuerzel and internes_az_kuerzel in SACHBEARBEITER_KUERZEL:
-        return internes_az_kuerzel
-
-    for k in SACHBEARBEITER_KUERZEL:
-        if re.search(rf"\b{k}\b", text):
-            return k
-
-    # Regel 2 – Rechtsgebiet
-    lower = text.lower()
-    if any(w in lower for w in ["arbeitsgericht", "kündigung", "arbeitgeber", "arbeitnehmer", "arbeitsvertrag"]):
-        # SQ oder M – wir nehmen hier SQ als default
-        return "SQ"
-    if any(w in lower for w in ["verkehrsunfall", "verkehrsrecht", "bußgeldbescheid"]):
-        return "TS"
-    if any(w in lower for w in ["mietvertrag", "miete", "mieterhöhung", "wohnungseigentum", "weg-recht", "weg "]):
-        return "TS"
-    if any(w in lower for w in ["erbschein", "testament", "nachlass", "erbrecht"]):
-        # SQ oder CV – wir nehmen hier SQ als default
-        return "SQ"
-
-    # Regel 3 – Fallback
-    return SACHBEARBEITER_DEFAULT
-
-
-# ---------------------------------------------------------
-# Analyse eines Einzeldokuments
-# ---------------------------------------------------------
-
-def analyze_document(
-    pdf_bytes: bytes,
-    akten_index: Dict[str, Dict[str, Any]],
-    eingangsdatum: date,
-) -> Dict[str, Any]:
-    text = extract_fulltext_from_pdf_bytes(pdf_bytes)
-
-    az_info = detect_internal_and_external_az(text, akten_index)
-    internes_az = az_info["internes_aktenzeichen"]
-    internes_stamm = az_info["internes_aktenzeichen_stamm"]
-    internes_kuerzel = az_info["internes_aktenzeichen_kuerzel"]
-    akten_row = az_info["aktenregister_row"]
-    externe_az = az_info["externe_aktenzeichen"]
-
-    # Mandant / Gegner
-    mandant = None
-    gegner = None
-    if akten_row is not None:
-        kurzbez = akten_row.get("Kurzbez.", "")
-        gegner_reg = akten_row.get("Gegner", "")
-        mandant, gegner_kbz = guess_mandant_gegner_from_kurzbez(str(kurzbez) if not pd.isna(kurzbez) else "")
-        if not gegner and gegner_reg and not pd.isna(gegner_reg):
-            gegner = str(gegner_reg).strip()
-        if not gegner and gegner_kbz:
-            gegner = gegner_kbz
-    else:
-        mandant, gegner = guess_mandant_gegner_from_text(text)
-
-    # Datum: frühestes Datum im Dokument
-    dates = find_datums(text)
-    dokument_datum = min(dates).date() if dates else None
-
-    # Stichworte
-    stichworte = []
-    for kw in STICHWORT_LISTE:
-        if re.search(rf"\b{re.escape(kw)}\b", text, flags=re.IGNORECASE):
-            stichworte.append(kw)
-    stichworte = list(dict.fromkeys(stichworte))
-
-    # Frist
-    frist_info = detect_frist(text)
-
-    # Absendertyp
-    absendertyp = detect_absendertyp(text)
-
-    # Sachbearbeiter
-    sachbearbeiter = determine_sachbearbeiter(
-        text=text,
-        internes_az_kuerzel=internes_kuerzel,
-        aktenregister_row=akten_row
+from datetime import datetime, date
+from typing import Dict, List, Optional, Any
+import json
+import io
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+import hashlib
+
+# ============================================================================
+# DATENMODELLE
+# ============================================================================
+
+class UserRole(Enum):
+    MAKLER = "Makler"
+    KAEUFER = "Käufer"
+    VERKAEUFER = "Verkäufer"
+    FINANZIERER = "Finanzierer"
+    NOTAR = "Notar"
+
+class DocumentType(Enum):
+    MAKLERAUFTRAG = "Maklerauftrag"
+    DATENSCHUTZ = "Datenschutzerklärung"
+    WIDERRUFSBELEHRUNG = "Widerrufsbelehrung"
+    WIDERRUFSVERZICHT = "Verzicht auf Widerruf"
+    BWA = "BWA"
+    STEUERBESCHEID = "Steuerbescheid"
+    GEHALTSABRECHNUNG = "Gehaltsabrechnung"
+    VERMOEGENSNACHWEIS = "Vermögensnachweis"
+    SONSTIGE = "Sonstige Bonitätsunterlage"
+
+class FinanzierungsStatus(Enum):
+    ENTWURF = "Entwurf"
+    GESENDET = "An Käufer gesendet"
+    ANGENOMMEN = "Vom Käufer angenommen"
+    ZURUECKGEZOGEN = "Zurückgezogen / gegenstandslos"
+
+@dataclass
+class LegalDocument:
+    """Rechtliche Dokumente vom Makler"""
+    doc_type: str
+    version: str
+    content_text: str
+    pdf_data: Optional[bytes] = None
+    created_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class DocumentAcceptance:
+    """Akzeptanz-Protokoll für rechtliche Dokumente"""
+    user_id: str
+    document_type: str
+    document_version: str
+    accepted_at: datetime
+    ip_address: Optional[str] = None
+    role: str = ""
+
+@dataclass
+class FinancingOffer:
+    """Finanzierungsangebot"""
+    offer_id: str
+    finanzierer_id: str
+    projekt_id: str
+    darlehensbetrag: float
+    zinssatz: float
+    sollzinsbindung: int  # Jahre
+    tilgungssatz: float
+    gesamtlaufzeit: int  # Jahre
+    monatliche_rate: float
+    besondere_bedingungen: str
+    status: str
+    pdf_data: Optional[bytes] = None
+    created_at: datetime = field(default_factory=datetime.now)
+    accepted_at: Optional[datetime] = None
+    fuer_notar_markiert: bool = False
+
+@dataclass
+class WirtschaftsdatenDokument:
+    """Wirtschaftsdaten des Käufers"""
+    doc_id: str
+    kaeufer_id: str
+    doc_type: str
+    filename: str
+    upload_date: datetime
+    pdf_data: bytes
+    kategorie: str = "Noch zuzuordnen"  # Auto-Klassifizierung durch KI
+    sichtbar_fuer_makler: bool = False
+    sichtbar_fuer_notar: bool = False
+
+@dataclass
+class User:
+    """Benutzer"""
+    user_id: str
+    name: str
+    email: str
+    role: str
+    password_hash: str
+    projekt_ids: List[str] = field(default_factory=list)
+    onboarding_complete: bool = False
+    document_acceptances: List[DocumentAcceptance] = field(default_factory=list)
+
+@dataclass
+class Projekt:
+    """Immobilien-Projekt/Transaktion"""
+    projekt_id: str
+    name: str
+    beschreibung: str
+    expose_pdf: Optional[bytes] = None
+    makler_id: str = ""
+    kaeufer_ids: List[str] = field(default_factory=list)
+    verkaeufer_ids: List[str] = field(default_factory=list)
+    finanzierer_ids: List[str] = field(default_factory=list)
+    notar_id: str = ""
+    expose_nach_akzeptanz: bool = True
+    created_at: datetime = field(default_factory=datetime.now)
+
+# ============================================================================
+# SESSION STATE INITIALISIERUNG
+# ============================================================================
+
+def init_session_state():
+    """Initialisiert den Session State mit Demo-Daten"""
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+        st.session_state.current_user = None
+        st.session_state.users = {}
+        st.session_state.projekte = {}
+        st.session_state.legal_documents = {}
+        st.session_state.financing_offers = {}
+        st.session_state.wirtschaftsdaten = {}
+
+        # Demo-Benutzer erstellen
+        create_demo_users()
+        create_demo_projekt()
+
+def create_demo_users():
+    """Erstellt Demo-Benutzer für alle Rollen"""
+    demo_users = [
+        User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
+        User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
+        User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
+        User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
+        User("notar1", "Nina Notar", "notar@demo.de", UserRole.NOTAR.value, hash_password("notar123"), projekt_ids=["projekt1"]),
+    ]
+    for user in demo_users:
+        st.session_state.users[user.user_id] = user
+
+def create_demo_projekt():
+    """Erstellt ein Demo-Projekt"""
+    projekt = Projekt(
+        projekt_id="projekt1",
+        name="Musterwohnung München",
+        beschreibung="Schöne 3-Zimmer-Wohnung in München-Schwabing, 85m², Baujahr 2015",
+        makler_id="makler1",
+        kaeufer_ids=["kaeufer1"],
+        verkaeufer_ids=["verkaeufer1"],
+        finanzierer_ids=["finanzierer1"],
+        notar_id="notar1"
     )
+    st.session_state.projekte[projekt.projekt_id] = projekt
 
-    # Dateiname
-    if internes_az:
-        az_for_name = internes_az.replace("/", "-")
+def hash_password(password: str) -> str:
+    """Einfaches Password-Hashing"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ============================================================================
+# AUTHENTIFIZIERUNG
+# ============================================================================
+
+def login_page():
+    """Login-Seite"""
+    st.title("🏠 Immobilien-Transaktionsplattform")
+    st.subheader("Anmeldung")
+
+    with st.form("login_form"):
+        email = st.text_input("E-Mail")
+        password = st.text_input("Passwort", type="password")
+        submit = st.form_submit_button("Anmelden")
+
+        if submit:
+            # Benutzer suchen
+            user = None
+            for u in st.session_state.users.values():
+                if u.email == email and u.password_hash == hash_password(password):
+                    user = u
+                    break
+
+            if user:
+                st.session_state.current_user = user
+                st.rerun()
+            else:
+                st.error("❌ Ungültige Anmeldedaten")
+
+    # Demo-Zugangsdaten anzeigen
+    with st.expander("📋 Demo-Zugangsdaten"):
+        st.markdown("""
+        **Makler:**
+        E-Mail: `makler@demo.de` | Passwort: `makler123`
+
+        **Käufer:**
+        E-Mail: `kaeufer@demo.de` | Passwort: `kaeufer123`
+
+        **Verkäufer:**
+        E-Mail: `verkaeufer@demo.de` | Passwort: `verkaeufer123`
+
+        **Finanzierer:**
+        E-Mail: `finanz@demo.de` | Passwort: `finanz123`
+
+        **Notar:**
+        E-Mail: `notar@demo.de` | Passwort: `notar123`
+        """)
+
+def logout():
+    """Benutzer abmelden"""
+    st.session_state.current_user = None
+    st.rerun()
+
+# ============================================================================
+# MAKLER-BEREICH
+# ============================================================================
+
+def makler_dashboard():
+    """Dashboard für Makler"""
+    st.title("📊 Makler-Dashboard")
+
+    tabs = st.tabs([
+        "📁 Projekte",
+        "⚖️ Rechtliche Dokumente",
+        "👥 Teilnehmer-Status"
+    ])
+
+    with tabs[0]:
+        makler_projekte_view()
+
+    with tabs[1]:
+        makler_rechtliche_dokumente()
+
+    with tabs[2]:
+        makler_teilnehmer_status()
+
+def makler_projekte_view():
+    """Projekt-Übersicht für Makler"""
+    st.subheader("Meine Projekte")
+
+    # Projekte des Maklers
+    makler_projekte = [p for p in st.session_state.projekte.values()
+                       if p.makler_id == st.session_state.current_user.user_id]
+
+    if not makler_projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        if st.button("➕ Neues Projekt anlegen"):
+            st.session_state.show_new_projekt_form = True
     else:
-        az_for_name = "ohne-az"
+        for projekt in makler_projekte:
+            with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                st.write(f"**Beschreibung:** {projekt.beschreibung}")
+                st.write(f"**Käufer:** {len(projekt.kaeufer_ids)}")
+                st.write(f"**Verkäufer:** {len(projekt.verkaeufer_ids)}")
+                st.write(f"**Erstellt am:** {projekt.created_at.strftime('%d.%m.%Y')}")
 
-    mandant_part = slugify_name(mandant or "Mandant-unbekannt")
-    gegner_part = slugify_name(gegner or "Gegner-unbekannt")
-    if dokument_datum:
-        datum_part = dokument_datum.strftime("%Y-%m-%d")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✏️ Bearbeiten", key=f"edit_{projekt.projekt_id}"):
+                        st.info("Projekt-Bearbeitung (noch nicht implementiert)")
+                with col2:
+                    if st.button("👥 Teilnehmer verwalten", key=f"manage_{projekt.projekt_id}"):
+                        st.info("Teilnehmer-Verwaltung (noch nicht implementiert)")
+
+def makler_rechtliche_dokumente():
+    """Verwaltung rechtlicher Dokumente"""
+    st.subheader("⚖️ Rechtliche Dokumente / Mandanten-Setup")
+    st.markdown("""
+    Hier hinterlegen Sie die rechtlichen Standarddokumente, die Käufer und Verkäufer
+    **vor Einsicht ins Exposé** akzeptieren müssen.
+    """)
+
+    # Dokumenten-Typen
+    doc_types = [
+        DocumentType.MAKLERAUFTRAG.value,
+        DocumentType.DATENSCHUTZ.value,
+        DocumentType.WIDERRUFSBELEHRUNG.value,
+        DocumentType.WIDERRUFSVERZICHT.value
+    ]
+
+    for doc_type in doc_types:
+        with st.expander(f"📄 {doc_type}", expanded=False):
+            # Prüfen ob Dokument bereits existiert
+            doc_key = f"{st.session_state.current_user.user_id}_{doc_type}"
+            existing_doc = st.session_state.legal_documents.get(doc_key)
+
+            if existing_doc:
+                st.success(f"✅ Version {existing_doc.version} vom {existing_doc.created_at.strftime('%d.%m.%Y %H:%M')}")
+                st.text_area("Aktueller Inhalt", existing_doc.content_text, height=150, disabled=True, key=f"view_{doc_key}")
+
+                if st.button("🔄 Neue Version erstellen", key=f"update_{doc_key}"):
+                    st.session_state[f"edit_mode_{doc_key}"] = True
+                    st.rerun()
+
+            # Edit-Modus oder neu
+            if existing_doc is None or st.session_state.get(f"edit_mode_{doc_key}", False):
+                with st.form(f"form_{doc_key}"):
+                    text_content = st.text_area(
+                        "Dokumenten-Text",
+                        value=existing_doc.content_text if existing_doc else "",
+                        height=200
+                    )
+                    pdf_file = st.file_uploader("PDF-Version (optional)", type=['pdf'], key=f"pdf_{doc_key}")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        submit = st.form_submit_button("💾 Speichern")
+                    with col2:
+                        cancel = st.form_submit_button("❌ Abbrechen")
+
+                    if submit and text_content:
+                        # Version berechnen
+                        if existing_doc:
+                            old_version = float(existing_doc.version.replace('v', ''))
+                            new_version = f"v{old_version + 0.1:.1f}"
+                        else:
+                            new_version = "v1.0"
+
+                        # Dokument speichern
+                        pdf_data = pdf_file.read() if pdf_file else None
+                        doc = LegalDocument(
+                            doc_type=doc_type,
+                            version=new_version,
+                            content_text=text_content,
+                            pdf_data=pdf_data
+                        )
+                        st.session_state.legal_documents[doc_key] = doc
+                        if f"edit_mode_{doc_key}" in st.session_state:
+                            del st.session_state[f"edit_mode_{doc_key}"]
+                        st.success(f"✅ {doc_type} {new_version} gespeichert!")
+                        st.rerun()
+
+                    if cancel:
+                        if f"edit_mode_{doc_key}" in st.session_state:
+                            del st.session_state[f"edit_mode_{doc_key}"]
+                        st.rerun()
+
+def makler_teilnehmer_status():
+    """Zeigt Status der Dokumenten-Akzeptanz aller Teilnehmer"""
+    st.subheader("👥 Teilnehmer-Status")
+
+    # Projekte durchgehen
+    for projekt in st.session_state.projekte.values():
+        if projekt.makler_id != st.session_state.current_user.user_id:
+            continue
+
+        st.markdown(f"### 🏘️ {projekt.name}")
+
+        # Alle Teilnehmer sammeln
+        teilnehmer_ids = projekt.kaeufer_ids + projekt.verkaeufer_ids
+
+        if not teilnehmer_ids:
+            st.info("Noch keine Teilnehmer eingeladen.")
+            continue
+
+        # Status-Tabelle
+        status_data = []
+        for user_id in teilnehmer_ids:
+            user = st.session_state.users.get(user_id)
+            if not user:
+                continue
+
+            # Prüfe Akzeptanz-Status
+            acceptances = {acc.document_type: acc for acc in user.document_acceptances}
+
+            row = {
+                "Name": user.name,
+                "Rolle": user.role,
+                "Maklerauftrag": "✅" if DocumentType.MAKLERAUFTRAG.value in acceptances else "❌",
+                "Datenschutz": "✅" if DocumentType.DATENSCHUTZ.value in acceptances else "❌",
+                "Widerrufsbelehrung": "✅" if DocumentType.WIDERRUFSBELEHRUNG.value in acceptances else "❌",
+                "Widerrufsverzicht": "✅" if DocumentType.WIDERRUFSVERZICHT.value in acceptances else "❌",
+                "Onboarding": "✅" if user.onboarding_complete else "❌"
+            }
+            status_data.append(row)
+
+        if status_data:
+            import pandas as pd
+            df = pd.DataFrame(status_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+# ============================================================================
+# KÄUFER/VERKÄUFER ONBOARDING
+# ============================================================================
+
+def onboarding_flow():
+    """Onboarding-Flow für Käufer/Verkäufer"""
+    st.title("👋 Willkommen!")
+    st.markdown("""
+    Bevor wir Ihnen das Exposé und die Projektdaten anzeigen,
+    bitten wir Sie, die folgenden Unterlagen zu prüfen und zu bestätigen.
+    """)
+
+    makler_id = "makler1"  # In echter App: aus Projekt ermitteln
+
+    # Dokumente laden
+    doc_types = [
+        DocumentType.MAKLERAUFTRAG.value,
+        DocumentType.DATENSCHUTZ.value,
+        DocumentType.WIDERRUFSBELEHRUNG.value,
+        DocumentType.WIDERRUFSVERZICHT.value
+    ]
+
+    # Prüfen welche Dokumente noch nicht akzeptiert wurden
+    user = st.session_state.current_user
+    accepted_docs = {acc.document_type for acc in user.document_acceptances}
+
+    all_accepted = True
+    acceptances_to_save = []
+
+    st.markdown("---")
+
+    for doc_type in doc_types:
+        doc_key = f"{makler_id}_{doc_type}"
+        doc = st.session_state.legal_documents.get(doc_key)
+
+        if not doc:
+            st.warning(f"⚠️ {doc_type} wurde vom Makler noch nicht hinterlegt.")
+            all_accepted = False
+            continue
+
+        st.subheader(f"📄 {doc_type}")
+        st.caption(f"Version {doc.version}")
+
+        # Dokument anzeigen
+        with st.expander("📖 Volltext anzeigen", expanded=False):
+            st.text_area("", doc.content_text, height=200, disabled=True, key=f"read_{doc_type}")
+
+        if doc.pdf_data:
+            st.download_button(
+                "📥 PDF herunterladen",
+                doc.pdf_data,
+                file_name=f"{doc_type}_{doc.version}.pdf",
+                mime="application/pdf",
+                key=f"dl_{doc_type}"
+            )
+
+        # Checkbox für Akzeptanz
+        already_accepted = doc_type in accepted_docs
+
+        if already_accepted:
+            st.success(f"✅ Bereits akzeptiert")
+        else:
+            accept_key = f"accept_{doc_type}"
+            if st.checkbox(
+                f"Hiermit akzeptiere ich {doc_type.lower()}.",
+                key=accept_key,
+                value=False
+            ):
+                acceptances_to_save.append(
+                    DocumentAcceptance(
+                        user_id=user.user_id,
+                        document_type=doc_type,
+                        document_version=doc.version,
+                        accepted_at=datetime.now(),
+                        role=user.role
+                    )
+                )
+            else:
+                all_accepted = False
+
+        st.markdown("---")
+
+    # Fortfahren-Button
+    if all_accepted or len(acceptances_to_save) == len([dt for dt in doc_types if f"{makler_id}_{dt}" in st.session_state.legal_documents]):
+        if st.button("✅ Fortfahren & Exposé anzeigen", type="primary", use_container_width=True):
+            # Akzeptanzen speichern
+            for acc in acceptances_to_save:
+                user.document_acceptances.append(acc)
+            user.onboarding_complete = True
+            st.success("✅ Alle Dokumente akzeptiert! Sie werden weitergeleitet...")
+            st.rerun()
     else:
-        datum_part = "ohne-datum"
-    stichworte_part = slugify_name("-".join(stichworte) or "ohne-stichworte")
+        st.info("⏳ Bitte akzeptieren Sie alle Dokumente, um fortzufahren.")
 
-    filename = f"{az_for_name}_{mandant_part}_{gegner_part}_{datum_part}_{stichworte_part}.pdf"
+# ============================================================================
+# KÄUFER-BEREICH
+# ============================================================================
 
-    info = {
-        "eingangsdatum": eingangsdatum,
-        "internes_aktenzeichen": internes_az,
-        "internes_aktenzeichen_stamm": internes_stamm,
-        "internes_aktenzeichen_kuerzel": internes_kuerzel,
-        "aktenregister_row": akten_row,
-        "externe_aktenzeichen": externe_az,
-        "mandant": mandant,
-        "gegner": gegner,
-        "dokument_datum": dokument_datum,
-        "stichworte": stichworte,
-        "fristdatum": frist_info["fristdatum"],
-        "fristtyp": frist_info["fristtyp"],
-        "fristquelle": frist_info["fristquelle"],
-        "frist_textauszug": frist_info["textauszug"],
-        "absendertyp": absendertyp,
-        "sachbearbeiter": sachbearbeiter,
-        "volltext": text,
-        "dateiname": filename,
-    }
-    return info
+def kaeufer_dashboard():
+    """Dashboard für Käufer"""
+    st.title("🏠 Käufer-Dashboard")
 
+    # Onboarding prüfen
+    if not st.session_state.current_user.onboarding_complete:
+        onboarding_flow()
+        return
 
-def extract_fulltext_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    texts = extract_page_texts(pdf_bytes)
-    return "\n".join(texts)
+    # Hauptbereich
+    tabs = st.tabs(["📋 Projekte", "💰 Finanzierung", "📄 Dokumente"])
 
+    with tabs[0]:
+        kaeufer_projekte_view()
 
-# ---------------------------------------------------------
-# Excel- und ZIP-Erstellung
-# ---------------------------------------------------------
+    with tabs[1]:
+        kaeufer_finanzierung_view()
 
-def create_excels_and_zips(
-    docs: List[Dict[str, Any]]
-) -> tuple[Dict[str, Dict[str, bytes]], bytes, Optional[bytes]]:
-    """
-    Erzeugt:
-      - pro Sachbearbeiter eine ZIP mit PDFs + Excel (als Bytes)
-      - ein Gesamt-Excel (als Bytes)
-      - ein Stammdaten_Aktenzeichen-Excel (neu erkannte interne Aktenzeichen) oder None
-    Rückgabe:
-      sb_files: { 'SQ': {'zip': b'...', 'excel': b'...'}, ... }
-      gesamt_excel_bytes
-      stammdaten_excel_bytes oder None
-    """
+    with tabs[2]:
+        kaeufer_dokumente_view()
 
-    df_rows = []
-    for d in docs:
-        df_rows.append({
-            "Eingangsdatum": d["eingangsdatum"],
-            "Internes Aktenzeichen": d["internes_aktenzeichen"],
-            "Externes Aktenzeichen": ", ".join(d["externe_aktenzeichen"]),
-            "Mandant": d["mandant"],
-            "Gegner / Absender": d["gegner"],
-            "Absendertyp": d["absendertyp"],
-            "Sachbearbeiter": d["sachbearbeiter"],
-            "Fristdatum": d["fristdatum"],
-            "Fristtyp": d["fristtyp"],
-            "Fristquelle": d["fristquelle"],
-            "Textauszug": d["frist_textauszug"],
-            "PDF-Datei": d["dateiname"],
-            "Status": "offen",
-        })
+def kaeufer_projekte_view():
+    """Projekt-Ansicht für Käufer"""
+    st.subheader("Meine Projekte")
 
-    df = pd.DataFrame(df_rows)
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
 
-    # Gesamt-Excel mit farbiger Fristmarkierung
-    gesamt_buf = io.BytesIO()
-    with pd.ExcelWriter(gesamt_buf, engine="xlsxwriter", datetime_format="dd.mm.yyyy") as writer:
-        df.to_excel(writer, index=False, sheet_name="Fristen_Akten")
-        workbook = writer.book
-        worksheet = writer.sheets["Fristen_Akten"]
+    if not projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        return
 
-        # Bedingte Formatierung für Fristdatum (Spalte 'Fristdatum')
-        if "Fristdatum" in df.columns:
-            col_idx = df.columns.get_loc("Fristdatum")
-            col_letter = xl_col_to_name(col_idx)
-            # Datenbereich (ab Zeile 2, weil Zeile 1 Header)
-            last_row = len(df) + 1
-            cell_range = f"{col_letter}2:{col_letter}{last_row}"
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+            st.markdown(f"**Beschreibung:**  \n{projekt.beschreibung}")
 
-            red_format = workbook.add_format({"bg_color": "#FF9999"})
-            orange_format = workbook.add_format({"bg_color": "#FFD699"})
+            if projekt.expose_pdf:
+                st.download_button(
+                    "📥 Exposé herunterladen",
+                    projekt.expose_pdf,
+                    file_name=f"Expose_{projekt.name}.pdf",
+                    mime="application/pdf"
+                )
+            else:
+                st.info("Exposé wird vom Makler noch bereitgestellt.")
 
-            # Rot: Frist <= 3 Tage
-            worksheet.conditional_format(cell_range, {
-                "type": "formula",
-                "criteria": f"=AND(ISNUMBER({col_letter}2), {col_letter}2<=TODAY()+3)",
-                "format": red_format,
-            })
-            # Orange: Frist <= 7 Tage
-            worksheet.conditional_format(cell_range, {
-                "type": "formula",
-                "criteria": f"=AND(ISNUMBER({col_letter}2), {col_letter}2<=TODAY()+7, {col_letter}2>TODAY()+3)",
-                "format": orange_format,
-            })
+def kaeufer_finanzierung_view():
+    """Finanzierungs-Bereich für Käufer"""
+    st.subheader("💰 Finanzierung")
 
-    gesamt_buf.seek(0)
-    gesamt_excel_bytes = gesamt_buf.getvalue()
+    tabs = st.tabs(["📊 Finanzierungsangebote", "📤 Wirtschaftsdaten hochladen"])
 
-    # Excels & ZIPs pro Sachbearbeiter
-    sb_files: Dict[str, Dict[str, bytes]] = {}
-    for sb, group in df.groupby("Sachbearbeiter"):
-        sb_excel_buf = io.BytesIO()
-        with pd.ExcelWriter(sb_excel_buf, engine="xlsxwriter", datetime_format="dd.mm.yyyy") as writer:
-            group.to_excel(writer, index=False, sheet_name="Posteingang")
-        sb_excel_buf.seek(0)
-        sb_excel_bytes = sb_excel_buf.getvalue()
+    with tabs[0]:
+        kaeufer_finanzierungsangebote()
 
-        # ZIP bauen
-        zip_buf = io.BytesIO()
-        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # PDFs hinzufügen
-            for d in docs:
-                if d["sachbearbeiter"] == sb:
-                    zf.writestr(d["dateiname"], d["pdf_bytes"])
-            # Excel hineinlegen
-            zf.writestr(f"{sb}_Posteingang.xlsx", sb_excel_bytes)
+    with tabs[1]:
+        kaeufer_wirtschaftsdaten_upload()
 
-        zip_buf.seek(0)
-        sb_files[sb] = {
-            "zip": zip_buf.getvalue(),
-            "excel": sb_excel_bytes,
-        }
+def kaeufer_finanzierungsangebote():
+    """Liste der Finanzierungsangebote für Käufer"""
+    st.markdown("### 📊 Eingegangene Finanzierungsangebote")
 
-    # Stammdaten_Aktenzeichen: neue interne Aktenzeichen (ohne Registerbezug)
-    neue_az = set()
-    for d in docs:
-        if d["internes_aktenzeichen"] and d["aktenregister_row"] is None:
-            neue_az.add(d["internes_aktenzeichen"])
+    user_id = st.session_state.current_user.user_id
 
-    stammdaten_excel_bytes = None
-    if neue_az:
-        rows = []
-        for az in sorted(neue_az):
-            rows.append({
-                "Internes Aktenzeichen": az,
-                "Quelle": "Posteingang",
-            })
-        stammdaten_df = pd.DataFrame(rows)
-        stammdaten_buf = io.BytesIO()
-        with pd.ExcelWriter(stammdaten_buf, engine="xlsxwriter") as writer:
-            stammdaten_df.to_excel(writer, index=False, sheet_name="Stammdaten_Aktenzeichen")
-        stammdaten_buf.seek(0)
-        stammdaten_excel_bytes = stammdaten_buf.getvalue()
+    # Alle Angebote für Projekte des Käufers
+    relevante_angebote = []
+    for offer in st.session_state.financing_offers.values():
+        projekt = st.session_state.projekte.get(offer.projekt_id)
+        if projekt and user_id in projekt.kaeufer_ids:
+            # Nur gesendete oder angenommene Angebote zeigen
+            if offer.status in [FinanzierungsStatus.GESENDET.value, FinanzierungsStatus.ANGENOMMEN.value]:
+                relevante_angebote.append(offer)
 
-    return sb_files, gesamt_excel_bytes, stammdaten_excel_bytes
+    if not relevante_angebote:
+        st.info("📭 Noch keine Finanzierungsangebote vorhanden.")
+        return
 
+    for offer in relevante_angebote:
+        finanzierer = st.session_state.users.get(offer.finanzierer_id)
+        finanzierer_name = finanzierer.name if finanzierer else "Unbekannt"
 
-# ---------------------------------------------------------
-# Streamlit GUI
-# ---------------------------------------------------------
+        status_icon = "✅" if offer.status == FinanzierungsStatus.ANGENOMMEN.value else "📧"
+
+        with st.expander(f"{status_icon} Angebot von {finanzierer_name} - {offer.zinssatz}% Zinssatz",
+                        expanded=(offer.status == FinanzierungsStatus.GESENDET.value)):
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
+                st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
+
+            with col2:
+                st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                st.metric("Sollzinsbindung", f"{offer.sollzinsbindung} Jahre")
+                st.metric("Gesamtlaufzeit", f"{offer.gesamtlaufzeit} Jahre")
+
+            if offer.besondere_bedingungen:
+                st.markdown("**Besondere Bedingungen:**")
+                st.info(offer.besondere_bedingungen)
+
+            if offer.pdf_data:
+                st.download_button(
+                    "📥 Angebot als PDF herunterladen",
+                    offer.pdf_data,
+                    file_name=f"Finanzierungsangebot_{offer.offer_id}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_offer_{offer.offer_id}"
+                )
+
+            # Annahme-Bereich
+            if offer.status == FinanzierungsStatus.GESENDET.value:
+                st.markdown("---")
+                st.markdown("### 🎯 Angebot annehmen")
+
+                notar_checkbox = st.checkbox(
+                    "Dieses Angebot soll für den Notar als Finanzierungsnachweis markiert werden",
+                    key=f"notar_{offer.offer_id}"
+                )
+
+                if st.button("✅ Finanzierungsangebot annehmen",
+                           type="primary",
+                           key=f"accept_{offer.offer_id}",
+                           use_container_width=True):
+                    # Angebot annehmen
+                    offer.status = FinanzierungsStatus.ANGENOMMEN.value
+                    offer.accepted_at = datetime.now()
+                    offer.fuer_notar_markiert = notar_checkbox
+
+                    st.success("✅ Finanzierungsangebot erfolgreich angenommen!")
+                    st.balloons()
+                    st.rerun()
+
+            elif offer.status == FinanzierungsStatus.ANGENOMMEN.value:
+                st.success(f"✅ Angenommen am {offer.accepted_at.strftime('%d.%m.%Y %H:%M')}")
+                if offer.fuer_notar_markiert:
+                    st.info("📋 Als Finanzierungsnachweis für Notar markiert")
+
+def kaeufer_wirtschaftsdaten_upload():
+    """Upload-Bereich für Wirtschaftsdaten"""
+    st.markdown("### 📤 Wirtschaftsdaten hochladen")
+    st.info("Laden Sie hier Ihre Bonitätsunterlagen für die Finanzierung hoch.")
+
+    with st.form("wirtschaftsdaten_upload"):
+        uploaded_files = st.file_uploader(
+            "Dokumente auswählen",
+            type=['pdf', 'jpg', 'png'],
+            accept_multiple_files=True
+        )
+
+        doc_type = st.selectbox(
+            "Dokumenten-Typ",
+            [
+                DocumentType.BWA.value,
+                DocumentType.STEUERBESCHEID.value,
+                DocumentType.GEHALTSABRECHNUNG.value,
+                DocumentType.VERMOEGENSNACHWEIS.value,
+                DocumentType.SONSTIGE.value
+            ]
+        )
+
+        submit = st.form_submit_button("📤 Hochladen")
+
+        if submit and uploaded_files:
+            for file in uploaded_files:
+                # In echter App: OCR und KI-Klassifizierung
+                doc_id = f"wirt_{st.session_state.current_user.user_id}_{len(st.session_state.wirtschaftsdaten)}"
+
+                doc = WirtschaftsdatenDokument(
+                    doc_id=doc_id,
+                    kaeufer_id=st.session_state.current_user.user_id,
+                    doc_type=doc_type,
+                    filename=file.name,
+                    upload_date=datetime.now(),
+                    pdf_data=file.read()
+                )
+
+                st.session_state.wirtschaftsdaten[doc_id] = doc
+
+            st.success(f"✅ {len(uploaded_files)} Dokument(e) hochgeladen!")
+            st.rerun()
+
+    # Hochgeladene Dokumente anzeigen
+    st.markdown("---")
+    st.markdown("### 📋 Hochgeladene Dokumente")
+
+    user_docs = [d for d in st.session_state.wirtschaftsdaten.values()
+                 if d.kaeufer_id == st.session_state.current_user.user_id]
+
+    if user_docs:
+        for doc in user_docs:
+            col1, col2, col3 = st.columns([3, 2, 1])
+            with col1:
+                st.write(f"📄 {doc.filename}")
+            with col2:
+                st.caption(f"{doc.doc_type} | {doc.upload_date.strftime('%d.%m.%Y')}")
+            with col3:
+                st.download_button(
+                    "📥",
+                    doc.pdf_data,
+                    file_name=doc.filename,
+                    key=f"dl_{doc.doc_id}"
+                )
+    else:
+        st.info("Noch keine Dokumente hochgeladen.")
+
+def kaeufer_dokumente_view():
+    """Dokumenten-Übersicht für Käufer"""
+    st.subheader("📄 Meine Dokumente")
+    st.info("Hier sehen Sie alle akzeptierten Dokumente.")
+
+    user = st.session_state.current_user
+    if user.document_acceptances:
+        for acc in user.document_acceptances:
+            st.write(f"✅ {acc.document_type} (Version {acc.document_version}) - akzeptiert am {acc.accepted_at.strftime('%d.%m.%Y %H:%M')}")
+    else:
+        st.info("Noch keine Dokumente akzeptiert.")
+
+# ============================================================================
+# VERKÄUFER-BEREICH
+# ============================================================================
+
+def verkaeufer_dashboard():
+    """Dashboard für Verkäufer"""
+    st.title("🏡 Verkäufer-Dashboard")
+
+    # Onboarding prüfen
+    if not st.session_state.current_user.onboarding_complete:
+        onboarding_flow()
+        return
+
+    st.info("Verkäufer-Funktionen werden noch entwickelt.")
+
+# ============================================================================
+# FINANZIERER-BEREICH
+# ============================================================================
+
+def finanzierer_dashboard():
+    """Dashboard für Finanzierer"""
+    st.title("💼 Finanzierer-Dashboard")
+
+    tabs = st.tabs([
+        "📊 Wirtschaftsdaten Käufer",
+        "💰 Finanzierungsangebote erstellen",
+        "📋 Meine Angebote"
+    ])
+
+    with tabs[0]:
+        finanzierer_wirtschaftsdaten_view()
+
+    with tabs[1]:
+        finanzierer_angebote_erstellen()
+
+    with tabs[2]:
+        finanzierer_angebote_liste()
+
+def finanzierer_wirtschaftsdaten_view():
+    """Einsicht in Wirtschaftsdaten der Käufer"""
+    st.subheader("📊 Wirtschaftsdaten Käufer")
+
+    # Alle Wirtschaftsdaten für Projekte des Finanzierers
+    finanzierer_id = st.session_state.current_user.user_id
+    relevante_projekte = [p for p in st.session_state.projekte.values()
+                         if finanzierer_id in p.finanzierer_ids]
+
+    if not relevante_projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    for projekt in relevante_projekte:
+        st.markdown(f"### 🏘️ {projekt.name}")
+
+        # Wirtschaftsdaten der Käufer in diesem Projekt
+        kaeufer_docs = {}
+        for doc in st.session_state.wirtschaftsdaten.values():
+            if doc.kaeufer_id in projekt.kaeufer_ids:
+                if doc.kaeufer_id not in kaeufer_docs:
+                    kaeufer_docs[doc.kaeufer_id] = []
+                kaeufer_docs[doc.kaeufer_id].append(doc)
+
+        if not kaeufer_docs:
+            st.info("Noch keine Wirtschaftsdaten von Käufern hochgeladen.")
+            continue
+
+        for kaeufer_id, docs in kaeufer_docs.items():
+            kaeufer = st.session_state.users.get(kaeufer_id)
+            kaeufer_name = kaeufer.name if kaeufer else "Unbekannt"
+
+            with st.expander(f"👤 {kaeufer_name}", expanded=True):
+                # Dokumente nach Kategorie gruppieren
+                kategorien = {}
+                for doc in docs:
+                    if doc.doc_type not in kategorien:
+                        kategorien[doc.doc_type] = []
+                    kategorien[doc.doc_type].append(doc)
+
+                for kategorie, kategorie_docs in kategorien.items():
+                    st.markdown(f"**{kategorie}** ({len(kategorie_docs)} Dokument(e))")
+                    for doc in kategorie_docs:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.write(f"📄 {doc.filename}")
+                            st.caption(f"Hochgeladen: {doc.upload_date.strftime('%d.%m.%Y %H:%M')}")
+                        with col2:
+                            st.download_button(
+                                "📥 Download",
+                                doc.pdf_data,
+                                file_name=doc.filename,
+                                key=f"fin_dl_{doc.doc_id}"
+                            )
+                    st.markdown("---")
+
+def finanzierer_angebote_erstellen():
+    """Formular zum Erstellen von Finanzierungsangeboten"""
+    st.subheader("💰 Neues Finanzierungsangebot erstellen")
+
+    finanzierer_id = st.session_state.current_user.user_id
+    relevante_projekte = [p for p in st.session_state.projekte.values()
+                         if finanzierer_id in p.finanzierer_ids]
+
+    if not relevante_projekte:
+        st.warning("Sie sind noch keinem Projekt zugeordnet.")
+        return
+
+    with st.form("neues_angebot"):
+        # Projekt auswählen
+        projekt_options = {p.name: p.projekt_id for p in relevante_projekte}
+        selected_projekt_name = st.selectbox("Projekt", list(projekt_options.keys()))
+        projekt_id = projekt_options[selected_projekt_name]
+
+        st.markdown("### 📋 Konditionen")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            darlehensbetrag = st.number_input("Darlehensbetrag (€)", min_value=0.0, value=300000.0, step=1000.0)
+            zinssatz = st.number_input("Zinssatz (%)", min_value=0.0, max_value=20.0, value=3.5, step=0.1)
+            tilgungssatz = st.number_input("Tilgungssatz (%)", min_value=0.0, max_value=10.0, value=2.0, step=0.1)
+
+        with col2:
+            sollzinsbindung = st.number_input("Sollzinsbindung (Jahre)", min_value=1, max_value=40, value=10)
+            gesamtlaufzeit = st.number_input("Gesamtlaufzeit (Jahre)", min_value=1, max_value=40, value=30)
+            monatliche_rate = st.number_input("Monatliche Rate (€)", min_value=0.0, value=1375.0, step=10.0)
+
+        besondere_bedingungen = st.text_area(
+            "Besondere Bedingungen",
+            placeholder="z.B. Sondertilgung bis 5% p.a., bereitstellungszinsfreie Zeit 6 Monate",
+            height=100
+        )
+
+        pdf_upload = st.file_uploader("Angebot als PDF anhängen (optional)", type=['pdf'])
+
+        col1, col2 = st.columns(2)
+        with col1:
+            als_entwurf = st.form_submit_button("💾 Als Entwurf speichern")
+        with col2:
+            an_kaeufer = st.form_submit_button("📧 An Käufer senden", type="primary")
+
+        if als_entwurf or an_kaeufer:
+            # Angebot erstellen
+            offer_id = f"offer_{len(st.session_state.financing_offers)}"
+            status = FinanzierungsStatus.ENTWURF.value if als_entwurf else FinanzierungsStatus.GESENDET.value
+
+            offer = FinancingOffer(
+                offer_id=offer_id,
+                finanzierer_id=finanzierer_id,
+                projekt_id=projekt_id,
+                darlehensbetrag=darlehensbetrag,
+                zinssatz=zinssatz,
+                sollzinsbindung=sollzinsbindung,
+                tilgungssatz=tilgungssatz,
+                gesamtlaufzeit=gesamtlaufzeit,
+                monatliche_rate=monatliche_rate,
+                besondere_bedingungen=besondere_bedingungen,
+                status=status,
+                pdf_data=pdf_upload.read() if pdf_upload else None
+            )
+
+            st.session_state.financing_offers[offer_id] = offer
+
+            if als_entwurf:
+                st.success("✅ Angebot als Entwurf gespeichert!")
+            else:
+                st.success("✅ Angebot wurde an Käufer gesendet!")
+
+            st.rerun()
+
+def finanzierer_angebote_liste():
+    """Liste aller Angebote des Finanzierers"""
+    st.subheader("📋 Meine Finanzierungsangebote")
+
+    finanzierer_id = st.session_state.current_user.user_id
+    meine_angebote = [o for o in st.session_state.financing_offers.values()
+                     if o.finanzierer_id == finanzierer_id]
+
+    if not meine_angebote:
+        st.info("Noch keine Angebote erstellt.")
+        return
+
+    # Nach Status gruppieren
+    status_gruppen = {}
+    for offer in meine_angebote:
+        if offer.status not in status_gruppen:
+            status_gruppen[offer.status] = []
+        status_gruppen[offer.status].append(offer)
+
+    for status, offers in status_gruppen.items():
+        st.markdown(f"### {status} ({len(offers)})")
+
+        for offer in offers:
+            projekt = st.session_state.projekte.get(offer.projekt_id)
+            projekt_name = projekt.name if projekt else "Unbekannt"
+
+            with st.expander(f"💰 {projekt_name} - {offer.darlehensbetrag:,.0f} € | {offer.zinssatz}%"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                    st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
+                with col2:
+                    st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                    st.metric("Laufzeit", f"{offer.gesamtlaufzeit} Jahre")
+                with col3:
+                    st.write(f"**Status:** {offer.status}")
+                    st.write(f"**Erstellt:** {offer.created_at.strftime('%d.%m.%Y')}")
+                    if offer.accepted_at:
+                        st.write(f"**Angenommen:** {offer.accepted_at.strftime('%d.%m.%Y')}")
+
+                if offer.status == FinanzierungsStatus.ENTWURF.value:
+                    if st.button("📧 An Käufer senden", key=f"send_{offer.offer_id}"):
+                        offer.status = FinanzierungsStatus.GESENDET.value
+                        st.success("✅ Angebot wurde gesendet!")
+                        st.rerun()
+
+# ============================================================================
+# NOTAR-BEREICH
+# ============================================================================
+
+def notar_dashboard():
+    """Dashboard für Notar"""
+    st.title("⚖️ Notar-Dashboard")
+    st.info("Notar-Funktionen werden noch entwickelt.")
+
+# ============================================================================
+# HAUPTANWENDUNG
+# ============================================================================
 
 def main():
-    st.set_page_config(page_title="Posteingang RHM | MASTER-WORKFLOW", layout="wide")
-    st.title("📥 Automatisierter Posteingang (RHM | Anwälte)")
-
-    st.markdown(
-        "1. **Tagespost-PDF** hochladen (OCR, gesamter Posteingang, mit T-Trennblättern).  \n"
-        "2. **aktenregister.xlsx** hochladen (Tabellenblatt „akten“).  \n"
-        "3. **Eingangsdatum** wählen.  \n"
-        "4. Auf **„Posteingang verarbeiten“** klicken."
+    """Hauptanwendung"""
+    st.set_page_config(
+        page_title="Immobilien-Transaktionsplattform",
+        page_icon="🏠",
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
 
-    eingangsdatum = st.date_input("Eingangsdatum der Tagespost", value=date.today())
+    # Session State initialisieren
+    init_session_state()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        tages_pdf = st.file_uploader(
-            "Tagespost-PDF (OCR, gesamter Posteingang)", type=["pdf"]
-        )
-    with col2:
-        akten_excel = st.file_uploader(
-            "Aktenregister (aktenregister.xlsx, Blatt „akten“ – Pflicht)", type=["xls", "xlsx"]
-        )
+    # Login-Check
+    if st.session_state.current_user is None:
+        login_page()
+        return
 
-    process_btn = st.button("🚀 Posteingang verarbeiten")
+    # Sidebar mit Benutzer-Info
+    with st.sidebar:
+        st.markdown("### 👤 Angemeldet als:")
+        st.write(f"**{st.session_state.current_user.name}**")
+        st.caption(f"Rolle: {st.session_state.current_user.role}")
+        st.caption(f"E-Mail: {st.session_state.current_user.email}")
 
-    status_box = st.empty()
-    log_lines = []
+        if st.button("🚪 Abmelden", use_container_width=True):
+            logout()
 
-    def log(msg: str):
-        log_lines.append(msg)
-        status_box.text("\n".join(log_lines[-20:]))
+        st.markdown("---")
+        st.markdown("### ℹ️ System-Info")
+        st.caption(f"Benutzer: {len(st.session_state.users)}")
+        st.caption(f"Projekte: {len(st.session_state.projekte)}")
+        st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
 
-    if process_btn:
-        if tages_pdf is None:
-            st.error("Bitte zuerst das Tages-PDF hochladen.")
-            return
-        if akten_excel is None:
-            st.error("Bitte aktenregister.xlsx hochladen (Tabellenblatt 'akten').")
-            return
+    # Hauptbereich - je nach Rolle
+    role = st.session_state.current_user.role
 
-        # 0. Aktenregister laden
-        try:
-            log("Lade Aktenregister …")
-            akten_df, akten_index = load_aktenregister(akten_excel)
-            log(f"Aktenregister geladen ({len(akten_index)} Akten gefunden).")
-        except Exception as e:
-            st.error(f"Fehler beim Laden des Aktenregisters: {e}")
-            return
-
-        # 1. PDF einlesen, Seiten klassifizieren
-        pdf_bytes = tages_pdf.read()
-        log(f"Starte Verarbeitung der PDF-Datei: {tages_pdf.name}")
-        page_texts = extract_page_texts(pdf_bytes)
-        num_pages = len(page_texts)
-        log(f"Seiten insgesamt: {num_pages}")
-
-        # 2. Split nach T-Seiten, Leerseiten entfernen
-        docs_bytes, docs_meta, t_pages, empty_pages = split_pdf_with_t_and_empty(pdf_bytes, page_texts)
-        log(f"Erkannte T-Trennblätter (Seiten): {t_pages if t_pages else '– keine –'}")
-        log(f"Erkannte Leerseiten (entfernt, keine Trennblätter): {empty_pages if empty_pages else '– keine –'}")
-        log(f"Erzeugte Einzeldokumente: {len(docs_bytes)}")
-
-        docs_info: List[Dict[str, Any]] = []
-
-        # 3. Jedes Einzeldokument analysieren
-        for idx, (doc_bytes, meta) in enumerate(zip(docs_bytes, docs_meta), start=1):
-            start_page = meta["start_page"]
-            end_page = meta["end_page"]
-            log(f"Verarbeite Dokument {idx}/{len(docs_bytes)} (Seiten {start_page}–{end_page}) …")
-            info = analyze_document(
-                pdf_bytes=doc_bytes,
-                akten_index=akten_index,
-                eingangsdatum=eingangsdatum,
-            )
-            info["pdf_bytes"] = doc_bytes
-            info["dokument_nr"] = idx
-            info["start_page"] = start_page
-            info["end_page"] = end_page
-
-            log_msg = f"Dokument {idx}/{len(docs_bytes)}"
-            if info["internes_aktenzeichen"]:
-                log_msg += f" → Akte {info['internes_aktenzeichen']}, SB = {info['sachbearbeiter']}"
-            else:
-                log_msg += f" → kein internes Aktenzeichen, SB = {info['sachbearbeiter']}"
-            log(log_msg)
-
-            docs_info.append(info)
-
-        # 4. Verteilung pro Sachbearbeiter
-        zuordnung = {}
-        for d in docs_info:
-            zuordnung.setdefault(d["sachbearbeiter"], 0)
-            zuordnung[d["sachbearbeiter"]] += 1
-
-        log("Verteilung der Dokumente pro Sachbearbeiter:")
-        for sb, count in zuordnung.items():
-            log(f"  {sb}: {count} Dokument(e)")
-
-        # 5. Excels & ZIPs erzeugen
-        log("Erstelle Excel-Listen und ZIP-Dateien …")
-        sb_files, gesamt_excel_bytes, stammdaten_excel_bytes = create_excels_and_zips(docs_info)
-        log("ZIP-Erstellung abgeschlossen.")
-
-        log("Verarbeitung abgeschlossen.")
-
-        # -------------------------------------------------
-        # Ergebnis-Bereich
-        # -------------------------------------------------
-        st.subheader("Ergebnisse")
-
-        # Downloads pro Sachbearbeiter
-        for sb in ["SQ", "TS", "M", "FÜ", "CV", SACHBEARBEITER_DEFAULT]:
-            if sb in sb_files:
-                files = sb_files[sb]
-                st.markdown(f"### Sachbearbeiter: **{sb}**")
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.download_button(
-                        label=f"📦 Download {sb}.zip",
-                        data=files["zip"],
-                        file_name=f"{sb}.zip",
-                        mime="application/zip",
-                    )
-                with c2:
-                    st.download_button(
-                        label=f"📊 Download Excel {sb}",
-                        data=files["excel"],
-                        file_name=f"{sb}_Posteingang.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    )
-                st.markdown("---")
-
-        # Gesamt-Excel
-        st.markdown("### Gesamtübersicht „Fristen & Akten“")
-        st.download_button(
-            label="📊 Download Gesamt-Excel „Fristen_Akten_Gesamt.xlsx“",
-            data=gesamt_excel_bytes,
-            file_name="Fristen_Akten_Gesamt.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-        # Stammdaten_Aktenzeichen
-        if stammdaten_excel_bytes:
-            st.markdown("### Neue Stammdaten_Aktenzeichen")
-            st.download_button(
-                label="📊 Download „Stammdaten_Aktenzeichen.xlsx“",
-                data=stammdaten_excel_bytes,
-                file_name="Stammdaten_Aktenzeichen.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
+    if role == UserRole.MAKLER.value:
+        makler_dashboard()
+    elif role == UserRole.KAEUFER.value:
+        kaeufer_dashboard()
+    elif role == UserRole.VERKAEUFER.value:
+        verkaeufer_dashboard()
+    elif role == UserRole.FINANZIERER.value:
+        finanzierer_dashboard()
+    elif role == UserRole.NOTAR.value:
+        notar_dashboard()
+    else:
+        st.error("Unbekannte Rolle")
 
 if __name__ == "__main__":
     main()
