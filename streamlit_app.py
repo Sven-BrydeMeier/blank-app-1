@@ -63,6 +63,37 @@ class NotificationType(Enum):
     WARNING = "warning"
     ERROR = "error"
 
+class PropertyType(Enum):
+    """Objektarten"""
+    WOHNUNG = "Wohnung"
+    HAUS = "Haus"
+    MFH = "Mehrfamilienhaus"
+    LAND = "Grundstück/Land"
+
+class DocumentCategory(Enum):
+    """Dokumenten-Kategorien"""
+    PERSON = "Personenbezogene Unterlagen"
+    OBJEKT_BASIS = "Objektunterlagen Grundsätzlich"
+    WEG_SPEZIAL = "Wohnung/Teileigentum Spezial"
+    LAND_SPEZIAL = "Land/Acker/Wald Spezial"
+    FINANZIERUNG = "Finanzierungsunterlagen"
+    NOTAR = "Notarielle Dokumente"
+
+class ChecklistType(Enum):
+    """Notarielle Checklisten-Typen"""
+    KAUFVERTRAG = "Checkliste Kaufvertrag Grundstück/Wohnung"
+    UEBERLASSUNG = "Checkliste Überlassungsvertrag"
+    MANDANT = "Mandantenfragebogen Notariat"
+    DATENSCHUTZ = "Datenschutz-Info Notariat"
+    VERBRAUCHER = "Verbraucher-Informationsblatt"
+
+class DocumentRequestStatus(Enum):
+    """Status einer Dokumentenanforderung"""
+    ANGEFORDERT = "Angefordert"
+    BEREITGESTELLT = "Bereitgestellt"
+    FEHLT = "Fehlt noch"
+    NICHT_RELEVANT = "Nicht relevant"
+
 # ============================================================================
 # DATENMODELLE
 # ============================================================================
@@ -199,6 +230,139 @@ class Projekt:
     created_at: datetime = field(default_factory=datetime.now)
     timeline_events: List[str] = field(default_factory=list)
     notartermin: Optional[datetime] = None
+    property_type: str = PropertyType.WOHNUNG.value  # Objektart
+    expose_data_id: Optional[str] = None  # Verweis auf ExposeData
+
+@dataclass
+class MaklerAgent:
+    """Makler-Team-Mitglied"""
+    agent_id: str
+    name: str
+    position: str  # z.B. "Geschäftsführer", "Immobilienberater"
+    telefon: str
+    email: str
+    foto: Optional[bytes] = None
+
+@dataclass
+class MaklerProfile:
+    """Makler-Profil"""
+    profile_id: str
+    makler_id: str
+    firmenname: str
+    adresse: str
+    telefon: str
+    email: str
+    website: str = ""
+    logo: Optional[bytes] = None
+    team_mitglieder: List[MaklerAgent] = field(default_factory=list)
+    backoffice_kontakt: str = ""
+    backoffice_email: str = ""
+    backoffice_telefon: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class ExposeData:
+    """Exposé-Daten für PDF und Web-Generierung"""
+    expose_id: str
+    projekt_id: str
+
+    # Basis-Informationen
+    objekttitel: str = ""
+    objektbeschreibung: str = ""
+    lage_beschreibung: str = ""
+
+    # Objektdaten
+    objektart: str = PropertyType.WOHNUNG.value
+    wohnflaeche: float = 0.0
+    grundstuecksflaeche: float = 0.0
+    anzahl_zimmer: float = 0.0
+    anzahl_schlafzimmer: int = 0
+    anzahl_badezimmer: int = 0
+    anzahl_etagen: int = 0
+    etage: str = ""
+    baujahr: int = 0
+    zustand: str = ""  # z.B. "Erstbezug", "Renoviert", "Sanierungsbedürftig"
+    ausstattung: str = ""  # Freitext
+
+    # Preise
+    kaufpreis: float = 0.0
+    provision: str = ""
+    hausgeld: float = 0.0
+    grundsteuer: float = 0.0
+
+    # Energie
+    energieausweis_typ: str = ""  # "Verbrauch" oder "Bedarf"
+    energieeffizienzklasse: str = ""
+    endenergieverbrauch: float = 0.0
+    wesentliche_energietraeger: str = ""
+    baujahr_energieausweis: int = 0
+    gueltig_bis: Optional[date] = None
+
+    # Besonderheiten
+    besonderheiten: str = ""
+    verfuegbar_ab: Optional[date] = None
+
+    # WEG-spezifisch (für Wohnungen)
+    weg_verwaltung: str = ""
+    ruecklage: float = 0.0
+
+    # Bilder und Dokumente
+    titelbild: Optional[bytes] = None
+    weitere_bilder: List[bytes] = field(default_factory=list)
+    grundrisse: List[bytes] = field(default_factory=list)
+    lageplan: Optional[bytes] = None
+
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class DocumentRequest:
+    """Dokumenten-Anforderung"""
+    request_id: str
+    projekt_id: str
+    dokument_typ: str
+    angefordert_von: str  # user_id
+    angefordert_bei: str  # user_id
+    status: str = DocumentRequestStatus.ANGEFORDERT.value
+    nachricht: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
+    bereitgestellt_am: Optional[datetime] = None
+    dokument_id: Optional[str] = None
+
+@dataclass
+class NotarChecklist:
+    """Notarielle Checklisten"""
+    checklist_id: str
+    projekt_id: str
+    checklist_typ: str  # ChecklistType
+    partei: str  # "Käufer" oder "Verkäufer"
+
+    # Daten-Dictionary (flexibel für verschiedene Checklisten)
+    daten: Dict[str, Any] = field(default_factory=dict)
+
+    # Status
+    vollstaendig: bool = False
+    freigegeben: bool = False
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class BankFolder:
+    """Bankenmappe"""
+    folder_id: str
+    projekt_id: str
+    erstellt_von: str  # user_id
+
+    # Enthaltene Dokumente (IDs)
+    expose_id: Optional[str] = None
+    grundrisse_ids: List[str] = field(default_factory=list)
+    dokument_ids: List[str] = field(default_factory=list)
+
+    # Generiertes PDF
+    pdf_data: Optional[bytes] = None
+
+    created_at: datetime = field(default_factory=datetime.now)
+    status: str = "Entwurf"
 
 # ============================================================================
 # SESSION STATE INITIALISIERUNG
@@ -218,6 +382,13 @@ def init_session_state():
         st.session_state.comments = {}
         st.session_state.invitations = {}
         st.session_state.timeline_events = {}
+
+        # Neue Datenstrukturen
+        st.session_state.makler_profiles = {}
+        st.session_state.expose_data = {}
+        st.session_state.document_requests = {}
+        st.session_state.notar_checklists = {}
+        st.session_state.bank_folders = {}
 
         # Demo-Daten
         create_demo_users()
@@ -354,6 +525,836 @@ def update_projekt_status(projekt_id: str):
     if completed_events:
         latest_event = max(completed_events, key=lambda e: e.position)
         projekt.status = latest_event.status
+
+# ============================================================================
+# NOTAR-CHECKLISTEN-FUNKTIONEN
+# ============================================================================
+
+def get_checklist_fields(checklist_typ: str) -> Dict[str, Dict[str, Any]]:
+    """Gibt die Felder-Definition für einen Checklisten-Typ zurück"""
+
+    if checklist_typ == ChecklistType.KAUFVERTRAG.value:
+        return {
+            "vorname": {"label": "Vorname", "type": "text", "required": True},
+            "nachname": {"label": "Nachname", "type": "text", "required": True},
+            "geburtsdatum": {"label": "Geburtsdatum", "type": "date", "required": True},
+            "geburtsort": {"label": "Geburtsort", "type": "text", "required": True},
+            "staatsangehoerigkeit": {"label": "Staatsangehörigkeit", "type": "text", "required": True},
+            "familienstand": {"label": "Familienstand", "type": "select", "options": ["ledig", "verheiratet", "geschieden", "verwitwet"], "required": True},
+            "gueterstand": {"label": "Güterstand (bei Verheirateten)", "type": "select", "options": ["Zugewinngemeinschaft", "Gütertrennung", "Gütergemeinschaft", "N/A"], "required": False},
+            "strasse": {"label": "Straße", "type": "text", "required": True},
+            "hausnummer": {"label": "Hausnummer", "type": "text", "required": True},
+            "plz": {"label": "PLZ", "type": "text", "required": True},
+            "ort": {"label": "Ort", "type": "text", "required": True},
+            "telefon": {"label": "Telefon", "type": "text", "required": True},
+            "email": {"label": "E-Mail", "type": "text", "required": True},
+            "steuer_id": {"label": "Steuer-ID", "type": "text", "required": True},
+            "personalausweis": {"label": "Personalausweis-Nr.", "type": "text", "required": True},
+            "ausgestellt_am": {"label": "Ausgestellt am", "type": "date", "required": True},
+            "gueltig_bis": {"label": "Gültig bis", "type": "date", "required": True},
+        }
+
+    elif checklist_typ == ChecklistType.UEBERLASSUNG.value:
+        return {
+            "vorname": {"label": "Vorname", "type": "text", "required": True},
+            "nachname": {"label": "Nachname", "type": "text", "required": True},
+            "geburtsdatum": {"label": "Geburtsdatum", "type": "date", "required": True},
+            "geburtsort": {"label": "Geburtsort", "type": "text", "required": True},
+            "staatsangehoerigkeit": {"label": "Staatsangehörigkeit", "type": "text", "required": True},
+            "strasse": {"label": "Straße", "type": "text", "required": True},
+            "hausnummer": {"label": "Hausnummer", "type": "text", "required": True},
+            "plz": {"label": "PLZ", "type": "text", "required": True},
+            "ort": {"label": "Ort", "type": "text", "required": True},
+            "telefon": {"label": "Telefon", "type": "text", "required": True},
+            "email": {"label": "E-Mail", "type": "text", "required": True},
+            "ueberlassungsdatum": {"label": "Überlassungsdatum", "type": "date", "required": True},
+            "eigentumsverhaeltnis": {"label": "Eigentumsverhältnis", "type": "text", "required": True},
+            "nutzungsvereinbarung": {"label": "Nutzungsvereinbarung", "type": "textarea", "required": False},
+            "besondere_bedingungen": {"label": "Besondere Bedingungen", "type": "textarea", "required": False},
+            "zustimmung_eigentuemer": {"label": "Zustimmung Eigentümer vorhanden", "type": "checkbox", "required": True},
+            "vollmacht": {"label": "Vollmacht vorhanden", "type": "checkbox", "required": False},
+        }
+
+    elif checklist_typ == ChecklistType.MANDANT.value:
+        return {
+            "vorname": {"label": "Vorname", "type": "text", "required": True},
+            "nachname": {"label": "Nachname", "type": "text", "required": True},
+            "geburtsdatum": {"label": "Geburtsdatum", "type": "date", "required": True},
+            "geburtsort": {"label": "Geburtsort", "type": "text", "required": True},
+            "staatsangehoerigkeit": {"label": "Staatsangehörigkeit", "type": "text", "required": True},
+            "strasse": {"label": "Straße", "type": "text", "required": True},
+            "hausnummer": {"label": "Hausnummer", "type": "text", "required": True},
+            "plz": {"label": "PLZ", "type": "text", "required": True},
+            "ort": {"label": "Ort", "type": "text", "required": True},
+            "telefon": {"label": "Telefon", "type": "text", "required": True},
+            "email": {"label": "E-Mail", "type": "text", "required": True},
+            "beruf": {"label": "Beruf", "type": "text", "required": True},
+            "arbeitgeber": {"label": "Arbeitgeber", "type": "text", "required": False},
+            "pep_status": {"label": "Politisch exponierte Person (PEP)", "type": "select", "options": ["Nein", "Ja"], "required": True},
+            "herkunft_mittel": {"label": "Herkunft der Mittel", "type": "textarea", "required": True},
+            "geldwaesche_erklaerung": {"label": "Geldwäsche-Erklärung abgegeben", "type": "checkbox", "required": True},
+        }
+
+    elif checklist_typ == ChecklistType.DATENSCHUTZ.value:
+        return {
+            "datenschutz_text": {
+                "label": "Datenschutzinformation Notariat",
+                "type": "info",
+                "content": """
+# Datenschutzinformation gemäß Art. 13, 14 DSGVO
+
+## 1. Verantwortlicher
+[Notariat] ist verantwortlich für die Verarbeitung Ihrer personenbezogenen Daten.
+
+## 2. Zweck der Datenverarbeitung
+Ihre Daten werden ausschließlich zur Erfüllung unserer notariellen Pflichten und zur Vertragsabwicklung verarbeitet.
+
+## 3. Rechtsgrundlage
+Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b) und c) DSGVO zur Erfüllung vertraglicher und gesetzlicher Pflichten.
+
+## 4. Speicherdauer
+Ihre Daten werden gemäß den gesetzlichen Aufbewahrungsfristen (§ 45 BNotO) für mindestens 10 Jahre gespeichert.
+
+## 5. Ihre Rechte
+Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch.
+                """,
+                "required": True
+            },
+            "datenschutz_bestaetigung": {"label": "Ich habe die Datenschutzinformation zur Kenntnis genommen", "type": "checkbox", "required": True},
+            "datenschutz_datum": {"label": "Datum der Kenntnisnahme", "type": "date", "required": True},
+        }
+
+    elif checklist_typ == ChecklistType.VERBRAUCHER.value:
+        return {
+            "verbraucher_text": {
+                "label": "Verbraucher-Informationsblatt",
+                "type": "info",
+                "content": """
+# Verbraucher-Informationsblatt gemäß § 17a Abs. 1 BNotO
+
+## Hinweise zum Grundstückskaufvertrag
+
+### 1. Allgemeine Informationen
+Der Notar ist unparteiischer Betreuer aller Beteiligten und berät Sie umfassend und neutral.
+
+### 2. Kosten
+Die Notarkosten richten sich nach dem Gerichts- und Notarkostengesetz (GNotKG) und sind gesetzlich festgelegt.
+
+### 3. Wichtige Hinweise
+- Der Kaufpreis wird erst nach Eigentumsumschreibung fällig
+- Die Vormerkung sichert Ihre Rechte am Grundstück
+- Die Grunderwerbsteuer ist vom Käufer zu zahlen
+- Prüfen Sie die Finanzierung vor Vertragsunterzeichnung
+
+### 4. Widerrufsrecht
+Bei Verbraucherverträgen kann unter bestimmten Umständen ein Widerrufsrecht bestehen.
+
+### 5. Rechtsberatung
+Sie haben das Recht, sich vor Vertragsunterzeichnung rechtlich beraten zu lassen.
+                """,
+                "required": True
+            },
+            "verbraucher_bestaetigung": {"label": "Ich habe das Verbraucher-Informationsblatt erhalten und zur Kenntnis genommen", "type": "checkbox", "required": True},
+            "verbraucher_datum": {"label": "Datum der Aushändigung", "type": "date", "required": True},
+            "beratungswunsch": {"label": "Ich wünsche weitere rechtliche Beratung", "type": "checkbox", "required": False},
+        }
+
+    else:
+        return {}
+
+def render_checklist_form(checklist: NotarChecklist) -> bool:
+    """Rendert ein Checklisten-Formular und gibt True zurück wenn Änderungen gespeichert wurden"""
+    fields = get_checklist_fields(checklist.checklist_typ)
+
+    if not fields:
+        st.error("Unbekannter Checklisten-Typ")
+        return False
+
+    st.markdown(f"### {checklist.checklist_typ}")
+    st.markdown(f"**Partei:** {checklist.partei}")
+
+    changed = False
+    new_data = checklist.daten.copy()
+
+    for field_key, field_def in fields.items():
+        field_type = field_def["type"]
+        label = field_def["label"]
+        required = field_def.get("required", False)
+
+        if field_type == "info":
+            st.info(field_def["content"])
+        elif field_type == "text":
+            current_val = new_data.get(field_key, "")
+            new_val = st.text_input(f"{label}{'*' if required else ''}", value=current_val, key=f"{checklist.checklist_id}_{field_key}")
+            if new_val != current_val:
+                new_data[field_key] = new_val
+                changed = True
+        elif field_type == "textarea":
+            current_val = new_data.get(field_key, "")
+            new_val = st.text_area(f"{label}{'*' if required else ''}", value=current_val, key=f"{checklist.checklist_id}_{field_key}")
+            if new_val != current_val:
+                new_data[field_key] = new_val
+                changed = True
+        elif field_type == "date":
+            current_val = new_data.get(field_key)
+            if isinstance(current_val, str) and current_val:
+                try:
+                    current_val = datetime.fromisoformat(current_val).date()
+                except:
+                    current_val = None
+            new_val = st.date_input(f"{label}{'*' if required else ''}", value=current_val, key=f"{checklist.checklist_id}_{field_key}")
+            if new_val != current_val:
+                new_data[field_key] = new_val.isoformat() if new_val else None
+                changed = True
+        elif field_type == "select":
+            current_val = new_data.get(field_key, field_def["options"][0])
+            new_val = st.selectbox(f"{label}{'*' if required else ''}", options=field_def["options"], index=field_def["options"].index(current_val) if current_val in field_def["options"] else 0, key=f"{checklist.checklist_id}_{field_key}")
+            if new_val != current_val:
+                new_data[field_key] = new_val
+                changed = True
+        elif field_type == "checkbox":
+            current_val = new_data.get(field_key, False)
+            new_val = st.checkbox(f"{label}{'*' if required else ''}", value=current_val, key=f"{checklist.checklist_id}_{field_key}")
+            if new_val != current_val:
+                new_data[field_key] = new_val
+                changed = True
+
+    # Prüfe Vollständigkeit
+    is_complete = True
+    for field_key, field_def in fields.items():
+        if field_def.get("required", False) and field_def["type"] != "info":
+            if field_key not in new_data or not new_data[field_key]:
+                is_complete = False
+                break
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Speichern", key=f"save_{checklist.checklist_id}"):
+            checklist.daten = new_data
+            checklist.vollstaendig = is_complete
+            checklist.updated_at = datetime.now()
+            st.session_state.notar_checklists[checklist.checklist_id] = checklist
+            st.success("Checkliste gespeichert!")
+            changed = True
+
+    with col2:
+        if is_complete and not checklist.freigegeben:
+            if st.button("Freigeben", key=f"release_{checklist.checklist_id}"):
+                checklist.freigegeben = True
+                st.session_state.notar_checklists[checklist.checklist_id] = checklist
+                st.success("Checkliste freigegeben!")
+                changed = True
+
+    with col3:
+        status = "✅ Vollständig" if is_complete else "⚠️ Unvollständig"
+        if checklist.freigegeben:
+            status += " (Freigegeben)"
+        st.markdown(f"**Status:** {status}")
+
+    return changed
+
+# ============================================================================
+# BANKENMAPPE-GENERATOR
+# ============================================================================
+
+def create_bank_folder(projekt_id: str, erstellt_von: str) -> str:
+    """Erstellt eine neue Bankenmappe für ein Projekt"""
+    folder_id = f"bankfolder_{len(st.session_state.bank_folders)}"
+
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return None
+
+    # Exposé-ID hinzufügen falls vorhanden
+    expose_id = projekt.expose_data_id if projekt.expose_data_id else None
+
+    bank_folder = BankFolder(
+        folder_id=folder_id,
+        projekt_id=projekt_id,
+        erstellt_von=erstellt_von,
+        expose_id=expose_id
+    )
+
+    st.session_state.bank_folders[folder_id] = bank_folder
+    return folder_id
+
+def render_bank_folder_view():
+    """Rendert die Bankenmappe-Verwaltung"""
+    st.markdown("### 💼 Bankenmappe-Generator")
+    st.info("Erstellen Sie automatisch eine Bankenmappe mit allen relevanten Unterlagen für die Finanzierung.")
+
+    makler_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not projekte:
+        st.warning("Keine Projekte vorhanden.")
+        return
+
+    # Projekt auswählen
+    projekt_options = {f"{p.name} (ID: {p.projekt_id})": p.projekt_id for p in projekte}
+    selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()), key="bankfolder_projekt")
+    selected_projekt_id = projekt_options[selected_projekt_label]
+    selected_projekt = st.session_state.projekte[selected_projekt_id]
+
+    st.markdown("---")
+
+    # Prüfe ob bereits eine Bankenmappe für dieses Projekt existiert
+    existing_folder = None
+    for folder in st.session_state.bank_folders.values():
+        if folder.projekt_id == selected_projekt_id:
+            existing_folder = folder
+            break
+
+    if existing_folder:
+        st.success(f"✅ Bankenmappe vorhanden (erstellt am {existing_folder.created_at.strftime('%d.%m.%Y')})")
+
+        # Inhalt der Bankenmappe anzeigen
+        st.markdown("#### 📋 Inhalt der Bankenmappe")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Exposé:**")
+            if existing_folder.expose_id:
+                expose = st.session_state.expose_data.get(existing_folder.expose_id)
+                if expose:
+                    st.write(f"✅ {expose.objekttitel}")
+                else:
+                    st.write("❌ Nicht gefunden")
+            else:
+                st.write("❌ Nicht hinzugefügt")
+
+            st.markdown("**Grundrisse:**")
+            if existing_folder.grundrisse_ids:
+                st.write(f"✅ {len(existing_folder.grundrisse_ids)} Grundrisse")
+            else:
+                st.write("❌ Keine Grundrisse")
+
+        with col2:
+            st.markdown("**Weitere Dokumente:**")
+            if existing_folder.dokument_ids:
+                st.write(f"✅ {len(existing_folder.dokument_ids)} Dokumente")
+            else:
+                st.write("❌ Keine weiteren Dokumente")
+
+            st.markdown("**Status:**")
+            st.write(f"📊 {existing_folder.status}")
+
+        st.markdown("---")
+
+        # Dokumente zur Bankenmappe hinzufügen
+        with st.expander("➕ Dokumente hinzufügen/verwalten"):
+            st.markdown("##### Verfügbare Dokumente aus dem Projekt")
+
+            # Exposé automatisch hinzufügen
+            if selected_projekt.expose_data_id and not existing_folder.expose_id:
+                if st.button("Exposé zur Bankenmappe hinzufügen", key="add_expose_to_folder"):
+                    existing_folder.expose_id = selected_projekt.expose_data_id
+                    st.session_state.bank_folders[existing_folder.folder_id] = existing_folder
+                    st.success("Exposé hinzugefügt!")
+                    st.rerun()
+
+            st.markdown("**Hochgeladene Dokumente können hier hinzugefügt werden**")
+            st.info("In einer vollständigen Implementierung würden hier alle Projektdokumente aufgelistet.")
+
+        # Bankenmappe generieren
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("📥 PDF generieren", type="primary"):
+                st.info("PDF-Generierung mit allen Dokumenten würde hier mit reportlab/PyPDF2 erfolgen")
+                existing_folder.status = "Generiert"
+                existing_folder.pdf_data = b"PDF_PLACEHOLDER"  # Hier würde das echte PDF sein
+                st.session_state.bank_folders[existing_folder.folder_id] = existing_folder
+
+        with col2:
+            if existing_folder.pdf_data:
+                st.download_button(
+                    "📤 Bankenmappe herunterladen",
+                    existing_folder.pdf_data,
+                    file_name=f"Bankenmappe_{selected_projekt.name}.pdf",
+                    mime="application/pdf"
+                )
+
+        with col3:
+            if st.button("📧 Per E-Mail versenden"):
+                st.info("E-Mail-Versand würde hier implementiert werden")
+
+        # Checkliste anzeigen
+        st.markdown("---")
+        st.markdown("#### ✅ Checkliste Bankenmappe")
+
+        checklist_items = [
+            ("Exposé", existing_folder.expose_id is not None),
+            ("Grundrisse", len(existing_folder.grundrisse_ids) > 0),
+            ("Kaufvertragsentwurf", False),  # Placeholder
+            ("Grundbuchauszug", False),  # Placeholder
+            ("Teilungserklärung (bei WEG)", selected_projekt.property_type == PropertyType.WOHNUNG.value),
+            ("Energieausweis", False),  # Placeholder
+            ("Finanzierungsbestätigung", False),  # Placeholder
+        ]
+
+        for item, completed in checklist_items:
+            if completed:
+                st.markdown(f"✅ {item}")
+            else:
+                st.markdown(f"⬜ {item}")
+
+    else:
+        st.info("Noch keine Bankenmappe für dieses Projekt erstellt.")
+
+        if st.button("➕ Bankenmappe erstellen", type="primary"):
+            folder_id = create_bank_folder(selected_projekt_id, makler_id)
+            if folder_id:
+                st.success("Bankenmappe erfolgreich erstellt!")
+                st.rerun()
+            else:
+                st.error("Fehler beim Erstellen der Bankenmappe")
+
+    st.markdown("---")
+    st.markdown("#### ℹ️ Was ist eine Bankenmappe?")
+    st.markdown("""
+    Die Bankenmappe enthält alle relevanten Unterlagen für die Finanzierungsprüfung durch Banken:
+    - **Exposé** mit allen Objektdaten
+    - **Grundrisse** und Lagepläne
+    - **Kaufvertragsentwurf** (vom Notar)
+    - **Grundbuchauszug** (aktuell, nicht älter als 3 Monate)
+    - **Teilungserklärung** (bei Eigentumswohnungen)
+    - **WEG-Protokolle** der letzten 2 Jahre (bei WEG)
+    - **Energieausweis**
+    - **Wirtschaftsplan** (bei WEG)
+    - **Wohnflächenberechnung**
+    - **Finanzierungsbestätigung** des Käufers
+    """)
+
+# ============================================================================
+# DOKUMENTEN-ANFORDERUNGS-SYSTEM
+# ============================================================================
+
+def create_document_request(projekt_id: str, dokument_typ: str, angefordert_von: str, angefordert_bei: str, nachricht: str = ""):
+    """Erstellt eine neue Dokumentenanforderung"""
+    request_id = f"req_{len(st.session_state.document_requests)}"
+    request = DocumentRequest(
+        request_id=request_id,
+        projekt_id=projekt_id,
+        dokument_typ=dokument_typ,
+        angefordert_von=angefordert_von,
+        angefordert_bei=angefordert_bei,
+        nachricht=nachricht
+    )
+    st.session_state.document_requests[request_id] = request
+
+    # Benachrichtigung an Empfänger
+    empfaenger = st.session_state.users.get(angefordert_bei)
+    anforderer = st.session_state.users.get(angefordert_von)
+    if empfaenger and anforderer:
+        create_notification(
+            angefordert_bei,
+            "Neue Dokumentenanforderung",
+            f"{anforderer.name} hat das Dokument '{dokument_typ}' angefordert.",
+            NotificationType.INFO.value
+        )
+
+    return request_id
+
+def render_document_requests_view(user_id: str, user_role: str):
+    """Rendert die Dokumentenanforderungs-Ansicht für einen Benutzer"""
+
+    st.markdown("### 📋 Dokumentenanforderungen")
+
+    tabs = st.tabs(["Meine Anfragen", "An mich gerichtet", "Neue Anfrage erstellen"])
+
+    # Meine Anfragen (die ich gestellt habe)
+    with tabs[0]:
+        st.subheader("📤 Von mir gestellte Anfragen")
+        my_requests = [r for r in st.session_state.document_requests.values() if r.angefordert_von == user_id]
+
+        if not my_requests:
+            st.info("Sie haben noch keine Dokumentenanforderungen gestellt.")
+        else:
+            for request in my_requests:
+                empfaenger = st.session_state.users.get(request.angefordert_bei)
+                empfaenger_name = empfaenger.name if empfaenger else "Unbekannt"
+
+                status_icon = {
+                    DocumentRequestStatus.ANGEFORDERT.value: "⏳",
+                    DocumentRequestStatus.BEREITGESTELLT.value: "✅",
+                    DocumentRequestStatus.FEHLT.value: "❌",
+                    DocumentRequestStatus.NICHT_RELEVANT.value: "⊘"
+                }.get(request.status, "❓")
+
+                with st.expander(f"{status_icon} {request.dokument_typ} - von {empfaenger_name}"):
+                    st.write(f"**Status:** {request.status}")
+                    st.write(f"**Erstellt:** {request.created_at.strftime('%d.%m.%Y %H:%M')}")
+                    if request.nachricht:
+                        st.write(f"**Nachricht:** {request.nachricht}")
+
+                    if request.status == DocumentRequestStatus.BEREITGESTELLT.value and request.bereitgestellt_am:
+                        st.success(f"Bereitgestellt am: {request.bereitgestellt_am.strftime('%d.%m.%Y %H:%M')}")
+
+    # An mich gerichtete Anfragen
+    with tabs[1]:
+        st.subheader("📥 An mich gerichtete Anfragen")
+        requests_to_me = [r for r in st.session_state.document_requests.values() if r.angefordert_bei == user_id]
+
+        if not requests_to_me:
+            st.info("Es liegen keine Dokumentenanforderungen an Sie vor.")
+        else:
+            for request in requests_to_me:
+                anforderer = st.session_state.users.get(request.angefordert_von)
+                anforderer_name = anforderer.name if anforderer else "Unbekannt"
+
+                status_icon = {
+                    DocumentRequestStatus.ANGEFORDERT.value: "⏳",
+                    DocumentRequestStatus.BEREITGESTELLT.value: "✅",
+                    DocumentRequestStatus.FEHLT.value: "❌",
+                    DocumentRequestStatus.NICHT_RELEVANT.value: "⊘"
+                }.get(request.status, "❓")
+
+                with st.expander(f"{status_icon} {request.dokument_typ} - von {anforderer_name}", expanded=(request.status == DocumentRequestStatus.ANGEFORDERT.value)):
+                    st.write(f"**Dokument:** {request.dokument_typ}")
+                    st.write(f"**Angefordert von:** {anforderer_name}")
+                    st.write(f"**Erstellt:** {request.created_at.strftime('%d.%m.%Y %H:%M')}")
+                    if request.nachricht:
+                        st.info(f"**Nachricht:** {request.nachricht}")
+
+                    st.markdown("---")
+
+                    # Status ändern
+                    new_status = st.selectbox(
+                        "Status ändern:",
+                        options=[s.value for s in DocumentRequestStatus],
+                        index=[s.value for s in DocumentRequestStatus].index(request.status),
+                        key=f"status_{request.request_id}"
+                    )
+
+                    if new_status != request.status:
+                        if st.button("Status aktualisieren", key=f"update_status_{request.request_id}"):
+                            request.status = new_status
+                            if new_status == DocumentRequestStatus.BEREITGESTELLT.value:
+                                request.bereitgestellt_am = datetime.now()
+
+                                # Benachrichtigung an Anforderer
+                                create_notification(
+                                    request.angefordert_von,
+                                    "Dokument bereitgestellt",
+                                    f"{st.session_state.users[user_id].name} hat '{request.dokument_typ}' bereitgestellt.",
+                                    NotificationType.SUCCESS.value
+                                )
+
+                            st.session_state.document_requests[request.request_id] = request
+                            st.success("Status aktualisiert!")
+                            st.rerun()
+
+                    # Dokument hochladen (optional)
+                    if request.status == DocumentRequestStatus.ANGEFORDERT.value:
+                        uploaded_doc = st.file_uploader("Dokument hochladen", type=["pdf", "jpg", "jpeg", "png"], key=f"upload_doc_{request.request_id}")
+                        if uploaded_doc:
+                            if st.button("Dokument hochladen und als bereitgestellt markieren", key=f"upload_submit_{request.request_id}"):
+                                # Hier würde man das Dokument in wirtschaftsdaten oder einen anderen Speicher legen
+                                st.info("Dokument-Upload würde hier implementiert werden (in wirtschaftsdaten speichern)")
+                                request.status = DocumentRequestStatus.BEREITGESTELLT.value
+                                request.bereitgestellt_am = datetime.now()
+                                st.session_state.document_requests[request.request_id] = request
+
+                                # Benachrichtigung
+                                create_notification(
+                                    request.angefordert_von,
+                                    "Dokument bereitgestellt",
+                                    f"{st.session_state.users[user_id].name} hat '{request.dokument_typ}' hochgeladen.",
+                                    NotificationType.SUCCESS.value
+                                )
+                                st.success("Dokument hochgeladen und Status aktualisiert!")
+                                st.rerun()
+
+    # Neue Anfrage erstellen
+    with tabs[2]:
+        st.subheader("➕ Neue Dokumentenanforderung erstellen")
+
+        # Projekt auswählen
+        if user_role == UserRole.MAKLER.value:
+            projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+        elif user_role == UserRole.NOTAR.value:
+            projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        else:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids + p.verkaeufer_ids]
+
+        if not projekte:
+            st.warning("Sie sind keinem Projekt zugeordnet.")
+            return
+
+        projekt_options = {f"{p.name} (ID: {p.projekt_id})": p.projekt_id for p in projekte}
+        selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()), key="new_req_projekt")
+        selected_projekt_id = projekt_options[selected_projekt_label]
+        selected_projekt = st.session_state.projekte[selected_projekt_id]
+
+        # Empfänger auswählen
+        empfaenger_options = {}
+        for kid in selected_projekt.kaeufer_ids:
+            k = st.session_state.users.get(kid)
+            if k:
+                empfaenger_options[f"Käufer: {k.name}"] = kid
+        for vid in selected_projekt.verkaeufer_ids:
+            v = st.session_state.users.get(vid)
+            if v:
+                empfaenger_options[f"Verkäufer: {v.name}"] = vid
+
+        if not empfaenger_options:
+            st.warning("Keine Empfänger in diesem Projekt verfügbar.")
+            return
+
+        empfaenger_label = st.selectbox("An wen soll die Anfrage gerichtet werden:", list(empfaenger_options.keys()), key="new_req_empf")
+        empfaenger_id = empfaenger_options[empfaenger_label]
+
+        dokument_typ = st.text_input("Dokument-Typ:", placeholder="z.B. Personalausweis, Grundbuchauszug, etc.", key="new_req_typ")
+        nachricht = st.text_area("Nachricht (optional):", placeholder="Zusätzliche Informationen zur Anforderung", key="new_req_msg")
+
+        if st.button("Anforderung erstellen", type="primary"):
+            if dokument_typ:
+                create_document_request(
+                    projekt_id=selected_projekt_id,
+                    dokument_typ=dokument_typ,
+                    angefordert_von=user_id,
+                    angefordert_bei=empfaenger_id,
+                    nachricht=nachricht
+                )
+                st.success(f"Anforderung für '{dokument_typ}' wurde erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte geben Sie einen Dokument-Typ an.")
+
+# ============================================================================
+# EXPOSÉ-GENERATOR-FUNKTIONEN
+# ============================================================================
+
+def render_expose_editor(projekt: Projekt) -> bool:
+    """Rendert den Exposé-Editor und gibt True zurück wenn gespeichert wurde"""
+
+    # Expose-Daten suchen oder erstellen
+    expose = None
+    if projekt.expose_data_id:
+        expose = st.session_state.expose_data.get(projekt.expose_data_id)
+
+    if not expose:
+        expose_id = f"expose_{len(st.session_state.expose_data)}"
+        expose = ExposeData(
+            expose_id=expose_id,
+            projekt_id=projekt.projekt_id,
+            objekttitel=projekt.name,
+            objektbeschreibung=projekt.beschreibung,
+            kaufpreis=projekt.kaufpreis
+        )
+        st.session_state.expose_data[expose_id] = expose
+        projekt.expose_data_id = expose_id
+        st.session_state.projekte[projekt.projekt_id] = projekt
+
+    st.markdown("### 📄 Exposé-Daten bearbeiten")
+
+    # Objektart auswählen
+    property_type = st.selectbox(
+        "Objektart*",
+        options=[t.value for t in PropertyType],
+        index=[t.value for t in PropertyType].index(expose.objektart) if expose.objektart else 0,
+        key=f"expose_property_type_{expose.expose_id}"
+    )
+
+    # Basis-Informationen
+    st.markdown("#### Basis-Informationen")
+    col1, col2 = st.columns(2)
+    with col1:
+        objekttitel = st.text_input("Objekt-Titel*", value=expose.objekttitel, key=f"expose_titel_{expose.expose_id}")
+        lage_beschreibung = st.text_area("Lage-Beschreibung", value=expose.lage_beschreibung, height=100, key=f"expose_lage_{expose.expose_id}")
+    with col2:
+        objektbeschreibung = st.text_area("Objekt-Beschreibung*", value=expose.objektbeschreibung, height=100, key=f"expose_beschr_{expose.expose_id}")
+        ausstattung = st.text_area("Ausstattung", value=expose.ausstattung, height=100, key=f"expose_ausst_{expose.expose_id}")
+
+    # Objektdaten
+    st.markdown("#### Objektdaten")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        wohnflaeche = st.number_input("Wohnfläche (m²)", value=float(expose.wohnflaeche), min_value=0.0, step=1.0, key=f"expose_wfl_{expose.expose_id}")
+        anzahl_zimmer = st.number_input("Anzahl Zimmer", value=float(expose.anzahl_zimmer), min_value=0.0, step=0.5, key=f"expose_zim_{expose.expose_id}")
+    with col2:
+        grundstuecksflaeche = st.number_input("Grundstücksfläche (m²)", value=float(expose.grundstuecksflaeche), min_value=0.0, step=1.0, key=f"expose_gfl_{expose.expose_id}")
+        anzahl_schlafzimmer = st.number_input("Schlafzimmer", value=expose.anzahl_schlafzimmer, min_value=0, step=1, key=f"expose_schlaf_{expose.expose_id}")
+    with col3:
+        anzahl_badezimmer = st.number_input("Badezimmer", value=expose.anzahl_badezimmer, min_value=0, step=1, key=f"expose_bad_{expose.expose_id}")
+        anzahl_etagen = st.number_input("Anzahl Etagen", value=expose.anzahl_etagen, min_value=0, step=1, key=f"expose_etagen_{expose.expose_id}")
+    with col4:
+        etage = st.text_input("Etage", value=expose.etage, key=f"expose_etage_{expose.expose_id}")
+        baujahr = st.number_input("Baujahr", value=expose.baujahr if expose.baujahr > 0 else 2020, min_value=1800, max_value=2030, step=1, key=f"expose_bj_{expose.expose_id}")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        zustand = st.selectbox("Zustand", options=["", "Erstbezug", "Neuwertig", "Renoviert", "Gepflegt", "Sanierungsbedürftig"], index=0 if not expose.zustand else ["", "Erstbezug", "Neuwertig", "Renoviert", "Gepflegt", "Sanierungsbedürftig"].index(expose.zustand) if expose.zustand in ["", "Erstbezug", "Neuwertig", "Renoviert", "Gepflegt", "Sanierungsbedürftig"] else 0, key=f"expose_zust_{expose.expose_id}")
+    with col2:
+        verfuegbar_ab = st.date_input("Verfügbar ab", value=expose.verfuegbar_ab if expose.verfuegbar_ab else date.today(), key=f"expose_verf_{expose.expose_id}")
+
+    # Preise und Kosten
+    st.markdown("#### Preise und Kosten")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        kaufpreis = st.number_input("Kaufpreis (€)*", value=float(expose.kaufpreis), min_value=0.0, step=1000.0, key=f"expose_kp_{expose.expose_id}")
+    with col2:
+        provision = st.text_input("Provision", value=expose.provision, placeholder="z.B. 3,57% inkl. MwSt.", key=f"expose_prov_{expose.expose_id}")
+    with col3:
+        hausgeld = st.number_input("Hausgeld (€/Monat)", value=float(expose.hausgeld), min_value=0.0, step=10.0, key=f"expose_hg_{expose.expose_id}")
+    with col4:
+        grundsteuer = st.number_input("Grundsteuer (€/Jahr)", value=float(expose.grundsteuer), min_value=0.0, step=10.0, key=f"expose_gst_{expose.expose_id}")
+
+    # WEG-spezifisch (nur für Wohnungen)
+    if property_type == PropertyType.WOHNUNG.value:
+        st.markdown("#### WEG-Daten (Wohnungseigentümergemeinschaft)")
+        col1, col2 = st.columns(2)
+        with col1:
+            weg_verwaltung = st.text_input("WEG-Verwaltung", value=expose.weg_verwaltung, key=f"expose_weg_{expose.expose_id}")
+        with col2:
+            ruecklage = st.number_input("Rücklage (€)", value=float(expose.ruecklage), min_value=0.0, step=100.0, key=f"expose_rl_{expose.expose_id}")
+
+    # Energieausweis
+    st.markdown("#### Energieausweis")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        energieausweis_typ = st.selectbox("Typ", options=["", "Verbrauch", "Bedarf"], index=0 if not expose.energieausweis_typ else ["", "Verbrauch", "Bedarf"].index(expose.energieausweis_typ) if expose.energieausweis_typ in ["", "Verbrauch", "Bedarf"] else 0, key=f"expose_ea_typ_{expose.expose_id}")
+        endenergieverbrauch = st.number_input("Endenergieverbrauch (kWh/m²a)", value=float(expose.endenergieverbrauch), min_value=0.0, step=1.0, key=f"expose_eev_{expose.expose_id}")
+    with col2:
+        energieeffizienzklasse = st.selectbox("Energieeffizienzklasse", options=["", "A+", "A", "B", "C", "D", "E", "F", "G", "H"], index=0 if not expose.energieeffizienzklasse else ["", "A+", "A", "B", "C", "D", "E", "F", "G", "H"].index(expose.energieeffizienzklasse) if expose.energieeffizienzklasse in ["", "A+", "A", "B", "C", "D", "E", "F", "G", "H"] else 0, key=f"expose_eek_{expose.expose_id}")
+        baujahr_energieausweis = st.number_input("Baujahr Energieausweis", value=expose.baujahr_energieausweis if expose.baujahr_energieausweis > 0 else 2020, min_value=1990, max_value=2030, step=1, key=f"expose_ea_bj_{expose.expose_id}")
+    with col3:
+        wesentliche_energietraeger = st.text_input("Wesentliche Energieträger", value=expose.wesentliche_energietraeger, placeholder="z.B. Gas, Fernwärme", key=f"expose_et_{expose.expose_id}")
+        gueltig_bis = st.date_input("Gültig bis", value=expose.gueltig_bis if expose.gueltig_bis else date.today(), key=f"expose_gb_{expose.expose_id}")
+
+    # Besonderheiten
+    st.markdown("#### Besonderheiten")
+    besonderheiten = st.text_area("Besonderheiten", value=expose.besonderheiten, height=100, placeholder="z.B. Balkon, Aufzug, Tiefgarage, etc.", key=f"expose_bes_{expose.expose_id}")
+
+    # Bilder
+    st.markdown("#### Bilder und Dokumente")
+    col1, col2 = st.columns(2)
+    with col1:
+        titelbild = st.file_uploader("Titelbild", type=["png", "jpg", "jpeg"], key=f"expose_titelbild_{expose.expose_id}")
+        if expose.titelbild:
+            st.image(expose.titelbild, width=200, caption="Aktuelles Titelbild")
+        elif titelbild:
+            st.image(titelbild, width=200)
+    with col2:
+        weitere_bilder = st.file_uploader("Weitere Bilder", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=f"expose_bilder_{expose.expose_id}")
+        if expose.weitere_bilder:
+            st.write(f"Bereits {len(expose.weitere_bilder)} Bilder hochgeladen")
+
+    grundrisse = st.file_uploader("Grundrisse", type=["png", "jpg", "jpeg", "pdf"], accept_multiple_files=True, key=f"expose_grundrisse_{expose.expose_id}")
+    if expose.grundrisse:
+        st.write(f"Bereits {len(expose.grundrisse)} Grundrisse hochgeladen")
+
+    lageplan = st.file_uploader("Lageplan", type=["png", "jpg", "jpeg", "pdf"], key=f"expose_lageplan_{expose.expose_id}")
+
+    # Speichern
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("💾 Exposé speichern", key=f"expose_save_{expose.expose_id}", type="primary"):
+            # Alle Daten aktualisieren
+            expose.objektart = property_type
+            expose.objekttitel = objekttitel
+            expose.objektbeschreibung = objektbeschreibung
+            expose.lage_beschreibung = lage_beschreibung
+            expose.ausstattung = ausstattung
+
+            expose.wohnflaeche = wohnflaeche
+            expose.grundstuecksflaeche = grundstuecksflaeche
+            expose.anzahl_zimmer = anzahl_zimmer
+            expose.anzahl_schlafzimmer = anzahl_schlafzimmer
+            expose.anzahl_badezimmer = anzahl_badezimmer
+            expose.anzahl_etagen = anzahl_etagen
+            expose.etage = etage
+            expose.baujahr = baujahr
+            expose.zustand = zustand
+            expose.verfuegbar_ab = verfuegbar_ab
+
+            expose.kaufpreis = kaufpreis
+            expose.provision = provision
+            expose.hausgeld = hausgeld
+            expose.grundsteuer = grundsteuer
+
+            if property_type == PropertyType.WOHNUNG.value:
+                expose.weg_verwaltung = weg_verwaltung
+                expose.ruecklage = ruecklage
+
+            expose.energieausweis_typ = energieausweis_typ
+            expose.energieeffizienzklasse = energieeffizienzklasse
+            expose.endenergieverbrauch = endenergieverbrauch
+            expose.wesentliche_energietraeger = wesentliche_energietraeger
+            expose.baujahr_energieausweis = baujahr_energieausweis
+            expose.gueltig_bis = gueltig_bis
+
+            expose.besonderheiten = besonderheiten
+
+            # Bilder verarbeiten
+            if titelbild:
+                expose.titelbild = titelbild.read()
+            if weitere_bilder:
+                expose.weitere_bilder = [img.read() for img in weitere_bilder]
+            if grundrisse:
+                expose.grundrisse = [gr.read() for gr in grundrisse]
+            if lageplan:
+                expose.lageplan = lageplan.read()
+
+            expose.updated_at = datetime.now()
+
+            # Speichern
+            st.session_state.expose_data[expose.expose_id] = expose
+            projekt.property_type = property_type
+            st.session_state.projekte[projekt.projekt_id] = projekt
+
+            st.success("✅ Exposé erfolgreich gespeichert!")
+            return True
+
+    with col2:
+        if st.button("📄 Web-Exposé Vorschau", key=f"expose_preview_{expose.expose_id}"):
+            st.session_state[f"show_web_preview_{expose.expose_id}"] = True
+
+    with col3:
+        if st.button("📥 PDF generieren", key=f"expose_pdf_{expose.expose_id}"):
+            st.info("PDF-Generierung würde hier mit reportlab/weasyprint erfolgen")
+
+    # Web-Exposé Vorschau
+    if st.session_state.get(f"show_web_preview_{expose.expose_id}", False):
+        st.markdown("---")
+        st.markdown("### 🌐 Web-Exposé Vorschau")
+
+        # Simpler HTML-basierter Exposé-Preview
+        preview_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: white; border: 1px solid #ddd;">
+            <h1 style="color: #333;">{expose.objekttitel}</h1>
+            <p style="font-size: 1.2em; color: #e74c3c;"><strong>Kaufpreis: {expose.kaufpreis:,.2f} €</strong></p>
+
+            <h2>Objektbeschreibung</h2>
+            <p>{expose.objektbeschreibung}</p>
+
+            <h2>Objektdaten</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Objektart:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{expose.objektart}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Wohnfläche:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{expose.wohnflaeche} m²</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Zimmer:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{expose.anzahl_zimmer}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Baujahr:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{expose.baujahr if expose.baujahr > 0 else 'N/A'}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Zustand:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">{expose.zustand if expose.zustand else 'N/A'}</td></tr>
+            </table>
+
+            <h2>Energieausweis</h2>
+            <p><strong>Energieeffizienzklasse:</strong> {expose.energieeffizienzklasse if expose.energieeffizienzklasse else 'N/A'}</p>
+            <p><strong>Endenergieverbrauch:</strong> {expose.endenergieverbrauch} kWh/m²a</p>
+
+            <h2>Kosten</h2>
+            <p><strong>Hausgeld:</strong> {expose.hausgeld} € / Monat</p>
+            <p><strong>Grundsteuer:</strong> {expose.grundsteuer} € / Jahr</p>
+            <p><strong>Provision:</strong> {expose.provision if expose.provision else 'N/A'}</p>
+        </div>
+        """
+
+        import streamlit.components.v1 as components
+        components.html(preview_html, height=800, scrolling=True)
+
+    return False
 
 # ============================================================================
 # TIMELINE-KOMPONENTE
@@ -610,6 +1611,8 @@ def makler_dashboard():
     tabs = st.tabs([
         "📋 Timeline",
         "📁 Projekte",
+        "👤 Profil",
+        "💼 Bankenmappe",
         "⚖️ Rechtliche Dokumente",
         "👥 Teilnehmer-Status",
         "✉️ Einladungen",
@@ -623,15 +1626,21 @@ def makler_dashboard():
         makler_projekte_view()
 
     with tabs[2]:
-        makler_rechtliche_dokumente()
+        makler_profil_view()
 
     with tabs[3]:
-        makler_teilnehmer_status()
+        render_bank_folder_view()
 
     with tabs[4]:
-        makler_einladungen()
+        makler_rechtliche_dokumente()
 
     with tabs[5]:
+        makler_teilnehmer_status()
+
+    with tabs[6]:
+        makler_einladungen()
+
+    with tabs[7]:
         makler_kommentare()
 
 def makler_timeline_view():
@@ -723,48 +1732,30 @@ def makler_projekte_view():
 
             st.markdown("---")
 
-            # Exposé-Upload
+            # Exposé-Verwaltung
             st.markdown("#### 📄 Exposé")
-            if projekt.expose_pdf:
-                st.success("✅ Exposé hochgeladen")
-                st.download_button(
-                    "📥 Exposé herunterladen",
-                    projekt.expose_pdf,
-                    file_name=f"Expose_{projekt.name}.pdf",
-                    mime="application/pdf",
-                    key=f"dl_expose_{projekt.projekt_id}"
-                )
 
-                if st.button("🔄 Neues Exposé hochladen", key=f"update_expose_{projekt.projekt_id}"):
-                    st.session_state[f"upload_expose_{projekt.projekt_id}"] = True
-                    st.rerun()
-            else:
-                st.info("Noch kein Exposé hochgeladen")
-                st.session_state[f"upload_expose_{projekt.projekt_id}"] = True
+            # Zeige Exposé-Status
+            if projekt.expose_data_id:
+                expose = st.session_state.expose_data.get(projekt.expose_data_id)
+                if expose:
+                    st.success(f"✅ Exposé vorhanden: {expose.objektart}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
+                        st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
+                    with col2:
+                        st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €")
+                        st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y')}")
 
-            if st.session_state.get(f"upload_expose_{projekt.projekt_id}", False):
-                expose_file = st.file_uploader(
-                    "Exposé-PDF hochladen",
-                    type=['pdf'],
-                    key=f"expose_upload_{projekt.projekt_id}"
-                )
+            # Button zum Bearbeiten/Erstellen
+            if st.button("📝 Exposé bearbeiten", key=f"edit_expose_{projekt.projekt_id}"):
+                st.session_state[f"show_expose_editor_{projekt.projekt_id}"] = not st.session_state.get(f"show_expose_editor_{projekt.projekt_id}", False)
 
-                if expose_file:
-                    if st.button("💾 Exposé speichern", key=f"save_expose_{projekt.projekt_id}"):
-                        projekt.expose_pdf = expose_file.read()
-                        st.session_state[f"upload_expose_{projekt.projekt_id}"] = False
-
-                        # Timeline aktualisieren
-                        for event_id in projekt.timeline_events:
-                            event = st.session_state.timeline_events.get(event_id)
-                            if event and event.titel == "Exposé hochgeladen" and not event.completed:
-                                event.completed = True
-                                event.completed_at = datetime.now()
-
-                        update_projekt_status(projekt.projekt_id)
-
-                        st.success("✅ Exposé erfolgreich hochgeladen!")
-                        st.rerun()
+            # Exposé-Editor anzeigen
+            if st.session_state.get(f"show_expose_editor_{projekt.projekt_id}", False):
+                with st.expander("📝 Exposé-Editor", expanded=True):
+                    render_expose_editor(projekt)
 
 def create_timeline_for_projekt(projekt_id: str):
     """Erstellt Timeline-Events für ein neues Projekt"""
@@ -802,6 +1793,154 @@ def create_timeline_for_projekt(projekt_id: str):
 
         st.session_state.timeline_events[event_id] = event
         projekt.timeline_events.append(event_id)
+
+def makler_profil_view():
+    """Makler-Profil-Verwaltung"""
+    st.subheader("👤 Mein Makler-Profil")
+
+    makler_id = st.session_state.current_user.user_id
+
+    # Profil suchen oder erstellen
+    profile = None
+    for p in st.session_state.makler_profiles.values():
+        if p.makler_id == makler_id:
+            profile = p
+            break
+
+    if not profile:
+        st.info("Sie haben noch kein Profil erstellt. Erstellen Sie jetzt Ihr Makler-Profil!")
+        if st.button("➕ Profil erstellen"):
+            profile_id = f"profile_{len(st.session_state.makler_profiles)}"
+            profile = MaklerProfile(
+                profile_id=profile_id,
+                makler_id=makler_id,
+                firmenname="",
+                adresse="",
+                telefon="",
+                email=""
+            )
+            st.session_state.makler_profiles[profile_id] = profile
+            st.rerun()
+        return
+
+    # Profil bearbeiten
+    with st.form("profil_bearbeiten"):
+        st.markdown("### Firmendaten")
+
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            st.markdown("**Logo**")
+            logo_file = st.file_uploader("Firmenlogo hochladen", type=["png", "jpg", "jpeg"], key="logo_upload")
+            if profile.logo:
+                st.image(profile.logo, width=150)
+            elif logo_file:
+                st.image(logo_file, width=150)
+
+        with col2:
+            firmenname = st.text_input("Firmenname*", value=profile.firmenname)
+            adresse = st.text_area("Adresse*", value=profile.adresse, height=100)
+
+            col_tel, col_email = st.columns(2)
+            with col_tel:
+                telefon = st.text_input("Telefon*", value=profile.telefon)
+            with col_email:
+                email = st.text_input("E-Mail*", value=profile.email)
+
+            website = st.text_input("Website", value=profile.website)
+
+        st.markdown("---")
+        st.markdown("### Backoffice-Kontakt")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            backoffice_kontakt = st.text_input("Name", value=profile.backoffice_kontakt)
+        with col2:
+            backoffice_email = st.text_input("E-Mail", value=profile.backoffice_email)
+        with col3:
+            backoffice_telefon = st.text_input("Telefon", value=profile.backoffice_telefon)
+
+        st.markdown("---")
+
+        if st.form_submit_button("💾 Profil speichern", type="primary"):
+            profile.firmenname = firmenname
+            profile.adresse = adresse
+            profile.telefon = telefon
+            profile.email = email
+            profile.website = website
+            profile.backoffice_kontakt = backoffice_kontakt
+            profile.backoffice_email = backoffice_email
+            profile.backoffice_telefon = backoffice_telefon
+
+            if logo_file:
+                profile.logo = logo_file.read()
+
+            st.session_state.makler_profiles[profile.profile_id] = profile
+            st.success("✅ Profil erfolgreich gespeichert!")
+
+    st.markdown("---")
+    st.markdown("### 👥 Team-Mitglieder")
+
+    # Team-Mitglieder anzeigen
+    if profile.team_mitglieder:
+        for agent in profile.team_mitglieder:
+            with st.expander(f"👤 {agent.name} - {agent.position}"):
+                col1, col2 = st.columns([1, 3])
+
+                with col1:
+                    if agent.foto:
+                        st.image(agent.foto, width=100)
+                    else:
+                        st.write("Kein Foto")
+
+                with col2:
+                    st.write(f"**Position:** {agent.position}")
+                    st.write(f"**Telefon:** {agent.telefon}")
+                    st.write(f"**E-Mail:** {agent.email}")
+
+                if st.button(f"🗑️ Entfernen", key=f"remove_{agent.agent_id}"):
+                    profile.team_mitglieder = [a for a in profile.team_mitglieder if a.agent_id != agent.agent_id]
+                    st.session_state.makler_profiles[profile.profile_id] = profile
+                    st.success(f"Team-Mitglied {agent.name} entfernt!")
+                    st.rerun()
+    else:
+        st.info("Noch keine Team-Mitglieder hinzugefügt.")
+
+    # Neues Team-Mitglied hinzufügen
+    with st.expander("➕ Team-Mitglied hinzufügen"):
+        with st.form("neues_team_mitglied"):
+            col1, col2 = st.columns([1, 2])
+
+            with col1:
+                foto_file = st.file_uploader("Foto", type=["png", "jpg", "jpeg"], key="agent_foto")
+                if foto_file:
+                    st.image(foto_file, width=100)
+
+            with col2:
+                agent_name = st.text_input("Name*")
+                agent_position = st.text_input("Position*", placeholder="z.B. Immobilienberater")
+                agent_telefon = st.text_input("Telefon*")
+                agent_email = st.text_input("E-Mail*")
+
+            if st.form_submit_button("➕ Hinzufügen"):
+                if agent_name and agent_position and agent_telefon and agent_email:
+                    agent_id = f"agent_{len(profile.team_mitglieder)}"
+                    foto_bytes = foto_file.read() if foto_file else None
+
+                    new_agent = MaklerAgent(
+                        agent_id=agent_id,
+                        name=agent_name,
+                        position=agent_position,
+                        telefon=agent_telefon,
+                        email=agent_email,
+                        foto=foto_bytes
+                    )
+
+                    profile.team_mitglieder.append(new_agent)
+                    st.session_state.makler_profiles[profile.profile_id] = profile
+                    st.success(f"✅ {agent_name} wurde zum Team hinzugefügt!")
+                    st.rerun()
+                else:
+                    st.error("Bitte alle Pflichtfelder ausfüllen!")
 
 def makler_rechtliche_dokumente():
     """Verwaltung rechtlicher Dokumente"""
@@ -1828,6 +2967,8 @@ def notar_dashboard():
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
+        "📝 Checklisten",
+        "📋 Dokumentenanforderungen",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📅 Termine"
@@ -1840,12 +2981,18 @@ def notar_dashboard():
         notar_projekte_view()
 
     with tabs[2]:
-        notar_finanzierungsnachweise()
+        notar_checklisten_view()
 
     with tabs[3]:
-        notar_dokumenten_freigaben()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[4]:
+        notar_finanzierungsnachweise()
+
+    with tabs[5]:
+        notar_dokumenten_freigaben()
+
+    with tabs[6]:
         notar_termine()
 
 def notar_timeline_view():
@@ -1896,6 +3043,76 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+def notar_checklisten_view():
+    """Notarielle Checklisten-Verwaltung"""
+    st.subheader("📝 Notarielle Checklisten")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Projekt auswählen
+    projekt_options = {f"{p.name} (ID: {p.projekt_id})": p.projekt_id for p in projekte}
+    selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()))
+    selected_projekt_id = projekt_options[selected_projekt_label]
+    selected_projekt = st.session_state.projekte[selected_projekt_id]
+
+    st.markdown("---")
+
+    # Checklisten für dieses Projekt anzeigen
+    projekt_checklists = [c for c in st.session_state.notar_checklists.values()
+                         if c.projekt_id == selected_projekt_id]
+
+    # Neue Checkliste erstellen
+    with st.expander("➕ Neue Checkliste erstellen", expanded=len(projekt_checklists) == 0):
+        col1, col2 = st.columns(2)
+        with col1:
+            checklist_typ = st.selectbox("Checklisten-Typ:", [t.value for t in ChecklistType])
+        with col2:
+            # Partei auswählen (Käufer oder Verkäufer)
+            parteien = []
+            for kid in selected_projekt.kaeufer_ids:
+                kaeufer = st.session_state.users.get(kid)
+                if kaeufer:
+                    parteien.append(f"Käufer: {kaeufer.name}")
+            for vid in selected_projekt.verkaeufer_ids:
+                verkaeufer = st.session_state.users.get(vid)
+                if verkaeufer:
+                    parteien.append(f"Verkäufer: {verkaeufer.name}")
+
+            if parteien:
+                partei = st.selectbox("Für Partei:", parteien)
+            else:
+                st.warning("Keine Parteien im Projekt vorhanden")
+                partei = None
+
+        if st.button("Checkliste erstellen") and partei:
+            checklist_id = f"checklist_{len(st.session_state.notar_checklists)}"
+            new_checklist = NotarChecklist(
+                checklist_id=checklist_id,
+                projekt_id=selected_projekt_id,
+                checklist_typ=checklist_typ,
+                partei=partei
+            )
+            st.session_state.notar_checklists[checklist_id] = new_checklist
+            st.success(f"Checkliste '{checklist_typ}' für {partei} erstellt!")
+            st.rerun()
+
+    st.markdown("---")
+
+    # Bestehende Checklisten anzeigen
+    if projekt_checklists:
+        st.markdown("### Bestehende Checklisten")
+
+        for checklist in projekt_checklists:
+            with st.expander(f"📋 {checklist.checklist_typ} - {checklist.partei}", expanded=False):
+                render_checklist_form(checklist)
+    else:
+        st.info("Noch keine Checklisten für dieses Projekt erstellt.")
 
 def notar_finanzierungsnachweise():
     """Finanzierungsnachweise für Notar"""
