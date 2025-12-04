@@ -94,6 +94,31 @@ class DocumentRequestStatus(Enum):
     FEHLT = "Fehlt noch"
     NICHT_RELEVANT = "Nicht relevant"
 
+class NotarMitarbeiterRolle(Enum):
+    """Rollen für Notar-Mitarbeiter"""
+    VOLLZUGRIFF = "Vollzugriff"
+    SACHBEARBEITER = "Sachbearbeiter"
+    NUR_LESEN = "Nur Lesen"
+    CHECKLISTEN_VERWALTER = "Checklisten-Verwalter"
+
+class VerkäuferDokumentTyp(Enum):
+    """Dokumenttypen für Verkäufer"""
+    GRUNDBUCHAUSZUG = "Grundbuchauszug"
+    TEILUNGSERKLARUNG = "Teilungserklärung"
+    WEG_PROTOKOLLE = "WEG-Protokolle"
+    ENERGIEAUSWEIS = "Energieausweis"
+    LAGEPLAN = "Lageplan"
+    GRUNDRISS = "Grundriss"
+    BAUGENEHMIGUNG = "Baugenehmigung"
+    FLURKARTE = "Flurkarte"
+    WIRTSCHAFTSPLAN = "Wirtschaftsplan (WEG)"
+    HAUSVERWALTUNG_BESCHEINIGUNG = "Bescheinigung Hausverwaltung"
+    MIETVERTRÄGE = "Mietverträge (bei vermieteten Objekten)"
+    NEBENKOSTENABRECHNUNG = "Nebenkostenabrechnung"
+    MODERNISIERUNGSNACHWEISE = "Modernisierungsnachweise"
+    WOHNFLACHENBERECHNUNG = "Wohnflächenberechnung"
+    SONSTIGES = "Sonstige Dokumente"
+
 # ============================================================================
 # DATENMODELLE
 # ============================================================================
@@ -364,6 +389,52 @@ class BankFolder:
     created_at: datetime = field(default_factory=datetime.now)
     status: str = "Entwurf"
 
+@dataclass
+class NotarMitarbeiter:
+    """Notar-Mitarbeiter mit Zugriffsrechten"""
+    mitarbeiter_id: str
+    notar_id: str  # Zugehöriger Notar
+    name: str
+    email: str
+    password_hash: str
+    rolle: str  # NotarMitarbeiterRolle
+
+    # Berechtigungen
+    kann_checklisten_bearbeiten: bool = False
+    kann_dokumente_freigeben: bool = False
+    kann_termine_verwalten: bool = False
+    kann_finanzierung_sehen: bool = False
+
+    # Zugewiesene Projekte
+    projekt_ids: List[str] = field(default_factory=list)
+
+    created_at: datetime = field(default_factory=datetime.now)
+    aktiv: bool = True
+
+@dataclass
+class VerkäuferDokument:
+    """Dokumente vom Verkäufer"""
+    dokument_id: str
+    verkaeufer_id: str
+    projekt_id: str
+    dokument_typ: str  # VerkäuferDokumentTyp
+    dateiname: str
+    dateigröße: int
+    pdf_data: bytes
+
+    # Metadaten
+    beschreibung: str = ""
+    gueltig_bis: Optional[date] = None
+
+    # Freigaben
+    freigegeben_fuer_makler: bool = False
+    freigegeben_fuer_notar: bool = False
+    freigegeben_fuer_finanzierer: bool = False
+    freigegeben_fuer_kaeufer: bool = False
+
+    upload_datum: datetime = field(default_factory=datetime.now)
+    status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
+
 # ============================================================================
 # SESSION STATE INITIALISIERUNG
 # ============================================================================
@@ -389,6 +460,8 @@ def init_session_state():
         st.session_state.document_requests = {}
         st.session_state.notar_checklists = {}
         st.session_state.bank_folders = {}
+        st.session_state.notar_mitarbeiter = {}
+        st.session_state.verkaeufer_dokumente = {}
 
         # Demo-Daten
         create_demo_users()
@@ -1565,19 +1638,40 @@ def login_page():
 
         if submit:
             user = None
+            mitarbeiter = None
+
+            # Zuerst normale Benutzer prüfen
             for u in st.session_state.users.values():
                 if u.email == email and u.password_hash == hash_password(password):
                     user = u
                     break
 
+            # Falls kein normaler Benutzer, Notar-Mitarbeiter prüfen
+            if not user:
+                for ma in st.session_state.notar_mitarbeiter.values():
+                    if ma.email == email and ma.password_hash == hash_password(password):
+                        if ma.aktiv:
+                            mitarbeiter = ma
+                            break
+                        else:
+                            st.error("❌ Ihr Account wurde deaktiviert. Kontaktieren Sie Ihren Notar.")
+                            return
+
             if user:
                 st.session_state.current_user = user
+                st.session_state.is_notar_mitarbeiter = False
                 create_notification(
                     user.user_id,
                     "Willkommen zurück!",
                     f"Sie haben sich erfolgreich angemeldet als {user.role}.",
                     NotificationType.SUCCESS.value
                 )
+                st.rerun()
+            elif mitarbeiter:
+                # Für Mitarbeiter ein pseudo-User-Objekt erstellen
+                st.session_state.current_user = mitarbeiter
+                st.session_state.is_notar_mitarbeiter = True
+                st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
                 st.rerun()
             else:
                 st.error("❌ Ungültige Anmeldedaten")
@@ -1598,6 +1692,7 @@ def login_page():
 def logout():
     """Benutzer abmelden"""
     st.session_state.current_user = None
+    st.session_state.is_notar_mitarbeiter = False
     st.rerun()
 
 # ============================================================================
@@ -2635,7 +2730,7 @@ def verkaeufer_dashboard():
         onboarding_flow()
         return
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "💬 Nachrichten"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -2644,6 +2739,12 @@ def verkaeufer_dashboard():
         verkaeufer_projekte_view()
 
     with tabs[2]:
+        verkaeufer_dokumente_view()
+
+    with tabs[3]:
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
+
+    with tabs[4]:
         verkaeufer_nachrichten()
 
 def verkaeufer_timeline_view():
@@ -2675,11 +2776,213 @@ def verkaeufer_projekte_view():
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
             st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
+            st.markdown(f"**Objektart:** {projekt.property_type}")
             if projekt.adresse:
                 st.markdown(f"**Adresse:** {projekt.adresse}")
             if projekt.kaufpreis > 0:
                 st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
             st.markdown(f"**Status:** {projekt.status}")
+
+            # Anzeige hochgeladener Dokumente für dieses Projekt
+            projekt_docs = [d for d in st.session_state.verkaeufer_dokumente.values()
+                           if d.verkaeufer_id == user_id and d.projekt_id == projekt.projekt_id]
+
+            st.markdown("---")
+            st.markdown("**📂 Meine hochgeladenen Dokumente:**")
+            if projekt_docs:
+                st.write(f"✅ {len(projekt_docs)} Dokument(e) hochgeladen")
+            else:
+                st.info("Noch keine Dokumente hochgeladen. Gehen Sie zum Tab 'Dokumente hochladen'.")
+
+def verkaeufer_dokumente_view():
+    """Dokumenten-Upload für Verkäufer"""
+    st.subheader("📄 Dokumente hochladen")
+
+    st.info("""
+    Als Verkäufer stellen Sie die meisten Dokumente für den Verkaufsprozess bereit.
+    Diese Dokumente werden von Makler, Notar und Finanzierer benötigt.
+    """)
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.warning("Sie sind keinem Projekt zugeordnet.")
+        return
+
+    # Projekt auswählen
+    projekt_options = {f"{p.name} ({p.property_type})": p.projekt_id for p in projekte}
+    selected_projekt_label = st.selectbox("Für welches Projekt möchten Sie Dokumente hochladen?", list(projekt_options.keys()))
+    selected_projekt_id = projekt_options[selected_projekt_label]
+    selected_projekt = st.session_state.projekte[selected_projekt_id]
+
+    st.markdown("---")
+
+    # Bereits hochgeladene Dokumente anzeigen
+    projekt_docs = [d for d in st.session_state.verkaeufer_dokumente.values()
+                   if d.verkaeufer_id == user_id and d.projekt_id == selected_projekt_id]
+
+    if projekt_docs:
+        st.markdown("### 📂 Bereits hochgeladene Dokumente")
+
+        # Nach Typ gruppieren
+        docs_by_type = {}
+        for doc in projekt_docs:
+            if doc.dokument_typ not in docs_by_type:
+                docs_by_type[doc.dokument_typ] = []
+            docs_by_type[doc.dokument_typ].append(doc)
+
+        for doc_typ, docs in docs_by_type.items():
+            with st.expander(f"📋 {doc_typ} ({len(docs)} Dokument(e))", expanded=False):
+                for doc in docs:
+                    col1, col2, col3 = st.columns([3, 2, 1])
+
+                    with col1:
+                        st.write(f"📄 **{doc.dateiname}**")
+                        if doc.beschreibung:
+                            st.caption(doc.beschreibung)
+
+                    with col2:
+                        st.caption(f"Hochgeladen: {doc.upload_datum.strftime('%d.%m.%Y')}")
+                        st.caption(f"Status: {doc.status}")
+
+                        # Freigaben anzeigen
+                        freigaben = []
+                        if doc.freigegeben_fuer_makler:
+                            freigaben.append("Makler")
+                        if doc.freigegeben_fuer_notar:
+                            freigaben.append("Notar")
+                        if doc.freigegeben_fuer_finanzierer:
+                            freigaben.append("Finanzierer")
+                        if doc.freigegeben_fuer_kaeufer:
+                            freigaben.append("Käufer")
+
+                        if freigaben:
+                            st.caption(f"✅ Freigegeben für: {', '.join(freigaben)}")
+                        else:
+                            st.caption("⚠️ Noch nicht freigegeben")
+
+                    with col3:
+                        if st.button("🗑️", key=f"delete_doc_{doc.dokument_id}"):
+                            del st.session_state.verkaeufer_dokumente[doc.dokument_id]
+                            st.success("Dokument gelöscht!")
+                            st.rerun()
+
+                    st.markdown("---")
+
+        st.markdown("---")
+
+    # Neues Dokument hochladen
+    st.markdown("### ➕ Neues Dokument hochladen")
+
+    with st.form("dokument_upload"):
+        # Dokumenttyp auswählen (abhängig von Objektart)
+        st.markdown("**Dokumenttyp auswählen:**")
+
+        # Empfohlene Dokumente basierend auf Objektart
+        empfohlene_docs = []
+        if selected_projekt.property_type == PropertyType.WOHNUNG.value:
+            empfohlene_docs = [
+                VerkäuferDokumentTyp.GRUNDBUCHAUSZUG.value,
+                VerkäuferDokumentTyp.TEILUNGSERKLARUNG.value,
+                VerkäuferDokumentTyp.WEG_PROTOKOLLE.value,
+                VerkäuferDokumentTyp.ENERGIEAUSWEIS.value,
+                VerkäuferDokumentTyp.WIRTSCHAFTSPLAN.value,
+                VerkäuferDokumentTyp.HAUSVERWALTUNG_BESCHEINIGUNG.value,
+            ]
+        elif selected_projekt.property_type == PropertyType.HAUS.value:
+            empfohlene_docs = [
+                VerkäuferDokumentTyp.GRUNDBUCHAUSZUG.value,
+                VerkäuferDokumentTyp.ENERGIEAUSWEIS.value,
+                VerkäuferDokumentTyp.GRUNDRISS.value,
+                VerkäuferDokumentTyp.LAGEPLAN.value,
+                VerkäuferDokumentTyp.BAUGENEHMIGUNG.value,
+                VerkäuferDokumentTyp.WOHNFLACHENBERECHNUNG.value,
+            ]
+        elif selected_projekt.property_type == PropertyType.LAND.value:
+            empfohlene_docs = [
+                VerkäuferDokumentTyp.GRUNDBUCHAUSZUG.value,
+                VerkäuferDokumentTyp.FLURKARTE.value,
+                VerkäuferDokumentTyp.LAGEPLAN.value,
+                VerkäuferDokumentTyp.BAUGENEHMIGUNG.value,
+            ]
+        else:  # MFH
+            empfohlene_docs = [
+                VerkäuferDokumentTyp.GRUNDBUCHAUSZUG.value,
+                VerkäuferDokumentTyp.ENERGIEAUSWEIS.value,
+                VerkäuferDokumentTyp.MIETVERTRÄGE.value,
+                VerkäuferDokumentTyp.NEBENKOSTENABRECHNUNG.value,
+                VerkäuferDokumentTyp.WIRTSCHAFTSPLAN.value,
+            ]
+
+        # Alle Dokumenttypen als Optionen
+        alle_doc_typen = [t.value for t in VerkäuferDokumentTyp]
+
+        # Empfohlene Dokumente hervorheben
+        st.info(f"📌 Empfohlene Dokumente für {selected_projekt.property_type}: " + ", ".join(empfohlene_docs))
+
+        dokument_typ = st.selectbox("Dokumenttyp*", options=alle_doc_typen)
+        beschreibung = st.text_area("Beschreibung (optional)", placeholder="z.B. Aktuell vom 01.12.2024")
+        gueltig_bis = st.date_input("Gültig bis (optional)", value=None)
+
+        st.markdown("**Freigaben:**")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            freigabe_makler = st.checkbox("Für Makler", value=True)
+        with col2:
+            freigabe_notar = st.checkbox("Für Notar", value=True)
+        with col3:
+            freigabe_finanzierer = st.checkbox("Für Finanzierer", value=False)
+        with col4:
+            freigabe_kaeufer = st.checkbox("Für Käufer", value=False)
+
+        datei = st.file_uploader("Datei hochladen*", type=["pdf", "jpg", "jpeg", "png"])
+
+        submit = st.form_submit_button("📤 Dokument hochladen", type="primary")
+
+        if submit and datei and dokument_typ:
+            # Dokument speichern
+            dokument_id = f"vdoc_{len(st.session_state.verkaeufer_dokumente)}"
+            datei_bytes = datei.read()
+
+            neues_dokument = VerkäuferDokument(
+                dokument_id=dokument_id,
+                verkaeufer_id=user_id,
+                projekt_id=selected_projekt_id,
+                dokument_typ=dokument_typ,
+                dateiname=datei.name,
+                dateigröße=len(datei_bytes),
+                pdf_data=datei_bytes,
+                beschreibung=beschreibung,
+                gueltig_bis=gueltig_bis,
+                freigegeben_fuer_makler=freigabe_makler,
+                freigegeben_fuer_notar=freigabe_notar,
+                freigegeben_fuer_finanzierer=freigabe_finanzierer,
+                freigegeben_fuer_kaeufer=freigabe_kaeufer
+            )
+
+            st.session_state.verkaeufer_dokumente[dokument_id] = neues_dokument
+
+            # Benachrichtigungen an alle freigegebenen Parteien
+            if freigabe_makler and selected_projekt.makler_id:
+                create_notification(
+                    selected_projekt.makler_id,
+                    "Neues Verkäufer-Dokument",
+                    f"{st.session_state.current_user.name} hat '{dokument_typ}' hochgeladen.",
+                    NotificationType.INFO.value
+                )
+            if freigabe_notar and selected_projekt.notar_id:
+                create_notification(
+                    selected_projekt.notar_id,
+                    "Neues Verkäufer-Dokument",
+                    f"{st.session_state.current_user.name} hat '{dokument_typ}' hochgeladen.",
+                    NotificationType.INFO.value
+                )
+
+            st.success(f"✅ Dokument '{datei.name}' erfolgreich hochgeladen!")
+            st.rerun()
+        elif submit:
+            st.error("Bitte füllen Sie alle Pflichtfelder aus und laden Sie eine Datei hoch!")
 
 def verkaeufer_nachrichten():
     """Nachrichten für Verkäufer"""
@@ -2969,6 +3272,7 @@ def notar_dashboard():
         "📋 Projekte",
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
+        "👥 Mitarbeiter",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📅 Termine"
@@ -2987,12 +3291,15 @@ def notar_dashboard():
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[4]:
-        notar_finanzierungsnachweise()
+        notar_mitarbeiter_view()
 
     with tabs[5]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[6]:
+        notar_dokumenten_freigaben()
+
+    with tabs[7]:
         notar_termine()
 
 def notar_timeline_view():
@@ -3113,6 +3420,206 @@ def notar_checklisten_view():
                 render_checklist_form(checklist)
     else:
         st.info("Noch keine Checklisten für dieses Projekt erstellt.")
+
+def notar_mitarbeiter_view():
+    """Mitarbeiter-Verwaltung für Notar"""
+    st.subheader("👥 Mitarbeiter-Verwaltung")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Bestehende Mitarbeiter anzeigen
+    mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values() if m.notar_id == notar_id]
+
+    if mitarbeiter:
+        st.markdown("### 👤 Meine Mitarbeiter")
+
+        for ma in mitarbeiter:
+            status_icon = "✅" if ma.aktiv else "❌"
+            with st.expander(f"{status_icon} {ma.name} - {ma.rolle}", expanded=False):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write(f"**E-Mail:** {ma.email}")
+                    st.write(f"**Rolle:** {ma.rolle}")
+                    st.write(f"**Status:** {'Aktiv' if ma.aktiv else 'Inaktiv'}")
+                    st.write(f"**Erstellt am:** {ma.created_at.strftime('%d.%m.%Y')}")
+
+                with col2:
+                    st.write("**Berechtigungen:**")
+                    st.write(f"{'✅' if ma.kann_checklisten_bearbeiten else '❌'} Checklisten bearbeiten")
+                    st.write(f"{'✅' if ma.kann_dokumente_freigeben else '❌'} Dokumente freigeben")
+                    st.write(f"{'✅' if ma.kann_termine_verwalten else '❌'} Termine verwalten")
+                    st.write(f"{'✅' if ma.kann_finanzierung_sehen else '❌'} Finanzierung einsehen")
+
+                st.markdown("---")
+
+                # Zugewiesene Projekte
+                st.markdown("**Zugewiesene Projekte:**")
+                if ma.projekt_ids:
+                    for projekt_id in ma.projekt_ids:
+                        projekt = st.session_state.projekte.get(projekt_id)
+                        if projekt:
+                            st.write(f"🏘️ {projekt.name}")
+                else:
+                    st.info("Keine Projekte zugewiesen")
+
+                st.markdown("---")
+
+                # Mitarbeiter bearbeiten
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("✏️ Berechtigungen ändern", key=f"edit_ma_{ma.mitarbeiter_id}"):
+                        st.session_state[f"edit_mitarbeiter_{ma.mitarbeiter_id}"] = True
+                        st.rerun()
+                with col2:
+                    if ma.aktiv:
+                        if st.button("❌ Deaktivieren", key=f"deact_ma_{ma.mitarbeiter_id}"):
+                            ma.aktiv = False
+                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"{ma.name} wurde deaktiviert.")
+                            st.rerun()
+                    else:
+                        if st.button("✅ Aktivieren", key=f"act_ma_{ma.mitarbeiter_id}"):
+                            ma.aktiv = True
+                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"{ma.name} wurde aktiviert.")
+                            st.rerun()
+                with col3:
+                    if st.button("🗑️ Löschen", key=f"del_ma_{ma.mitarbeiter_id}"):
+                        del st.session_state.notar_mitarbeiter[ma.mitarbeiter_id]
+                        st.success(f"{ma.name} wurde gelöscht.")
+                        st.rerun()
+
+                # Berechtigungen ändern (Modal)
+                if st.session_state.get(f"edit_mitarbeiter_{ma.mitarbeiter_id}", False):
+                    st.markdown("---")
+                    st.markdown("#### Berechtigungen ändern")
+
+                    with st.form(f"edit_form_{ma.mitarbeiter_id}"):
+                        neue_rolle = st.selectbox("Rolle:", [r.value for r in NotarMitarbeiterRolle],
+                                                 index=[r.value for r in NotarMitarbeiterRolle].index(ma.rolle) if ma.rolle in [r.value for r in NotarMitarbeiterRolle] else 0)
+
+                        kann_checklisten = st.checkbox("Checklisten bearbeiten", value=ma.kann_checklisten_bearbeiten)
+                        kann_dokumente = st.checkbox("Dokumente freigeben", value=ma.kann_dokumente_freigeben)
+                        kann_termine = st.checkbox("Termine verwalten", value=ma.kann_termine_verwalten)
+                        kann_finanzierung = st.checkbox("Finanzierung einsehen", value=ma.kann_finanzierung_sehen)
+
+                        # Projekte zuweisen
+                        st.markdown("**Projekte zuweisen:**")
+                        alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+                        projekt_options = {p.name: p.projekt_id for p in alle_projekte}
+
+                        zugewiesene_projekte = st.multiselect(
+                            "Projekte auswählen:",
+                            options=list(projekt_options.keys()),
+                            default=[p.name for p in alle_projekte if p.projekt_id in ma.projekt_ids]
+                        )
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 Speichern", type="primary"):
+                                ma.rolle = neue_rolle
+                                ma.kann_checklisten_bearbeiten = kann_checklisten
+                                ma.kann_dokumente_freigeben = kann_dokumente
+                                ma.kann_termine_verwalten = kann_termine
+                                ma.kann_finanzierung_sehen = kann_finanzierung
+                                ma.projekt_ids = [projekt_options[p_name] for p_name in zugewiesene_projekte]
+
+                                st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                                st.session_state[f"edit_mitarbeiter_{ma.mitarbeiter_id}"] = False
+                                st.success("Berechtigungen aktualisiert!")
+                                st.rerun()
+
+                        with col2:
+                            if st.form_submit_button("❌ Abbrechen"):
+                                st.session_state[f"edit_mitarbeiter_{ma.mitarbeiter_id}"] = False
+                                st.rerun()
+
+        st.markdown("---")
+    else:
+        st.info("Noch keine Mitarbeiter angelegt.")
+
+    # Neuen Mitarbeiter hinzufügen
+    st.markdown("### ➕ Neuen Mitarbeiter hinzufügen")
+
+    with st.form("neuer_mitarbeiter"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            ma_name = st.text_input("Name*")
+            ma_email = st.text_input("E-Mail*")
+            ma_passwort = st.text_input("Passwort*", type="password")
+
+        with col2:
+            ma_rolle = st.selectbox("Rolle*", [r.value for r in NotarMitarbeiterRolle])
+
+            # Vordefinierte Berechtigungen basierend auf Rolle
+            if ma_rolle == NotarMitarbeiterRolle.VOLLZUGRIFF.value:
+                default_checklisten = True
+                default_dokumente = True
+                default_termine = True
+                default_finanzierung = True
+            elif ma_rolle == NotarMitarbeiterRolle.SACHBEARBEITER.value:
+                default_checklisten = True
+                default_dokumente = False
+                default_termine = True
+                default_finanzierung = False
+            elif ma_rolle == NotarMitarbeiterRolle.CHECKLISTEN_VERWALTER.value:
+                default_checklisten = True
+                default_dokumente = False
+                default_termine = False
+                default_finanzierung = False
+            else:  # NUR_LESEN
+                default_checklisten = False
+                default_dokumente = False
+                default_termine = False
+                default_finanzierung = False
+
+        st.markdown("**Berechtigungen:**")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            kann_checklisten = st.checkbox("Checklisten bearbeiten", value=default_checklisten, key="new_ma_checklisten")
+        with col2:
+            kann_dokumente = st.checkbox("Dokumente freigeben", value=default_dokumente, key="new_ma_dokumente")
+        with col3:
+            kann_termine = st.checkbox("Termine verwalten", value=default_termine, key="new_ma_termine")
+        with col4:
+            kann_finanzierung = st.checkbox("Finanzierung einsehen", value=default_finanzierung, key="new_ma_finanzierung")
+
+        # Projekte zuweisen
+        st.markdown("**Projekte zuweisen (optional):**")
+        alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+        if alle_projekte:
+            projekt_options = {p.name: p.projekt_id for p in alle_projekte}
+            zugewiesene_projekte = st.multiselect("Projekte auswählen:", list(projekt_options.keys()))
+        else:
+            zugewiesene_projekte = []
+            st.info("Noch keine Projekte vorhanden")
+
+        if st.form_submit_button("➕ Mitarbeiter hinzufügen", type="primary"):
+            if ma_name and ma_email and ma_passwort:
+                mitarbeiter_id = f"notarma_{len(st.session_state.notar_mitarbeiter)}"
+
+                neuer_mitarbeiter = NotarMitarbeiter(
+                    mitarbeiter_id=mitarbeiter_id,
+                    notar_id=notar_id,
+                    name=ma_name,
+                    email=ma_email,
+                    password_hash=hash_password(ma_passwort),
+                    rolle=ma_rolle,
+                    kann_checklisten_bearbeiten=kann_checklisten,
+                    kann_dokumente_freigeben=kann_dokumente,
+                    kann_termine_verwalten=kann_termine,
+                    kann_finanzierung_sehen=kann_finanzierung,
+                    projekt_ids=[projekt_options[p_name] for p_name in zugewiesene_projekte] if alle_projekte else []
+                )
+
+                st.session_state.notar_mitarbeiter[mitarbeiter_id] = neuer_mitarbeiter
+                st.success(f"✅ Mitarbeiter {ma_name} wurde erfolgreich hinzugefügt!")
+                st.info(f"🔑 Login: {ma_email} / {ma_passwort}")
+                st.rerun()
+            else:
+                st.error("Bitte füllen Sie alle Pflichtfelder aus!")
 
 def notar_finanzierungsnachweise():
     """Finanzierungsnachweise für Notar"""
@@ -3266,6 +3773,197 @@ def notar_termine():
                         st.rerun()
 
 # ============================================================================
+# NOTAR-MITARBEITER-BEREICH
+# ============================================================================
+
+def notarmitarbeiter_dashboard():
+    """Dashboard für Notar-Mitarbeiter"""
+    mitarbeiter = st.session_state.current_user
+
+    st.title("⚖️ Notar-Mitarbeiter-Dashboard")
+    st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
+
+    # Tab-Liste basierend auf Berechtigungen
+    tab_labels = ["📊 Timeline", "📋 Projekte"]
+
+    if mitarbeiter.kann_checklisten_bearbeiten:
+        tab_labels.append("📝 Checklisten")
+
+    if mitarbeiter.kann_dokumente_freigeben:
+        tab_labels.append("📄 Dokumenten-Freigaben")
+
+    if mitarbeiter.kann_termine_verwalten:
+        tab_labels.append("📅 Termine")
+
+    if mitarbeiter.kann_finanzierung_sehen:
+        tab_labels.append("💰 Finanzierungsnachweise")
+
+    tabs = st.tabs(tab_labels)
+
+    tab_index = 0
+
+    # Timeline (immer verfügbar)
+    with tabs[tab_index]:
+        st.subheader("📊 Projekt-Fortschritt")
+        if not mitarbeiter.projekt_ids:
+            st.info("Ihnen wurden noch keine Projekte zugewiesen.")
+        else:
+            for projekt_id in mitarbeiter.projekt_ids:
+                projekt = st.session_state.projekte.get(projekt_id)
+                if projekt:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_timeline(projekt_id, "Notar-Mitarbeiter")
+    tab_index += 1
+
+    # Projekte (immer verfügbar)
+    with tabs[tab_index]:
+        st.subheader("📋 Meine zugewiesenen Projekte")
+        if not mitarbeiter.projekt_ids:
+            st.info("Ihnen wurden noch keine Projekte zugewiesen.")
+        else:
+            for projekt_id in mitarbeiter.projekt_ids:
+                projekt = st.session_state.projekte.get(projekt_id)
+                if projekt:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
+                            if projekt.adresse:
+                                st.markdown(f"**Adresse:** {projekt.adresse}")
+                            if projekt.kaufpreis > 0:
+                                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+
+                        with col2:
+                            st.markdown("**Parteien:**")
+                            for kid in projekt.kaeufer_ids:
+                                kaeufer = st.session_state.users.get(kid)
+                                if kaeufer:
+                                    st.write(f"🏠 Käufer: {kaeufer.name}")
+
+                            for vid in projekt.verkaeufer_ids:
+                                verkaeufer = st.session_state.users.get(vid)
+                                if verkaeufer:
+                                    st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+    tab_index += 1
+
+    # Checklisten (nur wenn berechtigt)
+    if mitarbeiter.kann_checklisten_bearbeiten:
+        with tabs[tab_index]:
+            st.subheader("📝 Checklisten bearbeiten")
+            if not mitarbeiter.projekt_ids:
+                st.info("Ihnen wurden noch keine Projekte zugewiesen.")
+            else:
+                # Projekt auswählen
+                projekte = [st.session_state.projekte.get(pid) for pid in mitarbeiter.projekt_ids]
+                projekte = [p for p in projekte if p is not None]
+
+                if projekte:
+                    projekt_options = {f"{p.name} (ID: {p.projekt_id})": p.projekt_id for p in projekte}
+                    selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()), key="ma_checklist_projekt")
+                    selected_projekt_id = projekt_options[selected_projekt_label]
+
+                    # Checklisten für dieses Projekt anzeigen
+                    projekt_checklists = [c for c in st.session_state.notar_checklists.values()
+                                         if c.projekt_id == selected_projekt_id]
+
+                    if projekt_checklists:
+                        for checklist in projekt_checklists:
+                            with st.expander(f"📋 {checklist.checklist_typ} - {checklist.partei}", expanded=False):
+                                render_checklist_form(checklist)
+                    else:
+                        st.info("Noch keine Checklisten für dieses Projekt vorhanden.")
+        tab_index += 1
+
+    # Dokumenten-Freigaben (nur wenn berechtigt)
+    if mitarbeiter.kann_dokumente_freigeben:
+        with tabs[tab_index]:
+            st.subheader("📄 Dokumenten-Freigaben")
+            st.info("Diese Funktion würde Dokumenten-Freigaben anzeigen und verwalten.")
+            # Hier könnte man die Verkäufer-Dokumente anzeigen und freigeben lassen
+        tab_index += 1
+
+    # Termine (nur wenn berechtigt)
+    if mitarbeiter.kann_termine_verwalten:
+        with tabs[tab_index]:
+            st.subheader("📅 Termine verwalten")
+            if not mitarbeiter.projekt_ids:
+                st.info("Ihnen wurden noch keine Projekte zugewiesen.")
+            else:
+                for projekt_id in mitarbeiter.projekt_ids:
+                    projekt = st.session_state.projekte.get(projekt_id)
+                    if projekt:
+                        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                            if projekt.notartermin:
+                                st.success(f"✅ Termin vereinbart: {projekt.notartermin.strftime('%d.%m.%Y %H:%M')}")
+                            else:
+                                st.info("Noch kein Termin vereinbart")
+
+                                with st.form(f"ma_termin_form_{projekt.projekt_id}"):
+                                    termin_datum = st.date_input("Datum", value=date.today() + timedelta(days=14))
+                                    termin_zeit = st.time_input("Uhrzeit", value=datetime.now().replace(hour=10, minute=0).time())
+
+                                    if st.form_submit_button("💾 Termin speichern", type="primary"):
+                                        termin_dt = datetime.combine(termin_datum, termin_zeit)
+                                        projekt.notartermin = termin_dt
+
+                                        # Timeline aktualisieren
+                                        for event_id in projekt.timeline_events:
+                                            event = st.session_state.timeline_events.get(event_id)
+                                            if event and event.titel == "Notartermin vereinbaren" and not event.completed:
+                                                event.completed = True
+                                                event.completed_at = datetime.now()
+                                        update_projekt_status(projekt.projekt_id)
+
+                                        st.success("✅ Termin gespeichert!")
+                                        st.rerun()
+        tab_index += 1
+
+    # Finanzierungsnachweise (nur wenn berechtigt)
+    if mitarbeiter.kann_finanzierung_sehen:
+        with tabs[tab_index]:
+            st.subheader("💰 Finanzierungsnachweise")
+            if not mitarbeiter.projekt_ids:
+                st.info("Ihnen wurden noch keine Projekte zugewiesen.")
+            else:
+                for projekt_id in mitarbeiter.projekt_ids:
+                    projekt = st.session_state.projekte.get(projekt_id)
+                    if projekt:
+                        st.markdown(f"### 🏘️ {projekt.name}")
+
+                        # Angenommene Finanzierungsangebote suchen
+                        finanzierungen = [o for o in st.session_state.financing_offers.values()
+                                         if o.projekt_id == projekt.projekt_id and o.status == FinanzierungsStatus.ANGENOMMEN.value]
+
+                        if finanzierungen:
+                            for offer in finanzierungen:
+                                finanzierer = st.session_state.users.get(offer.finanzierer_id)
+                                finanzierer_name = finanzierer.name if finanzierer else "Unbekannt"
+
+                                with st.expander(f"💰 Angebot von {finanzierer_name}", expanded=True):
+                                    col1, col2 = st.columns(2)
+
+                                    with col1:
+                                        st.write(f"**Darlehensbetrag:** {offer.darlehensbetrag:,.2f} €")
+                                        st.write(f"**Zinssatz:** {offer.zinssatz}%")
+                                        st.write(f"**Sollzinsbindung:** {offer.sollzinsbindung} Jahre")
+                                        st.write(f"**Tilgungssatz:** {offer.tilgungssatz}%")
+
+                                    with col2:
+                                        st.write(f"**Gesamtlaufzeit:** {offer.gesamtlaufzeit} Jahre")
+                                        st.write(f"**Monatliche Rate:** {offer.monatliche_rate:,.2f} €")
+                                        st.write(f"**Angenommen am:** {offer.accepted_at.strftime('%d.%m.%Y') if offer.accepted_at else 'N/A'}")
+
+                                    if offer.besondere_bedingungen:
+                                        st.markdown("**Besondere Bedingungen:**")
+                                        st.text(offer.besondere_bedingungen)
+                        else:
+                            st.info("Noch keine Finanzierung gesichert.")
+
+                        st.markdown("---")
+        tab_index += 1
+
+# ============================================================================
 # HAUPTANWENDUNG
 # ============================================================================
 
@@ -3315,13 +4013,21 @@ def main():
     with st.sidebar:
         st.markdown("### 👤 Angemeldet als:")
         st.write(f"**{st.session_state.current_user.name}**")
-        st.caption(f"Rolle: {st.session_state.current_user.role}")
-        st.caption(f"E-Mail: {st.session_state.current_user.email}")
+
+        # Unterschiedliche Anzeige für Mitarbeiter vs normale Benutzer
+        if st.session_state.get("is_notar_mitarbeiter", False):
+            st.caption(f"Rolle: Notar-Mitarbeiter ({st.session_state.current_user.rolle})")
+            st.caption(f"E-Mail: {st.session_state.current_user.email}")
+        else:
+            st.caption(f"Rolle: {st.session_state.current_user.role}")
+            st.caption(f"E-Mail: {st.session_state.current_user.email}")
 
         if st.button("🚪 Abmelden", use_container_width=True):
             logout()
 
-        render_notifications()
+        # Benachrichtigungen nur für normale Benutzer (Mitarbeiter haben keine user_id)
+        if not st.session_state.get("is_notar_mitarbeiter", False):
+            render_notifications()
 
         st.markdown("---")
         st.markdown("### ℹ️ System-Info")
@@ -3330,20 +4036,24 @@ def main():
         st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
 
     # Hauptbereich
-    role = st.session_state.current_user.role
-
-    if role == UserRole.MAKLER.value:
-        makler_dashboard()
-    elif role == UserRole.KAEUFER.value:
-        kaeufer_dashboard()
-    elif role == UserRole.VERKAEUFER.value:
-        verkaeufer_dashboard()
-    elif role == UserRole.FINANZIERER.value:
-        finanzierer_dashboard()
-    elif role == UserRole.NOTAR.value:
-        notar_dashboard()
+    # Prüfe ob Mitarbeiter oder normaler Benutzer
+    if st.session_state.get("is_notar_mitarbeiter", False):
+        notarmitarbeiter_dashboard()
     else:
-        st.error("Unbekannte Rolle")
+        role = st.session_state.current_user.role
+
+        if role == UserRole.MAKLER.value:
+            makler_dashboard()
+        elif role == UserRole.KAEUFER.value:
+            kaeufer_dashboard()
+        elif role == UserRole.VERKAEUFER.value:
+            verkaeufer_dashboard()
+        elif role == UserRole.FINANZIERER.value:
+            finanzierer_dashboard()
+        elif role == UserRole.NOTAR.value:
+            notar_dashboard()
+        else:
+            st.error("Unbekannte Rolle")
 
 if __name__ == "__main__":
     main()
