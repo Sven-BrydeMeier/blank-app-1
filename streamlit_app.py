@@ -344,6 +344,7 @@ class NotarProfile:
 
     # Zusätzliche Informationen
     notarkammer: str = ""  # z.B. "Notarkammer München"
+    notarversicherung: str = ""  # z.B. "R+V Versicherung AG"
     handelsregister: str = ""
     steuernummer: str = ""
     ust_id: str = ""
@@ -1004,6 +1005,22 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
             # HTML parsen
             soup = BeautifulSoup(response.text, 'html.parser')
 
+            # Impressum und Datenschutz-Links finden
+            impressum_links = []
+            for link in soup.find_all('a', href=True):
+                href = link['href'].lower()
+                text = link.get_text().lower()
+                if any(keyword in href or keyword in text for keyword in ['impressum', 'datenschutz', 'imprint', 'privacy']):
+                    full_link = link['href']
+                    if full_link.startswith('http'):
+                        impressum_links.append(full_link)
+                    elif full_link.startswith('//'):
+                        impressum_links.append('https:' + full_link)
+                    elif full_link.startswith('/'):
+                        impressum_links.append(base_url + full_link)
+                    else:
+                        impressum_links.append(base_url + '/' + full_link)
+
             # Logo-URLs sammeln
             logo_urls = []
 
@@ -1081,7 +1098,17 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                     logo_urls.append(full_url)
 
             # Impressum-Daten extrahieren
+            # Haupt-Seite + Impressum-Seiten kombinieren
             text = soup.get_text(separator=' ')
+
+            # Impressum-Seiten zusätzlich abrufen und kombinieren
+            for imp_link in impressum_links[:3]:  # Max 3 Impressum-Seiten
+                try:
+                    imp_response = requests.get(imp_link, headers=headers, timeout=5)
+                    imp_soup = BeautifulSoup(imp_response.text, 'html.parser')
+                    text += ' ' + imp_soup.get_text(separator=' ')
+                except:
+                    pass  # Fehler beim Abrufen ignorieren
 
             # E-Mail extrahieren
             email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
@@ -1123,6 +1150,50 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
             elif any(kw in text_lower for kw in ["rechtsanwalt", "anwaltskanzlei", "anwaltsbüro"]):
                 kategorie = "RECHTSANWALT"
 
+            # Notar-spezifische Daten extrahieren
+            notarkammer = ""
+            notarversicherung = ""
+            notar_titel = ""
+            notar_vorname = ""
+            notar_nachname = ""
+
+            if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR"]:
+                # Notarkammer extrahieren
+                kammer_pattern = r'(Notarkammer\s+[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)?)'
+                kammer_matches = re.findall(kammer_pattern, text)
+                if kammer_matches:
+                    notarkammer = kammer_matches[0].strip()
+
+                # Notarversicherung extrahieren
+                versicherung_patterns = [
+                    r'Berufshaftpflichtversicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))',
+                    r'Versicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))',
+                    r'Haftpflichtversicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))'
+                ]
+                for pattern in versicherung_patterns:
+                    vers_matches = re.findall(pattern, text)
+                    if vers_matches:
+                        notarversicherung = vers_matches[0].strip()
+                        break
+
+                # Notar-Name extrahieren (nach "Notar" oder "Notarin")
+                name_pattern = r'Notar(?:in)?\s+(Dr\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)'
+                name_matches = re.findall(name_pattern, text)
+                if name_matches:
+                    titel_match, vorname_match, nachname_match = name_matches[0]
+                    notar_titel = titel_match.strip() if titel_match else ""
+                    notar_vorname = vorname_match.strip()
+                    notar_nachname = nachname_match.strip()
+                else:
+                    # Alternative: Nach Kanzleiname mit Namen
+                    alt_pattern = r'(Dr\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*,?\s*Notar'
+                    alt_matches = re.findall(alt_pattern, text)
+                    if alt_matches:
+                        titel_match, vorname_match, nachname_match = alt_matches[0]
+                        notar_titel = titel_match.strip() if titel_match else ""
+                        notar_vorname = vorname_match.strip()
+                        notar_nachname = nachname_match.strip()
+
             # Ergebnis zusammenstellen
             result = {
                 "url": url,
@@ -1148,6 +1219,13 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                         "email": email
                     }
                 },
+                "notar_daten": {
+                    "notarkammer": notarkammer,
+                    "notarversicherung": notarversicherung,
+                    "titel": notar_titel,
+                    "vorname": notar_vorname,
+                    "nachname": notar_nachname
+                } if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR"] else None,
                 "confidence": 0.8 if (email and telefon) else 0.5,
                 "message": f"Website erfolgreich analysiert. {len(logo_urls)} Logo-Kandidaten gefunden."
             }
@@ -5184,6 +5262,23 @@ def notar_profil_view():
                             st.write(f"**Straße:** {adresse_data['strasse']}")
                         if adresse_data.get('plz') and adresse_data.get('ort'):
                             st.write(f"**Ort:** {adresse_data['plz']} {adresse_data['ort']}")
+
+                    # Notar-spezifische Daten anzeigen
+                    notar_daten = analysis_data.get('notar_daten')
+                    if notar_daten:
+                        st.markdown("---")
+                        st.markdown("**⚖️ Notar-spezifische Daten:**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if notar_daten.get('titel') or notar_daten.get('vorname') or notar_daten.get('nachname'):
+                                notar_name = f"{notar_daten.get('titel', '')} {notar_daten.get('vorname', '')} {notar_daten.get('nachname', '')}".strip()
+                                st.write(f"**Notar:** {notar_name}")
+                            if notar_daten.get('notarkammer'):
+                                st.write(f"**Notarkammer:** {notar_daten['notarkammer']}")
+                        with col2:
+                            if notar_daten.get('notarversicherung'):
+                                st.write(f"**Versicherung:** {notar_daten['notarversicherung']}")
+
                     st.info("💡 Diese Daten wurden in die Formularfelder unten übernommen.")
         elif analysis_data and "error" in analysis_data:
             st.warning("⚠️ Website konnte nicht analysiert werden. Bitte geben Sie die Daten manuell ein.")
@@ -5206,6 +5301,21 @@ def notar_profil_view():
             default_adresse = adresse_obj.get('strasse', profile.adresse) or profile.adresse
             default_plz = adresse_obj.get('plz', profile.plz) or profile.plz
             default_ort = adresse_obj.get('ort', profile.ort) or profile.ort
+
+            # Notar-spezifische Daten aus Analyse
+            notar_daten = analysis_data.get('notar_daten', {})
+            if notar_daten:
+                default_notar_titel = notar_daten.get('titel', profile.notar_titel) or profile.notar_titel
+                default_notar_vorname = notar_daten.get('vorname', profile.notar_vorname) or profile.notar_vorname
+                default_notar_nachname = notar_daten.get('nachname', profile.notar_nachname) or profile.notar_nachname
+                default_notarkammer = notar_daten.get('notarkammer', profile.notarkammer) or profile.notarkammer
+                default_notarversicherung = notar_daten.get('notarversicherung', profile.notarversicherung) or profile.notarversicherung
+            else:
+                default_notar_titel = profile.notar_titel
+                default_notar_vorname = profile.notar_vorname
+                default_notar_nachname = profile.notar_nachname
+                default_notarkammer = profile.notarkammer
+                default_notarversicherung = profile.notarversicherung
         else:
             default_kanzleiname = profile.kanzleiname
             default_email = profile.email
@@ -5214,6 +5324,11 @@ def notar_profil_view():
             default_adresse = profile.adresse
             default_plz = profile.plz
             default_ort = profile.ort
+            default_notar_titel = profile.notar_titel
+            default_notar_vorname = profile.notar_vorname
+            default_notar_nachname = profile.notar_nachname
+            default_notarkammer = profile.notarkammer
+            default_notarversicherung = profile.notarversicherung
 
         col1, col2 = st.columns([1, 2])
 
@@ -5230,11 +5345,11 @@ def notar_profil_view():
 
             col_titel, col_vorname, col_nachname = st.columns([1, 2, 2])
             with col_titel:
-                notar_titel = st.text_input("Titel", value=profile.notar_titel, placeholder="Dr.")
+                notar_titel = st.text_input("Titel", value=default_notar_titel, placeholder="Dr.")
             with col_vorname:
-                notar_vorname = st.text_input("Vorname*", value=profile.notar_vorname)
+                notar_vorname = st.text_input("Vorname*", value=default_notar_vorname)
             with col_nachname:
-                notar_nachname = st.text_input("Nachname*", value=profile.notar_nachname)
+                notar_nachname = st.text_input("Nachname*", value=default_notar_nachname)
 
         st.markdown("---")
         st.markdown("### 📍 Kontaktdaten")
@@ -5310,7 +5425,8 @@ def notar_profil_view():
 
         col1, col2 = st.columns(2)
         with col1:
-            notarkammer = st.text_input("Notarkammer", value=profile.notarkammer, placeholder="z.B. Notarkammer München")
+            notarkammer = st.text_input("Notarkammer", value=default_notarkammer, placeholder="z.B. Notarkammer München")
+            notarversicherung = st.text_input("Berufshaftpflichtversicherung", value=default_notarversicherung, placeholder="z.B. R+V Versicherung AG")
             handelsregister = st.text_input("Handelsregister", value=profile.handelsregister)
         with col2:
             steuernummer = st.text_input("Steuernummer", value=profile.steuernummer)
@@ -5334,6 +5450,7 @@ def notar_profil_view():
             profile.email = email
             profile.website = website
             profile.notarkammer = notarkammer
+            profile.notarversicherung = notarversicherung
             profile.handelsregister = handelsregister
             profile.steuernummer = steuernummer
             profile.ust_id = ust_id
