@@ -2453,25 +2453,24 @@ def makler_profil_view():
         return
 
     # Profil bearbeiten
-    # Dateneingabe-Modus außerhalb des Forms (damit Button funktioniert)
-    st.markdown("### 📝 Dateneingabe-Modus")
+    # Website-Analyse für Logo (außerhalb des Forms)
+    st.markdown("### 🎨 Logo-Übernahme")
 
-    eingabe_modus = st.radio(
-        "Wie möchten Sie Ihre Profil-Daten eingeben?",
-        ["🌐 Von Homepage übernehmen", "✍️ Manuell eingeben"],
-        index=0 if not profile.firmenname else 1,
-        help="Bei automatischer Übernahme werden Daten von Ihrer Website analysiert und übernommen"
+    logo_uebernahme = st.checkbox(
+        "🌐 Automatische Logo-Übernahme von Homepage aktivieren",
+        value=False,
+        help="Website wird analysiert und Logo automatisch übernommen",
+        key="makler_logo_uebernahme_check"
     )
 
-    # Website-Analyse vor dem Formular (wenn gewünscht)
     analysis_data = None
-    if eingabe_modus == "🌐 Von Homepage übernehmen":
-        st.info("💡 Geben Sie Ihre Website-URL ein und klicken Sie auf 'Analysieren', um Ihre Daten automatisch zu übernehmen.")
+    if logo_uebernahme:
+        st.info("💡 Geben Sie Ihre Website-URL ein und klicken Sie auf 'Los', um Ihr Logo zu finden.")
 
         col1, col2 = st.columns([3, 1])
         with col1:
             website_input = st.text_input(
-                "Website-URL*",
+                "Website-URL",
                 value=profile.website if profile.website else "",
                 placeholder="z.B. https://www.ihre-immobilien.de",
                 key="website_analyze_input"
@@ -2479,59 +2478,32 @@ def makler_profil_view():
         with col2:
             st.write("")  # Spacer
             st.write("")  # Spacer
-            if st.button("🔍 Analysieren", type="primary", disabled=not website_input):
-                with st.spinner("🔍 Analysiere Website..."):
+            if st.button("🚀 Los", type="primary", disabled=not website_input):
+                with st.spinner("🔍 Analysiere Website und suche Logo..."):
                     analysis = analyze_website(website_input)
                     st.session_state[f"website_analysis_{profile.profile_id}"] = analysis
-                    st.success("✅ Analyse abgeschlossen!")
+                    st.success("✅ Logo-Suche abgeschlossen!")
                     st.rerun()
 
         # Analyse-Ergebnisse abrufen
         analysis_data = st.session_state.get(f"website_analysis_{profile.profile_id}")
 
-        if analysis_data and analysis_data.get("betreiber"):
-            betreiber = analysis_data["betreiber"]
-            st.success("✅ Daten erfolgreich analysiert! Die Felder unten wurden automatisch ausgefüllt.")
+        if analysis_data and analysis_data.get("logo"):
+            logo_data = analysis_data.get("logo", {})
+            logo_kandidaten = logo_data.get("candidates", [])
 
-            with st.expander("📋 Gefundene Daten ansehen", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Firmenname:** {betreiber.get('name', '-')}")
-                    st.write(f"**Kategorie:** {betreiber.get('kategorie', '-')}")
-                    if betreiber.get('rechtsform'):
-                        st.write(f"**Rechtsform:** {betreiber['rechtsform']}")
-                with col2:
-                    if betreiber.get('kontakt', {}).get('email'):
-                        st.write(f"**E-Mail:** {betreiber['kontakt']['email']}")
-                    if betreiber.get('kontakt', {}).get('telefon'):
-                        st.write(f"**Telefon:** {betreiber['kontakt']['telefon']}")
+            st.success(f"✅ {len(logo_kandidaten)} Logo-Kandidaten gefunden!")
+
+            with st.expander("📋 Gefundene Logo-URLs ansehen", expanded=True):
+                for idx, url in enumerate(logo_kandidaten[:3], 1):
+                    st.write(f"{idx}. {url}")
         elif analysis_data and "error" in analysis_data:
-            st.warning("⚠️ Analyse konnte nicht vollständig durchgeführt werden. Bitte geben Sie die Daten manuell ein.")
+            st.warning("⚠️ Logo konnte nicht gefunden werden. Bitte geben Sie die Logo-URL manuell ein.")
 
     st.markdown("---")
 
     with st.form("profil_bearbeiten"):
         st.markdown("### Firmendaten")
-
-        # Daten aus Analyse übernehmen (falls vorhanden)
-        if analysis_data and analysis_data.get("betreiber"):
-            betreiber = analysis_data["betreiber"]
-            default_firmenname = betreiber.get('name', profile.firmenname)
-            default_email = betreiber.get('kontakt', {}).get('email', profile.email)
-            default_telefon = betreiber.get('kontakt', {}).get('telefon', profile.telefon)
-            default_website = analysis_data.get('url', profile.website)
-            # Adresse aus Betreiber-Daten
-            adresse_obj = betreiber.get('adresse', {})
-            if adresse_obj.get('strasse') or adresse_obj.get('plz') or adresse_obj.get('ort'):
-                default_adresse = f"{adresse_obj.get('strasse', '')}\n{adresse_obj.get('plz', '')} {adresse_obj.get('ort', '')}".strip()
-            else:
-                default_adresse = profile.adresse
-        else:
-            default_firmenname = profile.firmenname
-            default_email = profile.email
-            default_telefon = profile.telefon
-            default_website = profile.website
-            default_adresse = profile.adresse
 
         col1, col2 = st.columns([1, 2])
 
@@ -2544,16 +2516,16 @@ def makler_profil_view():
                 st.image(logo_file, width=150)
 
         with col2:
-            firmenname = st.text_input("Firmenname*", value=default_firmenname)
-            adresse = st.text_area("Adresse*", value=default_adresse, height=100)
+            firmenname = st.text_input("Firmenname*", value=profile.firmenname)
+            adresse = st.text_area("Adresse*", value=profile.adresse, height=100)
 
             col_tel, col_email = st.columns(2)
             with col_tel:
-                telefon = st.text_input("Telefon*", value=default_telefon)
+                telefon = st.text_input("Telefon*", value=profile.telefon)
             with col_email:
-                email = st.text_input("E-Mail*", value=default_email)
+                email = st.text_input("E-Mail*", value=profile.email)
 
-            website = st.text_input("Website", value=default_website, help="z.B. https://www.ihre-immobilien.de")
+            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-immobilien.de")
 
         st.markdown("---")
         st.markdown("### 🎨 Logo & Design")
@@ -2561,7 +2533,7 @@ def makler_profil_view():
         # Logo-Auswahl basierend auf Analyse-Daten (falls vorhanden)
         if analysis_data and analysis_data.get("logo"):
             logo_data = analysis_data.get("logo", {})
-            logo_kandidaten = logo_data.get("candidates", [logo_data.get("url")]) if logo_data else []
+            logo_kandidaten = logo_data.get("candidates", [])
 
             st.info("💡 Wählen Sie ein Logo aus den gefundenen URLs oder geben Sie eine eigene ein.")
 
@@ -2572,16 +2544,6 @@ def makler_profil_view():
                 index=0,
                 key="logo_url_select"
             )
-
-            # Manuelle Eingabe als Alternative
-            manual_logo_url = st.text_input(
-                "Oder eigene Logo-URL eingeben:",
-                placeholder="z.B. https://www.ihre-seite.de/logo.png",
-                key="manual_logo_input"
-            )
-
-            if manual_logo_url:
-                logo_url_input = manual_logo_url
 
             # Logo-Vorschau
             if logo_url_input:
@@ -2595,34 +2557,14 @@ def makler_profil_view():
                             st.caption(f"Konfidenz: {int(analysis_data['confidence'] * 100)}%")
                 except:
                     st.warning("⚠️ Logo konnte nicht geladen werden. Prüfen Sie die URL.")
-
-        elif (profile.logo or profile.logo_url) and profile.logo_bestaetigt:
-            # Bestehendes Logo anzeigen
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if profile.logo_url:
-                    st.image(profile.logo_url, width=150, caption="Aktuelles Logo")
-                elif profile.logo:
-                    st.image(profile.logo, width=150, caption="Aktuelles Logo")
-            with col2:
-                st.success("✅ Logo ist aktiviert")
-                st.info("🤝 Erscheint bei Käufern/Verkäufern in Kooperation mit dem Notar")
-                if st.checkbox("Logo ändern", key="change_logo_check"):
-                    logo_url_input = st.text_input(
-                        "Neue Logo-URL:",
-                        placeholder="z.B. https://www.ihre-seite.de/logo.png",
-                        key="new_logo_url"
-                    )
-                else:
-                    logo_url_input = profile.logo_url
         else:
-            # Manuelle Logo-Eingabe ohne Analyse
+            # Manuelle Logo-Eingabe
             logo_url_input = st.text_input(
                 "Logo-URL eingeben:",
                 value=profile.logo_url if profile.logo_url else "",
                 placeholder="z.B. https://www.ihre-seite.de/logo.png",
-                help="Für automatische Logo-Erkennung wählen Sie oben 'Von Homepage übernehmen'",
-                key="manual_only_logo"
+                help="Aktivieren Sie oben die automatische Logo-Übernahme für Logo-Suche",
+                key="manual_logo_url"
             )
 
             if logo_url_input:
@@ -4986,26 +4928,24 @@ def notar_profil_view():
         return
 
     # Profil bearbeiten
-    # Dateneingabe-Modus außerhalb des Forms
-    st.markdown("### 📝 Dateneingabe-Modus")
+    # Website-Analyse für Logo (außerhalb des Forms)
+    st.markdown("### 🎨 Logo-Übernahme")
 
-    eingabe_modus = st.radio(
-        "Wie möchten Sie Ihre Kanzlei-Daten eingeben?",
-        ["🌐 Von Kanzlei-Homepage übernehmen", "✍️ Manuell eingeben"],
-        index=0 if not profile.kanzleiname else 1,
-        help="Bei automatischer Übernahme werden Daten von Ihrer Kanzlei-Website analysiert",
-        key="notar_eingabe_modus"
+    logo_uebernahme = st.checkbox(
+        "🌐 Automatische Logo-Übernahme von Homepage aktivieren",
+        value=False,
+        help="Kanzlei-Website wird analysiert und Logo automatisch übernommen",
+        key="notar_logo_uebernahme_check"
     )
 
-    # Website-Analyse vor dem Formular (wenn gewünscht)
     analysis_data = None
-    if eingabe_modus == "🌐 Von Kanzlei-Homepage übernehmen":
-        st.info("💡 Geben Sie Ihre Kanzlei-Website ein und klicken Sie auf 'Analysieren'.")
+    if logo_uebernahme:
+        st.info("💡 Geben Sie Ihre Kanzlei-Website ein und klicken Sie auf 'Los', um Ihr Logo zu finden.")
 
         col1, col2 = st.columns([3, 1])
         with col1:
             website_input = st.text_input(
-                "Kanzlei-Website*",
+                "Kanzlei-Website",
                 value=profile.website if profile.website else "",
                 placeholder="z.B. https://www.ihre-kanzlei.de",
                 key="notar_website_analyze_input"
@@ -5013,60 +4953,32 @@ def notar_profil_view():
         with col2:
             st.write("")  # Spacer
             st.write("")  # Spacer
-            if st.button("🔍 Analysieren", type="primary", disabled=not website_input, key="notar_analyze_btn"):
-                with st.spinner("🔍 Analysiere Kanzlei-Website..."):
+            if st.button("🚀 Los", type="primary", disabled=not website_input, key="notar_analyze_btn"):
+                with st.spinner("🔍 Analysiere Kanzlei-Website und suche Logo..."):
                     analysis = analyze_website(website_input)
                     st.session_state[f"website_analysis_{profile.profile_id}"] = analysis
-                    st.success("✅ Analyse abgeschlossen!")
+                    st.success("✅ Logo-Suche abgeschlossen!")
                     st.rerun()
 
         # Analyse-Ergebnisse abrufen
         analysis_data = st.session_state.get(f"website_analysis_{profile.profile_id}")
 
-        if analysis_data and analysis_data.get("betreiber"):
-            betreiber = analysis_data["betreiber"]
-            st.success("✅ Kanzlei-Daten erfolgreich analysiert! Die Felder unten wurden automatisch ausgefüllt.")
+        if analysis_data and analysis_data.get("logo"):
+            logo_data = analysis_data.get("logo", {})
+            logo_kandidaten = logo_data.get("candidates", [])
 
-            with st.expander("📋 Gefundene Kanzlei-Daten ansehen", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Kanzleiname:** {betreiber.get('name', '-')}")
-                    st.write(f"**Kategorie:** {betreiber.get('kategorie', '-')}")
-                    if betreiber.get('rechtsform'):
-                        st.write(f"**Rechtsform:** {betreiber['rechtsform']}")
-                with col2:
-                    if betreiber.get('kontakt', {}).get('email'):
-                        st.write(f"**E-Mail:** {betreiber['kontakt']['email']}")
-                    if betreiber.get('kontakt', {}).get('telefon'):
-                        st.write(f"**Telefon:** {betreiber['kontakt']['telefon']}")
+            st.success(f"✅ {len(logo_kandidaten)} Logo-Kandidaten gefunden!")
+
+            with st.expander("📋 Gefundene Logo-URLs ansehen", expanded=True):
+                for idx, url in enumerate(logo_kandidaten[:3], 1):
+                    st.write(f"{idx}. {url}")
         elif analysis_data and "error" in analysis_data:
-            st.warning("⚠️ Analyse konnte nicht vollständig durchgeführt werden. Bitte geben Sie die Daten manuell ein.")
+            st.warning("⚠️ Logo konnte nicht gefunden werden. Bitte geben Sie die Logo-URL manuell ein.")
 
     st.markdown("---")
 
     with st.form("notar_profil_bearbeiten"):
         st.markdown("### ⚖️ Kanzlei-Informationen")
-
-        # Daten aus Analyse übernehmen (falls vorhanden)
-        if analysis_data and analysis_data.get("betreiber"):
-            betreiber = analysis_data["betreiber"]
-            default_kanzleiname = betreiber.get('name', profile.kanzleiname)
-            default_email = betreiber.get('kontakt', {}).get('email', profile.email)
-            default_telefon = betreiber.get('kontakt', {}).get('telefon', profile.telefon)
-            default_website = analysis_data.get('url', profile.website)
-            # Adresse aus Betreiber-Daten
-            adresse_obj = betreiber.get('adresse', {})
-            default_adresse = adresse_obj.get('strasse', profile.adresse)
-            default_plz = adresse_obj.get('plz', profile.plz)
-            default_ort = adresse_obj.get('ort', profile.ort)
-        else:
-            default_kanzleiname = profile.kanzleiname
-            default_email = profile.email
-            default_telefon = profile.telefon
-            default_website = profile.website
-            default_adresse = profile.adresse
-            default_plz = profile.plz
-            default_ort = profile.ort
 
         col1, col2 = st.columns([1, 2])
 
@@ -5079,7 +4991,7 @@ def notar_profil_view():
                 st.image(logo_file, width=150)
 
         with col2:
-            kanzleiname = st.text_input("Kanzleiname*", value=default_kanzleiname)
+            kanzleiname = st.text_input("Kanzleiname*", value=profile.kanzleiname)
 
             col_titel, col_vorname, col_nachname = st.columns([1, 2, 2])
             with col_titel:
@@ -5092,25 +5004,25 @@ def notar_profil_view():
         st.markdown("---")
         st.markdown("### 📍 Kontaktdaten")
 
-        adresse = st.text_input("Straße und Hausnummer*", value=default_adresse)
+        adresse = st.text_input("Straße und Hausnummer*", value=profile.adresse)
 
         col_plz, col_ort = st.columns([1, 2])
         with col_plz:
-            plz = st.text_input("PLZ*", value=default_plz)
+            plz = st.text_input("PLZ*", value=profile.plz)
         with col_ort:
-            ort = st.text_input("Ort*", value=default_ort)
+            ort = st.text_input("Ort*", value=profile.ort)
 
         col_tel, col_fax = st.columns(2)
         with col_tel:
-            telefon = st.text_input("Telefon*", value=default_telefon)
+            telefon = st.text_input("Telefon*", value=profile.telefon)
         with col_fax:
             fax = st.text_input("Fax", value=profile.fax)
 
         col_email, col_web = st.columns(2)
         with col_email:
-            email = st.text_input("E-Mail*", value=default_email)
+            email = st.text_input("E-Mail*", value=profile.email)
         with col_web:
-            website = st.text_input("Website", value=default_website, help="z.B. https://www.ihre-kanzlei.de")
+            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-kanzlei.de")
 
         st.markdown("---")
         st.markdown("### 🎨 Logo & Design")
@@ -5118,7 +5030,7 @@ def notar_profil_view():
         # Logo-Auswahl basierend auf Analyse-Daten (falls vorhanden)
         if analysis_data and analysis_data.get("logo"):
             logo_data = analysis_data.get("logo", {})
-            logo_kandidaten = logo_data.get("candidates", [logo_data.get("url")]) if logo_data else []
+            logo_kandidaten = logo_data.get("candidates", [])
 
             st.info("💡 Wählen Sie ein Kanzlei-Logo aus den gefundenen URLs oder geben Sie eine eigene ein.")
 
@@ -5129,16 +5041,6 @@ def notar_profil_view():
                 index=0,
                 key="notar_logo_url_select"
             )
-
-            # Manuelle Eingabe als Alternative
-            manual_logo_url = st.text_input(
-                "Oder eigene Logo-URL eingeben:",
-                placeholder="z.B. https://www.ihre-kanzlei.de/logo.png",
-                key="notar_manual_logo_input"
-            )
-
-            if manual_logo_url:
-                logo_url_input = manual_logo_url
 
             # Logo-Vorschau
             if logo_url_input:
@@ -5152,34 +5054,14 @@ def notar_profil_view():
                             st.caption(f"Konfidenz: {int(analysis_data['confidence'] * 100)}%")
                 except:
                     st.warning("⚠️ Logo konnte nicht geladen werden. Prüfen Sie die URL.")
-
-        elif (profile.logo or profile.logo_url) and profile.logo_bestaetigt:
-            # Bestehendes Logo anzeigen
-            col1, col2 = st.columns([1, 3])
-            with col1:
-                if profile.logo_url:
-                    st.image(profile.logo_url, width=150, caption="Aktuelles Logo")
-                elif profile.logo:
-                    st.image(profile.logo, width=150, caption="Aktuelles Logo")
-            with col2:
-                st.success("✅ Logo ist aktiviert")
-                st.info("🏛️ Erscheint bei Käufern/Verkäufern in Transaktionen")
-                if st.checkbox("Logo ändern", key="notar_change_logo_check"):
-                    logo_url_input = st.text_input(
-                        "Neue Logo-URL:",
-                        placeholder="z.B. https://www.ihre-kanzlei.de/logo.png",
-                        key="notar_new_logo_url"
-                    )
-                else:
-                    logo_url_input = profile.logo_url
         else:
-            # Manuelle Logo-Eingabe ohne Analyse
+            # Manuelle Logo-Eingabe
             logo_url_input = st.text_input(
                 "Logo-URL eingeben:",
                 value=profile.logo_url if profile.logo_url else "",
                 placeholder="z.B. https://www.ihre-kanzlei.de/logo.png",
-                help="Für automatische Logo-Erkennung wählen Sie oben 'Von Homepage übernehmen'",
-                key="notar_manual_only_logo"
+                help="Aktivieren Sie oben die automatische Logo-Übernahme für Logo-Suche",
+                key="notar_manual_logo_url"
             )
 
             if logo_url_input:
