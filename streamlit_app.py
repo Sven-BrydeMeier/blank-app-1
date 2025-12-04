@@ -296,6 +296,40 @@ class MaklerProfile:
     created_at: datetime = field(default_factory=datetime.now)
 
 @dataclass
+class NotarProfile:
+    """Notar-Profil"""
+    profile_id: str
+    notar_id: str
+    kanzleiname: str
+    notar_vorname: str
+    notar_nachname: str
+    notar_titel: str = ""  # z.B. "Dr.", "Dr. jur."
+    adresse: str = ""
+    plz: str = ""
+    ort: str = ""
+    telefon: str = ""
+    fax: str = ""
+    email: str = ""
+    website: str = ""
+
+    # Logo
+    logo: Optional[bytes] = None
+    logo_url: str = ""  # URL zum Logo (Alternative zu bytes)
+    logo_aktiviert: bool = False  # Automatische Logo-Übernahme aktiviert
+    logo_bestaetigt: bool = False  # Logo wurde vom Notar bestätigt
+
+    # Zusätzliche Informationen
+    notarkammer: str = ""  # z.B. "Notarkammer München"
+    handelsregister: str = ""
+    steuernummer: str = ""
+    ust_id: str = ""
+
+    # Öffnungszeiten
+    oeffnungszeiten: str = ""
+
+    created_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
 class ExposeData:
     """Exposé-Daten für PDF und Web-Generierung"""
     expose_id: str
@@ -488,6 +522,7 @@ def init_session_state():
 
         # Neue Datenstrukturen
         st.session_state.makler_profiles = {}
+        st.session_state.notar_profiles = {}
         st.session_state.expose_data = {}
         st.session_state.document_requests = {}
         st.session_state.notar_checklists = {}
@@ -2530,24 +2565,72 @@ def onboarding_flow():
 def kaeufer_dashboard():
     """Dashboard für Käufer"""
 
-    # Prüfen ob Käufer über Makler vermittelt wurde
+    # Prüfen ob Käufer über Notar und/oder Makler vermittelt wurde
     user_id = st.session_state.current_user.user_id
     projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
 
+    notar_profile = None
     makler_profile = None
+
     if projekte:
-        # Erstes Projekt mit Makler finden
+        # Erstes Projekt analysieren
         for projekt in projekte:
-            if projekt.makler_id:
+            # Notar-Profil laden
+            if projekt.notar_id and not notar_profile:
+                for p in st.session_state.notar_profiles.values():
+                    if p.notar_id == projekt.notar_id:
+                        notar_profile = p
+                        break
+
+            # Makler-Profil laden
+            if projekt.makler_id and not makler_profile:
                 for p in st.session_state.makler_profiles.values():
                     if p.makler_id == projekt.makler_id:
                         makler_profile = p
                         break
-                if makler_profile:
-                    break
 
-    # Titelzeile mit Kooperations-Logos
-    if makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url):
+            if notar_profile and makler_profile:
+                break
+
+    # Titelzeile mit Logos
+    notar_hat_logo = notar_profile and notar_profile.logo_bestaetigt and (notar_profile.logo or notar_profile.logo_url)
+    makler_hat_logo = makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url)
+
+    if notar_hat_logo and makler_hat_logo:
+        # Beide Logos anzeigen: Notar (Haupt) + Makler (Kooperation)
+        col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
+        with col1:
+            if notar_profile.logo_url:
+                st.image(notar_profile.logo_url, width=100)
+            elif notar_profile.logo:
+                st.image(notar_profile.logo, width=100)
+            if notar_profile.kanzleiname:
+                st.caption(notar_profile.kanzleiname)
+        with col2:
+            st.title("🏠 Käufer-Dashboard")
+        with col3:
+            st.markdown("##### 🤝 in Kooperation mit")
+        with col4:
+            if makler_profile.logo_url:
+                st.image(makler_profile.logo_url, width=80)
+            elif makler_profile.logo:
+                st.image(makler_profile.logo, width=80)
+            if makler_profile.firmenname:
+                st.caption(makler_profile.firmenname)
+    elif notar_hat_logo:
+        # Nur Notar-Logo
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if notar_profile.logo_url:
+                st.image(notar_profile.logo_url, width=120)
+            elif notar_profile.logo:
+                st.image(notar_profile.logo, width=120)
+            if notar_profile.kanzleiname:
+                st.caption(notar_profile.kanzleiname)
+        with col2:
+            st.title("🏠 Käufer-Dashboard")
+    elif makler_hat_logo:
+        # Nur Makler-Logo
         col1, col2, col3 = st.columns([1, 3, 1])
         with col1:
             st.title("🏠 Käufer-Dashboard")
@@ -2891,24 +2974,72 @@ def kaeufer_dokumente_view():
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer"""
 
-    # Prüfen ob Verkäufer über Makler vermittelt wurde
+    # Prüfen ob Verkäufer über Notar und/oder Makler vermittelt wurde
     user_id = st.session_state.current_user.user_id
     projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
 
+    notar_profile = None
     makler_profile = None
+
     if projekte:
-        # Erstes Projekt mit Makler finden
+        # Erstes Projekt analysieren
         for projekt in projekte:
-            if projekt.makler_id:
+            # Notar-Profil laden
+            if projekt.notar_id and not notar_profile:
+                for p in st.session_state.notar_profiles.values():
+                    if p.notar_id == projekt.notar_id:
+                        notar_profile = p
+                        break
+
+            # Makler-Profil laden
+            if projekt.makler_id and not makler_profile:
                 for p in st.session_state.makler_profiles.values():
                     if p.makler_id == projekt.makler_id:
                         makler_profile = p
                         break
-                if makler_profile:
-                    break
 
-    # Titelzeile mit Kooperations-Logos
-    if makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url):
+            if notar_profile and makler_profile:
+                break
+
+    # Titelzeile mit Logos
+    notar_hat_logo = notar_profile and notar_profile.logo_bestaetigt and (notar_profile.logo or notar_profile.logo_url)
+    makler_hat_logo = makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url)
+
+    if notar_hat_logo and makler_hat_logo:
+        # Beide Logos anzeigen: Notar (Haupt) + Makler (Kooperation)
+        col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
+        with col1:
+            if notar_profile.logo_url:
+                st.image(notar_profile.logo_url, width=100)
+            elif notar_profile.logo:
+                st.image(notar_profile.logo, width=100)
+            if notar_profile.kanzleiname:
+                st.caption(notar_profile.kanzleiname)
+        with col2:
+            st.title("🏡 Verkäufer-Dashboard")
+        with col3:
+            st.markdown("##### 🤝 in Kooperation mit")
+        with col4:
+            if makler_profile.logo_url:
+                st.image(makler_profile.logo_url, width=80)
+            elif makler_profile.logo:
+                st.image(makler_profile.logo, width=80)
+            if makler_profile.firmenname:
+                st.caption(makler_profile.firmenname)
+    elif notar_hat_logo:
+        # Nur Notar-Logo
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if notar_profile.logo_url:
+                st.image(notar_profile.logo_url, width=120)
+            elif notar_profile.logo:
+                st.image(notar_profile.logo, width=120)
+            if notar_profile.kanzleiname:
+                st.caption(notar_profile.kanzleiname)
+        with col2:
+            st.title("🏡 Verkäufer-Dashboard")
+    elif makler_hat_logo:
+        # Nur Makler-Logo
         col1, col2, col3 = st.columns([1, 3, 1])
         with col1:
             st.title("🏡 Verkäufer-Dashboard")
@@ -3464,13 +3595,39 @@ def finanzierer_angebote_liste():
 
 def notar_dashboard():
     """Dashboard für Notar"""
-    st.title("⚖️ Notar-Dashboard")
+
+    # Notar-Profil für Logo laden
+    notar_id = st.session_state.current_user.user_id
+    profile = None
+    for p in st.session_state.notar_profiles.values():
+        if p.notar_id == notar_id:
+            profile = p
+            break
+
+    # Titelzeile mit Logo
+    if profile and profile.logo_bestaetigt and (profile.logo or profile.logo_url):
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if profile.logo_url:
+                st.image(profile.logo_url, width=120)
+            elif profile.logo:
+                st.image(profile.logo, width=120)
+        with col2:
+            st.title("⚖️ Notar-Dashboard")
+            if profile.kanzleiname:
+                st.markdown(f"**{profile.kanzleiname}**")
+                notar_name = f"{profile.notar_titel} {profile.notar_vorname} {profile.notar_nachname}".strip()
+                if notar_name:
+                    st.caption(notar_name)
+    else:
+        st.title("⚖️ Notar-Dashboard")
 
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
+        "👤 Profil",
         "👥 Mitarbeiter",
         "🤝 Makler-Netzwerk",
         "🔄 Vermittler",
@@ -3492,21 +3649,24 @@ def notar_dashboard():
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[4]:
-        notar_mitarbeiter_view()
+        notar_profil_view()
 
     with tabs[5]:
-        notar_makler_netzwerk_view()
+        notar_mitarbeiter_view()
 
     with tabs[6]:
-        notar_vermittler_view()
+        notar_makler_netzwerk_view()
 
     with tabs[7]:
-        notar_finanzierungsnachweise()
+        notar_vermittler_view()
 
     with tabs[8]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[9]:
+        notar_dokumenten_freigaben()
+
+    with tabs[10]:
         notar_termine()
 
 def notar_timeline_view():
@@ -3523,6 +3683,200 @@ def notar_timeline_view():
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
             render_timeline(projekt.projekt_id, UserRole.NOTAR.value)
+
+def notar_profil_view():
+    """Notar-Profil-Verwaltung"""
+    st.subheader("👤 Mein Notar-Profil")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Profil suchen oder erstellen
+    profile = None
+    for p in st.session_state.notar_profiles.values():
+        if p.notar_id == notar_id:
+            profile = p
+            break
+
+    if not profile:
+        st.info("Sie haben noch kein Profil erstellt. Erstellen Sie jetzt Ihr Kanzlei-Profil!")
+        if st.button("➕ Profil erstellen"):
+            profile_id = f"notarprofile_{len(st.session_state.notar_profiles)}"
+            profile = NotarProfile(
+                profile_id=profile_id,
+                notar_id=notar_id,
+                kanzleiname="",
+                notar_vorname="",
+                notar_nachname=""
+            )
+            st.session_state.notar_profiles[profile_id] = profile
+            st.rerun()
+        return
+
+    # Profil bearbeiten
+    with st.form("notar_profil_bearbeiten"):
+        st.markdown("### ⚖️ Kanzlei-Informationen")
+
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            st.markdown("**Kanzlei-Logo**")
+            logo_file = st.file_uploader("Kanzlei-Logo hochladen", type=["png", "jpg", "jpeg"], key="notar_logo_upload")
+            if profile.logo:
+                st.image(profile.logo, width=150)
+            elif logo_file:
+                st.image(logo_file, width=150)
+
+        with col2:
+            kanzleiname = st.text_input("Kanzleiname*", value=profile.kanzleiname)
+
+            col_titel, col_vorname, col_nachname = st.columns([1, 2, 2])
+            with col_titel:
+                notar_titel = st.text_input("Titel", value=profile.notar_titel, placeholder="Dr.")
+            with col_vorname:
+                notar_vorname = st.text_input("Vorname*", value=profile.notar_vorname)
+            with col_nachname:
+                notar_nachname = st.text_input("Nachname*", value=profile.notar_nachname)
+
+        st.markdown("---")
+        st.markdown("### 📍 Kontaktdaten")
+
+        adresse = st.text_input("Straße und Hausnummer*", value=profile.adresse)
+
+        col_plz, col_ort = st.columns([1, 2])
+        with col_plz:
+            plz = st.text_input("PLZ*", value=profile.plz)
+        with col_ort:
+            ort = st.text_input("Ort*", value=profile.ort)
+
+        col_tel, col_fax = st.columns(2)
+        with col_tel:
+            telefon = st.text_input("Telefon*", value=profile.telefon)
+        with col_fax:
+            fax = st.text_input("Fax", value=profile.fax)
+
+        col_email, col_web = st.columns(2)
+        with col_email:
+            email = st.text_input("E-Mail*", value=profile.email)
+        with col_web:
+            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-kanzlei.de")
+
+        st.markdown("---")
+        st.markdown("### 🎨 Logo & Design")
+
+        logo_aktiviert = st.checkbox(
+            "Automatische Logo und Design Übernahme aktivieren",
+            value=profile.logo_aktiviert,
+            help="Aktivieren Sie diese Option, um Ihr Logo automatisch von Ihrer Homepage zu übernehmen"
+        )
+
+        if logo_aktiviert and website and not profile.logo_bestaetigt:
+            st.info("💡 Geben Sie Ihre Homepage ein. Wir versuchen automatisch Ihr Logo zu finden.")
+
+            # Logo-URL-Vorschläge generieren
+            base_url = website.rstrip('/')
+            if not base_url.startswith('http'):
+                base_url = f"https://{base_url}"
+
+            logo_vorschlaege = [
+                f"{base_url}/logo.png",
+                f"{base_url}/images/logo.png",
+                f"{base_url}/assets/logo.png",
+                f"{base_url}/img/logo.png",
+                f"{base_url}/logo.svg",
+                f"{base_url}/images/logo.svg",
+                f"{base_url}/wp-content/uploads/logo.png",
+                f"{base_url}/media/logo.png"
+            ]
+
+            st.markdown("**Logo-URL eingeben:**")
+            logo_url_input = st.text_input(
+                "Logo-URL direkt eingeben oder aus Vorschlägen wählen:",
+                value=profile.logo_url if profile.logo_url else "",
+                placeholder="z.B. https://www.ihre-kanzlei.de/logo.png"
+            )
+
+            with st.expander("📋 Automatische Vorschläge anzeigen"):
+                st.info("Probieren Sie diese URLs aus, indem Sie sie kopieren und oben einfügen:")
+                for url in logo_vorschlaege:
+                    st.code(url, language=None)
+
+            # Logo-Vorschau wenn URL eingegeben
+            if logo_url_input:
+                st.markdown("**Logo-Vorschau:**")
+                try:
+                    col1, col2 = st.columns([1, 2])
+                    with col1:
+                        st.image(logo_url_input, width=200, caption="Vorschau Ihres Kanzlei-Logos")
+                    with col2:
+                        st.markdown("**✅ Logo gefunden!**")
+                        st.info("Wenn dies Ihr Kanzlei-Logo ist, speichern Sie das Profil unten. Das Logo wird dann in Ihrem Dashboard und bei Ihren Mandanten angezeigt.")
+                except:
+                    st.error("❌ Logo konnte nicht geladen werden. Bitte überprüfen Sie die URL.")
+
+        elif (profile.logo or profile.logo_url) and profile.logo_bestaetigt:
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if profile.logo_url:
+                    st.image(profile.logo_url, width=150, caption="Ihr bestätigtes Kanzlei-Logo")
+                elif profile.logo:
+                    st.image(profile.logo, width=150, caption="Ihr bestätigtes Kanzlei-Logo")
+            with col2:
+                st.success("✅ Logo ist aktiviert und wird in Ihrem Dashboard angezeigt")
+                st.info("🏛️ Ihr Kanzlei-Logo erscheint bei Käufern und Verkäufern in den Transaktionen")
+                if st.checkbox("Logo neu auswählen"):
+                    profile.logo_bestaetigt = False
+                    st.session_state.notar_profiles[profile.profile_id] = profile
+                    st.rerun()
+
+        st.markdown("---")
+        st.markdown("### 📋 Zusätzliche Informationen")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            notarkammer = st.text_input("Notarkammer", value=profile.notarkammer, placeholder="z.B. Notarkammer München")
+            handelsregister = st.text_input("Handelsregister", value=profile.handelsregister)
+        with col2:
+            steuernummer = st.text_input("Steuernummer", value=profile.steuernummer)
+            ust_id = st.text_input("USt-IdNr.", value=profile.ust_id)
+
+        oeffnungszeiten = st.text_area("Öffnungszeiten", value=profile.oeffnungszeiten, height=100,
+                                       placeholder="Mo-Fr: 9:00 - 17:00 Uhr\nSa: Nach Vereinbarung")
+
+        st.markdown("---")
+
+        if st.form_submit_button("💾 Profil speichern", type="primary"):
+            profile.kanzleiname = kanzleiname
+            profile.notar_titel = notar_titel
+            profile.notar_vorname = notar_vorname
+            profile.notar_nachname = notar_nachname
+            profile.adresse = adresse
+            profile.plz = plz
+            profile.ort = ort
+            profile.telefon = telefon
+            profile.fax = fax
+            profile.email = email
+            profile.website = website
+            profile.notarkammer = notarkammer
+            profile.handelsregister = handelsregister
+            profile.steuernummer = steuernummer
+            profile.ust_id = ust_id
+            profile.oeffnungszeiten = oeffnungszeiten
+
+            # Logo-Verwaltung
+            if logo_file:
+                profile.logo = logo_file.read()
+                profile.logo_bestaetigt = True
+                profile.logo_aktiviert = False  # Manuelle Upload deaktiviert automatische Suche
+
+            # Logo-URL Verwaltung
+            profile.logo_aktiviert = logo_aktiviert
+            if logo_aktiviert and 'logo_url_input' in locals() and logo_url_input:
+                profile.logo_url = logo_url_input
+                profile.logo_bestaetigt = True  # URL wurde eingegeben und Vorschau gesehen
+                st.success("✅ Logo-URL wurde gespeichert!")
+
+            st.session_state.notar_profiles[profile.profile_id] = profile
+            st.success("✅ Kanzlei-Profil erfolgreich gespeichert!")
 
 def notar_projekte_view():
     """Projekt-Übersicht für Notar mit Fallzuweisung"""
