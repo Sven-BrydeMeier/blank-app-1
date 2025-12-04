@@ -320,6 +320,29 @@ class MaklerProfile:
     created_at: datetime = field(default_factory=datetime.now)
 
 @dataclass
+class NotarVertretung:
+    """Notar-Vertretung: Ein Notar vertritt einen anderen"""
+    vertretung_id: str
+    kanzlei_id: str  # Gemeinsame Kanzlei (basiert auf NotarProfile)
+    hauptnotar_id: str  # Der Notar, der vertreten wird
+    vertreter_id: str  # Der vertretende Notar
+    status: str = "ANGEFRAGT"  # ANGEFRAGT, AKTIV, ABGELEHNT, ZURUECKGEZOGEN
+
+    # Berechtigungen für Vertreter
+    kann_daten_aendern: bool = True
+    kann_anforderungen_stellen: bool = True
+    kann_dokumente_hochladen: bool = True
+    kann_termine_setzen: bool = True
+
+    # Zeitstempel
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    genehmigt_am: Optional[datetime] = None
+    zurueckgezogen_am: Optional[datetime] = None
+
+    # Notizen
+    notiz: str = ""
+
+@dataclass
 class NotarProfile:
     """Notar-Profil"""
     profile_id: str
@@ -351,6 +374,9 @@ class NotarProfile:
 
     # Öffnungszeiten
     oeffnungszeiten: str = ""
+
+    # Kanzlei-Zugehörigkeit (für Vertretungen)
+    kanzlei_id: str = ""  # Gemeinsame ID für Notare derselben Kanzlei
 
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -639,6 +665,7 @@ def init_session_state():
         # Neue Datenstrukturen
         st.session_state.makler_profiles = {}
         st.session_state.notar_profiles = {}
+        st.session_state.notar_vertretungen = {}  # Notar-Vertretungsverhältnisse
         st.session_state.expose_data = {}
         st.session_state.document_requests = {}
         st.session_state.notar_checklists = {}
@@ -1267,32 +1294,36 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                             notarversicherung = vers_cleaned
                             break
 
-                # Namen extrahieren (Notar/Rechtsanwalt) - mehrere Strategien
+                # Namen extrahieren (Notar/Rechtsanwalt) - ALLE Notare finden
+                alle_notare = []  # Liste von (titel, vorname, nachname) Tupeln
+
                 name_patterns = [
                     # "Notar Dr. Max Mustermann"
-                    r'Notar(?:in)?\s+(?:und\s+Rechtsanwalt\s+)?(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
+                    r'Notar(?:in)?\s+(?:und\s+Rechtsanwalt\s+)?((?:Dr\.\s+jur\.|Dr\.|Prof\.|Prof\.\s+Dr\.)\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
                     # "Dr. Max Mustermann, Notar"
-                    r'(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*,?\s*Notar',
+                    r'((?:Dr\.\s+jur\.|Dr\.|Prof\.|Prof\.\s+Dr\.)\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*,?\s*Notar(?:in)?',
                     # "Rechtsanwalt Dr. Max Mustermann"
-                    r'Rechtsanwalt\s+(?:und\s+Notar\s+)?(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
-                    # "Dr. Max Mustermann" (am Anfang einer Zeile nach Kanzleiname)
-                    r'(?:^|\n)\s*(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*(?:\n|,)',
+                    r'Rechtsanwalt\s+(?:und\s+Notar\s+)?((?:Dr\.\s+jur\.|Dr\.|Prof\.|Prof\.\s+Dr\.)\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
                 ]
 
-                # Titel-Extraktion
-                titel_match = re.search(r'\b(Dr\.\s+jur\.|Dr\.|Prof\.|Prof\.\s+Dr\.)\s+[A-ZÄÖÜ]', text)
-                if titel_match:
-                    notar_titel = titel_match.group(1).strip()
-
-                # Namen-Extraktion
+                # Sammle alle gefundenen Namen
                 for pattern in name_patterns:
-                    name_matches = re.findall(pattern, text)
-                    if name_matches:
-                        if len(name_matches[0]) == 2:
-                            vorname_match, nachname_match = name_matches[0]
-                            notar_vorname = vorname_match.strip()
-                            notar_nachname = nachname_match.strip()
-                            break
+                    matches = re.findall(pattern, text)
+                    for match in matches:
+                        if len(match) == 3:
+                            titel_part = match[0].strip() if match[0] else ""
+                            vorname_part = match[1].strip()
+                            nachname_part = match[2].strip()
+
+                            # Prüfe ob schon vorhanden (Duplikate vermeiden)
+                            if not any(n[1] == vorname_part and n[2] == nachname_part for n in alle_notare):
+                                alle_notare.append((titel_part, vorname_part, nachname_part))
+
+                # Erster Notar für Hauptdaten
+                if alle_notare:
+                    notar_titel, notar_vorname, notar_nachname = alle_notare[0]
+                else:
+                    notar_titel, notar_vorname, notar_nachname = "", "", ""
 
             # Ergebnis zusammenstellen
             result = {
@@ -1324,8 +1355,9 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                     "notarversicherung": notarversicherung,
                     "titel": notar_titel,
                     "vorname": notar_vorname,
-                    "nachname": notar_nachname
-                } if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR"] else None,
+                    "nachname": notar_nachname,
+                    "alle_notare": alle_notare if 'alle_notare' in locals() else []  # Liste aller gefundenen Notare
+                } if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR", "RECHTSANWALT"] else None,
                 "confidence": 0.8 if (email and telefon) else 0.5,
                 "message": f"Website erfolgreich analysiert. {len(logo_urls)} Logo-Kandidaten gefunden."
             }
@@ -5214,6 +5246,7 @@ def notar_dashboard():
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👤 Profil",
+        "🔗 Vertretung",
         "👥 Mitarbeiter",
         "🤝 Makler-Netzwerk",
         "🔄 Vermittler",
@@ -5239,24 +5272,27 @@ def notar_dashboard():
         notar_profil_view()
 
     with tabs[5]:
-        notar_mitarbeiter_view()
+        notar_vertretung_view()
 
     with tabs[6]:
-        notar_makler_netzwerk_view()
+        notar_mitarbeiter_view()
 
     with tabs[7]:
-        notar_vermittler_view()
+        notar_makler_netzwerk_view()
 
     with tabs[8]:
-        notar_finanzierungsnachweise()
+        notar_vermittler_view()
 
     with tabs[9]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[10]:
-        notar_termine()
+        notar_dokumenten_freigaben()
 
     with tabs[11]:
+        notar_termine()
+
+    with tabs[12]:
         notar_auftraege_view()
 
 def notar_timeline_view():
@@ -5571,6 +5607,221 @@ def notar_profil_view():
             st.session_state.notar_profiles[profile.profile_id] = profile
             st.success("✅ Kanzlei-Profil erfolgreich gespeichert!")
             st.rerun()
+
+def notar_vertretung_view():
+    """Notar-Vertretungs-Verwaltung"""
+    st.subheader("🔗 Notar-Vertretung")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Eigenes Profil laden
+    eigenes_profil = None
+    for p in st.session_state.notar_profiles.values():
+        if p.notar_id == notar_id:
+            eigenes_profil = p
+            break
+
+    if not eigenes_profil:
+        st.warning("⚠️ Bitte erstellen Sie zuerst Ihr Profil unter 'Profil'.")
+        return
+
+    # Kanzlei-ID setzen falls noch nicht vorhanden
+    if not eigenes_profil.kanzlei_id:
+        eigenes_profil.kanzlei_id = f"kanzlei_{eigenes_profil.kanzleiname.lower().replace(' ', '_')}"
+        st.session_state.notar_profiles[eigenes_profil.profile_id] = eigenes_profil
+
+    tabs = st.tabs(["👥 Kanzlei-Kollegen", "📨 Anfragen", "✅ Aktive Vertretungen", "📊 Vertretungs-Ansicht"])
+
+    with tabs[0]:
+        st.markdown("### 👥 Notare in meiner Kanzlei")
+
+        # Andere Notare derselben Kanzlei finden
+        kanzlei_kollegen = []
+        for p in st.session_state.notar_profiles.values():
+            if p.notar_id != notar_id and p.kanzlei_id == eigenes_profil.kanzlei_id:
+                kanzlei_kollegen.append(p)
+
+        if not kanzlei_kollegen:
+            st.info("💡 Keine anderen Notare in Ihrer Kanzlei gefunden. Laden Sie Kollegen ein, sich zu registrieren.")
+        else:
+            for kollege in kanzlei_kollegen:
+                with st.expander(f"⚖️ {kollege.notar_titel} {kollege.notar_vorname} {kollege.notar_nachname}"):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.write(f"**E-Mail:** {kollege.email}")
+                        st.write(f"**Telefon:** {kollege.telefon}")
+                        st.write(f"**Notarkammer:** {kollege.notarkammer}")
+
+                    with col2:
+                        # Prüfe ob bereits Vertretung existiert
+                        vertretung_existiert = any(
+                            (v.hauptnotar_id == notar_id and v.vertreter_id == kollege.notar_id and v.status in ["ANGEFRAGT", "AKTIV"]) or
+                            (v.vertreter_id == notar_id and v.hauptnotar_id == kollege.notar_id and v.status in ["ANGEFRAGT", "AKTIV"])
+                            for v in st.session_state.notar_vertretungen.values()
+                        )
+
+                        if vertretung_existiert:
+                            st.info("Vertretung aktiv/angefragt")
+                        else:
+                            if st.button("Vertretung anfragen", key=f"request_{kollege.notar_id}"):
+                                # Neue Vertretungsanfrage erstellen
+                                vertretung_id = f"vert_{len(st.session_state.notar_vertretungen)}"
+                                vertretung = NotarVertretung(
+                                    vertretung_id=vertretung_id,
+                                    kanzlei_id=eigenes_profil.kanzlei_id,
+                                    hauptnotar_id=notar_id,  # Ich werde vertreten
+                                    vertreter_id=kollege.notar_id,  # Kollege vertritt mich
+                                    status="ANGEFRAGT"
+                                )
+                                st.session_state.notar_vertretungen[vertretung_id] = vertretung
+                                st.success(f"✅ Vertretungsanfrage an {kollege.notar_vorname} {kollege.notar_nachname} gesendet!")
+                                st.rerun()
+
+    with tabs[1]:
+        st.markdown("### 📨 Eingehende Vertretungsanfragen")
+
+        # Anfragen an mich
+        eingehende_anfragen = [v for v in st.session_state.notar_vertretungen.values()
+                              if v.vertreter_id == notar_id and v.status == "ANGEFRAGT"]
+
+        if not eingehende_anfragen:
+            st.info("📭 Keine offenen Vertretungsanfragen.")
+        else:
+            for vertretung in eingehende_anfragen:
+                # Profil des anfragenden Notars laden
+                anfragender = None
+                for p in st.session_state.notar_profiles.values():
+                    if p.notar_id == vertretung.hauptnotar_id:
+                        anfragender = p
+                        break
+
+                if anfragender:
+                    with st.expander(f"🔔 Anfrage von {anfragender.notar_vorname} {anfragender.notar_nachname}"):
+                        st.write(f"**Angefragt am:** {vertretung.angefragt_am.strftime('%d.%m.%Y %H:%M')}")
+                        st.write(f"**Kanzlei:** {anfragender.kanzleiname}")
+
+                        st.markdown("**Berechtigungen:**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"✅ Daten ändern" if vertretung.kann_daten_aendern else "❌ Daten ändern")
+                            st.write(f"✅ Anforderungen stellen" if vertretung.kann_anforderungen_stellen else "❌ Anforderungen stellen")
+                        with col2:
+                            st.write(f"✅ Dokumente hochladen" if vertretung.kann_dokumente_hochladen else "❌ Dokumente hochladen")
+                            st.write(f"✅ Termine setzen" if vertretung.kann_termine_setzen else "❌ Termine setzen")
+
+                        col_accept, col_reject = st.columns(2)
+                        with col_accept:
+                            if st.button("✅ Annehmen", key=f"accept_{vertretung.vertretung_id}", type="primary"):
+                                vertretung.status = "AKTIV"
+                                vertretung.genehmigt_am = datetime.now()
+                                st.session_state.notar_vertretungen[vertretung.vertretung_id] = vertretung
+                                st.success("✅ Vertretung angenommen!")
+                                st.rerun()
+
+                        with col_reject:
+                            if st.button("❌ Ablehnen", key=f"reject_{vertretung.vertretung_id}"):
+                                vertretung.status = "ABGELEHNT"
+                                st.session_state.notar_vertretungen[vertretung.vertretung_id] = vertretung
+                                st.info("Vertretung abgelehnt.")
+                                st.rerun()
+
+    with tabs[2]:
+        st.markdown("### ✅ Aktive Vertretungen")
+
+        # Aktive Vertretungen wo ich vertreten werde
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Ich werde vertreten von:**")
+            meine_vertreter = [v for v in st.session_state.notar_vertretungen.values()
+                              if v.hauptnotar_id == notar_id and v.status == "AKTIV"]
+
+            if not meine_vertreter:
+                st.info("Keine aktiven Vertretungen.")
+            else:
+                for vertretung in meine_vertreter:
+                    vertreter_profil = None
+                    for p in st.session_state.notar_profiles.values():
+                        if p.notar_id == vertretung.vertreter_id:
+                            vertreter_profil = p
+                            break
+
+                    if vertreter_profil:
+                        with st.expander(f"⚖️ {vertreter_profil.notar_vorname} {vertreter_profil.notar_nachname}"):
+                            st.write(f"**Seit:** {vertretung.genehmigt_am.strftime('%d.%m.%Y') if vertretung.genehmigt_am else 'N/A'}")
+                            st.write(f"**E-Mail:** {vertreter_profil.email}")
+
+                            if st.button("🔴 Vertretung zurückziehen", key=f"revoke_{vertretung.vertretung_id}"):
+                                vertretung.status = "ZURUECKGEZOGEN"
+                                vertretung.zurueckgezogen_am = datetime.now()
+                                st.session_state.notar_vertretungen[vertretung.vertretung_id] = vertretung
+                                st.warning("Vertretung wurde zurückgezogen.")
+                                st.rerun()
+
+        with col2:
+            st.markdown("**Ich vertrete:**")
+            ich_vertrete = [v for v in st.session_state.notar_vertretungen.values()
+                           if v.vertreter_id == notar_id and v.status == "AKTIV"]
+
+            if not ich_vertrete:
+                st.info("Sie vertreten derzeit niemanden.")
+            else:
+                for vertretung in ich_vertrete:
+                    hauptnotar_profil = None
+                    for p in st.session_state.notar_profiles.values():
+                        if p.notar_id == vertretung.hauptnotar_id:
+                            hauptnotar_profil = p
+                            break
+
+                    if hauptnotar_profil:
+                        with st.expander(f"⚖️ {hauptnotar_profil.notar_vorname} {hauptnotar_profil.notar_nachname}"):
+                            st.write(f"**Seit:** {vertretung.genehmigt_am.strftime('%d.%m.%Y') if vertretung.genehmigt_am else 'N/A'}")
+                            st.write(f"**E-Mail:** {hauptnotar_profil.email}")
+
+                            st.markdown("**Meine Berechtigungen:**")
+                            st.write(f"✅ Daten ändern" if vertretung.kann_daten_aendern else "❌ Daten ändern")
+                            st.write(f"✅ Anforderungen stellen" if vertretung.kann_anforderungen_stellen else "❌ Anforderungen stellen")
+
+    with tabs[3]:
+        st.markdown("### 📊 Projekte in Vertretung")
+
+        # Zeige Projekte von Notaren, die ich vertrete
+        ich_vertrete = [v for v in st.session_state.notar_vertretungen.values()
+                       if v.vertreter_id == notar_id and v.status == "AKTIV"]
+
+        if not ich_vertrete:
+            st.info("Sie vertreten derzeit niemanden.")
+        else:
+            for vertretung in ich_vertrete:
+                hauptnotar_profil = None
+                for p in st.session_state.notar_profiles.values():
+                    if p.notar_id == vertretung.hauptnotar_id:
+                        hauptnotar_profil = p
+                        break
+
+                if hauptnotar_profil:
+                    st.markdown(f"#### Projekte von {hauptnotar_profil.notar_vorname} {hauptnotar_profil.notar_nachname}")
+
+                    # Projekte des vertretenen Notars
+                    vertretene_projekte = [p for p in st.session_state.projekte.values()
+                                          if p.notar_id == vertretung.hauptnotar_id]
+
+                    if not vertretene_projekte:
+                        st.info("Keine Projekte vorhanden.")
+                    else:
+                        for projekt in vertretene_projekte:
+                            with st.expander(f"🏘️ {projekt.name} - {projekt.status}"):
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write(f"**Adresse:** {projekt.adresse}")
+                                    st.write(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                                with col2:
+                                    st.write(f"**Status:** {projekt.status}")
+                                    st.write(f"**Erstellt:** {projekt.created_at.strftime('%d.%m.%Y')}")
+
+                                # Berechtigungen prüfen und Aktionen anzeigen
+                                if vertretung.kann_daten_aendern:
+                                    st.info("✅ Sie können als Vertreter Daten in diesem Projekt ändern.")
 
 def notar_projekte_view():
     """Projekt-Übersicht für Notar mit Fallzuweisung"""
