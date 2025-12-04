@@ -119,6 +119,19 @@ class VerkäuferDokumentTyp(Enum):
     WOHNFLACHENBERECHNUNG = "Wohnflächenberechnung"
     SONSTIGES = "Sonstige Dokumente"
 
+class ImmobilienTyp(Enum):
+    """Immobilien-Typen für Vermittlung"""
+    WOHNUNG = "Wohnung"
+    HAUS = "Haus"
+    MEHRFAMILIENHAUS = "Mehrfamilienhaus"
+    GRUNDSTUECK = "Grundstück"
+    GEWERBE = "Gewerbe"
+    BUERO = "Büro"
+    PRAXIS = "Praxis"
+    LADEN = "Laden"
+    HALLE = "Halle/Lager"
+    SONSTIGES = "Sonstiges"
+
 # ============================================================================
 # DATENMODELLE
 # ============================================================================
