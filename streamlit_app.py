@@ -258,6 +258,13 @@ class Projekt:
     property_type: str = PropertyType.WOHNUNG.value  # Objektart
     expose_data_id: Optional[str] = None  # Verweis auf ExposeData
 
+    # Notar-Netzwerk
+    empfohlener_notar_id: str = ""  # Makler empfiehlt Notar
+    vermittelt_durch_notar: bool = False  # Notar agiert als Vermittler
+
+    # Fallzuweisung
+    zugewiesener_mitarbeiter_id: str = ""  # Zugewiesener Notar-Mitarbeiter
+
 @dataclass
 class MaklerAgent:
     """Makler-Team-Mitglied"""
@@ -405,11 +412,33 @@ class NotarMitarbeiter:
     kann_termine_verwalten: bool = False
     kann_finanzierung_sehen: bool = False
 
-    # Zugewiesene Projekte
+    # Zugewiesene Projekte (allgemeiner Zugriff)
     projekt_ids: List[str] = field(default_factory=list)
+
+    # Zugewiesene Fälle (primäre Verantwortung)
+    zugewiesene_faelle: List[str] = field(default_factory=list)
 
     created_at: datetime = field(default_factory=datetime.now)
     aktiv: bool = True
+
+@dataclass
+class MaklerNetzwerkMitglied:
+    """Makler im Netzwerk eines Notars"""
+    netzwerk_id: str
+    notar_id: str
+    makler_id: str
+
+    # Status
+    eingeladen_am: datetime
+    beigetreten_am: Optional[datetime] = None
+    status: str = "Eingeladen"  # Eingeladen, Aktiv, Inaktiv
+
+    # Statistiken
+    letzte_empfehlung_am: Optional[datetime] = None
+    anzahl_aktive_projekte: int = 0
+    anzahl_empfehlungen_gesamt: int = 0
+
+    notizen: str = ""
 
 @dataclass
 class VerkäuferDokument:
@@ -462,6 +491,7 @@ def init_session_state():
         st.session_state.bank_folders = {}
         st.session_state.notar_mitarbeiter = {}
         st.session_state.verkaeufer_dokumente = {}
+        st.session_state.makler_netzwerk = {}  # Makler-Netzwerk für Notare
 
         # Demo-Daten
         create_demo_users()
@@ -3273,6 +3303,8 @@ def notar_dashboard():
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👥 Mitarbeiter",
+        "🤝 Makler-Netzwerk",
+        "🔄 Vermittler",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📅 Termine"
@@ -3294,12 +3326,18 @@ def notar_dashboard():
         notar_mitarbeiter_view()
 
     with tabs[5]:
-        notar_finanzierungsnachweise()
+        notar_makler_netzwerk_view()
 
     with tabs[6]:
-        notar_dokumenten_freigaben()
+        notar_vermittler_view()
 
     with tabs[7]:
+        notar_finanzierungsnachweise()
+
+    with tabs[8]:
+        notar_dokumenten_freigaben()
+
+    with tabs[9]:
         notar_termine()
 
 def notar_timeline_view():
@@ -3318,8 +3356,8 @@ def notar_timeline_view():
             render_timeline(projekt.projekt_id, UserRole.NOTAR.value)
 
 def notar_projekte_view():
-    """Projekt-Übersicht für Notar"""
-    st.subheader("📋 Meine Projekte")
+    """Projekt-Übersicht für Notar mit Fallzuweisung"""
+    st.subheader("📋 Meine Projekte & Fallzuweisung")
 
     notar_id = st.session_state.current_user.user_id
     projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
@@ -3328,8 +3366,20 @@ def notar_projekte_view():
         st.info("Noch keine Projekte zugewiesen.")
         return
 
+    # Mitarbeiter-Liste für Zuweisung vorbereiten
+    mitarbeiter_liste = [m for m in st.session_state.notar_mitarbeiter.values()
+                        if m.notar_id == notar_id and m.aktiv]
+
     for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+        # Zugewiesener Mitarbeiter anzeigen
+        zugewiesen_icon = "👤" if projekt.zugewiesener_mitarbeiter_id else "⚪"
+        zugewiesener_name = ""
+        if projekt.zugewiesener_mitarbeiter_id:
+            ma = st.session_state.notar_mitarbeiter.get(projekt.zugewiesener_mitarbeiter_id)
+            if ma:
+                zugewiesener_name = f" - Zugewiesen an: {ma.name}"
+
+        with st.expander(f"{zugewiesen_icon} 🏘️ {projekt.name}{zugewiesener_name}", expanded=False):
             col1, col2 = st.columns(2)
 
             with col1:
@@ -3338,6 +3388,10 @@ def notar_projekte_view():
                     st.markdown(f"**Adresse:** {projekt.adresse}")
                 if projekt.kaufpreis > 0:
                     st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+
+                # Vermittler-Status
+                if projekt.vermittelt_durch_notar:
+                    st.markdown("🔄 **Als Vermittler fungierend**")
 
             with col2:
                 st.markdown("**Parteien:**")
@@ -3350,6 +3404,82 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+            st.markdown("---")
+
+            # Fallzuweisung
+            st.markdown("### 👤 Fallzuweisung")
+
+            if mitarbeiter_liste:
+                col1, col2 = st.columns([3, 1])
+
+                with col1:
+                    mitarbeiter_options = {ma.name: ma.mitarbeiter_id for ma in mitarbeiter_liste}
+                    mitarbeiter_options["Nicht zugewiesen (Notar)"] = ""
+
+                    # Aktuell zugewiesener Mitarbeiter vorauswählen
+                    if projekt.zugewiesener_mitarbeiter_id:
+                        ma = st.session_state.notar_mitarbeiter.get(projekt.zugewiesener_mitarbeiter_id)
+                        default_index = list(mitarbeiter_options.keys()).index(ma.name) if ma else 0
+                    else:
+                        default_index = list(mitarbeiter_options.keys()).index("Nicht zugewiesen (Notar)")
+
+                    neuer_mitarbeiter = st.selectbox(
+                        "Fall zuweisen an:",
+                        options=list(mitarbeiter_options.keys()),
+                        index=default_index,
+                        key=f"assign_{projekt.projekt_id}"
+                    )
+
+                with col2:
+                    if st.button("💾 Speichern", key=f"save_assign_{projekt.projekt_id}"):
+                        neue_mitarbeiter_id = mitarbeiter_options[neuer_mitarbeiter]
+
+                        # Alte Zuweisung entfernen
+                        if projekt.zugewiesener_mitarbeiter_id:
+                            alter_ma = st.session_state.notar_mitarbeiter.get(projekt.zugewiesener_mitarbeiter_id)
+                            if alter_ma and projekt.projekt_id in alter_ma.zugewiesene_faelle:
+                                alter_ma.zugewiesene_faelle.remove(projekt.projekt_id)
+                                st.session_state.notar_mitarbeiter[alter_ma.mitarbeiter_id] = alter_ma
+
+                        # Neue Zuweisung setzen
+                        projekt.zugewiesener_mitarbeiter_id = neue_mitarbeiter_id
+                        st.session_state.projekte[projekt.projekt_id] = projekt
+
+                        # Zu zugewiesene_faelle hinzufügen
+                        if neue_mitarbeiter_id:
+                            neuer_ma = st.session_state.notar_mitarbeiter.get(neue_mitarbeiter_id)
+                            if neuer_ma and projekt.projekt_id not in neuer_ma.zugewiesene_faelle:
+                                neuer_ma.zugewiesene_faelle.append(projekt.projekt_id)
+                                st.session_state.notar_mitarbeiter[neue_mitarbeiter_id] = neuer_ma
+
+                            # Benachrichtigung an Mitarbeiter
+                            notif_id = f"notif_{len(st.session_state.notifications)}"
+                            notification = Notification(
+                                notification_id=notif_id,
+                                user_id=neue_mitarbeiter_id,
+                                titel="📋 Neuer Fall zugewiesen",
+                                nachricht=f"Ihnen wurde der Fall '{projekt.name}' zur primären Bearbeitung zugewiesen.",
+                                typ="Fallzuweisung",
+                                timestamp=datetime.now()
+                            )
+                            st.session_state.notifications[notif_id] = notification
+
+                            st.success(f"Fall wurde an {neuer_mitarbeiter} zugewiesen!")
+                        else:
+                            st.success("Zuweisung wurde entfernt!")
+
+                        st.rerun()
+
+                # Aktuell zugewiesene Information
+                if projekt.zugewiesener_mitarbeiter_id:
+                    ma = st.session_state.notar_mitarbeiter.get(projekt.zugewiesener_mitarbeiter_id)
+                    if ma:
+                        st.info(f"✅ Dieser Fall ist primär {ma.name} ({ma.rolle}) zugewiesen.")
+                else:
+                    st.info("⚪ Dieser Fall ist keinem Mitarbeiter zugewiesen (Sie sind verantwortlich).")
+            else:
+                st.info("Keine Mitarbeiter verfügbar. Erstellen Sie Mitarbeiter im Tab 'Mitarbeiter'.")
 
 def notar_checklisten_view():
     """Notarielle Checklisten-Verwaltung"""
@@ -3621,6 +3751,546 @@ def notar_mitarbeiter_view():
             else:
                 st.error("Bitte füllen Sie alle Pflichtfelder aus!")
 
+def notar_makler_netzwerk_view():
+    """Makler-Netzwerk Verwaltung für Notar"""
+    st.subheader("🤝 Makler-Netzwerk")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Netzwerk-Mitglieder anzeigen
+    netzwerk_mitglieder = [m for m in st.session_state.makler_netzwerk.values() if m.notar_id == notar_id]
+
+    if netzwerk_mitglieder:
+        st.markdown("### 👥 Meine Makler-Netzwerk")
+
+        # Sortiere nach Status: Aktiv zuerst, dann nach letzter Empfehlung
+        aktive = [m for m in netzwerk_mitglieder if m.status == "Aktiv"]
+        eingeladen = [m for m in netzwerk_mitglieder if m.status == "Eingeladen"]
+        inaktive = [m for m in netzwerk_mitglieder if m.status == "Inaktiv"]
+
+        # Aktive Makler
+        if aktive:
+            st.markdown("#### ✅ Aktive Makler")
+            for mitglied in aktive:
+                makler = st.session_state.users.get(mitglied.makler_id)
+                if not makler:
+                    continue
+
+                # Status-Indikator berechnen
+                hat_aktive_projekte = mitglied.anzahl_aktive_projekte > 0
+
+                # Zeit seit letzter Empfehlung
+                if mitglied.letzte_empfehlung_am:
+                    tage_seit_empfehlung = (datetime.now() - mitglied.letzte_empfehlung_am).days
+                    if tage_seit_empfehlung <= 30:
+                        status_farbe = "🟢"  # Grün: Aktiv in letzten 30 Tagen
+                        status_text = f"Letzte Empfehlung vor {tage_seit_empfehlung} Tagen"
+                    elif tage_seit_empfehlung <= 90:
+                        status_farbe = "🟡"  # Gelb: 30-90 Tage
+                        status_text = f"Letzte Empfehlung vor {tage_seit_empfehlung} Tagen"
+                    else:
+                        status_farbe = "🔴"  # Rot: Länger als 90 Tage
+                        status_text = f"Letzte Empfehlung vor {tage_seit_empfehlung} Tagen"
+                else:
+                    status_farbe = "🔴"  # Rot: Noch keine Empfehlung
+                    status_text = "Noch keine Empfehlung abgegeben"
+
+                # Aktive Projekte Indikator
+                if hat_aktive_projekte:
+                    projekt_status = f"🟢 {mitglied.anzahl_aktive_projekte} aktive(s) Projekt(e)"
+                else:
+                    projekt_status = "⚪ Keine aktiven Projekte"
+
+                with st.expander(f"{status_farbe} {makler.name} - {projekt_status}", expanded=False):
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.write(f"**Name:** {makler.name}")
+                        st.write(f"**E-Mail:** {makler.email}")
+                        st.write(f"**Beigetreten am:** {mitglied.beigetreten_am.strftime('%d.%m.%Y %H:%M') if mitglied.beigetreten_am else 'N/A'}")
+
+                    with col2:
+                        st.write(f"**Status:** {status_text}")
+                        st.write(f"**Aktive Projekte:** {mitglied.anzahl_aktive_projekte}")
+                        st.write(f"**Empfehlungen gesamt:** {mitglied.anzahl_empfehlungen_gesamt}")
+
+                    # Projekte mit Empfehlung anzeigen
+                    st.markdown("---")
+                    st.markdown("**Projekte mit Empfehlung an mich:**")
+                    empfohlene_projekte = [p for p in st.session_state.projekte.values()
+                                          if p.makler_id == mitglied.makler_id
+                                          and p.empfohlener_notar_id == notar_id]
+
+                    if empfohlene_projekte:
+                        for projekt in empfohlene_projekte:
+                            status_icon = "🟢" if projekt.status == "Aktiv" else "⚪"
+                            st.write(f"{status_icon} {projekt.name} - {projekt.ort}")
+                    else:
+                        st.info("Keine Projekte mit Empfehlung")
+
+                    # Notizen
+                    st.markdown("---")
+                    st.markdown("**Notizen:**")
+                    neue_notizen = st.text_area("Notizen bearbeiten:", value=mitglied.notizen,
+                                                key=f"notizen_{mitglied.netzwerk_id}", height=100)
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("💾 Notizen speichern", key=f"save_notes_{mitglied.netzwerk_id}"):
+                            mitglied.notizen = neue_notizen
+                            st.session_state.makler_netzwerk[mitglied.netzwerk_id] = mitglied
+                            st.success("Notizen gespeichert!")
+                            st.rerun()
+
+                    with col2:
+                        if st.button("🚫 Deaktivieren", key=f"deact_netzwerk_{mitglied.netzwerk_id}"):
+                            mitglied.status = "Inaktiv"
+                            st.session_state.makler_netzwerk[mitglied.netzwerk_id] = mitglied
+                            st.success("Makler wurde deaktiviert!")
+                            st.rerun()
+
+            st.markdown("---")
+
+        # Eingeladene Makler
+        if eingeladen:
+            st.markdown("#### 📨 Eingeladene Makler (ausstehend)")
+            for mitglied in eingeladen:
+                makler = st.session_state.users.get(mitglied.makler_id)
+                if not makler:
+                    continue
+
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.write(f"📧 **{makler.name}** ({makler.email})")
+                with col2:
+                    st.write(f"Eingeladen am: {mitglied.eingeladen_am.strftime('%d.%m.%Y')}")
+                with col3:
+                    if st.button("❌", key=f"cancel_{mitglied.netzwerk_id}", help="Einladung zurückziehen"):
+                        del st.session_state.makler_netzwerk[mitglied.netzwerk_id]
+                        st.success("Einladung zurückgezogen!")
+                        st.rerun()
+
+            st.markdown("---")
+
+        # Inaktive Makler
+        if inaktive:
+            st.markdown("#### 🚫 Inaktive Makler")
+            for mitglied in inaktive:
+                makler = st.session_state.users.get(mitglied.makler_id)
+                if not makler:
+                    continue
+
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"🚫 **{makler.name}** ({makler.email})")
+                with col2:
+                    if st.button("✅ Reaktivieren", key=f"react_{mitglied.netzwerk_id}"):
+                        mitglied.status = "Aktiv"
+                        st.session_state.makler_netzwerk[mitglied.netzwerk_id] = mitglied
+                        st.success("Makler reaktiviert!")
+                        st.rerun()
+
+            st.markdown("---")
+    else:
+        st.info("Noch keine Makler im Netzwerk.")
+
+    # Neuen Makler einladen
+    st.markdown("### ➕ Makler zum Netzwerk einladen")
+
+    # Liste aller Makler die noch nicht im Netzwerk sind
+    alle_makler = [u for u in st.session_state.users.values() if u.role == UserRole.MAKLER.value]
+    makler_im_netzwerk = [m.makler_id for m in netzwerk_mitglieder]
+    verfuegbare_makler = [m for m in alle_makler if m.user_id not in makler_im_netzwerk]
+
+    if verfuegbare_makler:
+        with st.form("makler_einladen"):
+            makler_options = {f"{m.name} ({m.email})": m.user_id for m in verfuegbare_makler}
+
+            ausgewaehlter_makler = st.selectbox(
+                "Makler auswählen:",
+                options=list(makler_options.keys())
+            )
+
+            einladungs_notiz = st.text_area(
+                "Persönliche Nachricht (optional):",
+                placeholder="Ich würde mich freuen, Sie in meinem Netzwerk begrüßen zu dürfen...",
+                height=100
+            )
+
+            if st.form_submit_button("📨 Einladung versenden", type="primary"):
+                if ausgewaehlter_makler:
+                    makler_id = makler_options[ausgewaehlter_makler]
+                    netzwerk_id = f"netzwerk_{len(st.session_state.makler_netzwerk)}"
+
+                    neues_mitglied = MaklerNetzwerkMitglied(
+                        netzwerk_id=netzwerk_id,
+                        notar_id=notar_id,
+                        makler_id=makler_id,
+                        eingeladen_am=datetime.now(),
+                        status="Eingeladen",
+                        notizen=einladungs_notiz
+                    )
+
+                    st.session_state.makler_netzwerk[netzwerk_id] = neues_mitglied
+
+                    # Benachrichtigung an Makler senden
+                    notification_id = f"notif_{len(st.session_state.notifications)}"
+                    notification = Notification(
+                        notification_id=notification_id,
+                        user_id=makler_id,
+                        titel="🤝 Netzwerk-Einladung",
+                        nachricht=f"Sie wurden von {st.session_state.current_user.name} (Notar) eingeladen, dem Netzwerk beizutreten.",
+                        typ="Netzwerk",
+                        timestamp=datetime.now()
+                    )
+                    st.session_state.notifications[notification_id] = notification
+
+                    st.success(f"✅ Einladung an {ausgewaehlter_makler} wurde versendet!")
+                    st.rerun()
+    else:
+        st.info("Alle verfügbaren Makler sind bereits im Netzwerk oder eingeladen.")
+
+    # Statistiken
+    st.markdown("---")
+    st.markdown("### 📊 Netzwerk-Statistiken")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        aktive_count = len([m for m in netzwerk_mitglieder if m.status == "Aktiv"])
+        st.metric("Aktive Makler", aktive_count)
+    with col2:
+        eingeladen_count = len([m for m in netzwerk_mitglieder if m.status == "Eingeladen"])
+        st.metric("Offene Einladungen", eingeladen_count)
+    with col3:
+        gesamt_empfehlungen = sum([m.anzahl_empfehlungen_gesamt for m in netzwerk_mitglieder])
+        st.metric("Empfehlungen gesamt", gesamt_empfehlungen)
+    with col4:
+        aktive_projekte_gesamt = sum([m.anzahl_aktive_projekte for m in netzwerk_mitglieder])
+        st.metric("Aktive Projekte gesamt", aktive_projekte_gesamt)
+
+def notar_vermittler_view():
+    """Notar als Vermittler - Direkte Käufer-Kontakte"""
+    st.subheader("🔄 Vermittler-Funktion")
+
+    st.info("💡 Wenn sich Käufer direkt bei Ihnen melden, können Sie hier alle notwendigen Daten erfassen und als Vermittler fungieren.")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Bestehende Vermittler-Projekte anzeigen
+    vermittler_projekte = [p for p in st.session_state.projekte.values()
+                          if p.notar_id == notar_id and p.vermittelt_durch_notar]
+
+    if vermittler_projekte:
+        st.markdown("### 📋 Meine Vermittler-Projekte")
+
+        for projekt in vermittler_projekte:
+            status_icon = "🟢" if projekt.status == "Aktiv" else "⚪"
+
+            with st.expander(f"{status_icon} {projekt.name} - {projekt.ort}", expanded=False):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Käufer-Informationen:**")
+                    kaeufer = st.session_state.users.get(projekt.kaeufer_id)
+                    if kaeufer:
+                        st.write(f"👤 {kaeufer.name}")
+                        st.write(f"📧 {kaeufer.email}")
+
+                    st.markdown("---")
+                    st.markdown("**Verkäufer-Informationen:**")
+                    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+                    if verkaeufer:
+                        st.write(f"👤 {verkaeufer.name}")
+                        st.write(f"📧 {verkaeufer.email}")
+
+                with col2:
+                    st.markdown("**Immobilien-Details:**")
+                    st.write(f"**Adresse:** {projekt.adresse}")
+                    st.write(f"**Ort:** {projekt.ort}")
+                    st.write(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.write(f"**Typ:** {projekt.immobilien_typ}")
+
+                st.markdown("---")
+                st.markdown(f"**Status:** {projekt.status}")
+                st.markdown(f"**Erstellt am:** {projekt.created_at.strftime('%d.%m.%Y %H:%M')}")
+
+                # Zugewiesener Mitarbeiter
+                if projekt.zugewiesener_mitarbeiter_id:
+                    mitarbeiter = st.session_state.notar_mitarbeiter.get(projekt.zugewiesener_mitarbeiter_id)
+                    if mitarbeiter:
+                        st.write(f"**Zugewiesener Mitarbeiter:** {mitarbeiter.name}")
+
+        st.markdown("---")
+
+    # Neues Vermittler-Projekt erstellen
+    st.markdown("### ➕ Neues Projekt als Vermittler anlegen")
+
+    with st.form("neues_vermittler_projekt"):
+        st.markdown("#### 👤 Käufer-Daten")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            kaeufer_name = st.text_input("Name des Käufers*")
+            kaeufer_email = st.text_input("E-Mail des Käufers*")
+            kaeufer_telefon = st.text_input("Telefon des Käufers")
+
+        with col2:
+            kaeufer_adresse = st.text_input("Adresse des Käufers")
+            kaeufer_budget = st.number_input("Budget des Käufers (€)", min_value=0, value=0, step=10000)
+            kaeufer_finanzierung = st.selectbox("Finanzierung benötigt?", ["Ja", "Nein"])
+
+        st.markdown("---")
+        st.markdown("#### 👤 Verkäufer-Daten")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            verkaeufer_name = st.text_input("Name des Verkäufers*")
+            verkaeufer_email = st.text_input("E-Mail des Verkäufers*")
+            verkaeufer_telefon = st.text_input("Telefon des Verkäufers")
+
+        with col2:
+            verkaeufer_adresse = st.text_input("Adresse des Verkäufers")
+            verkaeufer_eigentuemer_seit = st.date_input("Eigentümer seit", value=None)
+
+        st.markdown("---")
+        st.markdown("#### 🏘️ Immobilien-Daten")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            immobilien_adresse = st.text_input("Adresse der Immobilie*")
+            immobilien_ort = st.text_input("Ort*")
+            immobilien_plz = st.text_input("PLZ*")
+            immobilien_typ = st.selectbox("Immobilien-Typ*", [t.value for t in ImmobilienTyp])
+
+        with col2:
+            kaufpreis = st.number_input("Kaufpreis (€)*", min_value=0, value=0, step=10000)
+            wohnflaeche = st.number_input("Wohnfläche (m²)", min_value=0.0, value=0.0, step=0.1)
+            grundstuecksflaeche = st.number_input("Grundstücksfläche (m²)", min_value=0.0, value=0.0, step=0.1)
+            baujahr = st.number_input("Baujahr", min_value=1800, max_value=datetime.now().year, value=2000)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            zimmer = st.number_input("Zimmer", min_value=1, max_value=20, value=3)
+            badezimmer = st.number_input("Badezimmer", min_value=1, max_value=10, value=1)
+
+        with col2:
+            parkplaetze = st.number_input("Parkplätze", min_value=0, max_value=10, value=0)
+            balkon_terrasse = st.checkbox("Balkon/Terrasse vorhanden")
+
+        beschreibung = st.text_area("Beschreibung der Immobilie", height=100)
+
+        st.markdown("---")
+        st.markdown("#### 📋 Projekt-Details")
+
+        projekt_name = st.text_input("Projekt-Name*", value=f"Vermittlung - {immobilien_ort if immobilien_ort else 'Neues Projekt'}")
+
+        # Mitarbeiter zuweisen (optional)
+        mitarbeiter_liste = [m for m in st.session_state.notar_mitarbeiter.values()
+                            if m.notar_id == notar_id and m.aktiv]
+
+        if mitarbeiter_liste:
+            mitarbeiter_options = {m.name: m.mitarbeiter_id for m in mitarbeiter_liste}
+            mitarbeiter_options["Keiner"] = ""
+
+            zugewiesener_mitarbeiter = st.selectbox(
+                "Mitarbeiter zuweisen (optional):",
+                options=list(mitarbeiter_options.keys())
+            )
+        else:
+            zugewiesener_mitarbeiter = "Keiner"
+
+        notizen = st.text_area("Notizen zum Projekt", height=100)
+
+        if st.form_submit_button("📝 Projekt erstellen", type="primary"):
+            if (kaeufer_name and kaeufer_email and verkaeufer_name and verkaeufer_email
+                and immobilien_adresse and immobilien_ort and immobilien_plz and kaufpreis > 0):
+
+                # Käufer-Account erstellen oder finden
+                kaeufer_id = None
+                for user in st.session_state.users.values():
+                    if user.email == kaeufer_email:
+                        kaeufer_id = user.user_id
+                        break
+
+                if not kaeufer_id:
+                    kaeufer_id = f"kaeufer_{len([u for u in st.session_state.users.values() if u.role == UserRole.KAEUFER.value])}"
+                    kaeufer_user = User(
+                        user_id=kaeufer_id,
+                        name=kaeufer_name,
+                        email=kaeufer_email,
+                        role=UserRole.KAEUFER.value,
+                        password_hash=hash_password("temp123"),  # Temporäres Passwort
+                        onboarding_complete=False
+                    )
+                    st.session_state.users[kaeufer_id] = kaeufer_user
+
+                # Verkäufer-Account erstellen oder finden
+                verkaeufer_id = None
+                for user in st.session_state.users.values():
+                    if user.email == verkaeufer_email:
+                        verkaeufer_id = user.user_id
+                        break
+
+                if not verkaeufer_id:
+                    verkaeufer_id = f"verkaeufer_{len([u for u in st.session_state.users.values() if u.role == UserRole.VERKAEUFER.value])}"
+                    verkaeufer_user = User(
+                        user_id=verkaeufer_id,
+                        name=verkaeufer_name,
+                        email=verkaeufer_email,
+                        role=UserRole.VERKAEUFER.value,
+                        password_hash=hash_password("temp123"),  # Temporäres Passwort
+                        onboarding_complete=False
+                    )
+                    st.session_state.users[verkaeufer_id] = verkaeufer_user
+
+                # Projekt erstellen
+                projekt_id = f"projekt_{len(st.session_state.projekte)}"
+
+                neues_projekt = Projekt(
+                    projekt_id=projekt_id,
+                    name=projekt_name,
+                    makler_id="",  # Kein Makler, da Notar vermittelt
+                    kaeufer_id=kaeufer_id,
+                    verkaeufer_id=verkaeufer_id,
+                    finanzierer_id="",  # Wird später hinzugefügt
+                    notar_id=notar_id,
+                    adresse=immobilien_adresse,
+                    ort=immobilien_ort,
+                    plz=immobilien_plz,
+                    kaufpreis=kaufpreis,
+                    immobilien_typ=immobilien_typ,
+                    wohnflaeche=wohnflaeche,
+                    grundstuecksflaeche=grundstuecksflaeche,
+                    baujahr=baujahr,
+                    zimmer=zimmer,
+                    badezimmer=badezimmer,
+                    parkplaetze=parkplaetze,
+                    balkon_terrasse=balkon_terrasse,
+                    beschreibung=beschreibung,
+                    status="Aktiv",
+                    vermittelt_durch_notar=True,  # Markierung als Vermittler-Projekt
+                    zugewiesener_mitarbeiter_id=mitarbeiter_options.get(zugewiesener_mitarbeiter, "") if mitarbeiter_liste else ""
+                )
+
+                st.session_state.projekte[projekt_id] = neues_projekt
+
+                # Projekte zu Nutzer-Profilen hinzufügen
+                st.session_state.users[kaeufer_id].projekt_ids.append(projekt_id)
+                st.session_state.users[verkaeufer_id].projekt_ids.append(projekt_id)
+
+                # Timeline-Event erstellen
+                event_id = f"event_{len(st.session_state.timeline_events)}"
+                event = TimelineEvent(
+                    event_id=event_id,
+                    projekt_id=projekt_id,
+                    titel="🔄 Projekt als Vermittler angelegt",
+                    beschreibung=f"Notar {st.session_state.current_user.name} hat das Projekt als Vermittler angelegt.",
+                    kategorie="Projektstart",
+                    status="Abgeschlossen",
+                    verantwortlich=notar_id,
+                    timestamp=datetime.now()
+                )
+                st.session_state.timeline_events[event_id] = event
+
+                # Benachrichtigungen an Käufer und Verkäufer
+                for user_id in [kaeufer_id, verkaeufer_id]:
+                    notif_id = f"notif_{len(st.session_state.notifications)}"
+                    notification = Notification(
+                        notification_id=notif_id,
+                        user_id=user_id,
+                        titel="🔄 Neues Projekt angelegt",
+                        nachricht=f"Ein neues Projekt '{projekt_name}' wurde für Sie angelegt. Notar {st.session_state.current_user.name} fungiert als Vermittler.",
+                        typ="Projekt",
+                        timestamp=datetime.now()
+                    )
+                    st.session_state.notifications[notif_id] = notification
+
+                st.success(f"✅ Projekt '{projekt_name}' wurde erfolgreich als Vermittler-Projekt angelegt!")
+                st.info(f"🔑 Temporäre Zugangsdaten:\nKäufer: {kaeufer_email} / temp123\nVerkäufer: {verkaeufer_email} / temp123")
+                st.rerun()
+            else:
+                st.error("Bitte füllen Sie alle Pflichtfelder (*) aus!")
+
+    # Übersicht aller Daten für Vermittler-Projekte
+    if vermittler_projekte:
+        st.markdown("---")
+        st.markdown("### 📊 Übersicht aller Daten")
+
+        for projekt in vermittler_projekte:
+            with st.expander(f"📋 Vollständige Datenübersicht: {projekt.name}", expanded=False):
+                tabs = st.tabs(["Käufer", "Verkäufer", "Immobilie", "Dokumente", "Finanzierung"])
+
+                with tabs[0]:
+                    kaeufer = st.session_state.users.get(projekt.kaeufer_id)
+                    if kaeufer:
+                        st.markdown("**Käufer-Daten:**")
+                        st.write(f"**Name:** {kaeufer.name}")
+                        st.write(f"**E-Mail:** {kaeufer.email}")
+                        st.write(f"**User ID:** {kaeufer.user_id}")
+                        st.write(f"**Onboarding:** {'Abgeschlossen' if kaeufer.onboarding_complete else 'Ausstehend'}")
+
+                with tabs[1]:
+                    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+                    if verkaeufer:
+                        st.markdown("**Verkäufer-Daten:**")
+                        st.write(f"**Name:** {verkaeufer.name}")
+                        st.write(f"**E-Mail:** {verkaeufer.email}")
+                        st.write(f"**User ID:** {verkaeufer.user_id}")
+                        st.write(f"**Onboarding:** {'Abgeschlossen' if verkaeufer.onboarding_complete else 'Ausstehend'}")
+
+                        # Verkäufer-Dokumente
+                        st.markdown("---")
+                        st.markdown("**Hochgeladene Dokumente:**")
+                        vk_dokumente = [d for d in st.session_state.verkaeufer_dokumente.values()
+                                       if d.projekt_id == projekt.projekt_id]
+                        if vk_dokumente:
+                            for dok in vk_dokumente:
+                                st.write(f"📄 {dok.dateiname} ({dok.dokument_typ})")
+                        else:
+                            st.info("Noch keine Dokumente hochgeladen")
+
+                with tabs[2]:
+                    st.markdown("**Immobilien-Details:**")
+                    st.write(f"**Adresse:** {projekt.adresse}")
+                    st.write(f"**PLZ/Ort:** {projekt.plz} {projekt.ort}")
+                    st.write(f"**Typ:** {projekt.immobilien_typ}")
+                    st.write(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.write(f"**Wohnfläche:** {projekt.wohnflaeche} m²")
+                    st.write(f"**Grundstücksfläche:** {projekt.grundstuecksflaeche} m²")
+                    st.write(f"**Baujahr:** {projekt.baujahr}")
+                    st.write(f"**Zimmer:** {projekt.zimmer}")
+                    st.write(f"**Badezimmer:** {projekt.badezimmer}")
+                    st.write(f"**Parkplätze:** {projekt.parkplaetze}")
+                    st.write(f"**Balkon/Terrasse:** {'Ja' if projekt.balkon_terrasse else 'Nein'}")
+
+                    if projekt.beschreibung:
+                        st.markdown("**Beschreibung:**")
+                        st.write(projekt.beschreibung)
+
+                with tabs[3]:
+                    st.markdown("**Dokumente:**")
+                    # Legal Documents
+                    legal_docs = [d for d in st.session_state.legal_documents.values()
+                                 if d.projekt_id == projekt.projekt_id]
+                    if legal_docs:
+                        for doc in legal_docs:
+                            st.write(f"⚖️ {doc.dokument_typ} - {doc.status}")
+                    else:
+                        st.info("Noch keine rechtlichen Dokumente")
+
+                with tabs[4]:
+                    st.markdown("**Finanzierung:**")
+                    financing = [f for f in st.session_state.financing_offers.values()
+                               if f.projekt_id == projekt.projekt_id]
+                    if financing:
+                        for fin in financing:
+                            st.write(f"💰 {fin.bank_name}: {fin.darlehenssumme:,.2f} € - {fin.status}")
+                    else:
+                        st.info("Noch keine Finanzierungsangebote")
+
 def notar_finanzierungsnachweise():
     """Finanzierungsnachweise für Notar"""
     st.subheader("💰 Finanzierungsnachweise")
@@ -3784,7 +4454,7 @@ def notarmitarbeiter_dashboard():
     st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
 
     # Tab-Liste basierend auf Berechtigungen
-    tab_labels = ["📊 Timeline", "📋 Projekte"]
+    tab_labels = ["📊 Timeline", "📋 Meine Fälle", "👥 Vertretung"]
 
     if mitarbeiter.kann_checklisten_bearbeiten:
         tab_labels.append("📝 Checklisten")
@@ -3845,6 +4515,107 @@ def notarmitarbeiter_dashboard():
                                 verkaeufer = st.session_state.users.get(vid)
                                 if verkaeufer:
                                     st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+    tab_index += 1
+
+    # Vertretung - Fälle anderer Mitarbeiter (immer verfügbar)
+    with tabs[tab_index]:
+        st.subheader("👥 Vertretung - Fälle von Kollegen")
+
+        # Alle anderen Mitarbeiter desselben Notars finden
+        alle_mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values()
+                           if m.notar_id == mitarbeiter.notar_id
+                           and m.mitarbeiter_id != mitarbeiter.mitarbeiter_id
+                           and m.aktiv]
+
+        if not alle_mitarbeiter:
+            st.info("Keine anderen Mitarbeiter vorhanden.")
+        else:
+            st.info("💡 Hier sehen Sie alle Fälle, die Ihren Kollegen zugewiesen sind, für den Fall dass Sie sie vertreten müssen.")
+
+            for kollege in alle_mitarbeiter:
+                if kollege.zugewiesene_faelle:
+                    st.markdown(f"### 👤 {kollege.name} ({kollege.rolle})")
+                    st.write(f"Zugewiesene Fälle: {len(kollege.zugewiesene_faelle)}")
+
+                    for projekt_id in kollege.zugewiesene_faelle:
+                        projekt = st.session_state.projekte.get(projekt_id)
+                        if projekt:
+                            with st.expander(f"🏘️ {projekt.name}", expanded=False):
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
+                                    if projekt.adresse:
+                                        st.markdown(f"**Adresse:** {projekt.adresse}")
+                                    if projekt.kaufpreis > 0:
+                                        st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+
+                                    st.markdown(f"**Status:** {projekt.status}")
+
+                                    # Vermittler-Status
+                                    if projekt.vermittelt_durch_notar:
+                                        st.markdown("🔄 **Als Vermittler**")
+
+                                with col2:
+                                    st.markdown("**Parteien:**")
+                                    for kid in projekt.kaeufer_ids:
+                                        kaeufer = st.session_state.users.get(kid)
+                                        if kaeufer:
+                                            st.write(f"🏠 Käufer: {kaeufer.name}")
+                                            st.write(f"   📧 {kaeufer.email}")
+
+                                    for vid in projekt.verkaeufer_ids:
+                                        verkaeufer = st.session_state.users.get(vid)
+                                        if verkaeufer:
+                                            st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+                                            st.write(f"   📧 {verkaeufer.email}")
+
+                                st.markdown("---")
+
+                                # Checklisten Status (falls berechtigt)
+                                if mitarbeiter.kann_checklisten_bearbeiten:
+                                    projekt_checklists = [c for c in st.session_state.notar_checklists.values()
+                                                         if c.projekt_id == projekt_id]
+
+                                    if projekt_checklists:
+                                        st.markdown("**Checklisten:**")
+                                        for checklist in projekt_checklists:
+                                            completed_count = len([i for i in checklist.items if i["completed"]])
+                                            total_count = len(checklist.items)
+                                            progress = (completed_count / total_count * 100) if total_count > 0 else 0
+                                            st.write(f"📋 {checklist.checklist_typ}: {completed_count}/{total_count} ({progress:.0f}%)")
+
+                                # Dokumente (falls berechtigt)
+                                if mitarbeiter.kann_dokumente_freigeben:
+                                    legal_docs = [d for d in st.session_state.legal_documents.values()
+                                                 if d.projekt_id == projekt_id]
+
+                                    if legal_docs:
+                                        st.markdown("**Rechtliche Dokumente:**")
+                                        for doc in legal_docs:
+                                            st.write(f"⚖️ {doc.dokument_typ}: {doc.status}")
+
+                                # Termine (falls berechtigt)
+                                if mitarbeiter.kann_termine_verwalten:
+                                    st.markdown("**Termine:**")
+                                    if projekt.notartermin:
+                                        st.write(f"📅 Notartermin: {projekt.notartermin.strftime('%d.%m.%Y %H:%M')}")
+                                    else:
+                                        st.write("📅 Noch kein Termin vereinbart")
+
+                    st.markdown("---")
+
+            # Statistik
+            gesamt_faelle = sum([len(m.zugewiesene_faelle) for m in alle_mitarbeiter])
+            if gesamt_faelle > 0:
+                st.markdown("---")
+                st.markdown("### 📊 Vertretungs-Statistik")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Fälle von Kollegen", gesamt_faelle)
+                with col2:
+                    st.metric("Meine Fälle", len(mitarbeiter.zugewiesene_faelle))
+
     tab_index += 1
 
     # Checklisten (nur wenn berechtigt)
