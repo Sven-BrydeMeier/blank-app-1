@@ -1113,30 +1113,64 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
             # E-Mail extrahieren
             email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
             emails = re.findall(email_pattern, text)
-            email = emails[0] if emails else ""
+            # Filtere info@, kontakt@, etc. aus und bevorzuge persönliche E-Mails
+            email = ""
+            for e in emails:
+                if not any(prefix in e.lower() for prefix in ['noreply', 'postmaster', 'webmaster']):
+                    email = e
+                    break
 
-            # Telefon extrahieren
-            phone_pattern = r'(?:\+49|0)\s*\d{2,5}[\s\-/]*\d{3,}[\s\-/]*\d{3,}'
-            phones = re.findall(phone_pattern, text)
-            telefon = phones[0].strip() if phones else ""
+            # Telefon extrahieren (verbesserte Patterns)
+            phone_patterns = [
+                r'\+49\s*\(\d+\)\s*[\d\s\-/]+',  # +49 (30) 123456
+                r'\+49\s*\d{2,5}[\s\-/]*\d{3,}[\s\-/]*\d{3,}',  # +49 30 123456
+                r'0\d{2,5}[\s\-/]*\d{3,}[\s\-/]*\d{3,}',  # 030 123456
+                r'Telefon[:\s]+([+\d\s\-/()]+)',  # Telefon: ...
+                r'Tel[\.:\s]+([+\d\s\-/()]+)',  # Tel: ...
+                r'Fon[:\s]+([+\d\s\-/()]+)',  # Fon: ...
+            ]
+            telefon = ""
+            for pattern in phone_patterns:
+                phones = re.findall(pattern, text)
+                if phones:
+                    telefon = phones[0].strip() if isinstance(phones[0], str) else phones[0]
+                    # Bereinige Telefonnummer
+                    telefon = re.sub(r'\s+', ' ', telefon)
+                    break
 
             # PLZ und Ort extrahieren (deutsches Format)
-            plz_ort_pattern = r'\b(\d{5})\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b'
+            plz_ort_pattern = r'\b(\d{5})\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[a-zäöüß]+)?(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b'
             plz_ort_matches = re.findall(plz_ort_pattern, text)
             plz = plz_ort_matches[0][0] if plz_ort_matches else ""
             ort = plz_ort_matches[0][1] if plz_ort_matches else ""
 
-            # Straße extrahieren (vor PLZ)
+            # Straße extrahieren (mehrere Strategien)
+            strasse = ""
             if plz:
-                street_pattern = rf'([A-ZÄÖÜ][a-zäöüß]+(?:straße|str\.|weg|platz|allee)\s+\d+[a-z]?)\s+{plz}'
+                # Strategie 1: Straße vor PLZ
+                street_pattern = rf'([A-ZÄÖÜ][a-zäöüß\-]+(?:straße|str\.|weg|platz|allee|ring|gasse)\s+\d+[a-zA-Z]?)\s*,?\s*{plz}'
                 street_matches = re.findall(street_pattern, text, re.I)
-                strasse = street_matches[0] if street_matches else ""
-            else:
-                strasse = ""
+                if street_matches:
+                    strasse = street_matches[0]
+                else:
+                    # Strategie 2: Suche in der Zeile vor PLZ
+                    lines = text.split('\n')
+                    for i, line in enumerate(lines):
+                        if plz in line and i > 0:
+                            # Schaue in vorherige Zeile
+                            prev_line = lines[i-1].strip()
+                            street_pattern2 = r'([A-ZÄÖÜ][a-zäöüß\-]+(?:straße|str\.|weg|platz|allee|ring|gasse)\s+\d+[a-zA-Z]?)'
+                            street_matches2 = re.findall(street_pattern2, prev_line, re.I)
+                            if street_matches2:
+                                strasse = street_matches2[0]
+                                break
 
-            # Firmenname aus Domain ableiten
-            domain = parsed.netloc.replace('www.', '')
-            firmenname = domain.split('.')[0].capitalize()
+            # Wenn keine Straße gefunden, suche allgemein
+            if not strasse:
+                general_street_pattern = r'\b([A-ZÄÖÜ][a-zäöüß\-]+(?:straße|str\.|weg|platz|allee|ring|gasse)\s+\d+[a-zA-Z]?)\b'
+                general_matches = re.findall(general_street_pattern, text, re.I)
+                if general_matches:
+                    strasse = general_matches[0]
 
             # Kategorie bestimmen
             text_lower = text.lower()
@@ -1147,52 +1181,118 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                 kategorie = "RECHTSANWALT_NOTAR"
             elif "notar" in text_lower:
                 kategorie = "NOTAR"
-            elif any(kw in text_lower for kw in ["rechtsanwalt", "anwaltskanzlei", "anwaltsbüro"]):
+            elif any(kw in text_lower for kw in ["rechtsanwalt", "anwaltskanzlei", "anwaltsbüro", "rechtsanwälte"]):
                 kategorie = "RECHTSANWALT"
 
-            # Notar-spezifische Daten extrahieren
+            # Firmenname/Kanzleiname aus Impressum extrahieren
+            firmenname = ""
+
+            # Strategie 1: Angaben gemäß § (für Impressum)
+            impressum_patterns = [
+                r'Angaben gemäß[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
+                r'Verantwortlich[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
+                r'Anbieter[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
+                r'Betreiber[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
+            ]
+
+            for pattern in impressum_patterns:
+                matches = re.findall(pattern, text)
+                if matches:
+                    # Bereinige den gefundenen Namen
+                    name = matches[0].strip()
+                    # Entferne häufige Suffixe wie ":"
+                    name = re.sub(r':$', '', name)
+                    # Wenn es ein sinnvoller Name ist (nicht zu kurz, nicht nur Zahlen)
+                    if len(name) > 3 and not name.isdigit():
+                        firmenname = name
+                        break
+
+            # Strategie 2: Für Kanzleien - suche nach "Kanzlei" oder Rechtsanwälten
+            if not firmenname and kategorie in ["RECHTSANWALT", "RECHTSANWALT_NOTAR", "NOTAR"]:
+                kanzlei_patterns = [
+                    r'((?:Rechtsanwalt|Rechtsanwälte|Notar|Kanzlei)\s+[A-ZÄÖÜ][^\n]{5,80})',
+                    r'([A-ZÄÖÜ][a-zäöüß]+\s+(?:&|und)\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+Rechtsanwälte)?)',
+                    r'(Kanzlei\s+[A-ZÄÖÜ][^\n]{5,60})',
+                ]
+                for pattern in kanzlei_patterns:
+                    matches = re.findall(pattern, text)
+                    if matches:
+                        firmenname = matches[0].strip()
+                        # Entferne Zeilenumbrüche und extra Leerzeichen
+                        firmenname = re.sub(r'\s+', ' ', firmenname)
+                        break
+
+            # Fallback: Domain-basierter Name
+            if not firmenname:
+                domain = parsed.netloc.replace('www.', '')
+                firmenname = domain.split('.')[0].upper()  # Uppercase für Firmennamen
+
+            # Notar/Rechtsanwalt-spezifische Daten extrahieren
             notarkammer = ""
             notarversicherung = ""
             notar_titel = ""
             notar_vorname = ""
             notar_nachname = ""
 
-            if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR"]:
-                # Notarkammer extrahieren
-                kammer_pattern = r'(Notarkammer\s+[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[A-ZÄÖÜ][a-zäöüß\-]+)?)'
-                kammer_matches = re.findall(kammer_pattern, text)
-                if kammer_matches:
-                    notarkammer = kammer_matches[0].strip()
+            if kategorie in ["NOTAR", "RECHTSANWALT_NOTAR", "RECHTSANWALT"]:
+                # Notarkammer extrahieren (verschiedene Formate)
+                kammer_patterns = [
+                    r'(Notarkammer\s+[A-ZÄÖÜ][a-zäöüß\-]+(?:\s+[a-zäöüß\-]+)*)',
+                    r'Aufsichtsbehörde[:\s]+([^\n]{5,50}kammer[^\n]{0,20})',
+                ]
+                for pattern in kammer_patterns:
+                    kammer_matches = re.findall(pattern, text, re.I)
+                    if kammer_matches:
+                        notarkammer = kammer_matches[0].strip()
+                        # Bereinige
+                        notarkammer = re.sub(r'\s+', ' ', notarkammer)
+                        break
 
-                # Notarversicherung extrahieren
+                # Notarversicherung/Berufshaftpflicht extrahieren (verbesserte Patterns)
                 versicherung_patterns = [
-                    r'Berufshaftpflichtversicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))',
-                    r'Versicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))',
-                    r'Haftpflichtversicherung[:\s]+([A-ZÄÖÜ][^\n,;\.]{5,80}(?:Versicherung|AG|SE))'
+                    r'Berufshaftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
+                    r'Haftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
+                    r'Versichert bei[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
+                    r'(?:Berufs-?)?Haftpflicht[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
                 ]
                 for pattern in versicherung_patterns:
                     vers_matches = re.findall(pattern, text)
                     if vers_matches:
-                        notarversicherung = vers_matches[0].strip()
-                        break
+                        vers_raw = vers_matches[0].strip()
+                        # Bereinige bis zum ersten Satzzeichen oder Zeilenumbruch
+                        vers_cleaned = re.split(r'[,;\n]', vers_raw)[0].strip()
+                        # Entferne trailing Wörter wie "Die", "Der", etc. am Ende
+                        vers_cleaned = re.sub(r'\s+(Die|Der|Das|Mit|In|Und)$', '', vers_cleaned, flags=re.I)
+                        if len(vers_cleaned) > 5:
+                            notarversicherung = vers_cleaned
+                            break
 
-                # Notar-Name extrahieren (nach "Notar" oder "Notarin")
-                name_pattern = r'Notar(?:in)?\s+(Dr\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)'
-                name_matches = re.findall(name_pattern, text)
-                if name_matches:
-                    titel_match, vorname_match, nachname_match = name_matches[0]
-                    notar_titel = titel_match.strip() if titel_match else ""
-                    notar_vorname = vorname_match.strip()
-                    notar_nachname = nachname_match.strip()
-                else:
-                    # Alternative: Nach Kanzleiname mit Namen
-                    alt_pattern = r'(Dr\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*,?\s*Notar'
-                    alt_matches = re.findall(alt_pattern, text)
-                    if alt_matches:
-                        titel_match, vorname_match, nachname_match = alt_matches[0]
-                        notar_titel = titel_match.strip() if titel_match else ""
-                        notar_vorname = vorname_match.strip()
-                        notar_nachname = nachname_match.strip()
+                # Namen extrahieren (Notar/Rechtsanwalt) - mehrere Strategien
+                name_patterns = [
+                    # "Notar Dr. Max Mustermann"
+                    r'Notar(?:in)?\s+(?:und\s+Rechtsanwalt\s+)?(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
+                    # "Dr. Max Mustermann, Notar"
+                    r'(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*,?\s*Notar',
+                    # "Rechtsanwalt Dr. Max Mustermann"
+                    r'Rechtsanwalt\s+(?:und\s+Notar\s+)?(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)',
+                    # "Dr. Max Mustermann" (am Anfang einer Zeile nach Kanzleiname)
+                    r'(?:^|\n)\s*(?:Dr\.\s+)?(?:jur\.\s+)?([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß\-]+)\s*(?:\n|,)',
+                ]
+
+                # Titel-Extraktion
+                titel_match = re.search(r'\b(Dr\.\s+jur\.|Dr\.|Prof\.|Prof\.\s+Dr\.)\s+[A-ZÄÖÜ]', text)
+                if titel_match:
+                    notar_titel = titel_match.group(1).strip()
+
+                # Namen-Extraktion
+                for pattern in name_patterns:
+                    name_matches = re.findall(pattern, text)
+                    if name_matches:
+                        if len(name_matches[0]) == 2:
+                            vorname_match, nachname_match = name_matches[0]
+                            notar_vorname = vorname_match.strip()
+                            notar_nachname = nachname_match.strip()
+                            break
 
             # Ergebnis zusammenstellen
             result = {
