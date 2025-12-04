@@ -222,6 +222,17 @@ class User:
     onboarding_complete: bool = False
     document_acceptances: List[DocumentAcceptance] = field(default_factory=list)
     notifications: List[str] = field(default_factory=list)
+    # Stammdaten (aus Personalausweis)
+    vorname: str = ""
+    nachname: str = ""
+    geburtsdatum: str = ""
+    geburtsort: str = ""
+    staatsangehoerigkeit: str = ""
+    anschrift: str = ""
+    ausweisnummer: str = ""
+    gueltig_bis: str = ""
+    ausstellende_behoerde: str = ""
+    stammdaten_complete: bool = False
 
 @dataclass
 class TimelineEvent:
@@ -501,6 +512,97 @@ class VerkäuferDokument:
     upload_datum: datetime = field(default_factory=datetime.now)
     status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
 
+@dataclass
+class PreisVerhandlung:
+    """Preisverhandlung zwischen Käufer und Verkäufer"""
+    verhandlung_id: str
+    projekt_id: str
+    ausgangspreis: float
+    aktueller_preis: float
+    status: str = "Aktiv"  # Aktiv, Angenommen, Abgelehnt
+    nachrichten: List[Dict[str, Any]] = field(default_factory=list)
+    created_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class MarktDaten:
+    """Vergleichsdaten aus Immobilienportalen"""
+    markt_id: str
+    projekt_id: str
+    portal: str  # ImmoScout24, Immowelt, etc.
+    vergleichsobjekte: List[Dict[str, Any]] = field(default_factory=list)
+    durchschnittspreis: float = 0.0
+    preis_pro_qm: float = 0.0
+    empfohlener_preis: float = 0.0
+    abgerufen_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class PortalZugangsdaten:
+    """Zugangsdaten für Immobilienportale"""
+    zugang_id: str
+    makler_id: str
+    portal_name: str  # ImmoScout24, Immowelt, etc.
+    benutzername: str
+    api_key: str = ""  # Verschlüsselt in Produktion
+    aktiv: bool = True
+    created_at: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class PortalExport:
+    """Export-Status zu Immobilienportalen"""
+    export_id: str
+    expose_id: str
+    portal_name: str
+    status: str = "Ausstehend"  # Ausstehend, Exportiert, Fehler
+    portal_objekt_id: str = ""
+    exportiert_am: Optional[datetime] = None
+    fehler_nachricht: str = ""
+
+@dataclass
+class EmailKonfiguration:
+    """E-Mail-Server-Konfiguration"""
+    config_id: str
+    user_id: str
+    smtp_server: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""  # Verschlüsselt in Produktion
+    absender_name: str = ""
+    aktiv: bool = False
+
+@dataclass
+class NotarAuftrag:
+    """Notarauftrag mit rechtlicher Prüfung und Workflow"""
+    auftrag_id: str
+    projekt_id: str
+    notar_id: str
+    status: str = "Eingegangen"  # Eingegangen, In Prüfung, Freigegeben, Abgeschlossen
+    auftraggeber_typ: str = ""  # Käufer, Verkäufer, Makler
+    auftraggeber_id: str = ""
+    vertragsart: str = ""  # Kaufvertrag, Grundschuld, Vollmacht, etc.
+    # Rechtliche Prüfung
+    rechtlich_geprueft: bool = False
+    geprueft_von: str = ""  # Mitarbeiter-ID oder Notar-ID
+    geprueft_am: Optional[datetime] = None
+    pruefungsergebnis: str = ""
+    # Workflow-Status
+    unterlagen_vollstaendig: bool = False
+    termin_datum: Optional[datetime] = None
+    termin_ort: str = ""
+    beteiligte_personen: List[str] = field(default_factory=list)
+    # Dokumente
+    dokumente: List[str] = field(default_factory=list)  # Document-IDs
+    entwurf_erstellt: bool = False
+    entwurf_freigegeben: bool = False
+    # Kosten
+    geschaetzte_kosten: float = 0.0
+    tatsaechliche_kosten: float = 0.0
+    # Timestamps
+    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
+    abgeschlossen_am: Optional[datetime] = None
+    # Notizen
+    notizen: str = ""
+
 # ============================================================================
 # SESSION STATE INITIALISIERUNG
 # ============================================================================
@@ -530,6 +632,14 @@ def init_session_state():
         st.session_state.notar_mitarbeiter = {}
         st.session_state.verkaeufer_dokumente = {}
         st.session_state.makler_netzwerk = {}  # Makler-Netzwerk für Notare
+
+        # Neue Features
+        st.session_state.preis_verhandlungen = {}
+        st.session_state.markt_daten = {}
+        st.session_state.portal_zugangsdaten = {}
+        st.session_state.portal_exports = {}
+        st.session_state.email_konfigurationen = {}
+        st.session_state.notar_auftraege = {}
 
         # Demo-Daten
         create_demo_users()
@@ -649,6 +759,161 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
         ocr_text += "Dokumenttyp konnte nicht automatisch erkannt werden."
 
     return ocr_text, kategorie
+
+def extract_personalausweis_data(image_data: bytes, filename: str) -> Dict[str, str]:
+    """
+    Extrahiert Stammdaten aus Personalausweis
+    In Produktion: OCR mit pytesseract, Google Cloud Vision oder AWS Textract
+    """
+    # Simulation basierend auf Dateiname/Kontext
+    filename_lower = filename.lower()
+
+    extracted_data = {
+        "vorname": "",
+        "nachname": "",
+        "geburtsdatum": "",
+        "geburtsort": "",
+        "staatsangehoerigkeit": "DEUTSCH",
+        "anschrift": "",
+        "ausweisnummer": "",
+        "gueltig_bis": "",
+        "ausstellende_behoerde": ""
+    }
+
+    # Simulierte Erkennung (in Produktion: echte OCR)
+    if "ausweis" in filename_lower or "personalausweis" in filename_lower or "id" in filename_lower:
+        # Simuliere erkannte Daten
+        extracted_data = {
+            "vorname": "Max",
+            "nachname": "Mustermann",
+            "geburtsdatum": "01.01.1985",
+            "geburtsort": "München",
+            "staatsangehoerigkeit": "DEUTSCH",
+            "anschrift": "Musterstraße 123, 80331 München",
+            "ausweisnummer": "L01X00T471",
+            "gueltig_bis": "31.12.2029",
+            "ausstellende_behoerde": "Stadt München"
+        }
+
+    return extracted_data
+
+def send_email(empfaenger_email: str, betreff: str, nachricht: str, makler_id: str = None) -> bool:
+    """
+    Sendet eine E-Mail über SMTP
+    In Produktion: Echte SMTP-Verbindung mit smtplib
+    """
+    # E-Mail-Konfiguration laden
+    email_config = None
+    if makler_id:
+        for config in st.session_state.email_konfigurationen.values():
+            if config.user_id == makler_id and config.aktiv:
+                email_config = config
+                break
+
+    if not email_config:
+        # Simulation ohne echte Konfiguration
+        return True  # Simulierter Erfolg
+
+    # In Produktion: Echter E-Mail-Versand
+    # import smtplib
+    # from email.mime.text import MIMEText
+    # from email.mime.multipart import MIMEMultipart
+    #
+    # msg = MIMEMultipart()
+    # msg['From'] = f"{email_config.absender_name} <{email_config.smtp_user}>"
+    # msg['To'] = empfaenger_email
+    # msg['Subject'] = betreff
+    # msg.attach(MIMEText(nachricht, 'html'))
+    #
+    # try:
+    #     server = smtplib.SMTP(email_config.smtp_server, email_config.smtp_port)
+    #     server.starttls()
+    #     server.login(email_config.smtp_user, email_config.smtp_password)
+    #     server.send_message(msg)
+    #     server.quit()
+    #     return True
+    # except Exception as e:
+    #     return False
+
+    return True  # Simulation
+
+def fetch_marktdaten(projekt: Any) -> Dict[str, Any]:
+    """
+    Holt Vergleichsdaten aus Immobilienportalen
+    In Produktion: Echte API-Calls zu ImmoScout24, Immowelt, etc.
+    """
+    # Simulierte Vergleichsobjekte basierend auf Projektdaten
+    vergleichsobjekte = []
+
+    # Simuliere 5 Vergleichsobjekte
+    basis_preis = projekt.kaufpreis if projekt.kaufpreis > 0 else 350000
+    basis_qm_preis = basis_preis / projekt.wohnflaeche if projekt.wohnflaeche > 0 else 4500
+
+    for i in range(5):
+        varianz = (i - 2) * 0.1  # -20% bis +20%
+        vgl_preis = basis_preis * (1 + varianz)
+        vgl_qm_preis = basis_qm_preis * (1 + varianz * 0.8)
+
+        vergleichsobjekt = {
+            "titel": f"Vergleichsobjekt {i+1}",
+            "adresse": f"{projekt.ort}, ähnliche Lage",
+            "preis": vgl_preis,
+            "wohnflaeche": projekt.wohnflaeche * (1 + varianz * 0.3),
+            "preis_pro_qm": vgl_qm_preis,
+            "baujahr": projekt.baujahr + (i - 2) * 5,
+            "zimmer": projekt.zimmer,
+            "quelle": ["ImmoScout24", "Immowelt", "Immonet", "eBay Kleinanzeigen", "ImmobilienScout24"][i]
+        }
+        vergleichsobjekte.append(vergleichsobjekt)
+
+    # Durchschnittspreis berechnen
+    durchschnittspreis = sum([obj["preis"] for obj in vergleichsobjekte]) / len(vergleichsobjekte)
+    durchschnitt_qm = sum([obj["preis_pro_qm"] for obj in vergleichsobjekte]) / len(vergleichsobjekte)
+
+    # Empfohlener Preis (leicht unter Durchschnitt für schnelleren Verkauf)
+    empfohlener_preis = durchschnittspreis * 0.97
+
+    return {
+        "vergleichsobjekte": vergleichsobjekte,
+        "durchschnittspreis": durchschnittspreis,
+        "preis_pro_qm": durchschnitt_qm,
+        "empfohlener_preis": empfohlener_preis
+    }
+
+def export_to_portal(expose_id: str, portal_name: str, zugangsdaten: PortalZugangsdaten) -> Dict[str, Any]:
+    """
+    Exportiert Exposé zu Immobilienportal
+    In Produktion: Echte API-Calls mit OAuth/API-Keys
+    """
+    # Simulierter Export
+    # In Produktion würde hier die Portal-API aufgerufen
+
+    # Simuliere erfolgreichen Export
+    result = {
+        "success": True,
+        "portal_objekt_id": f"{portal_name}_{expose_id}_{hash(expose_id) % 10000}",
+        "message": f"Erfolgreich zu {portal_name} exportiert",
+        "url": f"https://{portal_name.lower().replace(' ', '')}.de/expose/{expose_id}"
+    }
+
+    return result
+
+def generate_portal_beschreibung(expose: ExposeData, portal_name: str) -> str:
+    """
+    Generiert portal-optimierte Beschreibung
+    In Produktion: KI-gestützt mit GPT-4 oder Claude
+    """
+    # Simulierte KI-Beschreibung
+    basis_text = expose.objektbeschreibung if expose.objektbeschreibung else "Attraktive Immobilie"
+
+    # Portal-spezifische Optimierungen
+    portal_templates = {
+        "ImmoScout24": f"🏡 {expose.objekttitel}\n\n{basis_text}\n\n✓ {expose.anzahl_zimmer} Zimmer\n✓ {expose.wohnflaeche} m² Wohnfläche\n✓ Baujahr {expose.baujahr}\n\nJetzt besichtigen!",
+        "Immowelt": f"{expose.objekttitel}\n\n{basis_text}\n\nHighlights:\n• Wohnfläche: {expose.wohnflaeche} m²\n• Zimmer: {expose.anzahl_zimmer}\n• Zustand: {expose.zustand}\n\nKontaktieren Sie uns!",
+        "Immonet": f"**{expose.objekttitel}**\n\n{basis_text}\n\nEckdaten: {expose.anzahl_zimmer} Zi., {expose.wohnflaeche} m², Bj. {expose.baujahr}",
+    }
+
+    return portal_templates.get(portal_name, basis_text)
 
 def update_projekt_status(projekt_id: str):
     """Aktualisiert den Projektstatus basierend auf Timeline-Events"""
@@ -1801,7 +2066,11 @@ def makler_dashboard():
         "⚖️ Rechtliche Dokumente",
         "👥 Teilnehmer-Status",
         "✉️ Einladungen",
-        "💬 Kommentare"
+        "💬 Kommentare",
+        "🌐 Portal-Export",
+        "📊 Marktdaten",
+        "💬 Preisverhandlungen",
+        "📧 E-Mail-Config"
     ])
 
     with tabs[0]:
@@ -1827,6 +2096,18 @@ def makler_dashboard():
 
     with tabs[7]:
         makler_kommentare()
+
+    with tabs[8]:
+        makler_portal_export_view()
+
+    with tabs[9]:
+        makler_marktdaten_view()
+
+    with tabs[10]:
+        makler_preisverhandlungen_view()
+
+    with tabs[11]:
+        makler_email_config_view()
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -2449,6 +2730,645 @@ def makler_kommentare():
                         st.success("✅ Nachricht gesendet!")
                         st.rerun()
 
+def makler_portal_export_view():
+    """Portal-Export und Zugangsdaten-Verwaltung"""
+    st.subheader("🌐 Immobilienportale - Export & Verwaltung")
+
+    makler_id = st.session_state.current_user.user_id
+
+    # Tab-Navigation
+    portal_tabs = st.tabs(["🔑 Zugangsdaten", "📤 Exposé-Export", "📊 Export-Status"])
+
+    with portal_tabs[0]:
+        st.markdown("### 🔑 Portal-Zugangsdaten verwalten")
+        st.info("Hinterlegen Sie hier Ihre Zugangsdaten für die verschiedenen Immobilienportale. Diese werden sicher gespeichert und für den automatischen Export verwendet.")
+
+        # Verfügbare Portale
+        verfuegbare_portale = ["ImmoScout24", "Immowelt", "Immonet", "eBay Kleinanzeigen", "ImmobilienScout24"]
+
+        # Bestehende Zugangsdaten anzeigen
+        makler_zugaenge = [z for z in st.session_state.portal_zugangsdaten.values() if z.makler_id == makler_id]
+
+        if makler_zugaenge:
+            st.markdown("#### Hinterlegte Zugänge:")
+            for zugang in makler_zugaenge:
+                with st.expander(f"{'✅' if zugang.aktiv else '❌'} {zugang.portal_name}", expanded=False):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**Benutzername:** {zugang.benutzername}")
+                        st.write(f"**API-Key:** {'*' * 20 if zugang.api_key else 'Nicht hinterlegt'}")
+                        st.write(f"**Status:** {'Aktiv' if zugang.aktiv else 'Inaktiv'}")
+                        st.write(f"**Hinzugefügt:** {zugang.created_at.strftime('%d.%m.%Y')}")
+                    with col2:
+                        if st.button("🗑️ Löschen", key=f"del_zugang_{zugang.zugang_id}"):
+                            del st.session_state.portal_zugangsdaten[zugang.zugang_id]
+                            st.success("Zugangsdaten gelöscht!")
+                            st.rerun()
+
+                        toggle_status = st.checkbox(
+                            "Aktiv",
+                            value=zugang.aktiv,
+                            key=f"toggle_{zugang.zugang_id}"
+                        )
+                        if toggle_status != zugang.aktiv:
+                            zugang.aktiv = toggle_status
+                            st.session_state.portal_zugangsdaten[zugang.zugang_id] = zugang
+                            st.rerun()
+        else:
+            st.info("Noch keine Zugangsdaten hinterlegt.")
+
+        # Neue Zugangsdaten hinzufügen
+        st.markdown("---")
+        st.markdown("#### ➕ Neue Zugangsdaten hinzufügen")
+
+        with st.form("neue_portal_zugangsdaten"):
+            portal_name = st.selectbox("Portal auswählen", verfuegbare_portale)
+            benutzername = st.text_input("Benutzername / E-Mail*")
+            api_key = st.text_input("API-Key / Passwort*", type="password", help="Wird verschlüsselt gespeichert")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.form_submit_button("💾 Zugangsdaten speichern", type="primary"):
+                    if benutzername and api_key:
+                        zugang_id = f"zugang_{len(st.session_state.portal_zugangsdaten)}"
+                        zugang = PortalZugangsdaten(
+                            zugang_id=zugang_id,
+                            makler_id=makler_id,
+                            portal_name=portal_name,
+                            benutzername=benutzername,
+                            api_key=api_key,
+                            aktiv=True
+                        )
+                        st.session_state.portal_zugangsdaten[zugang_id] = zugang
+                        st.success(f"✅ Zugangsdaten für {portal_name} gespeichert!")
+                        st.rerun()
+                    else:
+                        st.error("Bitte alle Pflichtfelder ausfüllen!")
+
+    with portal_tabs[1]:
+        st.markdown("### 📤 Exposé zu Portalen exportieren")
+
+        # Projekte mit Exposé laden
+        makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+        projekte_mit_expose = [p for p in makler_projekte if p.expose_data_id]
+
+        if not projekte_mit_expose:
+            st.warning("Sie haben noch keine Projekte mit Exposé. Erstellen Sie zuerst ein Exposé in Ihren Projekten.")
+            return
+
+        # Projekt auswählen
+        projekt_namen = {p.name: p.projekt_id for p in projekte_mit_expose}
+        selected_projekt_name = st.selectbox("Projekt auswählen", list(projekt_namen.keys()))
+        selected_projekt_id = projekt_namen[selected_projekt_name]
+        projekt = st.session_state.projekte[selected_projekt_id]
+        expose = st.session_state.expose_data.get(projekt.expose_data_id)
+
+        if expose:
+            # Exposé-Vorschau
+            with st.expander("📄 Exposé-Vorschau", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**Objektart:** {expose.objektart}")
+                    st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
+                with col2:
+                    st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
+                    st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €")
+                with col3:
+                    st.write(f"**Baujahr:** {expose.baujahr}")
+                    st.write(f"**Zustand:** {expose.zustand}")
+
+            st.markdown("---")
+
+            # Portale mit Zugangsdaten
+            aktive_zugaenge = [z for z in st.session_state.portal_zugangsdaten.values()
+                             if z.makler_id == makler_id and z.aktiv]
+
+            if not aktive_zugaenge:
+                st.warning("⚠️ Sie haben noch keine aktiven Portal-Zugangsdaten hinterlegt. Bitte fügen Sie zuerst Zugangsdaten hinzu.")
+                return
+
+            st.markdown("#### Portale auswählen")
+            st.info("Wählen Sie aus, zu welchen Portalen Sie das Exposé exportieren möchten:")
+
+            selected_portals = []
+            for zugang in aktive_zugaenge:
+                if st.checkbox(f"📤 {zugang.portal_name}", key=f"export_{zugang.portal_name}"):
+                    selected_portals.append(zugang)
+
+                    # KI-generierte Beschreibung anzeigen
+                    beschreibung = generate_portal_beschreibung(expose, zugang.portal_name)
+                    with st.expander(f"💡 Vorschlag für {zugang.portal_name}", expanded=False):
+                        st.text_area(
+                            "Portal-optimierte Beschreibung",
+                            value=beschreibung,
+                            height=150,
+                            key=f"desc_{zugang.portal_name}",
+                            help="Diese Beschreibung wurde KI-optimiert für das jeweilige Portal"
+                        )
+
+            st.markdown("---")
+
+            if selected_portals:
+                if st.button("🚀 Zu ausgewählten Portalen exportieren", type="primary"):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+
+                    for i, zugang in enumerate(selected_portals):
+                        status_text.text(f"Exportiere zu {zugang.portal_name}...")
+
+                        # Export durchführen
+                        result = export_to_portal(expose.expose_id, zugang.portal_name, zugang)
+
+                        # Export-Status speichern
+                        export_id = f"export_{len(st.session_state.portal_exports)}"
+                        export_record = PortalExport(
+                            export_id=export_id,
+                            expose_id=expose.expose_id,
+                            portal_name=zugang.portal_name,
+                            status="Erfolgreich" if result["success"] else "Fehlgeschlagen",
+                            portal_objekt_id=result.get("portal_objekt_id", ""),
+                            exportiert_am=datetime.now(),
+                            fehler_nachricht="" if result["success"] else result.get("message", "Unbekannter Fehler")
+                        )
+                        st.session_state.portal_exports[export_id] = export_record
+
+                        progress_bar.progress((i + 1) / len(selected_portals))
+
+                    status_text.empty()
+                    progress_bar.empty()
+                    st.success(f"✅ Exposé erfolgreich zu {len(selected_portals)} Portal(en) exportiert!")
+                    st.balloons()
+                    st.rerun()
+            else:
+                st.info("👆 Wählen Sie mindestens ein Portal aus")
+
+    with portal_tabs[2]:
+        st.markdown("### 📊 Export-Status & Historie")
+
+        # Alle Exports dieses Maklers
+        all_exports = []
+        for export in st.session_state.portal_exports.values():
+            expose = st.session_state.expose_data.get(export.expose_id)
+            if expose:
+                # Finde Projekt
+                for projekt in st.session_state.projekte.values():
+                    if projekt.expose_data_id == expose.expose_id and projekt.makler_id == makler_id:
+                        all_exports.append((projekt, expose, export))
+                        break
+
+        if all_exports:
+            all_exports.sort(key=lambda x: x[2].exportiert_am if x[2].exportiert_am else datetime.now(), reverse=True)
+
+            for projekt, expose, export in all_exports:
+                status_icon = "✅" if export.status == "Erfolgreich" else "❌"
+                with st.expander(f"{status_icon} {projekt.name} → {export.portal_name}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.write(f"**Projekt:** {projekt.name}")
+                        st.write(f"**Portal:** {export.portal_name}")
+                        st.write(f"**Status:** {export.status}")
+                        if export.portal_objekt_id:
+                            st.write(f"**Portal-ID:** {export.portal_objekt_id}")
+                        if export.exportiert_am:
+                            st.write(f"**Exportiert am:** {export.exportiert_am.strftime('%d.%m.%Y %H:%M')}")
+                    with col2:
+                        if export.status == "Erfolgreich" and export.portal_objekt_id:
+                            portal_url = f"https://{export.portal_name.lower().replace(' ', '')}.de/expose/{export.portal_objekt_id}"
+                            st.link_button("🔗 Portal ansehen", portal_url)
+
+                    if export.fehler_nachricht:
+                        st.error(f"⚠️ Fehler: {export.fehler_nachricht}")
+        else:
+            st.info("Noch keine Exports durchgeführt.")
+
+def makler_marktdaten_view():
+    """Marktdaten-Anzeige und Preisvorschläge"""
+    st.subheader("📊 Marktdaten & Preisanalyse")
+
+    makler_id = st.session_state.current_user.user_id
+    makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not makler_projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        return
+
+    # Projekt auswählen
+    projekt_namen = {p.name: p.projekt_id for p in makler_projekte}
+    selected_projekt_name = st.selectbox("Projekt für Marktanalyse auswählen", list(projekt_namen.keys()))
+    selected_projekt_id = projekt_namen[selected_projekt_name]
+    projekt = st.session_state.projekte[selected_projekt_id]
+
+    # Marktdaten abrufen Button
+    st.markdown("---")
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.markdown("#### 🔍 Marktdaten abrufen")
+        st.info("Analysieren Sie vergleichbare Immobilien aus deutschen Immobilienportalen (ImmoScout24, Immowelt, Immonet)")
+    with col2:
+        if st.button("🔄 Marktdaten aktualisieren", type="primary"):
+            with st.spinner("Vergleichsobjekte werden analysiert..."):
+                # Marktdaten abrufen
+                markt_result = fetch_marktdaten(projekt)
+
+                # Speichern
+                markt_id = f"markt_{projekt.projekt_id}_{int(datetime.now().timestamp())}"
+                markt_daten = MarktDaten(
+                    markt_id=markt_id,
+                    projekt_id=projekt.projekt_id,
+                    portal="Verschiedene",
+                    vergleichsobjekte=markt_result["vergleichsobjekte"],
+                    durchschnittspreis=markt_result["durchschnittspreis"],
+                    preis_pro_qm=markt_result["preis_pro_qm"],
+                    empfohlener_preis=markt_result["empfohlener_preis"]
+                )
+                st.session_state.markt_daten[markt_id] = markt_daten
+
+                st.success("✅ Marktdaten erfolgreich abgerufen!")
+                st.rerun()
+
+    st.markdown("---")
+
+    # Bestehende Marktdaten anzeigen
+    projekt_marktdaten = [m for m in st.session_state.markt_daten.values()
+                         if m.projekt_id == projekt.projekt_id]
+
+    if projekt_marktdaten:
+        # Neueste Daten
+        neueste_daten = sorted(projekt_marktdaten, key=lambda x: x.abgerufen_am, reverse=True)[0]
+
+        st.markdown(f"#### 📈 Marktanalyse für {projekt.name}")
+        st.caption(f"Letzte Aktualisierung: {neueste_daten.abgerufen_am.strftime('%d.%m.%Y %H:%M')}")
+
+        # Preis-Übersicht
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(
+                "Durchschnittspreis (Markt)",
+                f"{neueste_daten.durchschnittspreis:,.0f} €",
+                delta=f"{((neueste_daten.durchschnittspreis - projekt.kaufpreis) / projekt.kaufpreis * 100):.1f}%" if projekt.kaufpreis > 0 else None
+            )
+        with col2:
+            st.metric(
+                "Preis pro m²",
+                f"{neueste_daten.preis_pro_qm:,.0f} €/m²"
+            )
+        with col3:
+            st.metric(
+                "💡 Empfohlener Preis",
+                f"{neueste_daten.empfohlener_preis:,.0f} €",
+                delta=f"{((neueste_daten.empfohlener_preis - projekt.kaufpreis) / projekt.kaufpreis * 100):.1f}%" if projekt.kaufpreis > 0 else None,
+                delta_color="normal"
+            )
+
+        st.markdown("---")
+
+        # Vergleichsobjekte
+        st.markdown("#### 🏘️ Vergleichsobjekte")
+
+        for i, obj in enumerate(neueste_daten.vergleichsobjekte):
+            with st.expander(f"📍 {obj['titel']} - {obj['preis']:,.0f} €", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**Adresse:** {obj['adresse']}")
+                    st.write(f"**Preis:** {obj['preis']:,.0f} €")
+                    st.write(f"**Preis/m²:** {obj['preis_pro_qm']:,.0f} €/m²")
+                with col2:
+                    st.write(f"**Wohnfläche:** {obj['wohnflaeche']:.0f} m²")
+                    st.write(f"**Zimmer:** {obj['zimmer']}")
+                    st.write(f"**Baujahr:** {obj['baujahr']}")
+                with col3:
+                    st.write(f"**Quelle:** {obj['quelle']}")
+
+                    # Preisabweichung
+                    if projekt.kaufpreis > 0:
+                        abweichung = ((obj['preis'] - projekt.kaufpreis) / projekt.kaufpreis * 100)
+                        if abweichung > 0:
+                            st.success(f"↑ +{abweichung:.1f}% teurer")
+                        elif abweichung < 0:
+                            st.info(f"↓ {abweichung:.1f}% günstiger")
+                        else:
+                            st.info("= Gleicher Preis")
+
+        st.markdown("---")
+
+        # Preisempfehlung
+        st.markdown("#### 💰 Preisempfehlung")
+
+        if projekt.kaufpreis > 0:
+            differenz = neueste_daten.empfohlener_preis - projekt.kaufpreis
+            prozent = (differenz / projekt.kaufpreis * 100)
+
+            if abs(prozent) < 3:
+                st.success(f"✅ Ihr aktueller Preis ({projekt.kaufpreis:,.0f} €) liegt im optimalen Bereich (Abweichung: {prozent:+.1f}%)")
+            elif prozent > 0:
+                st.warning(f"💡 Der Markt würde einen höheren Preis unterstützen. Potenzial: +{differenz:,.0f} € ({prozent:+.1f}%)")
+            else:
+                st.info(f"💡 Ihr Preis liegt über dem Marktdurchschnitt. Differenz: {differenz:,.0f} € ({prozent:+.1f}%)")
+        else:
+            st.info(f"💡 Basierend auf den Marktdaten empfehlen wir einen Preis von {neueste_daten.empfohlener_preis:,.0f} €")
+    else:
+        st.info("📊 Noch keine Marktdaten abgerufen. Klicken Sie auf 'Marktdaten aktualisieren', um eine Analyse zu starten.")
+
+def makler_preisverhandlungen_view():
+    """Preisverhandlungs-Chat zwischen Käufer und Verkäufer"""
+    st.subheader("💬 Preisverhandlungen")
+
+    makler_id = st.session_state.current_user.user_id
+    makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not makler_projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        return
+
+    st.info("💡 Hier können Sie Preisverhandlungen zwischen Käufer und Verkäufer moderieren und verfolgen.")
+
+    # Projekt auswählen
+    projekt_namen = {p.name: p.projekt_id for p in makler_projekte}
+    selected_projekt_name = st.selectbox("Projekt auswählen", list(projekt_namen.keys()))
+    selected_projekt_id = projekt_namen[selected_projekt_name]
+    projekt = st.session_state.projekte[selected_projekt_id]
+
+    st.markdown("---")
+
+    # Bestehende Verhandlungen für dieses Projekt
+    projekt_verhandlungen = [v for v in st.session_state.preis_verhandlungen.values()
+                            if v.projekt_id == projekt.projekt_id]
+
+    if not projekt_verhandlungen:
+        # Neue Verhandlung starten
+        st.markdown("#### 🆕 Neue Preisverhandlung starten")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            ausgangspreis = st.number_input(
+                "Ausgangspreis (€)",
+                min_value=0.0,
+                value=float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 300000.0,
+                step=1000.0
+            )
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("🚀 Verhandlung starten", type="primary"):
+                verhandlung_id = f"verhandlung_{len(st.session_state.preis_verhandlungen)}"
+                verhandlung = PreisVerhandlung(
+                    verhandlung_id=verhandlung_id,
+                    projekt_id=projekt.projekt_id,
+                    ausgangspreis=ausgangspreis,
+                    aktueller_preis=ausgangspreis,
+                    status="Aktiv",
+                    nachrichten=[]
+                )
+                st.session_state.preis_verhandlungen[verhandlung_id] = verhandlung
+                st.success("✅ Preisverhandlung gestartet!")
+                st.rerun()
+    else:
+        # Aktive Verhandlung anzeigen
+        verhandlung = projekt_verhandlungen[0]  # Nur eine Verhandlung pro Projekt
+
+        # Status-Anzeige
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Ausgangspreis", f"{verhandlung.ausgangspreis:,.0f} €")
+        with col2:
+            st.metric("Aktuelles Angebot", f"{verhandlung.aktueller_preis:,.0f} €")
+        with col3:
+            differenz = verhandlung.aktueller_preis - verhandlung.ausgangspreis
+            st.metric("Differenz", f"{differenz:+,.0f} €")
+
+        st.markdown("---")
+
+        # Chat-Verlauf
+        st.markdown("#### 💬 Verhandlungsverlauf")
+
+        if verhandlung.nachrichten:
+            for msg in verhandlung.nachrichten:
+                sender_icon = "👤" if msg["sender"] == "Verkäufer" else "🏠" if msg["sender"] == "Käufer" else "📊"
+
+                if msg["sender"] == "Makler":
+                    alignment = "center"
+                    bg_color = "#e3f2fd"
+                else:
+                    alignment = "left" if msg["sender"] == "Verkäufer" else "right"
+                    bg_color = "#f5f5f5" if msg["sender"] == "Verkäufer" else "#e8f5e9"
+
+                st.markdown(f"""
+                <div style='text-align:{alignment}; margin:10px 0;'>
+                    <div style='display:inline-block; background:{bg_color}; padding:10px 15px; border-radius:10px; max-width:70%;'>
+                        <strong>{sender_icon} {msg['sender']}</strong><br>
+                        {msg['nachricht']}<br>
+                        {'<strong>Preis: ' + f"{msg['preis']:,.0f} €" + '</strong><br>' if 'preis' in msg else ''}
+                        <small>{msg['zeitpunkt']}</small>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Noch keine Nachrichten in dieser Verhandlung.")
+
+        st.markdown("---")
+
+        # Neue Nachricht (nur Makler kann moderieren)
+        st.markdown("#### ✍️ Als Makler moderieren")
+
+        with st.form("verhandlung_nachricht"):
+            nachricht = st.text_area("Nachricht / Kommentar", placeholder="z.B. 'Verkäufer hat Gegenangebot gemacht'")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                sender_type = st.selectbox("Im Namen von", ["Makler", "Verkäufer (Angebot)", "Käufer (Gegenangebot)"])
+            with col2:
+                neuer_preis = st.number_input("Preis (€)", min_value=0.0, value=float(verhandlung.aktueller_preis), step=1000.0)
+            with col3:
+                st.write("")
+                st.write("")
+                submit = st.form_submit_button("📤 Nachricht senden", type="primary")
+
+            if submit and nachricht:
+                msg = {
+                    "sender": sender_type.split(" ")[0],  # Nur "Makler", "Verkäufer" oder "Käufer"
+                    "nachricht": nachricht,
+                    "zeitpunkt": datetime.now().strftime('%d.%m.%Y %H:%M'),
+                }
+
+                # Preis nur bei Angeboten
+                if "Angebot" in sender_type or "Gegenangebot" in sender_type:
+                    msg["preis"] = neuer_preis
+                    verhandlung.aktueller_preis = neuer_preis
+
+                verhandlung.nachrichten.append(msg)
+                st.session_state.preis_verhandlungen[verhandlung.verhandlung_id] = verhandlung
+
+                st.success("✅ Nachricht hinzugefügt!")
+                st.rerun()
+
+        st.markdown("---")
+
+        # Verhandlung abschließen
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Verhandlung erfolgreich abschließen"):
+                verhandlung.status = "Abgeschlossen"
+                projekt.kaufpreis = verhandlung.aktueller_preis
+                st.session_state.preis_verhandlungen[verhandlung.verhandlung_id] = verhandlung
+                st.session_state.projekte[projekt.projekt_id] = projekt
+                st.success(f"✅ Verhandlung abgeschlossen! Finaler Preis: {verhandlung.aktueller_preis:,.0f} €")
+                st.rerun()
+        with col2:
+            if st.button("❌ Verhandlung abbrechen"):
+                verhandlung.status = "Abgebrochen"
+                st.session_state.preis_verhandlungen[verhandlung.verhandlung_id] = verhandlung
+                st.warning("Verhandlung wurde abgebrochen.")
+                st.rerun()
+
+def makler_email_config_view():
+    """E-Mail-Konfiguration für SMTP"""
+    st.subheader("📧 E-Mail-Konfiguration")
+
+    makler_id = st.session_state.current_user.user_id
+
+    st.info("💡 Konfigurieren Sie Ihren SMTP-Server, um automatisch E-Mail-Einladungen an Käufer und Verkäufer zu versenden.")
+
+    # Bestehende Konfiguration laden
+    email_config = None
+    for config in st.session_state.email_konfigurationen.values():
+        if config.user_id == makler_id:
+            email_config = config
+            break
+
+    # Konfigurationsformular
+    with st.form("email_config_form"):
+        st.markdown("### SMTP-Server Einstellungen")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            smtp_server = st.text_input(
+                "SMTP-Server*",
+                value=email_config.smtp_server if email_config else "smtp.gmail.com",
+                help="z.B. smtp.gmail.com, smtp.office365.com"
+            )
+            smtp_user = st.text_input(
+                "SMTP-Benutzername / E-Mail*",
+                value=email_config.smtp_user if email_config else "",
+                help="Ihre E-Mail-Adresse"
+            )
+        with col2:
+            smtp_port = st.number_input(
+                "SMTP-Port*",
+                min_value=1,
+                max_value=65535,
+                value=email_config.smtp_port if email_config else 587,
+                help="Standard: 587 (TLS) oder 465 (SSL)"
+            )
+            smtp_password = st.text_input(
+                "SMTP-Passwort / App-Passwort*",
+                type="password",
+                value=email_config.smtp_password if email_config else "",
+                help="Bei Gmail: App-Passwort verwenden"
+            )
+
+        absender_name = st.text_input(
+            "Absender-Name",
+            value=email_config.absender_name if email_config else "",
+            help="z.B. 'Immobilien Müller GmbH'"
+        )
+
+        aktiv = st.checkbox(
+            "E-Mail-Versand aktivieren",
+            value=email_config.aktiv if email_config else False,
+            help="Aktivieren Sie diese Option, um automatischen E-Mail-Versand zu ermöglichen"
+        )
+
+        st.markdown("---")
+
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            if st.form_submit_button("💾 Konfiguration speichern", type="primary"):
+                if smtp_server and smtp_user and smtp_password:
+                    if email_config:
+                        # Update bestehend
+                        email_config.smtp_server = smtp_server
+                        email_config.smtp_port = smtp_port
+                        email_config.smtp_user = smtp_user
+                        email_config.smtp_password = smtp_password
+                        email_config.absender_name = absender_name
+                        email_config.aktiv = aktiv
+                        st.session_state.email_konfigurationen[email_config.config_id] = email_config
+                    else:
+                        # Neu erstellen
+                        config_id = f"emailconfig_{len(st.session_state.email_konfigurationen)}"
+                        email_config = EmailKonfiguration(
+                            config_id=config_id,
+                            user_id=makler_id,
+                            smtp_server=smtp_server,
+                            smtp_port=smtp_port,
+                            smtp_user=smtp_user,
+                            smtp_password=smtp_password,
+                            absender_name=absender_name,
+                            aktiv=aktiv
+                        )
+                        st.session_state.email_konfigurationen[config_id] = email_config
+
+                    st.success("✅ E-Mail-Konfiguration gespeichert!")
+                    st.rerun()
+                else:
+                    st.error("Bitte alle Pflichtfelder ausfüllen!")
+
+        with col2:
+            if email_config and st.form_submit_button("📧 Test-E-Mail senden"):
+                if email_config.smtp_user:
+                    success = send_email(
+                        empfaenger_email=email_config.smtp_user,
+                        betreff="Test-E-Mail von Ihrer Immobilienplattform",
+                        nachricht="Dies ist eine Test-E-Mail. Ihre SMTP-Konfiguration funktioniert!",
+                        makler_id=makler_id
+                    )
+                    if success:
+                        st.success("✅ Test-E-Mail gesendet!")
+                    else:
+                        st.error("❌ E-Mail-Versand fehlgeschlagen. Bitte Einstellungen prüfen.")
+                else:
+                    st.error("Bitte zuerst Konfiguration speichern!")
+
+    # Hilfebereich
+    with st.expander("❓ Hilfe & Häufige SMTP-Server"):
+        st.markdown("""
+        **Gmail:**
+        - Server: `smtp.gmail.com`
+        - Port: `587`
+        - Hinweis: App-Passwort erforderlich (nicht Ihr Gmail-Passwort)
+        - [App-Passwort erstellen](https://myaccount.google.com/apppasswords)
+
+        **Outlook / Office365:**
+        - Server: `smtp.office365.com`
+        - Port: `587`
+
+        **GMX:**
+        - Server: `mail.gmx.net`
+        - Port: `587`
+
+        **Web.de:**
+        - Server: `smtp.web.de`
+        - Port: `587`
+
+        **1&1 / IONOS:**
+        - Server: `smtp.ionos.de`
+        - Port: `587`
+        """)
+
+    st.markdown("---")
+
+    # Status-Anzeige
+    if email_config:
+        st.markdown("### 📊 Status")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Status", "✅ Aktiv" if email_config.aktiv else "⏸️ Inaktiv")
+        with col2:
+            st.metric("Server", email_config.smtp_server)
+        with col3:
+            st.metric("Absender", email_config.smtp_user)
+
 # ============================================================================
 # KÄUFER/VERKÄUFER ONBOARDING
 # ============================================================================
@@ -2456,9 +3376,110 @@ def makler_kommentare():
 def onboarding_flow():
     """Onboarding-Flow für Käufer/Verkäufer"""
     st.title("👋 Willkommen!")
+
+    user = st.session_state.current_user
+
+    # Schritt 1: Stammdaten erfassen
+    if not user.stammdaten_complete:
+        st.markdown("""
+        ### 📝 Schritt 1: Ihre Stammdaten
+        Um den Prozess zu beschleunigen, können Sie Ihren Personalausweis hochladen.
+        Ihre Daten werden automatisch erkannt und sicher verarbeitet.
+        """)
+
+        st.info("💡 **Optional aber empfohlen:** Laden Sie ein Foto oder Scan Ihres Personalausweises hoch, um Ihre Stammdaten automatisch zu erfassen.")
+
+        # Personalausweis-Upload
+        ausweis_file = st.file_uploader(
+            "📷 Personalausweis hochladen (Vorder- oder Rückseite)",
+            type=["png", "jpg", "jpeg", "pdf"],
+            help="Ihre Daten werden sicher verarbeitet und nicht an Dritte weitergegeben"
+        )
+
+        ocr_data = {}
+        if ausweis_file:
+            with st.spinner("🔍 Dokument wird analysiert..."):
+                # OCR durchführen
+                file_bytes = ausweis_file.read()
+                ocr_data = extract_personalausweis_data(file_bytes, ausweis_file.name)
+
+                if ocr_data.get("vorname"):
+                    st.success("✅ Personalausweis erfolgreich erkannt! Bitte überprüfen Sie die extrahierten Daten.")
+                else:
+                    st.warning("⚠️ Keine Daten erkannt. Bitte geben Sie Ihre Daten manuell ein.")
+
+        st.markdown("---")
+        st.markdown("#### Ihre Stammdaten")
+
+        with st.form("stammdaten_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                vorname = st.text_input("Vorname*", value=ocr_data.get("vorname", user.vorname))
+                nachname = st.text_input("Nachname*", value=ocr_data.get("nachname", user.nachname))
+                geburtsdatum = st.text_input(
+                    "Geburtsdatum*",
+                    value=ocr_data.get("geburtsdatum", user.geburtsdatum),
+                    placeholder="TT.MM.JJJJ"
+                )
+                geburtsort = st.text_input("Geburtsort*", value=ocr_data.get("geburtsort", user.geburtsort))
+
+            with col2:
+                staatsangehoerigkeit = st.text_input(
+                    "Staatsangehörigkeit*",
+                    value=ocr_data.get("staatsangehoerigkeit", user.staatsangehoerigkeit)
+                )
+                anschrift = st.text_area(
+                    "Anschrift*",
+                    value=ocr_data.get("anschrift", user.anschrift),
+                    height=100
+                )
+                ausweisnummer = st.text_input(
+                    "Ausweisnummer",
+                    value=ocr_data.get("ausweisnummer", user.ausweisnummer)
+                )
+                gueltig_bis = st.text_input(
+                    "Gültig bis",
+                    value=ocr_data.get("gueltig_bis", user.gueltig_bis),
+                    placeholder="TT.MM.JJJJ"
+                )
+
+            st.markdown("---")
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.caption("* Pflichtfelder")
+            with col2:
+                submit = st.form_submit_button("✅ Weiter zu Dokumenten", type="primary", use_container_width=True)
+
+            if submit:
+                if vorname and nachname and geburtsdatum and geburtsort and staatsangehoerigkeit and anschrift:
+                    # Stammdaten speichern
+                    user.vorname = vorname
+                    user.nachname = nachname
+                    user.geburtsdatum = geburtsdatum
+                    user.geburtsort = geburtsort
+                    user.staatsangehoerigkeit = staatsangehoerigkeit
+                    user.anschrift = anschrift
+                    user.ausweisnummer = ausweisnummer
+                    user.gueltig_bis = gueltig_bis
+                    user.ausstellende_behoerde = ocr_data.get("ausstellende_behoerde", "")
+                    user.stammdaten_complete = True
+
+                    # Name aktualisieren
+                    user.name = f"{vorname} {nachname}"
+
+                    st.session_state.users[user.user_id] = user
+                    st.success("✅ Stammdaten erfolgreich gespeichert!")
+                    st.rerun()
+                else:
+                    st.error("❌ Bitte füllen Sie alle Pflichtfelder aus!")
+
+        return  # Hier stoppen, bis Stammdaten komplett sind
+
+    # Schritt 2: Rechtliche Dokumente akzeptieren
     st.markdown("""
-    Bevor wir Ihnen das Exposé und die Projektdaten anzeigen,
-    bitten wir Sie, die folgenden Unterlagen zu prüfen und zu bestätigen.
+    ### 📄 Schritt 2: Rechtliche Dokumente
+    Bitte prüfen und akzeptieren Sie die folgenden rechtlichen Dokumente.
     """)
 
     makler_id = "makler1"
@@ -3633,7 +4654,8 @@ def notar_dashboard():
         "🔄 Vermittler",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
-        "📅 Termine"
+        "📅 Termine",
+        "⚖️ Aufträge"
     ])
 
     with tabs[0]:
@@ -3668,6 +4690,9 @@ def notar_dashboard():
 
     with tabs[10]:
         notar_termine()
+
+    with tabs[11]:
+        notar_auftraege_view()
 
 def notar_timeline_view():
     """Timeline für Notar"""
@@ -4964,6 +5989,109 @@ def notar_termine():
                     if cancel:
                         st.session_state[f"edit_termin_{projekt.projekt_id}"] = False
                         st.rerun()
+
+def notar_auftraege_view():
+    """Notarauftrags-Workflow (Vorbereitet für zukünftige Erweiterung)"""
+    st.subheader("⚖️ Notaraufträge & Rechtliche Prüfung")
+
+    st.info("💡 Dieser Bereich befindet sich in Vorbereitung und wird erweitert, sobald weitere Anforderungen definiert sind.")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    st.markdown("""
+    ### 📋 Geplante Funktionen:
+    - ⚖️ Auftragseingänge erfassen und verwalten
+    - 🔍 Rechtliche Prüfung von Verträgen und Unterlagen
+    - 📝 Vertragsentwürfe erstellen und freigeben
+    - 💰 Kostenvoranschläge und Abrechnung
+    - 📅 Terminkoordination mit allen Beteiligten
+    - 📄 Dokumenten-Workflow mit Mitarbeitern
+    - ✅ Freigabe-Prozesse und Genehmigungen
+    """)
+
+    st.markdown("---")
+
+    # Bestehende Aufträge anzeigen (wenn vorhanden)
+    auftraege = [a for a in st.session_state.notar_auftraege.values() if a.notar_id == notar_id]
+
+    if auftraege:
+        st.markdown("### 📊 Aktuelle Aufträge")
+        for auftrag in auftraege:
+            projekt = st.session_state.projekte.get(auftrag.projekt_id)
+            projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+            status_icon = {
+                "Eingegangen": "📥",
+                "In Prüfung": "🔍",
+                "Freigegeben": "✅",
+                "Abgeschlossen": "✔️"
+            }.get(auftrag.status, "📋")
+
+            with st.expander(f"{status_icon} {auftrag.vertragsart} - {projekt_name}", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Status:** {auftrag.status}")
+                    st.write(f"**Vertragsart:** {auftrag.vertragsart}")
+                    st.write(f"**Auftraggeber:** {auftrag.auftraggeber_typ}")
+                    st.write(f"**Erstellt:** {auftrag.created_at.strftime('%d.%m.%Y')}")
+                with col2:
+                    st.write(f"**Rechtlich geprüft:** {'✅ Ja' if auftrag.rechtlich_geprueft else '⏳ Ausstehend'}")
+                    st.write(f"**Unterlagen vollständig:** {'✅ Ja' if auftrag.unterlagen_vollstaendig else '⏳ Nein'}")
+                    st.write(f"**Entwurf erstellt:** {'✅ Ja' if auftrag.entwurf_erstellt else '⏳ Nein'}")
+                    if auftrag.geschaetzte_kosten > 0:
+                        st.write(f"**Geschätzte Kosten:** {auftrag.geschaetzte_kosten:,.2f} €")
+
+                if auftrag.notizen:
+                    st.markdown("**Notizen:**")
+                    st.info(auftrag.notizen)
+    else:
+        st.info("Noch keine Aufträge vorhanden.")
+
+    st.markdown("---")
+
+    # Platzhalter für neuen Auftrag erstellen
+    with st.expander("➕ Neuen Auftrag erstellen (Platzhalter)", expanded=False):
+        st.info("Diese Funktion wird erweitert, sobald die genauen Anforderungen definiert sind.")
+
+        with st.form("neuer_auftrag_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                projekt_options = {p.name: p.projekt_id for p in projekte}
+                if projekt_options:
+                    selected_projekt_name = st.selectbox("Projekt auswählen", list(projekt_options.keys()))
+                    selected_projekt_id = projekt_options[selected_projekt_name]
+                else:
+                    st.warning("Keine Projekte verfügbar")
+                    selected_projekt_id = None
+
+                vertragsart = st.selectbox(
+                    "Vertragsart",
+                    ["Kaufvertrag", "Grundschuld", "Vollmacht", "Beglaubigung", "Sonstiges"]
+                )
+
+            with col2:
+                auftraggeber_typ = st.selectbox("Auftraggeber", ["Käufer", "Verkäufer", "Makler", "Bank"])
+                geschaetzte_kosten = st.number_input("Geschätzte Kosten (€)", min_value=0.0, step=100.0)
+
+            notizen = st.text_area("Notizen / Bemerkungen", height=100)
+
+            submit = st.form_submit_button("💾 Auftrag erstellen", type="primary")
+
+            if submit and selected_projekt_id:
+                auftrag_id = f"auftrag_{len(st.session_state.notar_auftraege)}"
+                auftrag = NotarAuftrag(
+                    auftrag_id=auftrag_id,
+                    projekt_id=selected_projekt_id,
+                    notar_id=notar_id,
+                    vertragsart=vertragsart,
+                    auftraggeber_typ=auftraggeber_typ,
+                    geschaetzte_kosten=geschaetzte_kosten,
+                    notizen=notizen
+                )
+                st.session_state.notar_auftraege[auftrag_id] = auftrag
+                st.success(f"✅ Auftrag '{vertragsart}' erstellt!")
+                st.rerun()
 
 # ============================================================================
 # NOTAR-MITARBEITER-BEREICH
