@@ -380,12 +380,30 @@ def render_timeline(projekt_id: str, role: str):
         st.info("Noch keine Timeline-Events vorhanden.")
         return
 
-    # CSS für Timeline
-    st.markdown("""
+    # Finde aktuellen Schritt
+    current_step = None
+    for event in events:
+        if not event.completed:
+            current_step = event
+            break
+
+    # Timeline mit st.components rendern (robuster als pure markdown)
+    import streamlit.components.v1 as components
+
+    # Komplettes HTML mit embedded CSS
+    full_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
     <style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
     .timeline-container {
         position: relative;
-        padding: 20px 0;
+        padding: 20px 10px;
     }
     .timeline-item {
         display: flex;
@@ -403,6 +421,7 @@ def render_timeline(projekt_id: str, role: str):
         flex-shrink: 0;
         margin-right: 20px;
         z-index: 1;
+        font-size: 18px;
     }
     .timeline-marker-completed {
         background: #28a745;
@@ -467,24 +486,16 @@ def render_timeline(projekt_id: str, role: str):
         50% { transform: scale(1.1); }
     }
     </style>
-    """, unsafe_allow_html=True)
-
-    # Finde aktuellen Schritt
-    current_step = None
-    for event in events:
-        if not event.completed:
-            current_step = event
-            break
-
-    # Timeline rendern
-    timeline_html = '<div class="timeline-container">'
+    </head>
+    <body>
+    <div class="timeline-container">
+    """
 
     for i, event in enumerate(events):
         is_completed = event.completed
         is_current = (current_step and event.event_id == current_step.event_id)
-        is_pending = not is_completed and not is_current
 
-        # Marker-Klasse
+        # Marker-Klasse und Icon
         if is_completed:
             marker_class = "timeline-marker-completed"
             content_class = "timeline-content-completed"
@@ -499,7 +510,7 @@ def render_timeline(projekt_id: str, role: str):
             icon = str(event.position)
 
         # Timeline Item
-        timeline_html += f'''
+        full_html += f'''
         <div class="timeline-item">
             {"" if i == len(events) - 1 else '<div class="timeline-line"></div>'}
             <div class="timeline-marker {marker_class}">{icon}</div>
@@ -509,24 +520,29 @@ def render_timeline(projekt_id: str, role: str):
         '''
 
         if is_completed and event.completed_at:
-            timeline_html += f'<div class="timeline-date">✅ Abgeschlossen am {event.completed_at.strftime("%d.%m.%Y %H:%M")}</div>'
+            full_html += f'<div class="timeline-date">✅ Abgeschlossen am {event.completed_at.strftime("%d.%m.%Y %H:%M")}</div>'
 
         if is_current and event.wartet_auf:
-            timeline_html += f'''
+            full_html += f'''
             <div class="timeline-waiting">
                 <strong>⏰ Wartet auf:</strong><br>
                 {event.wartet_auf}
             </div>
             '''
 
-        timeline_html += '''
+        full_html += '''
             </div>
         </div>
         '''
 
-    timeline_html += '</div>'
+    full_html += """
+    </div>
+    </body>
+    </html>
+    """
 
-    st.markdown(timeline_html, unsafe_allow_html=True)
+    # Render mit components.html (mehr Kontrolle über HTML)
+    components.html(full_html, height=len(events) * 120 + 100, scrolling=False)
 
     # Aktuelle Warteinfo prominent anzeigen
     if current_step and current_step.wartet_auf:
