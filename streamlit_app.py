@@ -941,63 +941,223 @@ def analyze_website(url: str) -> Dict[str, Any]:
         url = f"https://{url}"
 
     try:
+        from urllib.parse import urlparse
+        import json
+        import re
+
+        # Basis-URL für relative Pfade
+        parsed = urlparse(url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+
         # Strukturierter Prompt für Website-Analyse
-        prompt = """Analysiere diese Website und extrahiere folgende Informationen im JSON-Format:
+        prompt = """Analysiere diese Website und extrahiere folgende Informationen:
 
-1. LOGO-ERKENNUNG (in dieser Priorität):
-   - Favicon (favicon.ico, favicon.png)
-   - Apple Touch Icon
-   - Open Graph Image (og:image)
-   - Logo im Header/Navigation (CSS-Klassen: logo, brand, header-logo, site-logo)
-   - SVG-Logos im Header
+**1. LOGO & FAVICON:**
+- Suche nach Favicon-Links: <link rel="icon">, <link rel="shortcut icon">, <link rel="apple-touch-icon">
+- Suche nach Logo-Bildern: <img> Tags mit class/id/alt enthaltend: "logo", "brand", "header-logo"
+- Open Graph Images: <meta property="og:image">
+- SVG-Logos im Header/Navigation
 
-2. BETREIBER-INFORMATIONEN:
-   Suche im Impressum, Kontaktseite, Footer und Meta-Tags:
-   - Firmenname/Kanzleiname
-   - Kategorie: MAKLER | RECHTSANWALT | NOTAR | RECHTSANWALT_NOTAR | SONSTIG
-   - Rechtsform (GmbH, PartG, Einzelkanzlei, etc.)
-   - Inhaber/Ansprechpartner (als Array)
-   - Adresse (Straße, PLZ, Ort)
-   - Kontakt (Telefon, E-Mail)
+**2. IMPRESSUM-DATEN:**
+Suche im gesamten Text nach:
+- Firmenname/Kanzleiname (oft am Anfang des Impressums)
+- Vollständige Adresse (Straße, Hausnummer, PLZ, Ort)
+- Telefonnummer (Format: +49... oder 0...)
+- E-Mail-Adresse
+- Rechtsform (GmbH, PartG mbB, Einzelunternehmen, etc.)
 
-Gib NUR valides JSON zurück in diesem Format:
+**3. KATEGORISIERUNG:**
+Bestimme basierend auf Inhalt und Keywords:
+- MAKLER: Immobilienmakler, Immobilienvermittlung
+- NOTAR: Notariat, notarielle Dienstleistungen
+- RECHTSANWALT: Rechtsanwaltskanzlei, Anwaltsbüro
+- RECHTSANWALT_NOTAR: Kombination aus beidem
+- SONSTIG: Andere
+
+**AUSGABEFORMAT (nur valides JSON):**
 {
-  "logo": {
-    "url": "vollständige URL zum Logo",
-    "favicon_url": "URL zum Favicon",
-    "type": "png|svg|ico",
-    "source": "favicon|header|og_image"
-  },
-  "betreiber": {
-    "name": "Vollständiger Firmenname",
-    "kategorie": "MAKLER|RECHTSANWALT|NOTAR|RECHTSANWALT_NOTAR|SONSTIG",
-    "rechtsform": "GmbH|PartG mbB|etc.",
-    "inhaber": ["Name 1", "Name 2"],
-    "adresse": {
-      "strasse": "Straße Nr.",
-      "plz": "12345",
-      "ort": "Stadtname"
-    },
-    "kontakt": {
-      "telefon": "+49...",
-      "email": "info@..."
-    }
-  },
-  "confidence": 0.0-1.0
+  "logo_urls": ["url1", "url2", ...],
+  "favicon_url": "...",
+  "firmenname": "...",
+  "strasse": "...",
+  "plz": "...",
+  "ort": "...",
+  "telefon": "...",
+  "email": "...",
+  "rechtsform": "...",
+  "kategorie": "..."
 }
 
-Wenn Informationen nicht gefunden werden, setze null oder leere Strings."""
+Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die vollständige URL an."""
 
-        # WebFetch mit strukturiertem Prompt verwenden
-        from streamlit.components.v1 import html
-        import json
+        # WebFetch verwenden
+        try:
+            # Importiere WebFetch tool - Hinweis: Dies ist eine Streamlit-App, daher müssen wir requests verwenden
+            import requests
+            from bs4 import BeautifulSoup
 
-        # WebFetch aufrufen (simuliert für Demo)
-        # In Produktion würde hier st.experimental_connection oder requests verwendet
+            # Website abrufen
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
 
-        # Für Demo: Intelligente Simulation basierend auf URL
-        result = simulate_website_analysis(url)
-        return result
+            # HTML parsen
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Logo-URLs sammeln
+            logo_urls = []
+
+            # 1. Favicon
+            favicon_url = None
+            favicon_tags = soup.find_all('link', rel=lambda x: x and ('icon' in x.lower() or 'shortcut' in x.lower()))
+            for tag in favicon_tags:
+                href = tag.get('href', '')
+                if href:
+                    if href.startswith('http'):
+                        favicon_url = href
+                    elif href.startswith('//'):
+                        favicon_url = 'https:' + href
+                    elif href.startswith('/'):
+                        favicon_url = base_url + href
+                    else:
+                        favicon_url = base_url + '/' + href
+                    logo_urls.append(favicon_url)
+                    break
+
+            # Fallback Favicon
+            if not favicon_url:
+                favicon_url = base_url + '/favicon.ico'
+                logo_urls.append(favicon_url)
+
+            # 2. Apple Touch Icon
+            apple_icon = soup.find('link', rel='apple-touch-icon')
+            if apple_icon and apple_icon.get('href'):
+                href = apple_icon['href']
+                if href.startswith('http'):
+                    logo_urls.append(href)
+                elif href.startswith('//'):
+                    logo_urls.append('https:' + href)
+                elif href.startswith('/'):
+                    logo_urls.append(base_url + href)
+                else:
+                    logo_urls.append(base_url + '/' + href)
+
+            # 3. OG Image
+            og_image = soup.find('meta', property='og:image')
+            if og_image and og_image.get('content'):
+                content = og_image['content']
+                if content.startswith('http'):
+                    logo_urls.append(content)
+                elif content.startswith('//'):
+                    logo_urls.append('https:' + content)
+                elif content.startswith('/'):
+                    logo_urls.append(base_url + content)
+
+            # 4. Logo-Bilder im HTML
+            logo_imgs = soup.find_all('img', class_=re.compile(r'logo|brand', re.I))
+            logo_imgs += soup.find_all('img', id=re.compile(r'logo|brand', re.I))
+            logo_imgs += soup.find_all('img', alt=re.compile(r'logo|brand', re.I))
+
+            for img in logo_imgs[:5]:  # Max 5 Logo-Bilder
+                src = img.get('src', '')
+                if src:
+                    if src.startswith('http'):
+                        logo_urls.append(src)
+                    elif src.startswith('//'):
+                        logo_urls.append('https:' + src)
+                    elif src.startswith('/'):
+                        logo_urls.append(base_url + src)
+                    else:
+                        logo_urls.append(base_url + '/' + src)
+
+            # 5. Häufige Logo-Pfade hinzufügen
+            common_paths = [
+                '/logo.svg', '/logo.png', '/images/logo.svg', '/images/logo.png',
+                '/assets/logo.svg', '/assets/logo.png', '/img/logo.svg', '/img/logo.png'
+            ]
+            for path in common_paths:
+                full_url = base_url + path
+                if full_url not in logo_urls:
+                    logo_urls.append(full_url)
+
+            # Impressum-Daten extrahieren
+            text = soup.get_text(separator=' ')
+
+            # E-Mail extrahieren
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            emails = re.findall(email_pattern, text)
+            email = emails[0] if emails else ""
+
+            # Telefon extrahieren
+            phone_pattern = r'(?:\+49|0)\s*\d{2,5}[\s\-/]*\d{3,}[\s\-/]*\d{3,}'
+            phones = re.findall(phone_pattern, text)
+            telefon = phones[0].strip() if phones else ""
+
+            # PLZ und Ort extrahieren (deutsches Format)
+            plz_ort_pattern = r'\b(\d{5})\s+([A-ZÄÖÜ][a-zäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)\b'
+            plz_ort_matches = re.findall(plz_ort_pattern, text)
+            plz = plz_ort_matches[0][0] if plz_ort_matches else ""
+            ort = plz_ort_matches[0][1] if plz_ort_matches else ""
+
+            # Straße extrahieren (vor PLZ)
+            if plz:
+                street_pattern = rf'([A-ZÄÖÜ][a-zäöüß]+(?:straße|str\.|weg|platz|allee)\s+\d+[a-z]?)\s+{plz}'
+                street_matches = re.findall(street_pattern, text, re.I)
+                strasse = street_matches[0] if street_matches else ""
+            else:
+                strasse = ""
+
+            # Firmenname aus Domain ableiten
+            domain = parsed.netloc.replace('www.', '')
+            firmenname = domain.split('.')[0].capitalize()
+
+            # Kategorie bestimmen
+            text_lower = text.lower()
+            kategorie = "SONSTIG"
+            if any(kw in text_lower for kw in ["immobilien", "makler", "immobilienvermittlung"]):
+                kategorie = "MAKLER"
+            elif "notar" in text_lower and "rechtsanwalt" in text_lower:
+                kategorie = "RECHTSANWALT_NOTAR"
+            elif "notar" in text_lower:
+                kategorie = "NOTAR"
+            elif any(kw in text_lower for kw in ["rechtsanwalt", "anwaltskanzlei", "anwaltsbüro"]):
+                kategorie = "RECHTSANWALT"
+
+            # Ergebnis zusammenstellen
+            result = {
+                "url": url,
+                "logo": {
+                    "url": logo_urls[0] if logo_urls else favicon_url,
+                    "favicon_url": favicon_url,
+                    "type": "png",
+                    "source": "website",
+                    "candidates": logo_urls[:10]  # Top 10 Kandidaten
+                },
+                "betreiber": {
+                    "name": firmenname,
+                    "kategorie": kategorie,
+                    "rechtsform": "",
+                    "inhaber": [],
+                    "adresse": {
+                        "strasse": strasse,
+                        "plz": plz,
+                        "ort": ort
+                    },
+                    "kontakt": {
+                        "telefon": telefon,
+                        "email": email
+                    }
+                },
+                "confidence": 0.8 if (email and telefon) else 0.5,
+                "message": f"Website erfolgreich analysiert. {len(logo_urls)} Logo-Kandidaten gefunden."
+            }
+
+            return result
+
+        except Exception as fetch_error:
+            # Fallback zur Simulation bei Fehlern
+            st.warning(f"⚠️ Website konnte nicht abgerufen werden: {str(fetch_error)}. Verwende Fallback-Analyse.")
+            return simulate_website_analysis(url)
 
     except Exception as e:
         return {
@@ -2491,19 +2651,56 @@ def makler_profil_view():
         if analysis_data and analysis_data.get("logo"):
             logo_data = analysis_data.get("logo", {})
             logo_kandidaten = logo_data.get("candidates", [])
+            betreiber = analysis_data.get("betreiber", {})
 
             st.success(f"✅ {len(logo_kandidaten)} Logo-Kandidaten gefunden!")
 
-            with st.expander("📋 Gefundene Logo-URLs ansehen", expanded=True):
-                for idx, url in enumerate(logo_kandidaten[:3], 1):
-                    st.write(f"{idx}. {url}")
+            # Gefundene Kontaktdaten anzeigen
+            if betreiber:
+                with st.expander("📋 Gefundene Kontaktdaten ansehen", expanded=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if betreiber.get('name'):
+                            st.write(f"**Firmenname:** {betreiber['name']}")
+                        if betreiber.get('kontakt', {}).get('email'):
+                            st.write(f"**E-Mail:** {betreiber['kontakt']['email']}")
+                        if betreiber.get('kontakt', {}).get('telefon'):
+                            st.write(f"**Telefon:** {betreiber['kontakt']['telefon']}")
+                    with col2:
+                        adresse = betreiber.get('adresse', {})
+                        if adresse.get('strasse'):
+                            st.write(f"**Straße:** {adresse['strasse']}")
+                        if adresse.get('plz') and adresse.get('ort'):
+                            st.write(f"**Ort:** {adresse['plz']} {adresse['ort']}")
+                    st.info("💡 Diese Daten wurden in die Formularfelder unten übernommen.")
         elif analysis_data and "error" in analysis_data:
-            st.warning("⚠️ Logo konnte nicht gefunden werden. Bitte geben Sie die Logo-URL manuell ein.")
+            st.warning("⚠️ Website konnte nicht analysiert werden. Bitte geben Sie die Daten manuell ein.")
 
     st.markdown("---")
 
     with st.form("profil_bearbeiten"):
         st.markdown("### Firmendaten")
+
+        # Daten aus Analyse übernehmen (falls vorhanden)
+        if analysis_data and analysis_data.get("betreiber"):
+            betreiber = analysis_data["betreiber"]
+            default_firmenname = betreiber.get('name', profile.firmenname) or profile.firmenname
+            default_email = betreiber.get('kontakt', {}).get('email', profile.email) or profile.email
+            default_telefon = betreiber.get('kontakt', {}).get('telefon', profile.telefon) or profile.telefon
+            default_website = analysis_data.get('url', profile.website) or profile.website
+
+            # Adresse formatieren
+            adresse_obj = betreiber.get('adresse', {})
+            if adresse_obj.get('strasse') or adresse_obj.get('plz') or adresse_obj.get('ort'):
+                default_adresse = f"{adresse_obj.get('strasse', '')}\n{adresse_obj.get('plz', '')} {adresse_obj.get('ort', '')}".strip()
+            else:
+                default_adresse = profile.adresse
+        else:
+            default_firmenname = profile.firmenname
+            default_email = profile.email
+            default_telefon = profile.telefon
+            default_website = profile.website
+            default_adresse = profile.adresse
 
         col1, col2 = st.columns([1, 2])
 
@@ -2516,16 +2713,16 @@ def makler_profil_view():
                 st.image(logo_file, width=150)
 
         with col2:
-            firmenname = st.text_input("Firmenname*", value=profile.firmenname)
-            adresse = st.text_area("Adresse*", value=profile.adresse, height=100)
+            firmenname = st.text_input("Firmenname*", value=default_firmenname)
+            adresse = st.text_area("Adresse*", value=default_adresse, height=100)
 
             col_tel, col_email = st.columns(2)
             with col_tel:
-                telefon = st.text_input("Telefon*", value=profile.telefon)
+                telefon = st.text_input("Telefon*", value=default_telefon)
             with col_email:
-                email = st.text_input("E-Mail*", value=profile.email)
+                email = st.text_input("E-Mail*", value=default_email)
 
-            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-immobilien.de")
+            website = st.text_input("Website", value=default_website, help="z.B. https://www.ihre-immobilien.de")
 
         st.markdown("---")
         st.markdown("### 🎨 Logo & Design")
@@ -4966,19 +5163,57 @@ def notar_profil_view():
         if analysis_data and analysis_data.get("logo"):
             logo_data = analysis_data.get("logo", {})
             logo_kandidaten = logo_data.get("candidates", [])
+            betreiber = analysis_data.get("betreiber", {})
 
             st.success(f"✅ {len(logo_kandidaten)} Logo-Kandidaten gefunden!")
 
-            with st.expander("📋 Gefundene Logo-URLs ansehen", expanded=True):
-                for idx, url in enumerate(logo_kandidaten[:3], 1):
-                    st.write(f"{idx}. {url}")
+            # Gefundene Kontaktdaten anzeigen
+            if betreiber:
+                with st.expander("📋 Gefundene Kanzlei-Daten ansehen", expanded=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if betreiber.get('name'):
+                            st.write(f"**Kanzleiname:** {betreiber['name']}")
+                        if betreiber.get('kontakt', {}).get('email'):
+                            st.write(f"**E-Mail:** {betreiber['kontakt']['email']}")
+                        if betreiber.get('kontakt', {}).get('telefon'):
+                            st.write(f"**Telefon:** {betreiber['kontakt']['telefon']}")
+                    with col2:
+                        adresse_data = betreiber.get('adresse', {})
+                        if adresse_data.get('strasse'):
+                            st.write(f"**Straße:** {adresse_data['strasse']}")
+                        if adresse_data.get('plz') and adresse_data.get('ort'):
+                            st.write(f"**Ort:** {adresse_data['plz']} {adresse_data['ort']}")
+                    st.info("💡 Diese Daten wurden in die Formularfelder unten übernommen.")
         elif analysis_data and "error" in analysis_data:
-            st.warning("⚠️ Logo konnte nicht gefunden werden. Bitte geben Sie die Logo-URL manuell ein.")
+            st.warning("⚠️ Website konnte nicht analysiert werden. Bitte geben Sie die Daten manuell ein.")
 
     st.markdown("---")
 
     with st.form("notar_profil_bearbeiten"):
         st.markdown("### ⚖️ Kanzlei-Informationen")
+
+        # Daten aus Analyse übernehmen (falls vorhanden)
+        if analysis_data and analysis_data.get("betreiber"):
+            betreiber = analysis_data["betreiber"]
+            default_kanzleiname = betreiber.get('name', profile.kanzleiname) or profile.kanzleiname
+            default_email = betreiber.get('kontakt', {}).get('email', profile.email) or profile.email
+            default_telefon = betreiber.get('kontakt', {}).get('telefon', profile.telefon) or profile.telefon
+            default_website = analysis_data.get('url', profile.website) or profile.website
+
+            # Adresse aus Betreiber-Daten
+            adresse_obj = betreiber.get('adresse', {})
+            default_adresse = adresse_obj.get('strasse', profile.adresse) or profile.adresse
+            default_plz = adresse_obj.get('plz', profile.plz) or profile.plz
+            default_ort = adresse_obj.get('ort', profile.ort) or profile.ort
+        else:
+            default_kanzleiname = profile.kanzleiname
+            default_email = profile.email
+            default_telefon = profile.telefon
+            default_website = profile.website
+            default_adresse = profile.adresse
+            default_plz = profile.plz
+            default_ort = profile.ort
 
         col1, col2 = st.columns([1, 2])
 
@@ -4991,7 +5226,7 @@ def notar_profil_view():
                 st.image(logo_file, width=150)
 
         with col2:
-            kanzleiname = st.text_input("Kanzleiname*", value=profile.kanzleiname)
+            kanzleiname = st.text_input("Kanzleiname*", value=default_kanzleiname)
 
             col_titel, col_vorname, col_nachname = st.columns([1, 2, 2])
             with col_titel:
@@ -5004,25 +5239,25 @@ def notar_profil_view():
         st.markdown("---")
         st.markdown("### 📍 Kontaktdaten")
 
-        adresse = st.text_input("Straße und Hausnummer*", value=profile.adresse)
+        adresse = st.text_input("Straße und Hausnummer*", value=default_adresse)
 
         col_plz, col_ort = st.columns([1, 2])
         with col_plz:
-            plz = st.text_input("PLZ*", value=profile.plz)
+            plz = st.text_input("PLZ*", value=default_plz)
         with col_ort:
-            ort = st.text_input("Ort*", value=profile.ort)
+            ort = st.text_input("Ort*", value=default_ort)
 
         col_tel, col_fax = st.columns(2)
         with col_tel:
-            telefon = st.text_input("Telefon*", value=profile.telefon)
+            telefon = st.text_input("Telefon*", value=default_telefon)
         with col_fax:
             fax = st.text_input("Fax", value=profile.fax)
 
         col_email, col_web = st.columns(2)
         with col_email:
-            email = st.text_input("E-Mail*", value=profile.email)
+            email = st.text_input("E-Mail*", value=default_email)
         with col_web:
-            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-kanzlei.de")
+            website = st.text_input("Website", value=default_website, help="z.B. https://www.ihre-kanzlei.de")
 
         st.markdown("---")
         st.markdown("### 🎨 Logo & Design")
