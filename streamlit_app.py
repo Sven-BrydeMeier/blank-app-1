@@ -286,6 +286,9 @@ class MaklerProfile:
     email: str
     website: str = ""
     logo: Optional[bytes] = None
+    logo_url: str = ""  # URL zum Logo (Alternative zu bytes)
+    logo_aktiviert: bool = False  # Automatische Logo-Übernahme aktiviert
+    logo_bestaetigt: bool = False  # Logo wurde vom Makler bestätigt
     team_mitglieder: List[MaklerAgent] = field(default_factory=list)
     backoffice_kontakt: str = ""
     backoffice_email: str = ""
@@ -1731,7 +1734,29 @@ def logout():
 
 def makler_dashboard():
     """Dashboard für Makler"""
-    st.title("📊 Makler-Dashboard")
+
+    # Makler-Profil für Logo laden
+    makler_id = st.session_state.current_user.user_id
+    profile = None
+    for p in st.session_state.makler_profiles.values():
+        if p.makler_id == makler_id:
+            profile = p
+            break
+
+    # Titelzeile mit Logo
+    if profile and profile.logo_bestaetigt and (profile.logo or profile.logo_url):
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if profile.logo_url:
+                st.image(profile.logo_url, width=120)
+            elif profile.logo:
+                st.image(profile.logo, width=120)
+        with col2:
+            st.title("📊 Makler-Dashboard")
+            if profile.firmenname:
+                st.markdown(f"**{profile.firmenname}**")
+    else:
+        st.title("📊 Makler-Dashboard")
 
     tabs = st.tabs([
         "📋 Timeline",
@@ -1972,7 +1997,75 @@ def makler_profil_view():
             with col_email:
                 email = st.text_input("E-Mail*", value=profile.email)
 
-            website = st.text_input("Website", value=profile.website)
+            website = st.text_input("Website", value=profile.website, help="z.B. https://www.ihre-immobilien.de")
+
+        st.markdown("---")
+        st.markdown("### 🎨 Logo & Design")
+
+        logo_aktiviert = st.checkbox(
+            "Automatische Logo und Design Übernahme aktivieren",
+            value=profile.logo_aktiviert,
+            help="Aktivieren Sie diese Option, um Ihr Logo automatisch von Ihrer Homepage zu übernehmen"
+        )
+
+        if logo_aktiviert and website and not profile.logo_bestaetigt:
+            st.info("💡 Geben Sie Ihre Homepage ein. Wir versuchen automatisch Ihr Logo zu finden.")
+
+            # Logo-URL-Vorschläge generieren
+            base_url = website.rstrip('/')
+            if not base_url.startswith('http'):
+                base_url = f"https://{base_url}"
+
+            logo_vorschlaege = [
+                f"{base_url}/logo.png",
+                f"{base_url}/images/logo.png",
+                f"{base_url}/assets/logo.png",
+                f"{base_url}/img/logo.png",
+                f"{base_url}/logo.svg",
+                f"{base_url}/images/logo.svg",
+                f"{base_url}/wp-content/uploads/logo.png",
+                f"{base_url}/media/logo.png"
+            ]
+
+            st.markdown("**Logo-URL eingeben:**")
+            logo_url_input = st.text_input(
+                "Logo-URL direkt eingeben oder aus Vorschlägen wählen:",
+                value=profile.logo_url if profile.logo_url else "",
+                placeholder="z.B. https://www.ihre-seite.de/logo.png"
+            )
+
+            with st.expander("📋 Automatische Vorschläge anzeigen"):
+                st.info("Probieren Sie diese URLs aus, indem Sie sie kopieren und oben einfügen:")
+                for url in logo_vorschlaege:
+                    st.code(url, language=None)
+
+            # Logo-Vorschau wenn URL eingegeben
+            if logo_url_input:
+                st.markdown("**Logo-Vorschau:**")
+                try:
+                    col1, col2 = st.columns([1, 2])
+                    with col1:
+                        st.image(logo_url_input, width=200, caption="Vorschau Ihres Logos")
+                    with col2:
+                        st.markdown("**✅ Logo gefunden!**")
+                        st.info("Wenn dies Ihr Logo ist, speichern Sie das Profil unten. Das Logo wird dann in Ihrem Dashboard und bei Ihren Kunden angezeigt.")
+                except:
+                    st.error("❌ Logo konnte nicht geladen werden. Bitte überprüfen Sie die URL.")
+
+        elif (profile.logo or profile.logo_url) and profile.logo_bestaetigt:
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if profile.logo_url:
+                    st.image(profile.logo_url, width=150, caption="Ihr bestätigtes Logo")
+                elif profile.logo:
+                    st.image(profile.logo, width=150, caption="Ihr bestätigtes Logo")
+            with col2:
+                st.success("✅ Logo ist aktiviert und wird in Ihrem Dashboard angezeigt")
+                st.info("🤝 Ihr Logo erscheint auch bei Käufern und Verkäufern, die Sie vermittelt haben - in Kooperation mit dem Notar")
+                if st.checkbox("Logo neu auswählen"):
+                    profile.logo_bestaetigt = False
+                    st.session_state.makler_profiles[profile.profile_id] = profile
+                    st.rerun()
 
         st.markdown("---")
         st.markdown("### Backoffice-Kontakt")
@@ -1996,8 +2089,18 @@ def makler_profil_view():
             profile.backoffice_email = backoffice_email
             profile.backoffice_telefon = backoffice_telefon
 
+            # Logo-Verwaltung
             if logo_file:
                 profile.logo = logo_file.read()
+                profile.logo_bestaetigt = True
+                profile.logo_aktiviert = False  # Manuelle Upload deaktiviert automatische Suche
+
+            # Logo-URL Verwaltung
+            profile.logo_aktiviert = logo_aktiviert
+            if logo_aktiviert and 'logo_url_input' in locals() and logo_url_input:
+                profile.logo_url = logo_url_input
+                profile.logo_bestaetigt = True  # URL wurde eingegeben und Vorschau gesehen
+                st.success("✅ Logo-URL wurde gespeichert!")
 
             st.session_state.makler_profiles[profile.profile_id] = profile
             st.success("✅ Profil erfolgreich gespeichert!")
@@ -2426,7 +2529,40 @@ def onboarding_flow():
 
 def kaeufer_dashboard():
     """Dashboard für Käufer"""
-    st.title("🏠 Käufer-Dashboard")
+
+    # Prüfen ob Käufer über Makler vermittelt wurde
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+
+    makler_profile = None
+    if projekte:
+        # Erstes Projekt mit Makler finden
+        for projekt in projekte:
+            if projekt.makler_id:
+                for p in st.session_state.makler_profiles.values():
+                    if p.makler_id == projekt.makler_id:
+                        makler_profile = p
+                        break
+                if makler_profile:
+                    break
+
+    # Titelzeile mit Kooperations-Logos
+    if makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url):
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col1:
+            st.title("🏠 Käufer-Dashboard")
+        with col2:
+            st.write("")  # Spacer
+        with col3:
+            st.markdown("##### 🤝 in Kooperation mit")
+            if makler_profile.logo_url:
+                st.image(makler_profile.logo_url, width=100)
+            elif makler_profile.logo:
+                st.image(makler_profile.logo, width=100)
+            if makler_profile.firmenname:
+                st.caption(makler_profile.firmenname)
+    else:
+        st.title("🏠 Käufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -2754,7 +2890,40 @@ def kaeufer_dokumente_view():
 
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer"""
-    st.title("🏡 Verkäufer-Dashboard")
+
+    # Prüfen ob Verkäufer über Makler vermittelt wurde
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    makler_profile = None
+    if projekte:
+        # Erstes Projekt mit Makler finden
+        for projekt in projekte:
+            if projekt.makler_id:
+                for p in st.session_state.makler_profiles.values():
+                    if p.makler_id == projekt.makler_id:
+                        makler_profile = p
+                        break
+                if makler_profile:
+                    break
+
+    # Titelzeile mit Kooperations-Logos
+    if makler_profile and makler_profile.logo_bestaetigt and (makler_profile.logo or makler_profile.logo_url):
+        col1, col2, col3 = st.columns([1, 3, 1])
+        with col1:
+            st.title("🏡 Verkäufer-Dashboard")
+        with col2:
+            st.write("")  # Spacer
+        with col3:
+            st.markdown("##### 🤝 in Kooperation mit")
+            if makler_profile.logo_url:
+                st.image(makler_profile.logo_url, width=100)
+            elif makler_profile.logo:
+                st.image(makler_profile.logo, width=100)
+            if makler_profile.firmenname:
+                st.caption(makler_profile.firmenname)
+    else:
+        st.title("🏡 Verkäufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
