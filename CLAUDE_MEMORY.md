@@ -2,7 +2,7 @@
 
 **Letzte Aktualisierung:** 2025-12-05
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `3a6b8ad` - Add financing/legal gating and Makler recommendation system
+**Letzter Commit:** `f67cad0` - Add Käufer todo list with system-generated and custom tasks
 
 ---
 
@@ -23,7 +23,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ```
 /home/user/blank-app-1/
-├── streamlit_app.py      # Hauptanwendung (~5500+ Zeilen)
+├── streamlit_app.py      # Hauptanwendung (~8500+ Zeilen)
 ├── requirements.txt      # Python-Abhängigkeiten
 ├── CLAUDE_MEMORY.md      # Diese Datei
 └── .gitignore
@@ -37,35 +37,67 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 | Bereich | Zeilen | Beschreibung |
 |---------|--------|--------------|
-| Imports & Enums | 1-100 | UserRole, ProjektStatus, PropertyType, NotificationType |
-| User Dataclass | ~214-228 | Benutzer mit personal_daten und ausweis_foto |
-| **PersonalDaten Dataclass** | ~230-263 | Ausweisdaten (Name, Geburt, Adresse, Ausweisnr, etc.) |
-| TimelineEvent | ~265-275 | Timeline-Events |
-| Projekt Dataclass | ~240-260 | Projekt mit termine-Liste |
-| **TerminTyp/TerminStatus** | ~262-278 | Termin-Enums |
-| **Termin Dataclass** | ~280-313 | Termin mit Bestätigungen, Outlook-Integration |
-| **TerminVorschlag** | ~315-325 | Notar-Terminvorschläge |
-| MaklerAgent/Profile | ~327-350 | Makler-Team |
-| **ExposeData Dataclass** | ~352-450 | Exposé mit allen Feldern (Adresse, Nutzungsart, Ausstattung, Entfernungen, Vergleichsobjekte) |
-| Session State Init | ~554-590 | init_session_state() mit termine, terminvorschlaege, notar_kalender |
-| Demo Users | ~590-700 | create_demo_users(), create_demo_projekt() |
-| simulate_ocr | ~720-740 | OCR-Simulation für Wirtschaftsdaten |
-| **ocr_personalausweis** | ~741-800 | OCR für Personalausweis/Reisepass (pytesseract oder Simulation) |
-| **simulate_personalausweis_ocr** | ~802-862 | Demo-Simulation für Ausweis-OCR |
-| **parse_ausweis_ocr_text** | ~864-958 | Extrahiert strukturierte Daten aus OCR-Text |
-| **render_ausweis_upload** | ~960-1148 | UI-Komponente für Ausweis-Upload und OCR |
-| validate_address_online | ~1380-1425 | Nominatim/OpenStreetMap API Adressvalidierung |
-| calculate_price_suggestion | ~1428-1491 | Kaufpreis-Vorschlag basierend auf Objektdaten |
-| **TERMIN-FUNKTIONEN** | ~1434-2078 | Alle Termin-Verwaltungsfunktionen |
-| render_expose_editor | ~2080-2500 | Exposé-Editor mit allen Feldern |
-| makler_dashboard | ~2850-2895 | Makler-Hauptdashboard |
-| makler_projekte_view | ~2911-3027 | Projekt-Verwaltung mit Exposé und Terminen |
-| notar_dashboard | ~4439-4477 | Notar-Hauptdashboard |
-| **notar_termine** | ~4888-5026 | Erweiterte Termin-Verwaltung mit Outlook-Kalender |
+| Imports & Enums | 1-130 | UserRole, ProjektStatus, PropertyType, NotificationType |
+| TodoKategorie/TodoPrioritaet | ~214-228 | Enums für Käufer-Todos |
+| KaeuferTodo | ~229-244 | Dataclass für Käufer-Aufgaben |
+| HandwerkerKategorie | ~247-263 | Enum für Handwerker-Kategorien |
+| IdeenKategorie | ~266-277 | Enum für Ideenboard-Kategorien |
+| Handwerker | ~280-296 | Dataclass für Handwerker-Empfehlungen |
+| IdeenboardEintrag | ~299-315 | Dataclass für Ideenboard-Einträge |
+| Session State Init | ~830-856 | Inkl. kaeufer_todos, handwerker_empfehlungen, ideenboard |
+| Dashboard-Suchfunktionen | ~934-1032 | render_dashboard_search(), search_matches(), filter_* |
+| Käufer-Dashboard | ~4851-4914 | Mit 9 Tabs inkl. Aufgaben und Handwerker |
+| kaeufer_handwerker_empfehlungen | ~4971-5036 | Handwerker-Ansicht für Käufer |
+| generate_system_todos | ~5039-5112 | Generiert automatische Todos |
+| kaeufer_aufgaben_view | ~5115-5149 | Aufgaben-Tab mit 4 Untertabs |
+| render_ideenboard | ~5366-5487 | Ideenboard für kreative Ideen |
+| kaeufer_finanzierungsrechner | ~5712-5999 | Umfassender Kreditrechner |
+| Notar-Dashboard | ~7280-7335 | Mit 11 Tabs inkl. Handwerker |
+| notar_handwerker_view | ~8105-8244 | Handwerker-Verwaltung für Notar |
 
 ---
 
 ## Implementierte Features
+
+### Dashboard-Suche (NEU)
+- [x] Suchleiste in allen 5 Dashboards (Makler, Käufer, Verkäufer, Finanzierer, Notar)
+- [x] Wiederverwendbare `render_dashboard_search()` Komponente
+- [x] `search_matches()` für flexible Feldsuche
+- [x] `filter_projekte_by_search()` - Projekte filtern
+- [x] `filter_dokumente_by_search()` - Dokumente filtern
+- [x] `filter_angebote_by_search()` - Finanzierungsangebote filtern
+
+### Käufer-Todoliste (NEU)
+- [x] **System-generierte Todos** basierend auf Projekt-Status:
+  - Finanzierung: Anfrage stellen, Wirtschaftsdaten hochladen, Angebote prüfen
+  - Dokumente: Personalausweis erfassen
+  - Kaufvertrag: Rechtsdokumente akzeptieren, Finanzierungszusage, Notartermin
+- [x] **Eigene Todos** mit Titel, Beschreibung, Kategorie, Priorität, Fälligkeitsdatum
+- [x] Kategorien: Finanzierung, Kaufvertrag, Dokumente, Ausstattung & Ideen, Umzug, Sonstiges
+- [x] Prioritäten: Hoch (🔴), Mittel (🟡), Niedrig (🟢)
+- [x] Überfällig-Warnung bei Fälligkeitsdatum
+- [x] Erledigt-Status mit Toggle zum Reaktivieren
+- [x] Gruppierung nach Kategorie, Sortierung nach Priorität
+
+### Ideenboard für Käufer (NEU)
+- [x] Kreative Ideen sammeln für neues Objekt
+- [x] Kategorien: Einrichtung, Renovierung, Lichtkonzept, Küche, Bad, Garten, Smart Home, Farben, Böden
+- [x] Geschätzte Kosten pro Idee
+- [x] Inspirationsbilder per URL
+- [x] Notizen zu jeder Idee
+- [x] Als "umgesetzt" markieren
+- [x] Filter nach Kategorie
+
+### Handwerker-Empfehlungen (NEU)
+- [x] **Notar**: Handwerker anlegen mit vollständigen Kontaktdaten
+  - Kategorien: Elektriker, Sanitär, Maler, Tischler, Bodenleger, Fliesenleger, etc.
+  - Bewertung (1-5 Sterne)
+  - Beschreibung & interne Notizen
+  - Freigabe/Deaktivierung
+- [x] **Käufer**: Vom Notar empfohlene Handwerker einsehen
+  - Nur freigegebene Handwerker sichtbar
+  - Filter nach Kategorie
+  - Kontaktdaten und Webseite
 
 ### Exposé-System
 - [x] ExposeData Dataclass mit ~50 Feldern
@@ -95,6 +127,8 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 ### Personalausweis-Erfassung (OCR)
 - [x] PersonalDaten Dataclass für Ausweisdaten
 - [x] OCR mit pytesseract (oder Simulation als Fallback)
+- [x] **AI Vision OCR** mit OpenAI GPT-4 Vision API
+- [x] API-Key Konfiguration im Notar-Dashboard
 - [x] Regex-Parser für deutsche Ausweisdaten
 - [x] **Kamera-Aufnahme für Mobilgeräte** (st.camera_input)
 - [x] Datei-Upload als Alternative
@@ -155,45 +189,6 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ---
 
-## Wichtige Funktionen
-
-### Termin-Verwaltung
-
-```python
-# Termin-Vorschläge erstellen (Notar)
-create_termin_vorschlaege(projekt_id, notar_id, termin_typ) -> TerminVorschlag
-
-# Termin aus Vorschlag erstellen
-create_termin_from_vorschlag(vorschlag, ausgewaehlter_index, projekt) -> Termin
-
-# Termin bestätigen
-bestatige_termin(termin_id, user_id, rolle) -> bool
-
-# Bestätigungsstatus prüfen
-check_termin_bestaetigung(termin, projekt) -> Dict
-
-# ICS-Datei generieren
-generate_ics_file(termin, projekt) -> str
-
-# E-Mail senden (simuliert)
-send_appointment_email(empfaenger, termin, projekt, email_typ)
-```
-
-### Exposé
-
-```python
-# Adresse validieren
-validate_address_online(strasse, hausnummer, plz, ort, land) -> Dict
-
-# Kaufpreis-Vorschlag berechnen
-calculate_price_suggestion(expose) -> float
-
-# Exposé-Editor rendern
-render_expose_editor(projekt) -> None
-```
-
----
-
 ## Session State Struktur
 
 ```python
@@ -216,10 +211,18 @@ st.session_state = {
     'bank_folders': Dict,
     'notar_mitarbeiter': Dict,
     'verkaeufer_dokumente': Dict,
+    'makler_empfehlungen': Dict,  # Makler-Empfehlungssystem
     # Termin-Koordination
     'termine': Dict[str, Termin],
     'terminvorschlaege': Dict[str, TerminVorschlag],
     'notar_kalender': Dict,  # Simulierter Outlook-Kalender
+    # Finanzierung
+    'finanzierer_einladungen': Dict,  # Einladungen für Finanzierer
+    'finanzierungsanfragen': Dict,  # Anfragen vom Käufer
+    # Käufer-Features
+    'kaeufer_todos': Dict[str, KaeuferTodo],  # Todo-Liste
+    'handwerker_empfehlungen': Dict[str, Handwerker],  # Vom Notar verwaltet
+    'ideenboard': Dict[str, IdeenboardEintrag],  # Kreative Ideen
     # API-Keys (vom Notar konfigurierbar)
     'api_keys': {'openai': str, 'anthropic': str},
 }
@@ -234,12 +237,12 @@ st.session_state = {
 - [ ] Echte Outlook-Kalender-Integration (Microsoft Graph API)
 - [ ] Echte E-Mail-Versendung (SMTP)
 - [ ] PDF-Exposé-Generierung (reportlab/weasyprint)
-- [ ] Käufer/Verkäufer Dashboard Termin-Ansicht erweitern
 
 ### Behoben
 - [x] Exposé-Buttons verschwinden nach Speichern (return True entfernt)
 - [x] Exposé-Daten erst nach Kurzdaten möglich (jetzt direkt sichtbar)
 - [x] Marktanalyse Links nicht klickbar (jetzt mit Markdown-Links)
+- [x] Dashboard-Suche implementiert
 
 ---
 
@@ -263,12 +266,12 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
-| b449d60 | Add camera capture for mobile devices (iPhone, iPad, Android) |
-| 0e445aa | Update memory file with OCR documentation |
-| 594094c | Add Personalausweis OCR recognition for Käufer and Verkäufer |
-| 047f451 | Add Claude memory file for session continuity |
-| 5d76a3c | Add comprehensive appointment coordination system |
-| 2194fc5 | Enhance Exposé editor with new features |
+| (pending) | Add Ideenboard and Handwerker recommendations |
+| f67cad0 | Add Käufer todo list with system-generated and custom tasks |
+| eccc867 | Add search functionality to all dashboards |
+| dacda13 | Add comprehensive financing module with calculator and invitation system |
+| a4c5b16 | Add API key configuration to Notar dashboard |
+| 6935b68 | Add AI Vision API support for Personalausweis OCR |
 
 ---
 
@@ -279,14 +282,13 @@ Bei Fortsetzung einer abgebrochenen Session:
 1. **Branch prüfen:** `git branch` - sollte auf `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt` sein
 2. **Letzten Stand prüfen:** `git log -3 --oneline`
 3. **Diese Datei lesen:** `/home/user/blank-app-1/CLAUDE_MEMORY.md`
-4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~5500 Zeilen)
+4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~8500 Zeilen)
 
 ### Wichtige Code-Bereiche zum Nachlesen:
-- ExposeData: Zeile ~352-450
-- Termin Dataclass: Zeile ~280-313
-- Termin-Funktionen: Zeile ~1434-2078
-- Exposé-Editor: Zeile ~2080-2500
-- Notar-Termine: Zeile ~4888-5026
+- Käufer-Todos: Zeile ~229-244 (Dataclass), ~5039-5350 (Funktionen)
+- Ideenboard: Zeile ~299-315 (Dataclass), ~5366-5536 (Funktionen)
+- Handwerker: Zeile ~280-296 (Dataclass), ~8105-8244 (Notar), ~4971-5036 (Käufer)
+- Dashboard-Suche: Zeile ~934-1032
 
 ---
 
@@ -304,3 +306,5 @@ Der Benutzer (Sven-BrydeMeier) arbeitet an einer deutschen Immobilien-Transaktio
 - **Finanzierer** = Financing party/bank
 - **Besichtigung** = Property viewing
 - **Übergabe** = Handover
+- **Handwerker** = Craftsmen/tradespeople
+- **Ideenboard** = Idea board for creative planning

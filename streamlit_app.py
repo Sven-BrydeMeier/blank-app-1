@@ -243,6 +243,78 @@ class KaeuferTodo:
     ist_system_todo: bool = False  # True = automatisch generiert, False = vom User erstellt
     system_typ: str = ""  # z.B. "finanzierung_anfrage", "dokument_hochladen"
 
+
+class HandwerkerKategorie(Enum):
+    """Kategorien für Handwerker-Empfehlungen"""
+    ELEKTRIKER = "Elektriker"
+    SANITAER = "Sanitär & Heizung"
+    MALER = "Maler & Lackierer"
+    TISCHLER = "Tischler & Schreiner"
+    BODENLEGER = "Bodenleger"
+    FLIESENLEGER = "Fliesenleger"
+    DACHDECKER = "Dachdecker"
+    GARTENBAU = "Garten- & Landschaftsbau"
+    KUECHEN = "Küchenbau"
+    FENSTER = "Fenster & Türen"
+    UMZUG = "Umzugsunternehmen"
+    REINIGUNG = "Reinigungsservice"
+    ARCHITEKT = "Architekt & Planung"
+    INNENAUSSTATTUNG = "Innenausstattung & Design"
+    SONSTIGES = "Sonstiges"
+
+
+class IdeenKategorie(Enum):
+    """Kategorien für das Ideenboard"""
+    EINRICHTUNG = "Einrichtung & Möbel"
+    RENOVIERUNG = "Renovierung"
+    LICHT = "Lichtkonzept"
+    KUECHE = "Küche"
+    BAD = "Bad & Sanitär"
+    GARTEN = "Garten & Außenbereich"
+    SMARTHOME = "Smart Home"
+    FARBEN = "Farben & Wandgestaltung"
+    BOEDEN = "Böden"
+    SONSTIGES = "Sonstige Ideen"
+
+
+@dataclass
+class Handwerker:
+    """Handwerker-Empfehlung vom Notar"""
+    handwerker_id: str
+    notar_id: str  # Wer hat ihn angelegt
+    firmenname: str
+    kategorie: str
+    kontaktperson: str = ""
+    telefon: str = ""
+    email: str = ""
+    adresse: str = ""
+    webseite: str = ""
+    beschreibung: str = ""
+    bewertung: int = 0  # 1-5 Sterne
+    empfohlen: bool = True  # Vom Notar freigegeben
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    notizen: str = ""
+
+
+@dataclass
+class IdeenboardEintrag:
+    """Eintrag im Ideenboard des Käufers"""
+    idee_id: str
+    kaeufer_id: str
+    projekt_id: str
+    titel: str
+    beschreibung: str = ""
+    kategorie: str = IdeenKategorie.SONSTIGES.value
+    bild_data: Optional[bytes] = None  # Optionales Inspirationsbild
+    bild_url: str = ""  # Oder URL zu einem Bild
+    prioritaet: str = TodoPrioritaet.MITTEL.value
+    geschaetzte_kosten: float = 0.0
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    umgesetzt: bool = False
+    umgesetzt_am: Optional[datetime] = None
+
+
 @dataclass
 class WirtschaftsdatenDokument:
     """Wirtschaftsdaten des Käufers"""
@@ -764,6 +836,12 @@ def init_session_state():
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
+
+        # Handwerker-Empfehlungen (vom Notar verwaltet)
+        st.session_state.handwerker_empfehlungen = {}  # ID -> Handwerker
+
+        # Ideenboard für Käufer
+        st.session_state.ideenboard = {}  # ID -> IdeenboardEintrag
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         st.session_state.api_keys = {
@@ -4785,7 +4863,17 @@ def kaeufer_dashboard():
     else:
         st.session_state['kaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📝 Aufgaben", "💰 Finanzierung", "🪪 Ausweis", "💬 Nachrichten", "📄 Dokumente", "📅 Termine"])
+    tabs = st.tabs([
+        "📊 Timeline",
+        "📋 Projekte",
+        "📝 Aufgaben",
+        "💰 Finanzierung",
+        "🔧 Handwerker",
+        "🪪 Ausweis",
+        "💬 Nachrichten",
+        "📄 Dokumente",
+        "📅 Termine"
+    ])
 
     with tabs[0]:
         kaeufer_timeline_view()
@@ -4800,17 +4888,20 @@ def kaeufer_dashboard():
         kaeufer_finanzierung_view()
 
     with tabs[4]:
+        kaeufer_handwerker_empfehlungen()
+
+    with tabs[5]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
 
-    with tabs[5]:
+    with tabs[6]:
         kaeufer_nachrichten()
 
-    with tabs[6]:
+    with tabs[7]:
         kaeufer_dokumente_view()
 
-    with tabs[7]:
+    with tabs[8]:
         # Termin-Übersicht für Käufer
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -4875,6 +4966,74 @@ def kaeufer_projekte_view():
                 )
             else:
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
+
+
+def kaeufer_handwerker_empfehlungen():
+    """Zeigt vom Notar empfohlene Handwerker"""
+    st.subheader("🔧 Handwerker-Empfehlungen")
+    st.caption("Hier finden Sie vom Notar empfohlene Handwerker für Renovierungen, Umbauten und mehr.")
+
+    # Sicherstellen, dass handwerker_empfehlungen existiert
+    if 'handwerker_empfehlungen' not in st.session_state:
+        st.session_state.handwerker_empfehlungen = {}
+
+    # Nur freigegebene Handwerker anzeigen
+    empfohlene_handwerker = [h for h in st.session_state.handwerker_empfehlungen.values() if h.empfohlen]
+
+    if not empfohlene_handwerker:
+        st.info("Der Notar hat noch keine Handwerker-Empfehlungen hinterlegt.")
+        return
+
+    # Filter nach Kategorie
+    kategorien_vorhanden = list(set(h.kategorie for h in empfohlene_handwerker))
+    filter_kategorie = st.selectbox(
+        "Nach Kategorie filtern",
+        options=["Alle"] + sorted(kategorien_vorhanden),
+        key="kaeufer_hw_filter"
+    )
+
+    if filter_kategorie != "Alle":
+        empfohlene_handwerker = [h for h in empfohlene_handwerker if h.kategorie == filter_kategorie]
+
+    # Gruppiert nach Kategorie anzeigen
+    kategorien = {}
+    for hw in empfohlene_handwerker:
+        if hw.kategorie not in kategorien:
+            kategorien[hw.kategorie] = []
+        kategorien[hw.kategorie].append(hw)
+
+    for kategorie, handwerker_liste in sorted(kategorien.items()):
+        with st.expander(f"🔧 {kategorie} ({len(handwerker_liste)})", expanded=True):
+            for hw in handwerker_liste:
+                col1, col2 = st.columns([0.7, 0.3])
+
+                with col1:
+                    # Sterne-Bewertung
+                    sterne = "⭐" * hw.bewertung if hw.bewertung > 0 else ""
+                    st.markdown(f"### {hw.firmenname} {sterne}")
+
+                    if hw.beschreibung:
+                        st.write(hw.beschreibung)
+
+                    # Kontaktdaten
+                    kontakt_info = []
+                    if hw.kontaktperson:
+                        kontakt_info.append(f"👤 **Ansprechpartner:** {hw.kontaktperson}")
+                    if hw.telefon:
+                        kontakt_info.append(f"📞 **Telefon:** {hw.telefon}")
+                    if hw.email:
+                        kontakt_info.append(f"📧 **E-Mail:** {hw.email}")
+                    if hw.adresse:
+                        kontakt_info.append(f"📍 **Adresse:** {hw.adresse}")
+
+                    if kontakt_info:
+                        st.markdown("  \n".join(kontakt_info))
+
+                with col2:
+                    if hw.webseite:
+                        st.markdown(f"🌐 [Webseite besuchen]({hw.webseite if hw.webseite.startswith('http') else 'https://' + hw.webseite})")
+
+                st.markdown("---")
 
 
 def generate_system_todos(user_id: str, projekt_id: str) -> List[KaeuferTodo]:
@@ -5050,8 +5209,13 @@ def kaeufer_aufgaben_view():
 
     st.markdown("---")
 
-    # Tabs für System-Todos und eigene Todos
-    aufgaben_tabs = st.tabs(["🔔 Offene Aufgaben", "✅ Erledigte Aufgaben", "➕ Eigene Aufgabe erstellen"])
+    # Tabs für System-Todos, eigene Todos und Ideenboard
+    aufgaben_tabs = st.tabs([
+        "🔔 Offene Aufgaben",
+        "✅ Erledigte Aufgaben",
+        "➕ Eigene Aufgabe erstellen",
+        "💡 Ideenboard"
+    ])
 
     with aufgaben_tabs[0]:
         render_offene_aufgaben(user_id, selected_projekt_id)
@@ -5061,6 +5225,9 @@ def kaeufer_aufgaben_view():
 
     with aufgaben_tabs[2]:
         render_neue_aufgabe_form(user_id, selected_projekt_id)
+
+    with aufgaben_tabs[3]:
+        render_ideenboard(user_id, selected_projekt_id)
 
 
 def render_offene_aufgaben(user_id: str, projekt_id: str):
@@ -5275,6 +5442,179 @@ def render_neue_aufgabe_form(user_id: str, projekt_id: str):
                 st.session_state.kaeufer_todos[todo_id] = neue_aufgabe
                 st.success(f"✅ Aufgabe '{titel}' wurde erstellt!")
                 st.rerun()
+
+
+def render_ideenboard(user_id: str, projekt_id: str):
+    """Ideenboard für kreative Ideen zum neuen Objekt"""
+    import uuid
+
+    st.markdown("### 💡 Ideenboard")
+    st.caption("""
+    Sammeln Sie hier kreative Ideen für Ihr neues Objekt: Einrichtung, Renovierungsmaßnahmen,
+    Lichtkonzepte, Smart Home und vieles mehr. Lassen Sie sich inspirieren!
+    """)
+
+    # Sicherstellen, dass ideenboard existiert
+    if 'ideenboard' not in st.session_state:
+        st.session_state.ideenboard = {}
+
+    # Tabs für Ideen anzeigen und neue erstellen
+    ideen_tabs = st.tabs(["🎨 Meine Ideen", "➕ Neue Idee hinzufügen"])
+
+    with ideen_tabs[0]:
+        # Filter nach Kategorie
+        col1, col2 = st.columns(2)
+        with col1:
+            filter_kategorie = st.selectbox(
+                "Nach Kategorie filtern",
+                options=["Alle"] + [k.value for k in IdeenKategorie],
+                key="ideen_filter_kat"
+            )
+        with col2:
+            show_umgesetzt = st.checkbox("Umgesetzte Ideen anzeigen", value=False, key="show_umgesetzt")
+
+        # Ideen laden
+        alle_ideen = [i for i in st.session_state.ideenboard.values()
+                     if i.kaeufer_id == user_id and i.projekt_id == projekt_id]
+
+        # Filtern
+        if filter_kategorie != "Alle":
+            alle_ideen = [i for i in alle_ideen if i.kategorie == filter_kategorie]
+        if not show_umgesetzt:
+            alle_ideen = [i for i in alle_ideen if not i.umgesetzt]
+
+        # Sortieren nach Priorität
+        prioritaet_order = {TodoPrioritaet.HOCH.value: 0, TodoPrioritaet.MITTEL.value: 1, TodoPrioritaet.NIEDRIG.value: 2}
+        alle_ideen.sort(key=lambda i: (prioritaet_order.get(i.prioritaet, 99), i.erstellt_am), reverse=False)
+
+        if not alle_ideen:
+            st.info("Noch keine Ideen vorhanden. Erstellen Sie Ihre erste Idee im Tab 'Neue Idee hinzufügen'.")
+        else:
+            # Gruppiert nach Kategorie anzeigen
+            kategorien = {}
+            for idee in alle_ideen:
+                if idee.kategorie not in kategorien:
+                    kategorien[idee.kategorie] = []
+                kategorien[idee.kategorie].append(idee)
+
+            for kategorie, ideen_liste in sorted(kategorien.items()):
+                with st.expander(f"💡 {kategorie} ({len(ideen_liste)})", expanded=True):
+                    for idee in ideen_liste:
+                        render_idee_item(idee)
+
+    with ideen_tabs[1]:
+        st.markdown("### ➕ Neue Idee hinzufügen")
+
+        with st.form("neue_idee_form"):
+            titel = st.text_input("Titel *", placeholder="z.B. Offene Küche mit Kochinsel")
+            beschreibung = st.text_area(
+                "Beschreibung",
+                placeholder="Beschreiben Sie Ihre Idee... Was stellen Sie sich vor? Welche Materialien, Farben, Stil?"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                kategorie = st.selectbox(
+                    "Kategorie",
+                    options=[k.value for k in IdeenKategorie]
+                )
+            with col2:
+                prioritaet = st.selectbox(
+                    "Priorität",
+                    options=[p.value for p in TodoPrioritaet],
+                    index=1
+                )
+
+            col3, col4 = st.columns(2)
+            with col3:
+                geschaetzte_kosten = st.number_input(
+                    "Geschätzte Kosten (€)",
+                    min_value=0.0,
+                    step=100.0,
+                    value=0.0
+                )
+            with col4:
+                bild_url = st.text_input(
+                    "Inspirationsbild URL (optional)",
+                    placeholder="https://..."
+                )
+
+            notizen = st.text_area(
+                "Notizen",
+                placeholder="Weitere Notizen, Links zu Produkten, Handwerkerkontakte..."
+            )
+
+            submitted = st.form_submit_button("💡 Idee speichern", use_container_width=True)
+
+            if submitted:
+                if not titel.strip():
+                    st.error("Bitte geben Sie einen Titel ein.")
+                else:
+                    idee_id = f"idee_{uuid.uuid4().hex[:8]}"
+                    neue_idee = IdeenboardEintrag(
+                        idee_id=idee_id,
+                        kaeufer_id=user_id,
+                        projekt_id=projekt_id,
+                        titel=titel.strip(),
+                        beschreibung=beschreibung.strip(),
+                        kategorie=kategorie,
+                        prioritaet=prioritaet,
+                        geschaetzte_kosten=geschaetzte_kosten,
+                        bild_url=bild_url.strip(),
+                        notizen=notizen.strip()
+                    )
+                    st.session_state.ideenboard[idee_id] = neue_idee
+                    st.success(f"💡 Idee '{titel}' wurde gespeichert!")
+                    st.rerun()
+
+
+def render_idee_item(idee: IdeenboardEintrag):
+    """Rendert einen einzelnen Ideenboard-Eintrag"""
+    prio_icons = {
+        TodoPrioritaet.HOCH.value: "🔴",
+        TodoPrioritaet.MITTEL.value: "🟡",
+        TodoPrioritaet.NIEDRIG.value: "🟢"
+    }
+    prio_icon = prio_icons.get(idee.prioritaet, "⚪")
+
+    col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
+
+    with col1:
+        if idee.umgesetzt:
+            st.markdown(f"~~**{idee.titel}**~~ ✅ Umgesetzt")
+        else:
+            st.markdown(f"**{idee.titel}** {prio_icon}")
+
+        if idee.beschreibung:
+            st.caption(idee.beschreibung)
+
+        if idee.geschaetzte_kosten > 0:
+            st.caption(f"💰 Geschätzte Kosten: {idee.geschaetzte_kosten:,.2f} €")
+
+    with col2:
+        if idee.bild_url:
+            st.caption(f"🖼️ [Inspirationsbild]({idee.bild_url})")
+        if idee.notizen:
+            with st.expander("📝 Notizen"):
+                st.write(idee.notizen)
+
+    with col3:
+        if not idee.umgesetzt:
+            if st.button("✅ Umgesetzt", key=f"done_idee_{idee.idee_id}"):
+                st.session_state.ideenboard[idee.idee_id].umgesetzt = True
+                st.session_state.ideenboard[idee.idee_id].umgesetzt_am = datetime.now()
+                st.rerun()
+        else:
+            if st.button("↩️ Reaktivieren", key=f"undo_idee_{idee.idee_id}"):
+                st.session_state.ideenboard[idee.idee_id].umgesetzt = False
+                st.session_state.ideenboard[idee.idee_id].umgesetzt_am = None
+                st.rerun()
+
+        if st.button("🗑️ Löschen", key=f"del_idee_{idee.idee_id}"):
+            del st.session_state.ideenboard[idee.idee_id]
+            st.rerun()
+
+    st.markdown("---")
 
 
 def kaeufer_finanzierung_view():
@@ -7150,6 +7490,7 @@ def notar_dashboard():
         "📄 Dokumenten-Freigaben",
         "📅 Termine",
         "🤝 Maklerempfehlung",
+        "🔧 Handwerker",
         "⚙️ Einstellungen"
     ])
 
@@ -7181,6 +7522,9 @@ def notar_dashboard():
         notar_makler_empfehlung_view()
 
     with tabs[9]:
+        notar_handwerker_view()
+
+    with tabs[10]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -7950,6 +8294,148 @@ def notar_makler_empfehlung_view():
                         emp.freigegeben_am = datetime.now()
                         st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
                         st.rerun()
+
+
+def notar_handwerker_view():
+    """Handwerker-Empfehlungen verwalten"""
+    import uuid
+
+    st.subheader("🔧 Handwerker-Empfehlungen")
+    st.caption("Verwalten Sie hier Handwerker-Empfehlungen, die Käufern zur Verfügung gestellt werden.")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sicherstellen, dass handwerker_empfehlungen existiert
+    if 'handwerker_empfehlungen' not in st.session_state:
+        st.session_state.handwerker_empfehlungen = {}
+
+    tabs = st.tabs(["📋 Alle Handwerker", "➕ Neuen Handwerker anlegen"])
+
+    with tabs[0]:
+        # Filter nach Kategorie
+        filter_kategorie = st.selectbox(
+            "Nach Kategorie filtern",
+            options=["Alle"] + [k.value for k in HandwerkerKategorie],
+            key="handwerker_filter_kat"
+        )
+
+        # Handwerker auflisten
+        alle_handwerker = list(st.session_state.handwerker_empfehlungen.values())
+
+        if filter_kategorie != "Alle":
+            alle_handwerker = [h for h in alle_handwerker if h.kategorie == filter_kategorie]
+
+        if not alle_handwerker:
+            st.info("Noch keine Handwerker angelegt. Erstellen Sie eine neue Empfehlung im Tab 'Neuen Handwerker anlegen'.")
+        else:
+            # Gruppiert nach Kategorie anzeigen
+            kategorien = {}
+            for hw in alle_handwerker:
+                if hw.kategorie not in kategorien:
+                    kategorien[hw.kategorie] = []
+                kategorien[hw.kategorie].append(hw)
+
+            for kategorie, handwerker_liste in sorted(kategorien.items()):
+                with st.expander(f"🔧 {kategorie} ({len(handwerker_liste)})", expanded=True):
+                    for hw in handwerker_liste:
+                        col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
+
+                        with col1:
+                            # Sterne-Bewertung anzeigen
+                            sterne = "⭐" * hw.bewertung if hw.bewertung > 0 else "Keine Bewertung"
+                            empfohlen_badge = "✅ Empfohlen" if hw.empfohlen else "⏸️ Nicht freigegeben"
+
+                            st.markdown(f"**{hw.firmenname}** {empfohlen_badge}")
+                            st.caption(f"{sterne}")
+                            if hw.kontaktperson:
+                                st.caption(f"👤 {hw.kontaktperson}")
+                            if hw.telefon:
+                                st.caption(f"📞 {hw.telefon}")
+                            if hw.email:
+                                st.caption(f"📧 {hw.email}")
+                            if hw.beschreibung:
+                                st.caption(hw.beschreibung)
+
+                        with col2:
+                            if hw.adresse:
+                                st.caption(f"📍 {hw.adresse}")
+                            if hw.webseite:
+                                st.caption(f"🌐 {hw.webseite}")
+
+                        with col3:
+                            # Toggle Empfohlen-Status
+                            if hw.empfohlen:
+                                if st.button("⏸️ Deaktivieren", key=f"deact_hw_{hw.handwerker_id}"):
+                                    st.session_state.handwerker_empfehlungen[hw.handwerker_id].empfohlen = False
+                                    st.rerun()
+                            else:
+                                if st.button("✅ Freigeben", key=f"act_hw_{hw.handwerker_id}"):
+                                    st.session_state.handwerker_empfehlungen[hw.handwerker_id].empfohlen = True
+                                    st.rerun()
+
+                            if st.button("🗑️ Löschen", key=f"del_hw_{hw.handwerker_id}"):
+                                del st.session_state.handwerker_empfehlungen[hw.handwerker_id]
+                                st.rerun()
+
+                        st.markdown("---")
+
+    with tabs[1]:
+        st.markdown("### ➕ Neuen Handwerker anlegen")
+
+        with st.form("neuer_handwerker_form"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                firmenname = st.text_input("Firmenname *", placeholder="z.B. Müller Elektrotechnik GmbH")
+                kategorie = st.selectbox(
+                    "Kategorie *",
+                    options=[k.value for k in HandwerkerKategorie]
+                )
+                kontaktperson = st.text_input("Ansprechpartner", placeholder="z.B. Herr Max Müller")
+                telefon = st.text_input("Telefon", placeholder="z.B. 0123 456789")
+
+            with col2:
+                email = st.text_input("E-Mail", placeholder="z.B. info@mueller-elektro.de")
+                adresse = st.text_input("Adresse", placeholder="z.B. Musterstraße 1, 12345 Musterstadt")
+                webseite = st.text_input("Webseite", placeholder="z.B. www.mueller-elektro.de")
+                bewertung = st.slider("Bewertung (Sterne)", 0, 5, 0)
+
+            beschreibung = st.text_area(
+                "Beschreibung / Leistungen",
+                placeholder="z.B. Spezialisiert auf Smart Home Installation, E-Check, Photovoltaik..."
+            )
+            notizen = st.text_area(
+                "Interne Notizen (nur für Notar sichtbar)",
+                placeholder="z.B. Besonders zuverlässig, gute Erfahrungen bei Projekt XY..."
+            )
+
+            empfohlen = st.checkbox("Sofort für Käufer freigeben", value=True)
+
+            submitted = st.form_submit_button("✅ Handwerker anlegen", use_container_width=True)
+
+            if submitted:
+                if not firmenname.strip():
+                    st.error("Bitte geben Sie einen Firmennamen ein.")
+                else:
+                    hw_id = f"hw_{uuid.uuid4().hex[:8]}"
+                    neuer_handwerker = Handwerker(
+                        handwerker_id=hw_id,
+                        notar_id=notar_id,
+                        firmenname=firmenname.strip(),
+                        kategorie=kategorie,
+                        kontaktperson=kontaktperson.strip(),
+                        telefon=telefon.strip(),
+                        email=email.strip(),
+                        adresse=adresse.strip(),
+                        webseite=webseite.strip(),
+                        beschreibung=beschreibung.strip(),
+                        bewertung=bewertung,
+                        empfohlen=empfohlen,
+                        notizen=notizen.strip()
+                    )
+                    st.session_state.handwerker_empfehlungen[hw_id] = neuer_handwerker
+                    st.success(f"✅ Handwerker '{firmenname}' wurde angelegt!")
+                    st.rerun()
 
 
 def notar_einstellungen_view():
