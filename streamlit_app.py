@@ -890,7 +890,9 @@ def fetch_marktdaten(projekt: Any) -> Dict[str, Any]:
     # Lade ExposeData wenn vorhanden, sonst verwende Standardwerte
     expose_data = None
     if hasattr(projekt, 'expose_data_id') and projekt.expose_data_id:
-        expose_data = st.session_state.expose_daten.get(projekt.expose_data_id)
+        # Sicher auf expose_data zugreifen (prüfen ob Key existiert)
+        if hasattr(st.session_state, 'expose_data'):
+            expose_data = st.session_state.expose_data.get(projekt.expose_data_id)
 
     # Extrahiere Daten aus ExposeData oder verwende Standardwerte
     wohnflaeche = getattr(expose_data, 'wohnflaeche', 80.0) if expose_data else 80.0
