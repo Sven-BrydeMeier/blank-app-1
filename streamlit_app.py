@@ -257,6 +257,71 @@ class Projekt:
     notartermin: Optional[datetime] = None
     property_type: str = PropertyType.WOHNUNG.value  # Objektart
     expose_data_id: Optional[str] = None  # Verweis auf ExposeData
+    termine: List[str] = field(default_factory=list)  # Liste von Termin-IDs
+
+class TerminTyp(Enum):
+    """Termin-Typen"""
+    BESICHTIGUNG = "Besichtigung"
+    UEBERGABE = "Übergabe"
+    BEURKUNDUNG = "Beurkundung"
+    SONSTIGES = "Sonstiges"
+
+class TerminStatus(Enum):
+    """Termin-Status"""
+    VORGESCHLAGEN = "Vorgeschlagen"  # Notar hat Termine vorgeschlagen
+    ANGEFRAGT = "Angefragt"  # Makler/Käufer/Verkäufer hat Termin angefragt
+    AUSSTEHEND = "Ausstehend"  # Wartet auf Bestätigung aller Parteien
+    TEILWEISE_BESTAETIGT = "Teilweise bestätigt"  # Einige haben bestätigt
+    BESTAETIGT = "Bestätigt"  # Alle Parteien haben bestätigt
+    ABGESAGT = "Abgesagt"
+    ABGESCHLOSSEN = "Abgeschlossen"
+
+@dataclass
+class Termin:
+    """Termin für Besichtigung, Übergabe oder Beurkundung"""
+    termin_id: str
+    projekt_id: str
+    termin_typ: str  # TerminTyp value
+    datum: date
+    uhrzeit_start: str  # Format: "HH:MM"
+    uhrzeit_ende: str  # Format: "HH:MM"
+    tageszeit: str = ""  # "Vormittag" oder "Nachmittag"
+    ort: str = ""  # Adresse/Ort des Termins
+    beschreibung: str = ""
+    status: str = TerminStatus.ANGEFRAGT.value
+
+    # Ersteller und Beteiligte
+    erstellt_von: str = ""  # User ID
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+    # Bestätigungen (User ID -> Bestätigungszeitpunkt)
+    bestaetigt_von_makler: Optional[datetime] = None
+    bestaetigt_von_kaeufer: List[str] = field(default_factory=list)  # Liste der Käufer-IDs die bestätigt haben
+    bestaetigt_von_verkaeufer: List[str] = field(default_factory=list)  # Liste der Verkäufer-IDs
+    bestaetigt_von_notar: Optional[datetime] = None
+
+    # Für Outlook-Integration
+    outlook_event_id: Optional[str] = None
+    outlook_status: str = ""  # "provisorisch", "bestätigt"
+
+    # Kontaktdaten für Termin-Notizen
+    kontakte: List[Dict[str, str]] = field(default_factory=list)  # Liste von {name, telefon, rolle}
+
+    # Erinnerungen
+    erinnerung_gesendet: bool = False
+    erinnerung_gesendet_am: Optional[datetime] = None
+
+@dataclass
+class TerminVorschlag:
+    """Terminvorschlag vom Notar"""
+    vorschlag_id: str
+    projekt_id: str
+    termin_typ: str
+    vorschlaege: List[Dict[str, Any]] = field(default_factory=list)  # Liste von {datum, uhrzeit_start, uhrzeit_ende, tageszeit}
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""  # Notar User ID
+    status: str = "offen"  # "offen", "angenommen", "abgelehnt"
+    ausgewaehlt_index: int = -1  # Welcher Vorschlag wurde gewählt
 
 @dataclass
 class MaklerAgent:
@@ -509,6 +574,11 @@ def init_session_state():
         st.session_state.bank_folders = {}
         st.session_state.notar_mitarbeiter = {}
         st.session_state.verkaeufer_dokumente = {}
+
+        # Termin-Koordination
+        st.session_state.termine = {}  # Termin-ID -> Termin
+        st.session_state.terminvorschlaege = {}  # Vorschlag-ID -> TerminVorschlag
+        st.session_state.notar_kalender = {}  # Simulierter Outlook-Kalender
 
         # Demo-Daten
         create_demo_users()
@@ -1359,6 +1429,652 @@ def calculate_price_suggestion(expose: 'ExposeData') -> float:
 
     vorschlag = basis * flaeche * faktor
     return round(vorschlag, -3)  # Auf 1000er runden
+
+
+# ============================================================================
+# TERMIN-KOORDINATION FUNKTIONEN
+# ============================================================================
+
+def generate_ics_file(termin: 'Termin', projekt: 'Projekt') -> str:
+    """Generiert eine ICS-Kalenderdatei für einen Termin"""
+    from datetime import datetime, timedelta
+
+    # Datum und Zeit kombinieren
+    start_hour, start_min = map(int, termin.uhrzeit_start.split(':'))
+    end_hour, end_min = map(int, termin.uhrzeit_ende.split(':'))
+
+    start_dt = datetime.combine(termin.datum, datetime.min.time().replace(hour=start_hour, minute=start_min))
+    end_dt = datetime.combine(termin.datum, datetime.min.time().replace(hour=end_hour, minute=end_min))
+
+    # Teilnehmer sammeln
+    teilnehmer_info = []
+    for kontakt in termin.kontakte:
+        teilnehmer_info.append(f"{kontakt.get('name', '')} ({kontakt.get('rolle', '')}): {kontakt.get('telefon', '')}")
+
+    beschreibung = f"""Termin: {termin.termin_typ}
+Projekt: {projekt.name}
+
+Teilnehmer:
+{chr(10).join(teilnehmer_info)}
+
+Hinweis: Bitte bringen Sie einen gültigen Personalausweis oder Reisepass mit.
+"""
+
+    # ICS Format
+    ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Immobilien-Transaktionsplattform//DE
+BEGIN:VEVENT
+UID:{termin.termin_id}@immobilien-plattform.de
+DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%SZ')}
+DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}
+DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}
+SUMMARY:{termin.termin_typ}: {projekt.name}
+DESCRIPTION:{beschreibung.replace(chr(10), '\\n')}
+LOCATION:{termin.ort}
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR"""
+
+    return ics_content
+
+
+def send_appointment_email(empfaenger: List[Dict[str, str]], termin: 'Termin', projekt: 'Projekt', email_typ: str = "bestaetigung"):
+    """Simuliert das Senden von Termin-E-Mails
+
+    Args:
+        empfaenger: Liste von {email, name}
+        termin: Der Termin
+        projekt: Das Projekt
+        email_typ: "bestaetigung", "erinnerung", "vorschlag"
+    """
+    # In einer echten Anwendung würde hier SMTP verwendet
+    # Hier simulieren wir das Senden durch Logging
+
+    email_templates = {
+        "bestaetigung": f"""
+Sehr geehrte(r) {{name}},
+
+Ihr Termin wurde bestätigt:
+
+Termin: {termin.termin_typ}
+Datum: {termin.datum.strftime('%d.%m.%Y')}
+Uhrzeit: {termin.uhrzeit_start} - {termin.uhrzeit_ende} Uhr
+Ort: {termin.ort}
+Projekt: {projekt.name}
+
+Bitte bringen Sie einen gültigen Personalausweis oder Reisepass mit.
+
+Im Anhang finden Sie eine Kalenderdatei zur Übernahme in Ihren Kalender.
+
+Mit freundlichen Grüßen,
+Ihre Immobilien-Transaktionsplattform
+        """,
+        "erinnerung": f"""
+Sehr geehrte(r) {{name}},
+
+Dies ist eine Erinnerung an Ihren morgigen Termin:
+
+Termin: {termin.termin_typ}
+Datum: {termin.datum.strftime('%d.%m.%Y')}
+Uhrzeit: {termin.uhrzeit_start} - {termin.uhrzeit_ende} Uhr
+Ort: {termin.ort}
+Projekt: {projekt.name}
+
+Bitte bringen Sie einen gültigen Personalausweis oder Reisepass mit.
+
+Mit freundlichen Grüßen,
+Ihre Immobilien-Transaktionsplattform
+        """,
+        "vorschlag": f"""
+Sehr geehrte(r) {{name}},
+
+Der Notar hat Terminvorschläge für die Beurkundung erstellt.
+Bitte prüfen Sie die Vorschläge in Ihrem Dashboard und wählen Sie einen passenden Termin aus.
+
+Projekt: {projekt.name}
+
+Mit freundlichen Grüßen,
+Ihre Immobilien-Transaktionsplattform
+        """
+    }
+
+    # Simuliertes Senden - in der realen Anwendung würde hier SMTP verwendet
+    sent_emails = []
+    for emp in empfaenger:
+        email_text = email_templates.get(email_typ, "").format(name=emp.get('name', 'Teilnehmer'))
+        sent_emails.append({
+            'to': emp.get('email'),
+            'subject': f"[{email_typ.capitalize()}] {termin.termin_typ} - {projekt.name}",
+            'body': email_text,
+            'sent_at': datetime.now()
+        })
+
+    return sent_emails
+
+
+def check_kaufvertrag_entwurf_status(projekt_id: str) -> bool:
+    """Prüft, ob der Kaufvertragsentwurf bereits versendet wurde (Timeline-Check)"""
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return False
+
+    # Prüfe Timeline-Events für versendeten Entwurf
+    for event_id in projekt.timeline_events:
+        event = st.session_state.timeline_events.get(event_id)
+        if event and "Kaufvertrag" in event.titel and event.completed:
+            return True
+
+    # Alternative: Prüfe den Projekt-Status
+    return projekt.status in [
+        ProjektStatus.FINANZIERUNG_GESICHERT.value,
+        ProjektStatus.NOTARTERMIN_VEREINBART.value,
+        ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value,
+        ProjektStatus.ABGESCHLOSSEN.value
+    ]
+
+
+def get_notar_calendar_availability(notar_id: str, datum_von: date, datum_bis: date) -> List[Dict[str, Any]]:
+    """Simuliert die Outlook-Kalenderprüfung des Notars
+
+    Returns:
+        Liste von verfügbaren Zeitslots
+    """
+    import random
+
+    verfuegbare_slots = []
+
+    # Simuliere Kalenderverfügbarkeit
+    current_date = datum_von
+    while current_date <= datum_bis:
+        # Wochenenden überspringen
+        if current_date.weekday() < 5:  # Mo-Fr
+            # Vormittag (9:00 - 12:00)
+            if random.random() > 0.3:  # 70% Chance verfügbar
+                verfuegbare_slots.append({
+                    'datum': current_date,
+                    'tageszeit': 'Vormittag',
+                    'uhrzeit_start': f"{random.choice([9, 10, 11])}:00",
+                    'uhrzeit_ende': f"{random.choice([10, 11, 12])}:00"
+                })
+
+            # Nachmittag (14:00 - 17:00)
+            if random.random() > 0.3:  # 70% Chance verfügbar
+                verfuegbare_slots.append({
+                    'datum': current_date,
+                    'tageszeit': 'Nachmittag',
+                    'uhrzeit_start': f"{random.choice([14, 15, 16])}:00",
+                    'uhrzeit_ende': f"{random.choice([15, 16, 17])}:00"
+                })
+
+        current_date += timedelta(days=1)
+
+    return verfuegbare_slots
+
+
+def create_termin_vorschlaege(projekt_id: str, notar_id: str, termin_typ: str = TerminTyp.BEURKUNDUNG.value) -> Optional['TerminVorschlag']:
+    """Erstellt 3 Terminvorschläge basierend auf Notar-Kalenderverfügbarkeit"""
+
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return None
+
+    # Prüfe ob Kaufvertragsentwurf versendet wurde (nur für Beurkundung)
+    if termin_typ == TerminTyp.BEURKUNDUNG.value:
+        if not check_kaufvertrag_entwurf_status(projekt_id):
+            return None  # Kann keine Beurkundungstermine vorschlagen ohne Entwurf
+
+    # Hole verfügbare Slots aus dem Kalender
+    heute = date.today()
+    verfuegbar = get_notar_calendar_availability(
+        notar_id,
+        heute + timedelta(days=7),  # Ab nächster Woche
+        heute + timedelta(days=30)  # Bis in 4 Wochen
+    )
+
+    if len(verfuegbar) < 3:
+        return None
+
+    # Wähle 3 verschiedene Slots aus
+    import random
+    random.shuffle(verfuegbar)
+    ausgewaehlte_slots = verfuegbar[:3]
+
+    # Erstelle Terminvorschlag
+    vorschlag_id = f"vorschlag_{len(st.session_state.terminvorschlaege)}"
+    vorschlag = TerminVorschlag(
+        vorschlag_id=vorschlag_id,
+        projekt_id=projekt_id,
+        termin_typ=termin_typ,
+        vorschlaege=[
+            {
+                'datum': slot['datum'],
+                'uhrzeit_start': slot['uhrzeit_start'],
+                'uhrzeit_ende': slot['uhrzeit_ende'],
+                'tageszeit': slot['tageszeit']
+            }
+            for slot in ausgewaehlte_slots
+        ],
+        erstellt_von=notar_id
+    )
+
+    st.session_state.terminvorschlaege[vorschlag_id] = vorschlag
+    return vorschlag
+
+
+def create_termin_from_vorschlag(vorschlag: 'TerminVorschlag', ausgewaehlter_index: int, projekt: 'Projekt') -> Optional['Termin']:
+    """Erstellt einen Termin aus einem angenommenen Vorschlag"""
+
+    if ausgewaehlter_index < 0 or ausgewaehlter_index >= len(vorschlag.vorschlaege):
+        return None
+
+    slot = vorschlag.vorschlaege[ausgewaehlter_index]
+
+    # Kontakte sammeln
+    kontakte = []
+
+    # Makler
+    if projekt.makler_id:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            kontakte.append({
+                'name': makler.name,
+                'telefon': makler.telefon if hasattr(makler, 'telefon') else '',
+                'rolle': 'Makler'
+            })
+
+    # Käufer
+    for kaeufer_id in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kaeufer_id)
+        if kaeufer:
+            kontakte.append({
+                'name': kaeufer.name,
+                'telefon': kaeufer.telefon if hasattr(kaeufer, 'telefon') else '',
+                'rolle': 'Käufer'
+            })
+
+    # Verkäufer
+    for verkaeufer_id in projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(verkaeufer_id)
+        if verkaeufer:
+            kontakte.append({
+                'name': verkaeufer.name,
+                'telefon': verkaeufer.telefon if hasattr(verkaeufer, 'telefon') else '',
+                'rolle': 'Verkäufer'
+            })
+
+    # Notar
+    if projekt.notar_id:
+        notar = st.session_state.users.get(projekt.notar_id)
+        if notar:
+            kontakte.append({
+                'name': notar.name,
+                'telefon': notar.telefon if hasattr(notar, 'telefon') else '',
+                'rolle': 'Notar'
+            })
+
+    # Termin-Titel erstellen: "Verkäufer ./. Käufer, Projektname (Makler)"
+    verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids
+                        if st.session_state.users.get(vid)]
+    kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids
+                     if st.session_state.users.get(kid)]
+    makler_name = ""
+    if projekt.makler_id:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            makler_name = f" ({makler.name})"
+
+    termin_titel = f"{', '.join(verkaeufer_namen)} ./. {', '.join(kaeufer_namen)}, {projekt.name}{makler_name}"
+
+    # Notar-Adresse als Ort
+    notar = st.session_state.users.get(projekt.notar_id)
+    ort = "Notariat"  # Default
+    if notar and hasattr(notar, 'adresse'):
+        ort = notar.adresse
+
+    termin_id = f"termin_{len(st.session_state.termine)}"
+    termin = Termin(
+        termin_id=termin_id,
+        projekt_id=projekt.projekt_id,
+        termin_typ=vorschlag.termin_typ,
+        datum=slot['datum'],
+        uhrzeit_start=slot['uhrzeit_start'],
+        uhrzeit_ende=slot['uhrzeit_ende'],
+        tageszeit=slot['tageszeit'],
+        ort=ort,
+        beschreibung=termin_titel,
+        status=TerminStatus.AUSSTEHEND.value,
+        erstellt_von=vorschlag.erstellt_von,
+        kontakte=kontakte,
+        outlook_status="provisorisch"
+    )
+
+    st.session_state.termine[termin_id] = termin
+
+    # Vorschlag als angenommen markieren
+    vorschlag.status = "angenommen"
+    vorschlag.ausgewaehlt_index = ausgewaehlter_index
+    st.session_state.terminvorschlaege[vorschlag.vorschlag_id] = vorschlag
+
+    # Termin zum Projekt hinzufügen
+    if termin_id not in projekt.termine:
+        projekt.termine.append(termin_id)
+        st.session_state.projekte[projekt.projekt_id] = projekt
+
+    return termin
+
+
+def check_termin_bestaetigung(termin: 'Termin', projekt: 'Projekt') -> Dict[str, Any]:
+    """Prüft den Bestätigungsstatus eines Termins"""
+
+    result = {
+        'alle_bestaetigt': False,
+        'makler_bestaetigt': termin.bestaetigt_von_makler is not None,
+        'notar_bestaetigt': termin.bestaetigt_von_notar is not None,
+        'kaeufer_bestaetigt': [],
+        'kaeufer_ausstehend': [],
+        'verkaeufer_bestaetigt': [],
+        'verkaeufer_ausstehend': []
+    }
+
+    # Käufer prüfen
+    for kaeufer_id in projekt.kaeufer_ids:
+        if kaeufer_id in termin.bestaetigt_von_kaeufer:
+            result['kaeufer_bestaetigt'].append(kaeufer_id)
+        else:
+            result['kaeufer_ausstehend'].append(kaeufer_id)
+
+    # Verkäufer prüfen
+    for verkaeufer_id in projekt.verkaeufer_ids:
+        if verkaeufer_id in termin.bestaetigt_von_verkaeufer:
+            result['verkaeufer_bestaetigt'].append(verkaeufer_id)
+        else:
+            result['verkaeufer_ausstehend'].append(verkaeufer_id)
+
+    # Prüfen ob alle bestätigt haben
+    makler_ok = not projekt.makler_id or result['makler_bestaetigt']
+    kaeufer_ok = len(result['kaeufer_ausstehend']) == 0
+    verkaeufer_ok = len(result['verkaeufer_ausstehend']) == 0
+
+    result['alle_bestaetigt'] = makler_ok and kaeufer_ok and verkaeufer_ok
+
+    return result
+
+
+def bestatige_termin(termin_id: str, user_id: str, rolle: str):
+    """Bestätigt einen Termin für einen Benutzer"""
+
+    termin = st.session_state.termine.get(termin_id)
+    if not termin:
+        return False
+
+    projekt = st.session_state.projekte.get(termin.projekt_id)
+    if not projekt:
+        return False
+
+    now = datetime.now()
+
+    if rolle == UserRole.MAKLER.value:
+        termin.bestaetigt_von_makler = now
+    elif rolle == UserRole.KAEUFER.value:
+        if user_id not in termin.bestaetigt_von_kaeufer:
+            termin.bestaetigt_von_kaeufer.append(user_id)
+    elif rolle == UserRole.VERKAEUFER.value:
+        if user_id not in termin.bestaetigt_von_verkaeufer:
+            termin.bestaetigt_von_verkaeufer.append(user_id)
+    elif rolle == UserRole.NOTAR.value:
+        termin.bestaetigt_von_notar = now
+
+    # Prüfen ob alle bestätigt haben
+    status = check_termin_bestaetigung(termin, projekt)
+
+    if status['alle_bestaetigt']:
+        termin.status = TerminStatus.BESTAETIGT.value
+        termin.outlook_status = "bestätigt"
+
+        # E-Mail-Benachrichtigungen senden
+        empfaenger = []
+        for kontakt in termin.kontakte:
+            user = None
+            if kontakt.get('rolle') == 'Makler' and projekt.makler_id:
+                user = st.session_state.users.get(projekt.makler_id)
+            elif kontakt.get('rolle') == 'Käufer':
+                for kid in projekt.kaeufer_ids:
+                    u = st.session_state.users.get(kid)
+                    if u and u.name == kontakt.get('name'):
+                        user = u
+                        break
+            elif kontakt.get('rolle') == 'Verkäufer':
+                for vid in projekt.verkaeufer_ids:
+                    u = st.session_state.users.get(vid)
+                    if u and u.name == kontakt.get('name'):
+                        user = u
+                        break
+            elif kontakt.get('rolle') == 'Notar' and projekt.notar_id:
+                user = st.session_state.users.get(projekt.notar_id)
+
+            if user:
+                empfaenger.append({'email': user.email, 'name': user.name})
+
+        send_appointment_email(empfaenger, termin, projekt, "bestaetigung")
+    elif len(termin.bestaetigt_von_kaeufer) > 0 or len(termin.bestaetigt_von_verkaeufer) > 0 or termin.bestaetigt_von_makler:
+        termin.status = TerminStatus.TEILWEISE_BESTAETIGT.value
+
+    st.session_state.termine[termin_id] = termin
+    return True
+
+
+def render_termin_verwaltung(projekt: 'Projekt', user_rolle: str):
+    """Rendert die Termin-Verwaltung UI"""
+
+    st.markdown("#### 📅 Terminverwaltung")
+
+    # Tabs für verschiedene Termintypen
+    termin_tabs = st.tabs(["🔍 Besichtigung", "🔑 Übergabe", "📜 Beurkundung", "📋 Alle Termine"])
+
+    with termin_tabs[0]:
+        render_termin_section(projekt, TerminTyp.BESICHTIGUNG.value, user_rolle)
+
+    with termin_tabs[1]:
+        render_termin_section(projekt, TerminTyp.UEBERGABE.value, user_rolle)
+
+    with termin_tabs[2]:
+        render_termin_section(projekt, TerminTyp.BEURKUNDUNG.value, user_rolle)
+
+    with termin_tabs[3]:
+        render_alle_termine(projekt, user_rolle)
+
+
+def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
+    """Rendert eine Termin-Sektion für einen bestimmten Termintyp"""
+
+    # Bestehende Termine für diesen Typ anzeigen
+    projekt_termine = [st.session_state.termine.get(tid) for tid in projekt.termine
+                      if st.session_state.termine.get(tid) and
+                      st.session_state.termine.get(tid).termin_typ == termin_typ]
+
+    if projekt_termine:
+        for termin in projekt_termine:
+            render_termin_card(termin, projekt, user_rolle)
+    else:
+        st.info(f"Noch keine {termin_typ}-Termine vorhanden.")
+
+    # Offene Terminvorschläge anzeigen
+    offene_vorschlaege = [v for v in st.session_state.terminvorschlaege.values()
+                         if v.projekt_id == projekt.projekt_id and
+                         v.termin_typ == termin_typ and
+                         v.status == "offen"]
+
+    if offene_vorschlaege:
+        st.markdown("##### 📨 Offene Terminvorschläge")
+        for vorschlag in offene_vorschlaege:
+            render_terminvorschlag_card(vorschlag, projekt, user_rolle)
+
+    # Neuen Termin anlegen (nur für bestimmte Rollen)
+    if user_rolle in [UserRole.MAKLER.value, UserRole.NOTAR.value]:
+        with st.expander(f"➕ Neuen {termin_typ}-Termin anlegen"):
+            render_neuer_termin_form(projekt, termin_typ, user_rolle)
+
+
+def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str):
+    """Rendert eine Termin-Karte"""
+
+    status_colors = {
+        TerminStatus.BESTAETIGT.value: "🟢",
+        TerminStatus.TEILWEISE_BESTAETIGT.value: "🟡",
+        TerminStatus.AUSSTEHEND.value: "🟠",
+        TerminStatus.VORGESCHLAGEN.value: "🔵",
+        TerminStatus.ABGESAGT.value: "🔴",
+        TerminStatus.ABGESCHLOSSEN.value: "✅"
+    }
+
+    status_icon = status_colors.get(termin.status, "⚪")
+
+    with st.container():
+        col1, col2, col3 = st.columns([3, 2, 2])
+
+        with col1:
+            st.markdown(f"**{status_icon} {termin.termin_typ}**")
+            st.write(f"📅 {termin.datum.strftime('%d.%m.%Y')} | ⏰ {termin.uhrzeit_start} - {termin.uhrzeit_ende}")
+            st.write(f"📍 {termin.ort}")
+
+        with col2:
+            st.write(f"**Status:** {termin.status}")
+            if termin.status == TerminStatus.BESTAETIGT.value:
+                st.success("Alle Parteien haben bestätigt")
+
+        with col3:
+            # Bestätigungsbutton (wenn noch nicht bestätigt)
+            user_id = st.session_state.current_user.user_id
+            bereits_bestaetigt = False
+
+            if user_rolle == UserRole.MAKLER.value:
+                bereits_bestaetigt = termin.bestaetigt_von_makler is not None
+            elif user_rolle == UserRole.KAEUFER.value:
+                bereits_bestaetigt = user_id in termin.bestaetigt_von_kaeufer
+            elif user_rolle == UserRole.VERKAEUFER.value:
+                bereits_bestaetigt = user_id in termin.bestaetigt_von_verkaeufer
+            elif user_rolle == UserRole.NOTAR.value:
+                bereits_bestaetigt = termin.bestaetigt_von_notar is not None
+
+            if termin.status not in [TerminStatus.BESTAETIGT.value, TerminStatus.ABGESAGT.value, TerminStatus.ABGESCHLOSSEN.value]:
+                if bereits_bestaetigt:
+                    st.success("✓ Sie haben bestätigt")
+                else:
+                    if st.button("✅ Termin bestätigen", key=f"confirm_{termin.termin_id}_{user_rolle}"):
+                        bestatige_termin(termin.termin_id, user_id, user_rolle)
+                        st.success("Termin bestätigt!")
+                        st.rerun()
+
+            # Download ICS
+            if termin.status == TerminStatus.BESTAETIGT.value:
+                ics_content = generate_ics_file(termin, projekt)
+                st.download_button(
+                    "📥 Kalenderdatei (.ics)",
+                    data=ics_content,
+                    file_name=f"termin_{termin.termin_id}.ics",
+                    mime="text/calendar",
+                    key=f"ics_{termin.termin_id}"
+                )
+
+        st.markdown("---")
+
+
+def render_terminvorschlag_card(vorschlag: 'TerminVorschlag', projekt: 'Projekt', user_rolle: str):
+    """Rendert eine Terminvorschlag-Karte"""
+
+    st.markdown(f"**Terminvorschläge vom {vorschlag.erstellt_am.strftime('%d.%m.%Y %H:%M')}**")
+
+    for i, slot in enumerate(vorschlag.vorschlaege):
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**Option {i+1}:** {slot['datum'].strftime('%d.%m.%Y')} ({slot['tageszeit']})")
+            st.write(f"⏰ {slot['uhrzeit_start']} - {slot['uhrzeit_ende']} Uhr")
+        with col2:
+            if user_rolle in [UserRole.MAKLER.value, UserRole.KAEUFER.value, UserRole.VERKAEUFER.value]:
+                if st.button(f"Auswählen", key=f"select_{vorschlag.vorschlag_id}_{i}"):
+                    termin = create_termin_from_vorschlag(vorschlag, i, projekt)
+                    if termin:
+                        st.success(f"Termin wurde erstellt! Bitte bestätigen Sie den Termin.")
+                        st.rerun()
+
+
+def render_neuer_termin_form(projekt: 'Projekt', termin_typ: str, user_rolle: str):
+    """Formular zum Anlegen eines neuen Termins"""
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        datum = st.date_input("Datum", min_value=date.today(), key=f"new_termin_datum_{projekt.projekt_id}_{termin_typ}")
+        tageszeit = st.selectbox("Tageszeit", ["Vormittag", "Nachmittag"], key=f"new_termin_tageszeit_{projekt.projekt_id}_{termin_typ}")
+
+    with col2:
+        uhrzeit_start = st.time_input("Beginn", value=datetime.strptime("10:00", "%H:%M").time(), key=f"new_termin_start_{projekt.projekt_id}_{termin_typ}")
+        uhrzeit_ende = st.time_input("Ende", value=datetime.strptime("11:00", "%H:%M").time(), key=f"new_termin_ende_{projekt.projekt_id}_{termin_typ}")
+
+    ort = st.text_input("Ort/Adresse", value=projekt.adresse, key=f"new_termin_ort_{projekt.projekt_id}_{termin_typ}")
+    beschreibung = st.text_area("Beschreibung/Hinweise", key=f"new_termin_beschr_{projekt.projekt_id}_{termin_typ}")
+
+    if st.button(f"Termin erstellen", key=f"create_termin_{projekt.projekt_id}_{termin_typ}"):
+        # Kontakte sammeln
+        kontakte = []
+        if projekt.makler_id:
+            makler = st.session_state.users.get(projekt.makler_id)
+            if makler:
+                kontakte.append({'name': makler.name, 'telefon': '', 'rolle': 'Makler'})
+
+        for kid in projekt.kaeufer_ids:
+            kaeufer = st.session_state.users.get(kid)
+            if kaeufer:
+                kontakte.append({'name': kaeufer.name, 'telefon': '', 'rolle': 'Käufer'})
+
+        for vid in projekt.verkaeufer_ids:
+            verkaeufer = st.session_state.users.get(vid)
+            if verkaeufer:
+                kontakte.append({'name': verkaeufer.name, 'telefon': '', 'rolle': 'Verkäufer'})
+
+        if projekt.notar_id:
+            notar = st.session_state.users.get(projekt.notar_id)
+            if notar:
+                kontakte.append({'name': notar.name, 'telefon': '', 'rolle': 'Notar'})
+
+        termin_id = f"termin_{len(st.session_state.termine)}"
+        termin = Termin(
+            termin_id=termin_id,
+            projekt_id=projekt.projekt_id,
+            termin_typ=termin_typ,
+            datum=datum,
+            uhrzeit_start=uhrzeit_start.strftime("%H:%M"),
+            uhrzeit_ende=uhrzeit_ende.strftime("%H:%M"),
+            tageszeit=tageszeit,
+            ort=ort,
+            beschreibung=beschreibung,
+            status=TerminStatus.AUSSTEHEND.value,
+            erstellt_von=st.session_state.current_user.user_id,
+            kontakte=kontakte
+        )
+
+        st.session_state.termine[termin_id] = termin
+
+        if termin_id not in projekt.termine:
+            projekt.termine.append(termin_id)
+            st.session_state.projekte[projekt.projekt_id] = projekt
+
+        st.success("✅ Termin wurde erstellt!")
+        st.rerun()
+
+
+def render_alle_termine(projekt: 'Projekt', user_rolle: str):
+    """Zeigt alle Termine eines Projekts"""
+
+    if not projekt.termine:
+        st.info("Noch keine Termine vorhanden.")
+        return
+
+    for termin_id in projekt.termine:
+        termin = st.session_state.termine.get(termin_id)
+        if termin:
+            render_termin_card(termin, projekt, user_rolle)
 
 
 def render_expose_editor(projekt: Projekt):
@@ -2266,30 +2982,48 @@ def makler_projekte_view():
 
             st.markdown("---")
 
-            # Exposé-Verwaltung
-            st.markdown("#### 📄 Exposé")
+            # ===== EXPOSÉ-VERWALTUNG (DIREKT SICHTBAR) =====
+            st.markdown("#### 📄 Exposé-Daten")
 
-            # Zeige Exposé-Status
+            # Exposé-Status anzeigen
             if projekt.expose_data_id:
                 expose = st.session_state.expose_data.get(projekt.expose_data_id)
-                if expose:
-                    st.success(f"✅ Exposé vorhanden: {expose.objektart}")
-                    col1, col2 = st.columns(2)
+                if expose and expose.objekttitel:
+                    col1, col2, col3 = st.columns(3)
                     with col1:
+                        st.write(f"**Objektart:** {expose.objektart}")
                         st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
-                        st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
                     with col2:
+                        st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
                         st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €")
-                        st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y')}")
+                    with col3:
+                        st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y %H:%M')}")
+                        if expose.adresse_validiert:
+                            st.success("✅ Adresse validiert")
 
-            # Button zum Bearbeiten/Erstellen
-            if st.button("📝 Exposé bearbeiten", key=f"edit_expose_{projekt.projekt_id}"):
-                st.session_state[f"show_expose_editor_{projekt.projekt_id}"] = not st.session_state.get(f"show_expose_editor_{projekt.projekt_id}", False)
+            # Exposé-Editor immer in einem Expander anzeigen (standardmäßig eingeklappt wenn Daten vorhanden)
+            expose_exists = bool(projekt.expose_data_id and
+                                st.session_state.expose_data.get(projekt.expose_data_id) and
+                                st.session_state.expose_data.get(projekt.expose_data_id).objekttitel)
 
-            # Exposé-Editor anzeigen
-            if st.session_state.get(f"show_expose_editor_{projekt.projekt_id}", False):
-                with st.expander("📝 Exposé-Editor", expanded=True):
-                    render_expose_editor(projekt)
+            with st.expander("📝 Exposé bearbeiten" if expose_exists else "📝 Exposé-Daten eingeben", expanded=not expose_exists):
+                render_expose_editor(projekt)
+
+            st.markdown("---")
+
+            # ===== TERMIN-VERWALTUNG =====
+            with st.expander("📅 Terminverwaltung", expanded=False):
+                render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+
+                # Bestätigte Beurkundungstermine hervorheben
+                beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
+                                       if st.session_state.termine.get(tid) and
+                                       st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value and
+                                       st.session_state.termine.get(tid).status == TerminStatus.BESTAETIGT.value]
+
+                if beurkundungstermine:
+                    for termin in beurkundungstermine:
+                        st.success(f"🟢 **Notartermin bestätigt:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
 
 def create_timeline_for_projekt(projekt_id: str):
     """Erstellt Timeline-Events für ein neues Projekt"""
@@ -4152,11 +4886,45 @@ def notar_dokumenten_freigaben():
         st.markdown("---")
 
 def notar_termine():
-    """Termin-Verwaltung für Notar"""
+    """Erweiterte Termin-Verwaltung für Notar mit Outlook-Kalender-Integration"""
     st.subheader("📅 Notartermine")
 
     notar_id = st.session_state.current_user.user_id
     projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    # Outlook-Kalender-Simulation
+    st.markdown("### 📆 Mein Outlook-Kalender")
+    st.info("💡 Der Kalender zeigt Ihre anstehenden Beurkundungstermine. Termine werden automatisch mit Ihrem Outlook synchronisiert.")
+
+    # Alle bestätigten Termine anzeigen
+    alle_termine = []
+    for projekt in projekte:
+        for termin_id in projekt.termine:
+            termin = st.session_state.termine.get(termin_id)
+            if termin and termin.termin_typ == TerminTyp.BEURKUNDUNG.value:
+                alle_termine.append((termin, projekt))
+
+    if alle_termine:
+        for termin, projekt in sorted(alle_termine, key=lambda x: x[0].datum):
+            status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡" if termin.status == TerminStatus.TEILWEISE_BESTAETIGT.value else "🟠"
+            outlook_status = f"[{termin.outlook_status}]" if termin.outlook_status else ""
+
+            col1, col2, col3 = st.columns([3, 2, 1])
+            with col1:
+                st.write(f"{status_icon} **{termin.datum.strftime('%d.%m.%Y')}** - {termin.uhrzeit_start} Uhr")
+                st.caption(termin.beschreibung)
+            with col2:
+                st.write(f"Projekt: {projekt.name}")
+                st.write(f"Status: {termin.status} {outlook_status}")
+            with col3:
+                if termin.status == TerminStatus.BESTAETIGT.value:
+                    ics_content = generate_ics_file(termin, projekt)
+                    st.download_button("📥 .ics", data=ics_content, file_name=f"beurkundung_{projekt.projekt_id}.ics", mime="text/calendar", key=f"notar_ics_{termin.termin_id}")
+    else:
+        st.info("Keine Beurkundungstermine vorhanden.")
+
+    st.markdown("---")
+    st.markdown("### 📋 Terminvorschläge für Projekte")
 
     if not projekte:
         st.info("Noch keine Projekte zugewiesen.")
@@ -4164,52 +4932,98 @@ def notar_termine():
 
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            if projekt.notartermin:
-                st.success(f"✅ Termin vereinbart: {projekt.notartermin.strftime('%d.%m.%Y %H:%M')}")
+            # Prüfe ob Kaufvertragsentwurf gesendet wurde
+            entwurf_gesendet = check_kaufvertrag_entwurf_status(projekt.projekt_id)
 
-                if st.button("🔄 Termin ändern", key=f"change_termin_{projekt.projekt_id}"):
-                    st.session_state[f"edit_termin_{projekt.projekt_id}"] = True
+            if not entwurf_gesendet:
+                st.warning("⚠️ Kaufvertragsentwurf muss erst versendet werden, bevor Beurkundungstermine vorgeschlagen werden können.")
+
+                # Manuell als erledigt markieren
+                if st.checkbox("Kaufvertragsentwurf wurde versendet", key=f"entwurf_ok_{projekt.projekt_id}"):
+                    # Timeline-Event als erledigt markieren
+                    for event_id in projekt.timeline_events:
+                        event = st.session_state.timeline_events.get(event_id)
+                        if event and "Kaufvertrag" in event.titel and not event.completed:
+                            event.completed = True
+                            event.completed_at = datetime.now()
+                            st.session_state.timeline_events[event_id] = event
+                    st.success("Status aktualisiert!")
                     st.rerun()
+                continue
+
+            # Bestehende Beurkundungstermine anzeigen
+            beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
+                                   if st.session_state.termine.get(tid) and
+                                   st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value]
+
+            if beurkundungstermine:
+                for termin in beurkundungstermine:
+                    status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡"
+                    st.markdown(f"{status_icon} **Termin:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
+                    st.write(f"Status: {termin.status}")
+
+                    # Bestätigungsstatus anzeigen
+                    bestaetigung = check_termin_bestaetigung(termin, projekt)
+                    if not bestaetigung['alle_bestaetigt']:
+                        ausstehend = []
+                        if not bestaetigung['makler_bestaetigt'] and projekt.makler_id:
+                            ausstehend.append("Makler")
+                        if bestaetigung['kaeufer_ausstehend']:
+                            ausstehend.append(f"Käufer ({len(bestaetigung['kaeufer_ausstehend'])})")
+                        if bestaetigung['verkaeufer_ausstehend']:
+                            ausstehend.append(f"Verkäufer ({len(bestaetigung['verkaeufer_ausstehend'])})")
+                        st.caption(f"Ausstehende Bestätigungen: {', '.join(ausstehend)}")
             else:
-                st.info("Noch kein Termin vereinbart")
-                st.session_state[f"edit_termin_{projekt.projekt_id}"] = True
+                st.info("Noch keine Beurkundungstermine.")
 
-            if st.session_state.get(f"edit_termin_{projekt.projekt_id}", False):
-                with st.form(f"termin_form_{projekt.projekt_id}"):
-                    termin_datum = st.date_input("Datum", value=date.today() + timedelta(days=14))
-                    termin_zeit = st.time_input("Uhrzeit", value=datetime.now().replace(hour=10, minute=0).time())
+            # Offene Vorschläge anzeigen
+            offene_vorschlaege = [v for v in st.session_state.terminvorschlaege.values()
+                                 if v.projekt_id == projekt.projekt_id and
+                                 v.termin_typ == TerminTyp.BEURKUNDUNG.value and
+                                 v.status == "offen"]
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        submit = st.form_submit_button("💾 Termin speichern", type="primary")
-                    with col2:
-                        cancel = st.form_submit_button("❌ Abbrechen")
+            if offene_vorschlaege:
+                st.markdown("##### 📨 Bereits gesendete Vorschläge")
+                for vorschlag in offene_vorschlaege:
+                    st.write(f"Gesendet am: {vorschlag.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                    for i, slot in enumerate(vorschlag.vorschlaege):
+                        st.write(f"  Option {i+1}: {slot['datum'].strftime('%d.%m.%Y')} ({slot['tageszeit']}) {slot['uhrzeit_start']}-{slot['uhrzeit_ende']} Uhr")
 
-                    if submit:
-                        termin_dt = datetime.combine(termin_datum, termin_zeit)
-                        projekt.notartermin = termin_dt
+            # Button zum Erstellen neuer Vorschläge
+            st.markdown("##### ➕ Neue Terminvorschläge generieren")
+            st.caption("Basierend auf Ihrem Outlook-Kalender werden 3 verfügbare Termine vorgeschlagen.")
 
-                        # Timeline aktualisieren
-                        for event_id in projekt.timeline_events:
-                            event = st.session_state.timeline_events.get(event_id)
-                            if event and event.titel == "Notartermin vereinbaren" and not event.completed:
-                                event.completed = True
-                                event.completed_at = datetime.now()
-                        update_projekt_status(projekt.projekt_id)
+            col1, col2 = st.columns(2)
+            with col1:
+                tageszeit_filter = st.selectbox("Bevorzugte Tageszeit", ["Alle", "Vormittag", "Nachmittag"], key=f"tageszeit_{projekt.projekt_id}")
 
-                        # Benachrichtigungen
-                        for kid in projekt.kaeufer_ids:
-                            create_notification(kid, "Notartermin vereinbart", f"Notartermin für {projekt.name}: {termin_dt.strftime('%d.%m.%Y %H:%M')}", NotificationType.SUCCESS.value)
-                        for vid in projekt.verkaeufer_ids:
-                            create_notification(vid, "Notartermin vereinbart", f"Notartermin für {projekt.name}: {termin_dt.strftime('%d.%m.%Y %H:%M')}", NotificationType.SUCCESS.value)
+            if st.button("🗓️ 3 Terminvorschläge generieren", key=f"gen_vorschlag_{projekt.projekt_id}", type="primary"):
+                vorschlag = create_termin_vorschlaege(projekt.projekt_id, notar_id, TerminTyp.BEURKUNDUNG.value)
+                if vorschlag:
+                    st.success("✅ 3 Terminvorschläge wurden erstellt und an Makler/Käufer/Verkäufer gesendet!")
 
-                        st.session_state[f"edit_termin_{projekt.projekt_id}"] = False
-                        st.success("✅ Termin gespeichert!")
-                        st.rerun()
+                    # Benachrichtigungen senden
+                    if projekt.makler_id:
+                        create_notification(
+                            projekt.makler_id,
+                            "Neue Terminvorschläge",
+                            f"Der Notar hat 3 Terminvorschläge für die Beurkundung von '{projekt.name}' erstellt.",
+                            NotificationType.INFO.value
+                        )
+                    for kid in projekt.kaeufer_ids:
+                        create_notification(kid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
+                    for vid in projekt.verkaeufer_ids:
+                        create_notification(vid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
 
-                    if cancel:
-                        st.session_state[f"edit_termin_{projekt.projekt_id}"] = False
-                        st.rerun()
+                    st.rerun()
+                else:
+                    st.error("Keine verfügbaren Termine in den nächsten 4 Wochen gefunden.")
+
+            st.markdown("---")
+
+            # Alle Termine für dieses Projekt (alle Typen)
+            st.markdown("##### 📋 Alle Termine")
+            render_termin_verwaltung(projekt, UserRole.NOTAR.value)
 
 # ============================================================================
 # NOTAR-MITARBEITER-BEREICH
