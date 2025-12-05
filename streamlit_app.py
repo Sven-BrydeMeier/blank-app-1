@@ -676,6 +676,12 @@ def init_session_state():
         # Makler-Empfehlungssystem
         st.session_state.makler_empfehlungen = {}  # ID -> MaklerEmpfehlung
 
+        # API-Keys für OCR (vom Notar konfigurierbar)
+        st.session_state.api_keys = {
+            'openai': '',
+            'anthropic': ''
+        }
+
         # Demo-Daten
         create_demo_users()
         create_demo_projekt()
@@ -868,19 +874,27 @@ def ocr_personalausweis_with_claude(image_data: bytes) -> Tuple['PersonalDaten',
     try:
         import anthropic
 
-        # API-Key aus Streamlit Secrets oder Umgebungsvariable
+        # API-Key aus Session State (Notar-Dashboard), Streamlit Secrets oder Umgebungsvariable
         api_key = None
-        try:
-            api_key = st.secrets.get("ANTHROPIC_API_KEY")
-        except:
-            pass
 
+        # 1. Prüfe Session State (vom Notar konfiguriert)
+        if 'api_keys' in st.session_state and st.session_state.api_keys.get('anthropic'):
+            api_key = st.session_state.api_keys['anthropic']
+
+        # 2. Prüfe Streamlit Secrets
+        if not api_key:
+            try:
+                api_key = st.secrets.get("ANTHROPIC_API_KEY")
+            except:
+                pass
+
+        # 3. Prüfe Umgebungsvariable
         if not api_key:
             import os
             api_key = os.environ.get("ANTHROPIC_API_KEY")
 
         if not api_key:
-            return None, "Kein Anthropic API-Key konfiguriert", 0.0
+            return None, "Kein Anthropic API-Key konfiguriert (Notar → Einstellungen)", 0.0
 
         client = anthropic.Anthropic(api_key=api_key)
 
@@ -1013,19 +1027,27 @@ def ocr_personalausweis_with_openai(image_data: bytes) -> Tuple['PersonalDaten',
     try:
         from openai import OpenAI
 
-        # API-Key aus Streamlit Secrets oder Umgebungsvariable
+        # API-Key aus Session State (Notar-Dashboard), Streamlit Secrets oder Umgebungsvariable
         api_key = None
-        try:
-            api_key = st.secrets.get("OPENAI_API_KEY")
-        except:
-            pass
 
+        # 1. Prüfe Session State (vom Notar konfiguriert)
+        if 'api_keys' in st.session_state and st.session_state.api_keys.get('openai'):
+            api_key = st.session_state.api_keys['openai']
+
+        # 2. Prüfe Streamlit Secrets
+        if not api_key:
+            try:
+                api_key = st.secrets.get("OPENAI_API_KEY")
+            except:
+                pass
+
+        # 3. Prüfe Umgebungsvariable
         if not api_key:
             import os
             api_key = os.environ.get("OPENAI_API_KEY")
 
         if not api_key:
-            return None, "Kein OpenAI API-Key konfiguriert", 0.0
+            return None, "Kein OpenAI API-Key konfiguriert (Notar → Einstellungen)", 0.0
 
         client = OpenAI(api_key=api_key)
 
@@ -5621,7 +5643,8 @@ def notar_dashboard():
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📅 Termine",
-        "🤝 Maklerempfehlung"
+        "🤝 Maklerempfehlung",
+        "⚙️ Einstellungen"
     ])
 
     with tabs[0]:
@@ -5650,6 +5673,9 @@ def notar_dashboard():
 
     with tabs[8]:
         notar_makler_empfehlung_view()
+
+    with tabs[9]:
+        notar_einstellungen_view()
 
 def notar_timeline_view():
     """Timeline für Notar"""
@@ -6408,6 +6434,118 @@ def notar_makler_empfehlung_view():
                         emp.freigegeben_am = datetime.now()
                         st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
                         st.rerun()
+
+
+def notar_einstellungen_view():
+    """Einstellungen für Notar - API-Keys für OCR konfigurieren"""
+    st.subheader("⚙️ Einstellungen")
+
+    st.info("""
+    Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
+    Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
+    """)
+
+    # Sicherstellen, dass api_keys existiert
+    if 'api_keys' not in st.session_state:
+        st.session_state.api_keys = {
+            'openai': '',
+            'anthropic': ''
+        }
+
+    st.markdown("### 🔑 API-Schlüssel für OCR")
+
+    with st.form("api_keys_form"):
+        st.markdown("#### OpenAI API")
+        st.caption("Für GPT-4 Vision OCR-Erkennung. Erhältlich unter: https://platform.openai.com/api-keys")
+
+        openai_key = st.text_input(
+            "OpenAI API-Key",
+            value=st.session_state.api_keys.get('openai', ''),
+            type="password",
+            placeholder="sk-...",
+            help="Ihr OpenAI API-Schlüssel (beginnt mit 'sk-')"
+        )
+
+        st.markdown("#### Anthropic API (Claude)")
+        st.caption("Für Claude Vision OCR-Erkennung. Erhältlich unter: https://console.anthropic.com/")
+
+        anthropic_key = st.text_input(
+            "Anthropic API-Key",
+            value=st.session_state.api_keys.get('anthropic', ''),
+            type="password",
+            placeholder="sk-ant-...",
+            help="Ihr Anthropic API-Schlüssel (beginnt mit 'sk-ant-')"
+        )
+
+        submit = st.form_submit_button("💾 API-Schlüssel speichern", type="primary")
+
+        if submit:
+            st.session_state.api_keys['openai'] = openai_key
+            st.session_state.api_keys['anthropic'] = anthropic_key
+            st.success("✅ API-Schlüssel wurden gespeichert!")
+
+    # Status-Anzeige
+    st.markdown("---")
+    st.markdown("### 📊 Status der API-Konfiguration")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**OpenAI:**")
+        if st.session_state.api_keys.get('openai'):
+            masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
+            st.success(f"✅ Konfiguriert ({masked_key})")
+        else:
+            # Prüfe auch Secrets und Umgebungsvariablen
+            has_secret = False
+            try:
+                if st.secrets.get("OPENAI_API_KEY"):
+                    has_secret = True
+            except:
+                pass
+
+            import os
+            if os.environ.get("OPENAI_API_KEY"):
+                has_secret = True
+
+            if has_secret:
+                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+            else:
+                st.warning("⚠️ Nicht konfiguriert")
+
+    with col2:
+        st.markdown("**Anthropic (Claude):**")
+        if st.session_state.api_keys.get('anthropic'):
+            masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
+            st.success(f"✅ Konfiguriert ({masked_key})")
+        else:
+            # Prüfe auch Secrets und Umgebungsvariablen
+            has_secret = False
+            try:
+                if st.secrets.get("ANTHROPIC_API_KEY"):
+                    has_secret = True
+            except:
+                pass
+
+            import os
+            if os.environ.get("ANTHROPIC_API_KEY"):
+                has_secret = True
+
+            if has_secret:
+                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+            else:
+                st.warning("⚠️ Nicht konfiguriert")
+
+    # Hinweise
+    st.markdown("---")
+    st.markdown("### ℹ️ Hinweise")
+    st.markdown("""
+    - **Priorität:** Claude Vision → OpenAI Vision → pytesseract → Demo-Daten
+    - Die API-Schlüssel werden im Session State gespeichert und sind nur für diese Sitzung gültig.
+    - Für permanente Konfiguration nutzen Sie Streamlit Secrets (`.streamlit/secrets.toml`).
+    - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
+    - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
+    """)
 
 
 # ============================================================================

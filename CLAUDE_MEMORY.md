@@ -113,6 +113,13 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Makler-Onboarding-Seite via URL-Token (?token=xxx)
 - [x] Makler: Eingabe von Bürodaten, Konditionen, AGB, Widerrufsbelehrung
 
+### API-Key Konfiguration (Notar-Dashboard)
+- [x] Neuer Tab "Einstellungen" im Notar-Dashboard
+- [x] OpenAI API-Key eingeben und speichern
+- [x] Anthropic API-Key eingeben und speichern
+- [x] Status-Anzeige für konfigurierte API-Keys
+- [x] OCR-Funktionen prüfen zuerst Session State, dann Secrets, dann Umgebungsvariablen
+
 ### Sonstige Features
 - [x] Financing Offers & Legal Document Gating
 - [x] Wirtschaftsdaten-Upload für Käufer
@@ -189,6 +196,8 @@ st.session_state = {
     'termine': Dict[str, Termin],
     'terminvorschlaege': Dict[str, TerminVorschlag],
     'notar_kalender': Dict,  # Simulierter Outlook-Kalender
+    # API-Keys (vom Notar konfigurierbar)
+    'api_keys': {'openai': str, 'anthropic': str},
 }
 ```
 
