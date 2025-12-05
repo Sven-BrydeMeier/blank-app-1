@@ -887,9 +887,30 @@ def fetch_marktdaten(projekt: Any) -> Dict[str, Any]:
     # Simulierte Vergleichsobjekte basierend auf Projektdaten
     vergleichsobjekte = []
 
+    # Lade ExposeData wenn vorhanden, sonst verwende Standardwerte
+    expose_data = None
+    if hasattr(projekt, 'expose_data_id') and projekt.expose_data_id:
+        expose_data = st.session_state.expose_daten.get(projekt.expose_data_id)
+
+    # Extrahiere Daten aus ExposeData oder verwende Standardwerte
+    wohnflaeche = getattr(expose_data, 'wohnflaeche', 80.0) if expose_data else 80.0
+    if wohnflaeche == 0:
+        wohnflaeche = 80.0
+
+    zimmer = getattr(expose_data, 'anzahl_zimmer', 3.0) if expose_data else 3.0
+    if zimmer == 0:
+        zimmer = 3.0
+
+    baujahr = getattr(expose_data, 'baujahr', 2000) if expose_data else 2000
+    if baujahr == 0:
+        baujahr = 2000
+
+    # Adresse extrahieren (aus Projekt)
+    ort = projekt.adresse.split(',')[-1].strip() if hasattr(projekt, 'adresse') and projekt.adresse else "München"
+
     # Simuliere 5 Vergleichsobjekte
     basis_preis = projekt.kaufpreis if projekt.kaufpreis > 0 else 350000
-    basis_qm_preis = basis_preis / projekt.wohnflaeche if projekt.wohnflaeche > 0 else 4500
+    basis_qm_preis = basis_preis / wohnflaeche
 
     for i in range(5):
         varianz = (i - 2) * 0.1  # -20% bis +20%
@@ -898,12 +919,12 @@ def fetch_marktdaten(projekt: Any) -> Dict[str, Any]:
 
         vergleichsobjekt = {
             "titel": f"Vergleichsobjekt {i+1}",
-            "adresse": f"{projekt.ort}, ähnliche Lage",
+            "adresse": f"{ort}, ähnliche Lage",
             "preis": vgl_preis,
-            "wohnflaeche": projekt.wohnflaeche * (1 + varianz * 0.3),
+            "wohnflaeche": wohnflaeche * (1 + varianz * 0.3),
             "preis_pro_qm": vgl_qm_preis,
-            "baujahr": projekt.baujahr + (i - 2) * 5,
-            "zimmer": projekt.zimmer,
+            "baujahr": baujahr + (i - 2) * 5,
+            "zimmer": zimmer,
             "quelle": ["ImmoScout24", "Immowelt", "Immonet", "eBay Kleinanzeigen", "ImmobilienScout24"][i]
         }
         vergleichsobjekte.append(vergleichsobjekt)
