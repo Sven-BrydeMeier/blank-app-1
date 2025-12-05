@@ -120,6 +120,30 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Status-Anzeige für konfigurierte API-Keys
 - [x] OCR-Funktionen prüfen zuerst Session State, dann Secrets, dann Umgebungsvariablen
 
+### Erweitertes Finanzierungsmodul (Käufer)
+- [x] Finanzierung anfragen Tab mit Kaufpreis/Eigenkapital-Eingabe
+- [x] Finanzierer per E-Mail einladen mit Onboarding-Token
+- [x] Dokumente-Zugriff von Verkäufer/Makler/Notar
+- [x] Wirtschaftsdaten-Upload für Finanzierer freigeben
+- [x] Umfassender Kreditrechner mit Tilgungsplan
+  - Finanzierungsbetrag, Eigenkapital, Zinssatz
+  - Tilgung als Prozent oder monatlicher Betrag
+  - Sondertilgung (Prozent p.a. oder Festbetrag, jährlich/monatlich)
+  - Volltilger-Darlehen Option
+  - Sollzinsbindung
+  - Monatliche/Jährliche Tilgungsplan-Anzeige
+  - Restschuld nach Laufzeit
+
+### Erweitertes Finanzierungsmodul (Finanzierer)
+- [x] Mehrere Angebote pro Projekt erstellen
+- [x] Produktname für Angebote
+- [x] Befristung mit Gültigkeitsdatum
+- [x] Automatisches Löschen nach Ablauf (optional)
+- [x] Sondertilgung, Effektivzins, Bereitstellungszeit
+- [x] Angebote zurückziehen und reaktivieren
+- [x] Angebote löschen
+- [x] Status-Tracking (Gesendet, Entwurf, Angenommen, Zurückgezogen, Abgelaufen)
+
 ### Sonstige Features
 - [x] Financing Offers & Legal Document Gating
 - [x] Wirtschaftsdaten-Upload für Käufer

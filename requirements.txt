@@ -2,3 +2,4 @@ streamlit
 openai
 anthropic
 pillow
+pandas

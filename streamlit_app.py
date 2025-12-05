@@ -43,6 +43,13 @@ class FinanzierungsStatus(Enum):
     GESENDET = "An Käufer gesendet"
     ANGENOMMEN = "Vom Käufer angenommen"
     ZURUECKGEZOGEN = "Zurückgezogen / gegenstandslos"
+    ABGELAUFEN = "Abgelaufen"
+
+class FinanziererEinladungStatus(Enum):
+    EINGELADEN = "Eingeladen"
+    REGISTRIERT = "Registriert"
+    AKTIV = "Aktiv"
+    DEAKTIVIERT = "Deaktiviert"
 
 class ProjektStatus(Enum):
     VORBEREITUNG = "Vorbereitung"
@@ -160,6 +167,49 @@ class FinancingOffer:
     created_at: datetime = field(default_factory=datetime.now)
     accepted_at: Optional[datetime] = None
     fuer_notar_markiert: bool = False
+    # Neue Felder für erweiterte Funktionalität
+    gueltig_bis: Optional[datetime] = None  # Befristung
+    auto_delete: bool = False  # Automatisch löschen wenn abgelaufen
+    sondertilgung_prozent: float = 0.0  # Sondertilgung in % p.a.
+    sondertilgung_max_betrag: float = 0.0  # Max. Sondertilgungsbetrag
+    bereitstellungszinsen_frei_monate: int = 0  # Bereitstellungszinsfreie Zeit
+    effektivzins: float = 0.0  # Effektiver Jahreszins
+    produktname: str = ""  # Name des Finanzierungsprodukts
+    angebot_nummer: int = 1  # Angebotsnummer für mehrere Angebote
+
+@dataclass
+class FinanziererEinladung:
+    """Einladung für Finanzierer durch Käufer/Makler/Notar"""
+    einladung_id: str
+    projekt_id: str
+    eingeladen_von: str  # User-ID
+    finanzierer_email: str
+    finanzierer_name: str = ""
+    firmenname: str = ""
+    status: str = FinanziererEinladungStatus.EINGELADEN.value
+    eingeladen_am: datetime = field(default_factory=datetime.now)
+    registriert_am: Optional[datetime] = None
+    onboarding_token: str = ""
+    finanzierer_user_id: str = ""  # Nach Registrierung
+    notiz: str = ""
+
+@dataclass
+class FinanzierungsAnfrage:
+    """Finanzierungsanfrage vom Käufer"""
+    anfrage_id: str
+    projekt_id: str
+    kaeufer_id: str
+    kaufpreis: float
+    eigenkapital: float
+    finanzierungsbetrag: float
+    wunsch_zinssatz: Optional[float] = None
+    wunsch_tilgung: Optional[float] = None
+    wunsch_laufzeit: Optional[int] = None
+    sondertilgung_gewuenscht: bool = False
+    vollfinanzierung: bool = False
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    dokumente_freigegeben: bool = False
+    notizen: str = ""
 
 @dataclass
 class WirtschaftsdatenDokument:
@@ -675,6 +725,10 @@ def init_session_state():
 
         # Makler-Empfehlungssystem
         st.session_state.makler_empfehlungen = {}  # ID -> MaklerEmpfehlung
+
+        # Finanzierungs-Erweiterung
+        st.session_state.finanzierer_einladungen = {}  # ID -> FinanziererEinladung
+        st.session_state.finanzierungsanfragen = {}  # ID -> FinanzierungsAnfrage
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         st.session_state.api_keys = {
@@ -4646,19 +4700,180 @@ def kaeufer_projekte_view():
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
 
 def kaeufer_finanzierung_view():
-    """Finanzierungs-Bereich für Käufer"""
+    """Finanzierungs-Bereich für Käufer - Erweitert"""
     st.subheader("💰 Finanzierung")
 
-    tabs = st.tabs(["📊 Finanzierungsangebote", "📤 Wirtschaftsdaten hochladen"])
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+
+    if not projekte:
+        st.info("Sie sind noch keinem Projekt zugeordnet.")
+        return
+
+    tabs = st.tabs([
+        "🏦 Finanzierung anfragen",
+        "📊 Angebote",
+        "📁 Dokumente",
+        "📤 Meine Unterlagen",
+        "🧮 Kreditrechner"
+    ])
 
     with tabs[0]:
-        kaeufer_finanzierungsangebote()
+        kaeufer_finanzierung_anfragen(projekte)
 
     with tabs[1]:
+        kaeufer_finanzierungsangebote()
+
+    with tabs[2]:
+        kaeufer_dokumente_zugriff(projekte)
+
+    with tabs[3]:
         kaeufer_wirtschaftsdaten_upload()
 
+    with tabs[4]:
+        kaeufer_finanzierungsrechner()
+
+
+def kaeufer_finanzierung_anfragen(projekte):
+    """Finanzierung anfragen und Finanzierer einladen"""
+    import uuid
+
+    st.markdown("### 🏦 Finanzierung anfragen")
+
+    user_id = st.session_state.current_user.user_id
+
+    # Sicherstellen, dass die neuen Session State Variablen existieren
+    if 'finanzierungsanfragen' not in st.session_state:
+        st.session_state.finanzierungsanfragen = {}
+    if 'finanzierer_einladungen' not in st.session_state:
+        st.session_state.finanzierer_einladungen = {}
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €", expanded=True):
+            # Prüfe ob bereits Finanzierungsanfrage existiert
+            bestehende_anfrage = None
+            for anfrage in st.session_state.finanzierungsanfragen.values():
+                if anfrage.projekt_id == projekt.projekt_id and anfrage.kaeufer_id == user_id:
+                    bestehende_anfrage = anfrage
+                    break
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 💵 Finanzierungsbedarf")
+
+                if bestehende_anfrage:
+                    st.success("✅ Finanzierungsanfrage gestellt")
+                    st.write(f"**Kaufpreis:** {bestehende_anfrage.kaufpreis:,.2f} €")
+                    st.write(f"**Eigenkapital:** {bestehende_anfrage.eigenkapital:,.2f} €")
+                    st.write(f"**Finanzierungsbetrag:** {bestehende_anfrage.finanzierungsbetrag:,.2f} €")
+                    if bestehende_anfrage.dokumente_freigegeben:
+                        st.info("📄 Dokumente für Finanzierer freigegeben")
+                else:
+                    with st.form(f"finanz_anfrage_{projekt.projekt_id}"):
+                        kaufpreis = st.number_input(
+                            "Kaufpreis (€)",
+                            value=projekt.kaufpreis,
+                            min_value=0.0,
+                            step=1000.0,
+                            key=f"kp_{projekt.projekt_id}"
+                        )
+                        eigenkapital = st.number_input(
+                            "Eigenkapital (€)",
+                            value=0.0,
+                            min_value=0.0,
+                            step=1000.0,
+                            key=f"ek_{projekt.projekt_id}"
+                        )
+                        finanzierungsbetrag = kaufpreis - eigenkapital
+
+                        st.metric("Zu finanzierender Betrag", f"{finanzierungsbetrag:,.2f} €")
+
+                        dokumente_freigeben = st.checkbox(
+                            "Meine Unterlagen für Finanzierer freigeben",
+                            value=True,
+                            key=f"freig_{projekt.projekt_id}"
+                        )
+
+                        notizen = st.text_area(
+                            "Notizen für Finanzierer (optional)",
+                            key=f"notiz_{projekt.projekt_id}",
+                            height=80
+                        )
+
+                        if st.form_submit_button("💰 Finanzierung anfragen", type="primary"):
+                            anfrage_id = f"fa_{projekt.projekt_id}_{user_id}"
+                            anfrage = FinanzierungsAnfrage(
+                                anfrage_id=anfrage_id,
+                                projekt_id=projekt.projekt_id,
+                                kaeufer_id=user_id,
+                                kaufpreis=kaufpreis,
+                                eigenkapital=eigenkapital,
+                                finanzierungsbetrag=finanzierungsbetrag,
+                                dokumente_freigegeben=dokumente_freigeben,
+                                notizen=notizen
+                            )
+                            st.session_state.finanzierungsanfragen[anfrage_id] = anfrage
+
+                            # Benachrichtigung an alle zugeordneten Finanzierer
+                            for fin_id in projekt.finanzierer_ids:
+                                create_notification(
+                                    fin_id,
+                                    "Neue Finanzierungsanfrage",
+                                    f"Käufer hat Finanzierung für {projekt.name} angefragt",
+                                    NotificationType.INFO.value
+                                )
+
+                            st.success("✅ Finanzierungsanfrage gestellt!")
+                            st.rerun()
+
+            with col2:
+                st.markdown("#### 🏦 Finanzierer einladen")
+
+                # Liste der eingeladenen Finanzierer
+                einladungen = [e for e in st.session_state.finanzierer_einladungen.values()
+                              if e.projekt_id == projekt.projekt_id]
+
+                if einladungen:
+                    st.markdown("**Eingeladene Finanzierer:**")
+                    for einl in einladungen:
+                        status_icon = "✅" if einl.status == FinanziererEinladungStatus.AKTIV.value else "⏳"
+                        st.write(f"{status_icon} {einl.firmenname or einl.finanzierer_name or einl.finanzierer_email}")
+
+                # Neue Einladung
+                with st.form(f"einlade_fin_{projekt.projekt_id}"):
+                    fin_email = st.text_input("E-Mail des Finanzierers", key=f"fin_email_{projekt.projekt_id}")
+                    fin_name = st.text_input("Name/Bank (optional)", key=f"fin_name_{projekt.projekt_id}")
+
+                    if st.form_submit_button("📧 Finanzierer einladen"):
+                        if fin_email:
+                            einl_id = f"fineinl_{len(st.session_state.finanzierer_einladungen)}"
+                            token = str(uuid.uuid4())
+
+                            neue_einladung = FinanziererEinladung(
+                                einladung_id=einl_id,
+                                projekt_id=projekt.projekt_id,
+                                eingeladen_von=user_id,
+                                finanzierer_email=fin_email,
+                                finanzierer_name=fin_name,
+                                onboarding_token=token
+                            )
+                            st.session_state.finanzierer_einladungen[einl_id] = neue_einladung
+
+                            st.success(f"""
+                            ✅ Einladung gesendet!
+
+                            **Simulierte E-Mail an:** {fin_email}
+
+                            **Registrierungslink:**
+                            https://plattform.example.com/finanzierer-registrierung?token={token}
+                            """)
+                            st.rerun()
+                        else:
+                            st.error("Bitte E-Mail-Adresse eingeben.")
+
 def kaeufer_finanzierungsangebote():
-    """Liste der Finanzierungsangebote für Käufer"""
+    """Liste der Finanzierungsangebote für Käufer - Erweitert mit Ablauf und Details"""
     st.markdown("### 📊 Eingegangene Finanzierungsangebote")
 
     user_id = st.session_state.current_user.user_id
@@ -4667,6 +4882,14 @@ def kaeufer_finanzierungsangebote():
     for offer in st.session_state.financing_offers.values():
         projekt = st.session_state.projekte.get(offer.projekt_id)
         if projekt and user_id in projekt.kaeufer_ids:
+            # Prüfe auf abgelaufene Angebote
+            if offer.gueltig_bis and datetime.now() > offer.gueltig_bis:
+                if offer.auto_delete:
+                    continue  # Angebot nicht anzeigen
+                elif offer.status == FinanzierungsStatus.GESENDET.value:
+                    offer.status = FinanzierungsStatus.ABGELAUFEN.value
+                    st.session_state.financing_offers[offer.offer_id] = offer
+
             if offer.status in [FinanzierungsStatus.GESENDET.value, FinanzierungsStatus.ANGENOMMEN.value]:
                 relevante_angebote.append(offer)
 
@@ -4674,29 +4897,68 @@ def kaeufer_finanzierungsangebote():
         st.info("📭 Noch keine Finanzierungsangebote vorhanden.")
         return
 
+    # Sortiere nach Status (Gesendet zuerst) und Datum
+    relevante_angebote.sort(key=lambda x: (x.status != FinanzierungsStatus.GESENDET.value, x.created_at), reverse=True)
+
     for offer in relevante_angebote:
         finanzierer = st.session_state.users.get(offer.finanzierer_id)
         finanzierer_name = finanzierer.name if finanzierer else "Unbekannt"
 
         status_icon = "✅" if offer.status == FinanzierungsStatus.ANGENOMMEN.value else "📧"
+        produkt_info = f" - {offer.produktname}" if offer.produktname else ""
 
-        with st.expander(f"{status_icon} Angebot von {finanzierer_name} - {offer.zinssatz}% Zinssatz",
+        # Gültigkeit prüfen
+        ablauf_warnung = ""
+        if offer.gueltig_bis and offer.status == FinanzierungsStatus.GESENDET.value:
+            verbleibend = (offer.gueltig_bis - datetime.now()).days
+            if verbleibend <= 3:
+                ablauf_warnung = f" ⚠️ Läuft in {verbleibend} Tag(en) ab!"
+            elif verbleibend <= 7:
+                ablauf_warnung = f" ⏰ Gültig bis {offer.gueltig_bis.strftime('%d.%m.%Y')}"
+
+        with st.expander(f"{status_icon} {finanzierer_name}{produkt_info} - {offer.zinssatz}% Zinssatz{ablauf_warnung}",
                         expanded=(offer.status == FinanzierungsStatus.GESENDET.value)):
 
-            col1, col2 = st.columns(2)
+            # Haupt-Konditionen
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
-                st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
-                st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
+                st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
+                if offer.effektivzins > 0:
+                    st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
 
             with col2:
+                st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
                 st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
                 st.metric("Sollzinsbindung", f"{offer.sollzinsbindung} Jahre")
+
+            with col3:
                 st.metric("Gesamtlaufzeit", f"{offer.gesamtlaufzeit} Jahre")
+                if offer.sondertilgung_prozent > 0:
+                    st.metric("Sondertilgung", f"{offer.sondertilgung_prozent}% p.a.")
+                if offer.bereitstellungszinsen_frei_monate > 0:
+                    st.metric("Bereitst.-frei", f"{offer.bereitstellungszinsen_frei_monate} Mon.")
+
+            # Tilgungsplan anzeigen
+            if st.checkbox("📊 Tilgungsplan anzeigen", key=f"tilg_{offer.offer_id}"):
+                render_tilgungsplan(
+                    darlehensbetrag=offer.darlehensbetrag,
+                    zinssatz=offer.zinssatz,
+                    tilgungssatz=offer.tilgungssatz,
+                    laufzeit_monate=offer.gesamtlaufzeit * 12,
+                    key_prefix=f"offer_{offer.offer_id}"
+                )
 
             if offer.besondere_bedingungen:
                 st.markdown("**Besondere Bedingungen:**")
                 st.info(offer.besondere_bedingungen)
+
+            # Gültigkeit
+            if offer.gueltig_bis:
+                if datetime.now() > offer.gueltig_bis:
+                    st.error(f"⛔ Angebot am {offer.gueltig_bis.strftime('%d.%m.%Y')} abgelaufen")
+                else:
+                    st.warning(f"⏰ Gültig bis: {offer.gueltig_bis.strftime('%d.%m.%Y %H:%M')}")
 
             if offer.pdf_data:
                 st.download_button(
@@ -4747,6 +5009,164 @@ def kaeufer_finanzierungsangebote():
                 st.success(f"✅ Angenommen am {offer.accepted_at.strftime('%d.%m.%Y %H:%M')}")
                 if offer.fuer_notar_markiert:
                     st.info("📋 Als Finanzierungsnachweis für Notar markiert")
+
+
+def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: float,
+                       laufzeit_monate: int, sondertilgung_jaehrlich: float = 0,
+                       key_prefix: str = "tilg"):
+    """Zeigt einen Tilgungsplan mit monatlichen Raten an"""
+    import pandas as pd
+
+    if darlehensbetrag <= 0 or zinssatz <= 0 or tilgungssatz <= 0:
+        st.warning("Bitte gültige Werte eingeben.")
+        return
+
+    # Berechnung
+    monatszins = zinssatz / 100 / 12
+    anfaengliche_rate = darlehensbetrag * (zinssatz + tilgungssatz) / 100 / 12
+
+    tilgungsplan = []
+    restschuld = darlehensbetrag
+    gesamt_zinsen = 0
+    gesamt_tilgung = 0
+
+    for monat in range(1, min(laufzeit_monate + 1, 361)):  # Max 30 Jahre
+        if restschuld <= 0:
+            break
+
+        zinsen = restschuld * monatszins
+        tilgung = anfaengliche_rate - zinsen
+
+        # Sondertilgung am Jahresende
+        if monat % 12 == 0 and sondertilgung_jaehrlich > 0:
+            tilgung += sondertilgung_jaehrlich
+
+        if tilgung > restschuld:
+            tilgung = restschuld
+
+        restschuld -= tilgung
+        gesamt_zinsen += zinsen
+        gesamt_tilgung += tilgung
+
+        tilgungsplan.append({
+            'Monat': monat,
+            'Jahr': (monat - 1) // 12 + 1,
+            'Rate': anfaengliche_rate,
+            'Zinsen': zinsen,
+            'Tilgung': tilgung,
+            'Restschuld': max(0, restschuld)
+        })
+
+    if tilgungsplan:
+        df = pd.DataFrame(tilgungsplan)
+
+        # Zusammenfassung
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Monatliche Rate", f"{anfaengliche_rate:,.2f} €")
+        with col2:
+            st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+        with col3:
+            st.metric("Restschuld nach Laufzeit", f"{tilgungsplan[-1]['Restschuld']:,.2f} €")
+
+        # Jährliche Zusammenfassung
+        anzeige_option = st.radio(
+            "Anzeige",
+            ["Jährlich", "Monatlich (erste 24 Monate)"],
+            horizontal=True,
+            key=f"{key_prefix}_anzeige"
+        )
+
+        if anzeige_option == "Jährlich":
+            df_jaehrlich = df.groupby('Jahr').agg({
+                'Zinsen': 'sum',
+                'Tilgung': 'sum',
+                'Restschuld': 'last'
+            }).reset_index()
+            df_jaehrlich.columns = ['Jahr', 'Zinsen (€)', 'Tilgung (€)', 'Restschuld (€)']
+
+            st.dataframe(
+                df_jaehrlich.style.format({
+                    'Zinsen (€)': '{:,.2f}',
+                    'Tilgung (€)': '{:,.2f}',
+                    'Restschuld (€)': '{:,.2f}'
+                }),
+                use_container_width=True,
+                height=400
+            )
+        else:
+            df_monatlich = df.head(24)[['Monat', 'Rate', 'Zinsen', 'Tilgung', 'Restschuld']]
+            df_monatlich.columns = ['Monat', 'Rate (€)', 'Zinsen (€)', 'Tilgung (€)', 'Restschuld (€)']
+
+            st.dataframe(
+                df_monatlich.style.format({
+                    'Rate (€)': '{:,.2f}',
+                    'Zinsen (€)': '{:,.2f}',
+                    'Tilgung (€)': '{:,.2f}',
+                    'Restschuld (€)': '{:,.2f}'
+                }),
+                use_container_width=True,
+                height=400
+            )
+
+
+def kaeufer_dokumente_zugriff(projekte):
+    """Zugriff auf Dokumente von Verkäufer/Makler/Notar"""
+    st.markdown("### 📁 Dokumente einsehen")
+    st.info("Hier finden Sie Dokumente, die Ihnen vom Verkäufer, Makler oder Notar bereitgestellt wurden.")
+
+    user_id = st.session_state.current_user.user_id
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+            doc_tabs = st.tabs(["📄 Verkäufer", "📑 Makler", "⚖️ Notar"])
+
+            # Verkäufer-Dokumente
+            with doc_tabs[0]:
+                verk_docs = []
+                for doc in st.session_state.verkaeufer_dokumente.values():
+                    if hasattr(doc, 'projekt_id') and doc.projekt_id == projekt.projekt_id:
+                        if hasattr(doc, 'freigegeben_fuer_kaeufer') and doc.freigegeben_fuer_kaeufer:
+                            verk_docs.append(doc)
+
+                if verk_docs:
+                    for doc in verk_docs:
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.write(f"📄 {doc.filename if hasattr(doc, 'filename') else doc.name}")
+                        with col2:
+                            if hasattr(doc, 'pdf_data') and doc.pdf_data:
+                                st.download_button("📥", doc.pdf_data, file_name=doc.filename, key=f"verk_{doc.doc_id}")
+                else:
+                    st.info("Noch keine Dokumente vom Verkäufer freigegeben.")
+
+            # Makler-Dokumente (Exposé etc.)
+            with doc_tabs[1]:
+                expose = st.session_state.expose_data.get(projekt.projekt_id)
+                if expose:
+                    st.success("✅ Exposé verfügbar")
+                    # Link zum Exposé
+                    if projekt.expose_pdf:
+                        st.download_button(
+                            "📥 Exposé herunterladen",
+                            projekt.expose_pdf,
+                            file_name=f"Expose_{projekt.name}.pdf",
+                            mime="application/pdf",
+                            key=f"makler_expose_{projekt.projekt_id}"
+                        )
+                else:
+                    st.info("Noch keine Dokumente vom Makler.")
+
+            # Notar-Dokumente
+            with doc_tabs[2]:
+                # Checklisten
+                notar_docs = st.session_state.notar_checklists.get(projekt.projekt_id, {})
+                if notar_docs:
+                    st.write("**Notarielle Checklisten:**")
+                    for name, check in notar_docs.items():
+                        st.write(f"📋 {name}")
+                else:
+                    st.info("Noch keine Dokumente vom Notar.")
 
 def kaeufer_wirtschaftsdaten_upload():
     """Upload-Bereich für Wirtschaftsdaten"""
@@ -4856,6 +5276,297 @@ def kaeufer_wirtschaftsdaten_upload():
                     st.markdown("---")
     else:
         st.info("Noch keine Dokumente hochgeladen.")
+
+
+def kaeufer_finanzierungsrechner():
+    """Umfassender Finanzierungsrechner für Käufer"""
+    import pandas as pd
+
+    st.markdown("### 🧮 Kreditrechner")
+    st.info("""
+    Berechnen Sie hier Ihre persönliche Finanzierung. Geben Sie Ihre Wunschkonditionen ein
+    und sehen Sie den kompletten Tilgungsverlauf mit monatlicher Zins- und Tilgungsaufstellung.
+    """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 💵 Finanzierungsdaten")
+
+        finanzierungsbetrag = st.number_input(
+            "Zu finanzierender Betrag (€)",
+            min_value=10000.0,
+            max_value=10000000.0,
+            value=300000.0,
+            step=5000.0,
+            key="rechner_betrag"
+        )
+
+        eigenkapital = st.number_input(
+            "Eigenkapital (€)",
+            min_value=0.0,
+            max_value=finanzierungsbetrag,
+            value=0.0,
+            step=1000.0,
+            key="rechner_ek"
+        )
+
+        darlehensbetrag = finanzierungsbetrag - eigenkapital
+        st.metric("Darlehensbetrag", f"{darlehensbetrag:,.2f} €")
+
+    with col2:
+        st.markdown("#### 📊 Konditionen")
+
+        zinssatz = st.number_input(
+            "Sollzinssatz (% p.a.)",
+            min_value=0.1,
+            max_value=15.0,
+            value=3.5,
+            step=0.1,
+            key="rechner_zins"
+        )
+
+        # Tilgung: entweder Prozent oder Betrag
+        tilgung_typ = st.radio(
+            "Tilgung angeben als:",
+            ["Prozent", "Monatlicher Betrag"],
+            horizontal=True,
+            key="rechner_tilg_typ"
+        )
+
+        if tilgung_typ == "Prozent":
+            tilgungssatz = st.number_input(
+                "Anfänglicher Tilgungssatz (% p.a.)",
+                min_value=0.5,
+                max_value=10.0,
+                value=2.0,
+                step=0.1,
+                key="rechner_tilg"
+            )
+            monatliche_rate = darlehensbetrag * (zinssatz + tilgungssatz) / 100 / 12
+        else:
+            monatliche_rate = st.number_input(
+                "Monatliche Rate (€)",
+                min_value=100.0,
+                max_value=50000.0,
+                value=1500.0,
+                step=50.0,
+                key="rechner_rate"
+            )
+            # Tilgungssatz berechnen
+            monatszins_anteil = darlehensbetrag * (zinssatz / 100 / 12)
+            tilgung_anteil = monatliche_rate - monatszins_anteil
+            tilgungssatz = (tilgung_anteil * 12 / darlehensbetrag) * 100 if darlehensbetrag > 0 else 0
+
+    st.markdown("---")
+
+    # Erweiterte Optionen
+    with st.expander("⚙️ Erweiterte Optionen"):
+        col3, col4 = st.columns(2)
+
+        with col3:
+            sollzinsbindung = st.number_input(
+                "Sollzinsbindung (Jahre)",
+                min_value=1,
+                max_value=30,
+                value=10,
+                key="rechner_bindung"
+            )
+
+            vollltilger = st.checkbox(
+                "Volltilger-Darlehen (vollständige Tilgung in Laufzeit)",
+                key="rechner_volltilger"
+            )
+
+        with col4:
+            # Sondertilgung
+            st.markdown("**Sondertilgung:**")
+            sondertilgung_typ = st.radio(
+                "Art der Sondertilgung",
+                ["Keine", "Prozent p.a.", "Fester Betrag"],
+                horizontal=True,
+                key="rechner_st_typ"
+            )
+
+            sondertilgung_betrag = 0.0
+            if sondertilgung_typ == "Prozent p.a.":
+                sondertilgung_prozent = st.number_input(
+                    "Sondertilgung (% p.a.)",
+                    min_value=0.0,
+                    max_value=10.0,
+                    value=5.0,
+                    step=0.5,
+                    key="rechner_st_proz"
+                )
+                sondertilgung_betrag = darlehensbetrag * sondertilgung_prozent / 100
+            elif sondertilgung_typ == "Fester Betrag":
+                sondertilgung_betrag = st.number_input(
+                    "Sondertilgung pro Jahr (€)",
+                    min_value=0.0,
+                    max_value=100000.0,
+                    value=10000.0,
+                    step=1000.0,
+                    key="rechner_st_betrag"
+                )
+
+            sondertilgung_zeitpunkt = st.radio(
+                "Sondertilgung",
+                ["Jährlich", "Monatlich"],
+                horizontal=True,
+                key="rechner_st_zeit"
+            ) if sondertilgung_betrag > 0 else "Jährlich"
+
+    # Berechnung durchführen
+    if st.button("📊 Finanzierung berechnen", type="primary", use_container_width=True):
+        if darlehensbetrag <= 0:
+            st.error("Bitte geben Sie einen Darlehensbetrag größer 0 ein.")
+            return
+
+        # Vollltilger-Berechnung
+        if vollltilger:
+            laufzeit_monate = sollzinsbindung * 12
+            monatszins = zinssatz / 100 / 12
+            # Annuitätenformel für Volltilger
+            if monatszins > 0:
+                monatliche_rate = darlehensbetrag * (monatszins * (1 + monatszins)**laufzeit_monate) / ((1 + monatszins)**laufzeit_monate - 1)
+            else:
+                monatliche_rate = darlehensbetrag / laufzeit_monate
+        else:
+            laufzeit_monate = 360  # Max 30 Jahre
+
+        # Tilgungsplan berechnen
+        monatszins = zinssatz / 100 / 12
+        sondertilg_monatlich = sondertilgung_betrag / 12 if sondertilgung_zeitpunkt == "Monatlich" else 0
+
+        tilgungsplan = []
+        restschuld = darlehensbetrag
+        gesamt_zinsen = 0
+        gesamt_tilgung = 0
+
+        for monat in range(1, laufzeit_monate + 1):
+            if restschuld <= 0:
+                break
+
+            zinsen = restschuld * monatszins
+            tilgung = monatliche_rate - zinsen
+
+            # Sondertilgung
+            if sondertilgung_typ != "Keine":
+                if sondertilgung_zeitpunkt == "Jährlich" and monat % 12 == 0:
+                    tilgung += sondertilgung_betrag
+                elif sondertilgung_zeitpunkt == "Monatlich":
+                    tilgung += sondertilg_monatlich
+
+            if tilgung > restschuld:
+                tilgung = restschuld
+                rate_effektiv = zinsen + tilgung
+            else:
+                rate_effektiv = monatliche_rate + (sondertilg_monatlich if sondertilgung_zeitpunkt == "Monatlich" else 0)
+
+            restschuld -= tilgung
+            gesamt_zinsen += zinsen
+            gesamt_tilgung += tilgung
+
+            tilgungsplan.append({
+                'Monat': monat,
+                'Jahr': (monat - 1) // 12 + 1,
+                'Rate': rate_effektiv,
+                'Zinsen': zinsen,
+                'Tilgung': tilgung,
+                'Restschuld': max(0, restschuld)
+            })
+
+            if restschuld <= 0:
+                break
+
+        if tilgungsplan:
+            df = pd.DataFrame(tilgungsplan)
+
+            # Zusammenfassung
+            st.markdown("---")
+            st.markdown("### 📈 Ergebnis")
+
+            letzte_restschuld = tilgungsplan[-1]['Restschuld']
+            laufzeit_effektiv = len(tilgungsplan)
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Monatliche Rate", f"{monatliche_rate:,.2f} €")
+            with col2:
+                st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+            with col3:
+                st.metric("Restschuld", f"{letzte_restschuld:,.2f} €")
+            with col4:
+                st.metric("Laufzeit", f"{laufzeit_effektiv // 12} J. {laufzeit_effektiv % 12} M.")
+
+            # Zusätzliche Infos
+            gesamtkosten = gesamt_zinsen + darlehensbetrag
+            st.info(f"💰 **Gesamtkosten des Kredits:** {gesamtkosten:,.2f} € (Darlehensbetrag + Zinsen)")
+
+            if sollzinsbindung * 12 < laufzeit_effektiv and not vollltilger:
+                restschuld_bei_bindung = df[df['Monat'] == sollzinsbindung * 12]['Restschuld'].values
+                if len(restschuld_bei_bindung) > 0:
+                    st.warning(f"⚠️ **Restschuld nach {sollzinsbindung} Jahren Sollzinsbindung:** {restschuld_bei_bindung[0]:,.2f} €")
+
+            # Tilgungsplan anzeigen
+            st.markdown("---")
+            st.markdown("### 📋 Tilgungsplan")
+
+            anzeige = st.radio(
+                "Anzeige",
+                ["📅 Jährlich", "📆 Monatlich (alle)", "📊 Erste 24 Monate"],
+                horizontal=True,
+                key="rechner_anzeige"
+            )
+
+            if anzeige == "📅 Jährlich":
+                df_jaehrlich = df.groupby('Jahr').agg({
+                    'Zinsen': 'sum',
+                    'Tilgung': 'sum',
+                    'Restschuld': 'last'
+                }).reset_index()
+                df_jaehrlich.columns = ['Jahr', 'Zinsen (€)', 'Tilgung (€)', 'Restschuld (€)']
+
+                st.dataframe(
+                    df_jaehrlich.style.format({
+                        'Zinsen (€)': '{:,.2f}',
+                        'Tilgung (€)': '{:,.2f}',
+                        'Restschuld (€)': '{:,.2f}'
+                    }),
+                    use_container_width=True,
+                    height=400
+                )
+
+            elif anzeige == "📆 Monatlich (alle)":
+                df_display = df[['Monat', 'Rate', 'Zinsen', 'Tilgung', 'Restschuld']].copy()
+                df_display.columns = ['Monat', 'Rate (€)', 'Zinsen (€)', 'Tilgung (€)', 'Restschuld (€)']
+
+                st.dataframe(
+                    df_display.style.format({
+                        'Rate (€)': '{:,.2f}',
+                        'Zinsen (€)': '{:,.2f}',
+                        'Tilgung (€)': '{:,.2f}',
+                        'Restschuld (€)': '{:,.2f}'
+                    }),
+                    use_container_width=True,
+                    height=400
+                )
+
+            else:  # Erste 24 Monate
+                df_24 = df.head(24)[['Monat', 'Rate', 'Zinsen', 'Tilgung', 'Restschuld']].copy()
+                df_24.columns = ['Monat', 'Rate (€)', 'Zinsen (€)', 'Tilgung (€)', 'Restschuld (€)']
+
+                st.dataframe(
+                    df_24.style.format({
+                        'Rate (€)': '{:,.2f}',
+                        'Zinsen (€)': '{:,.2f}',
+                        'Tilgung (€)': '{:,.2f}',
+                        'Restschuld (€)': '{:,.2f}'
+                    }),
+                    use_container_width=True,
+                    height=400
+                )
+
 
 def kaeufer_nachrichten():
     """Nachrichten für Käufer"""
@@ -5488,7 +6199,7 @@ def finanzierer_wirtschaftsdaten_view():
         st.markdown("---")
 
 def finanzierer_angebote_erstellen():
-    """Formular zum Erstellen von Finanzierungsangeboten"""
+    """Formular zum Erstellen von Finanzierungsangeboten - Erweitert"""
     st.subheader("💰 Neues Finanzierungsangebot erstellen")
 
     finanzierer_id = st.session_state.current_user.user_id
@@ -5504,22 +6215,57 @@ def finanzierer_angebote_erstellen():
         selected_projekt_name = st.selectbox("Projekt", list(projekt_options.keys()))
         projekt_id = projekt_options[selected_projekt_name]
 
+        # Produktname
+        produktname = st.text_input(
+            "Produktname (optional)",
+            placeholder="z.B. Baufinanzierung Flex, Immobilienkredit Premium",
+            help="Ein eindeutiger Name für dieses Angebot"
+        )
+
         st.markdown("### 📋 Konditionen")
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             darlehensbetrag = st.number_input("Darlehensbetrag (€)", min_value=0.0, value=300000.0, step=1000.0)
-            zinssatz = st.number_input("Zinssatz (%)", min_value=0.0, max_value=20.0, value=3.5, step=0.1)
+            zinssatz = st.number_input("Sollzinssatz (%)", min_value=0.0, max_value=20.0, value=3.5, step=0.1)
             tilgungssatz = st.number_input("Tilgungssatz (%)", min_value=0.0, max_value=10.0, value=2.0, step=0.1)
 
         with col2:
             sollzinsbindung = st.number_input("Sollzinsbindung (Jahre)", min_value=1, max_value=40, value=10)
             gesamtlaufzeit = st.number_input("Gesamtlaufzeit (Jahre)", min_value=1, max_value=40, value=30)
+            effektivzins = st.number_input("Effektivzins (%)", min_value=0.0, max_value=20.0, value=3.65, step=0.01)
+
+        with col3:
             monatliche_rate = st.number_input("Monatliche Rate (€)", min_value=0.0, value=1375.0, step=10.0)
+            sondertilgung_prozent = st.number_input("Sondertilgung (% p.a.)", min_value=0.0, max_value=10.0, value=5.0, step=0.5)
+            bereitstellungszinsen_frei = st.number_input("Bereitst.-frei (Monate)", min_value=0, max_value=24, value=6)
+
+        st.markdown("### ⏰ Gültigkeit & Optionen")
+
+        col4, col5 = st.columns(2)
+        with col4:
+            befristung_aktiv = st.checkbox("Angebot befristen", value=False)
+            if befristung_aktiv:
+                gueltig_bis_date = st.date_input(
+                    "Gültig bis",
+                    value=date.today() + timedelta(days=14),
+                    min_value=date.today()
+                )
+                gueltig_bis = datetime.combine(gueltig_bis_date, datetime.max.time())
+            else:
+                gueltig_bis = None
+
+        with col5:
+            auto_delete = st.checkbox(
+                "Automatisch löschen nach Ablauf",
+                value=False,
+                disabled=not befristung_aktiv,
+                help="Angebot wird nach Ablauf automatisch entfernt"
+            )
 
         besondere_bedingungen = st.text_area(
             "Besondere Bedingungen",
-            placeholder="z.B. Sondertilgung bis 5% p.a., bereitstellungszinsfreie Zeit 6 Monate",
+            placeholder="z.B. Bereitstellungszinsen 0,25% p.m. nach bereitstellungsfreier Zeit, Mindest-Eigenkapital 10%",
             height=100
         )
 
@@ -5532,7 +6278,12 @@ def finanzierer_angebote_erstellen():
             an_kaeufer = st.form_submit_button("📧 An Käufer senden", type="primary")
 
         if als_entwurf or an_kaeufer:
-            offer_id = f"offer_{len(st.session_state.financing_offers)}"
+            # Angebotsnummer ermitteln (für mehrere Angebote pro Projekt)
+            bestehende_angebote = [o for o in st.session_state.financing_offers.values()
+                                  if o.projekt_id == projekt_id and o.finanzierer_id == finanzierer_id]
+            angebot_nummer = len(bestehende_angebote) + 1
+
+            offer_id = f"offer_{len(st.session_state.financing_offers)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             status = FinanzierungsStatus.ENTWURF.value if als_entwurf else FinanzierungsStatus.GESENDET.value
 
             offer = FinancingOffer(
@@ -5547,7 +6298,14 @@ def finanzierer_angebote_erstellen():
                 monatliche_rate=monatliche_rate,
                 besondere_bedingungen=besondere_bedingungen,
                 status=status,
-                pdf_data=pdf_upload.read() if pdf_upload else None
+                pdf_data=pdf_upload.read() if pdf_upload else None,
+                gueltig_bis=gueltig_bis,
+                auto_delete=auto_delete,
+                sondertilgung_prozent=sondertilgung_prozent,
+                bereitstellungszinsen_frei_monate=bereitstellungszinsen_frei,
+                effektivzins=effektivzins,
+                produktname=produktname,
+                angebot_nummer=angebot_nummer
             )
 
             st.session_state.financing_offers[offer_id] = offer
@@ -5570,12 +6328,12 @@ def finanzierer_angebote_erstellen():
             if als_entwurf:
                 st.success("✅ Angebot als Entwurf gespeichert!")
             else:
-                st.success("✅ Angebot wurde an Käufer gesendet!")
+                st.success(f"✅ Angebot #{angebot_nummer} wurde an Käufer gesendet!")
 
             st.rerun()
 
 def finanzierer_angebote_liste():
-    """Liste aller Angebote des Finanzierers"""
+    """Liste aller Angebote des Finanzierers - Erweitert mit Bearbeiten/Löschen"""
     st.subheader("📜 Meine Finanzierungsangebote")
 
     finanzierer_id = st.session_state.current_user.user_id
@@ -5586,45 +6344,179 @@ def finanzierer_angebote_liste():
         st.info("Noch keine Angebote erstellt.")
         return
 
-    status_gruppen = {}
+    # Prüfe auf abgelaufene Angebote und lösche auto-delete Angebote
+    angebote_zu_loeschen = []
     for offer in meine_angebote:
-        if offer.status not in status_gruppen:
-            status_gruppen[offer.status] = []
-        status_gruppen[offer.status].append(offer)
+        if offer.gueltig_bis and datetime.now() > offer.gueltig_bis:
+            if offer.auto_delete and offer.status != FinanzierungsStatus.ANGENOMMEN.value:
+                angebote_zu_loeschen.append(offer.offer_id)
+            elif offer.status == FinanzierungsStatus.GESENDET.value:
+                offer.status = FinanzierungsStatus.ABGELAUFEN.value
+                st.session_state.financing_offers[offer.offer_id] = offer
 
-    for status, offers in status_gruppen.items():
-        st.markdown(f"### {status} ({len(offers)})")
+    for offer_id in angebote_zu_loeschen:
+        del st.session_state.financing_offers[offer_id]
+        meine_angebote = [o for o in meine_angebote if o.offer_id != offer_id]
 
-        for offer in offers:
-            projekt = st.session_state.projekte.get(offer.projekt_id)
-            projekt_name = projekt.name if projekt else "Unbekannt"
+    if not meine_angebote:
+        st.info("Noch keine Angebote erstellt.")
+        return
 
-            with st.expander(f"💰 {projekt_name} - {offer.darlehensbetrag:,.0f} € | {offer.zinssatz}%"):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
-                    st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
-                with col2:
-                    st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
-                    st.metric("Laufzeit", f"{offer.gesamtlaufzeit} Jahre")
-                with col3:
-                    st.write(f"**Status:** {offer.status}")
-                    st.write(f"**Erstellt:** {offer.created_at.strftime('%d.%m.%Y')}")
-                    if offer.accepted_at:
-                        st.write(f"**Angenommen:** {offer.accepted_at.strftime('%d.%m.%Y')}")
+    # Tabs für Status
+    status_tabs = st.tabs(["📧 Gesendet", "💾 Entwürfe", "✅ Angenommen", "🗑️ Zurückgezogen/Abgelaufen"])
 
-                if offer.status == FinanzierungsStatus.ENTWURF.value:
-                    if st.button("📧 An Käufer senden", key=f"send_{offer.offer_id}"):
-                        offer.status = FinanzierungsStatus.GESENDET.value
+    # Gesendet
+    with status_tabs[0]:
+        gesendet = [o for o in meine_angebote if o.status == FinanzierungsStatus.GESENDET.value]
+        if not gesendet:
+            st.info("Keine gesendeten Angebote.")
+        else:
+            for offer in gesendet:
+                render_finanzierer_angebot_card(offer, editable=True)
 
-                        # Benachrichtigungen
-                        projekt = st.session_state.projekte.get(offer.projekt_id)
-                        if projekt:
-                            for kaeufer_id in projekt.kaeufer_ids:
-                                create_notification(kaeufer_id, "Neues Finanzierungsangebot", f"Sie haben ein neues Finanzierungsangebot für {projekt.name}", NotificationType.INFO.value)
+    # Entwürfe
+    with status_tabs[1]:
+        entwuerfe = [o for o in meine_angebote if o.status == FinanzierungsStatus.ENTWURF.value]
+        if not entwuerfe:
+            st.info("Keine Entwürfe.")
+        else:
+            for offer in entwuerfe:
+                render_finanzierer_angebot_card(offer, editable=True, is_draft=True)
 
-                        st.success("✅ Angebot wurde gesendet!")
-                        st.rerun()
+    # Angenommen
+    with status_tabs[2]:
+        angenommen = [o for o in meine_angebote if o.status == FinanzierungsStatus.ANGENOMMEN.value]
+        if not angenommen:
+            st.info("Noch keine angenommenen Angebote.")
+        else:
+            for offer in angenommen:
+                render_finanzierer_angebot_card(offer, editable=False)
+
+    # Zurückgezogen/Abgelaufen
+    with status_tabs[3]:
+        inaktiv = [o for o in meine_angebote if o.status in [
+            FinanzierungsStatus.ZURUECKGEZOGEN.value,
+            FinanzierungsStatus.ABGELAUFEN.value
+        ]]
+        if not inaktiv:
+            st.info("Keine zurückgezogenen oder abgelaufenen Angebote.")
+        else:
+            for offer in inaktiv:
+                render_finanzierer_angebot_card(offer, editable=False, show_reactivate=True)
+
+
+def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_reactivate=False):
+    """Rendert eine Angebotskarte für Finanzierer mit Aktionen"""
+    projekt = st.session_state.projekte.get(offer.projekt_id)
+    projekt_name = projekt.name if projekt else "Unbekannt"
+
+    # Titel mit Produktname
+    titel = offer.produktname if offer.produktname else f"Angebot #{offer.angebot_nummer}"
+
+    # Status-Icon
+    status_icons = {
+        FinanzierungsStatus.GESENDET.value: "📧",
+        FinanzierungsStatus.ENTWURF.value: "💾",
+        FinanzierungsStatus.ANGENOMMEN.value: "✅",
+        FinanzierungsStatus.ZURUECKGEZOGEN.value: "🗑️",
+        FinanzierungsStatus.ABGELAUFEN.value: "⏰"
+    }
+    icon = status_icons.get(offer.status, "💰")
+
+    # Gültigkeit prüfen
+    ablauf_info = ""
+    if offer.gueltig_bis and offer.status == FinanzierungsStatus.GESENDET.value:
+        verbleibend = (offer.gueltig_bis - datetime.now()).days
+        if verbleibend <= 0:
+            ablauf_info = " ⛔ ABGELAUFEN"
+        elif verbleibend <= 3:
+            ablauf_info = f" ⚠️ {verbleibend}T"
+
+    with st.expander(f"{icon} {projekt_name} - {titel} | {offer.darlehensbetrag:,.0f} € | {offer.zinssatz}%{ablauf_info}"):
+        # Konditionen
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+            st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
+            if offer.effektivzins > 0:
+                st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
+        with col2:
+            st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+            st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
+            st.metric("Laufzeit", f"{offer.gesamtlaufzeit} Jahre")
+        with col3:
+            st.write(f"**Status:** {offer.status}")
+            st.write(f"**Erstellt:** {offer.created_at.strftime('%d.%m.%Y')}")
+            if offer.gueltig_bis:
+                st.write(f"**Gültig bis:** {offer.gueltig_bis.strftime('%d.%m.%Y')}")
+            if offer.sondertilgung_prozent > 0:
+                st.write(f"**Sondertilgung:** {offer.sondertilgung_prozent}% p.a.")
+            if offer.accepted_at:
+                st.success(f"Angenommen: {offer.accepted_at.strftime('%d.%m.%Y')}")
+
+        if offer.besondere_bedingungen:
+            st.info(f"**Bedingungen:** {offer.besondere_bedingungen}")
+
+        # Aktionen
+        st.markdown("---")
+
+        if is_draft:
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                if st.button("📧 An Käufer senden", key=f"send_{offer.offer_id}", type="primary"):
+                    offer.status = FinanzierungsStatus.GESENDET.value
+                    st.session_state.financing_offers[offer.offer_id] = offer
+
+                    # Benachrichtigungen
+                    if projekt:
+                        for kaeufer_id in projekt.kaeufer_ids:
+                            create_notification(kaeufer_id, "Neues Finanzierungsangebot",
+                                              f"Sie haben ein neues Finanzierungsangebot für {projekt.name}",
+                                              NotificationType.INFO.value)
+                    st.success("✅ Angebot wurde gesendet!")
+                    st.rerun()
+
+            with col_c:
+                if st.button("🗑️ Löschen", key=f"del_{offer.offer_id}"):
+                    del st.session_state.financing_offers[offer.offer_id]
+                    st.success("Angebot gelöscht.")
+                    st.rerun()
+
+        elif editable and offer.status == FinanzierungsStatus.GESENDET.value:
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("↩️ Zurückziehen", key=f"revoke_{offer.offer_id}"):
+                    offer.status = FinanzierungsStatus.ZURUECKGEZOGEN.value
+                    st.session_state.financing_offers[offer.offer_id] = offer
+
+                    # Benachrichtigung
+                    if projekt:
+                        for kaeufer_id in projekt.kaeufer_ids:
+                            create_notification(kaeufer_id, "Angebot zurückgezogen",
+                                              f"Das Finanzierungsangebot für {projekt.name} wurde zurückgezogen",
+                                              NotificationType.WARNING.value)
+                    st.warning("Angebot zurückgezogen.")
+                    st.rerun()
+
+            with col_b:
+                if st.button("🗑️ Löschen", key=f"del_{offer.offer_id}"):
+                    del st.session_state.financing_offers[offer.offer_id]
+                    st.success("Angebot gelöscht.")
+                    st.rerun()
+
+        elif show_reactivate:
+            if st.button("🔄 Erneut senden", key=f"react_{offer.offer_id}"):
+                offer.status = FinanzierungsStatus.GESENDET.value
+                offer.gueltig_bis = None  # Befristung entfernen
+                st.session_state.financing_offers[offer.offer_id] = offer
+
+                if projekt:
+                    for kaeufer_id in projekt.kaeufer_ids:
+                        create_notification(kaeufer_id, "Finanzierungsangebot reaktiviert",
+                                          f"Ein Finanzierungsangebot für {projekt.name} ist wieder verfügbar",
+                                          NotificationType.INFO.value)
+                st.success("Angebot wurde reaktiviert!")
+                st.rerun()
 
 # ============================================================================
 # NOTAR-BEREICH
