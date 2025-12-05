@@ -211,6 +211,38 @@ class FinanzierungsAnfrage:
     dokumente_freigegeben: bool = False
     notizen: str = ""
 
+class TodoKategorie(Enum):
+    """Kategorien für Käufer-Todos"""
+    FINANZIERUNG = "Finanzierung"
+    KAUFVERTRAG = "Kaufvertrag"
+    DOKUMENTE = "Dokumente"
+    AUSSTATTUNG = "Ausstattung & Ideen"
+    UMZUG = "Umzug"
+    SONSTIGES = "Sonstiges"
+
+class TodoPrioritaet(Enum):
+    """Priorität für Todos"""
+    HOCH = "Hoch"
+    MITTEL = "Mittel"
+    NIEDRIG = "Niedrig"
+
+@dataclass
+class KaeuferTodo:
+    """Todo-Eintrag für Käufer"""
+    todo_id: str
+    kaeufer_id: str
+    projekt_id: str
+    titel: str
+    beschreibung: str = ""
+    kategorie: str = TodoKategorie.SONSTIGES.value
+    prioritaet: str = TodoPrioritaet.MITTEL.value
+    erledigt: bool = False
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erledigt_am: Optional[datetime] = None
+    faellig_am: Optional[date] = None
+    ist_system_todo: bool = False  # True = automatisch generiert, False = vom User erstellt
+    system_typ: str = ""  # z.B. "finanzierung_anfrage", "dokument_hochladen"
+
 @dataclass
 class WirtschaftsdatenDokument:
     """Wirtschaftsdaten des Käufers"""
@@ -729,6 +761,9 @@ def init_session_state():
         # Finanzierungs-Erweiterung
         st.session_state.finanzierer_einladungen = {}  # ID -> FinanziererEinladung
         st.session_state.finanzierungsanfragen = {}  # ID -> FinanzierungsAnfrage
+
+        # Käufer-Todos
+        st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         st.session_state.api_keys = {
@@ -4750,7 +4785,7 @@ def kaeufer_dashboard():
     else:
         st.session_state['kaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "💰 Finanzierung", "🪪 Ausweis", "💬 Nachrichten", "📄 Dokumente", "📅 Termine"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📝 Aufgaben", "💰 Finanzierung", "🪪 Ausweis", "💬 Nachrichten", "📄 Dokumente", "📅 Termine"])
 
     with tabs[0]:
         kaeufer_timeline_view()
@@ -4759,20 +4794,23 @@ def kaeufer_dashboard():
         kaeufer_projekte_view()
 
     with tabs[2]:
-        kaeufer_finanzierung_view()
+        kaeufer_aufgaben_view()
 
     with tabs[3]:
+        kaeufer_finanzierung_view()
+
+    with tabs[4]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
 
-    with tabs[4]:
+    with tabs[5]:
         kaeufer_nachrichten()
 
-    with tabs[5]:
+    with tabs[6]:
         kaeufer_dokumente_view()
 
-    with tabs[6]:
+    with tabs[7]:
         # Termin-Übersicht für Käufer
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -4837,6 +4875,407 @@ def kaeufer_projekte_view():
                 )
             else:
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
+
+
+def generate_system_todos(user_id: str, projekt_id: str) -> List[KaeuferTodo]:
+    """Generiert System-Todos basierend auf Projekt-Status"""
+    import uuid
+    system_todos = []
+
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return system_todos
+
+    # Finanzierungsanfragen abrufen
+    anfragen = [a for a in st.session_state.get('finanzierungsanfragen', {}).values()
+                if a.kaeufer_id == user_id and a.projekt_id == projekt_id]
+
+    # Finanzierungsangebote abrufen
+    angebote = [o for o in st.session_state.financing_offers.values()
+                if o.projekt_id == projekt_id and o.status == FinanzierungsStatus.ANGENOMMEN.value]
+
+    # Wirtschaftsdaten abrufen
+    wirtschaftsdaten = [d for d in st.session_state.wirtschaftsdaten.values()
+                       if d.kaeufer_id == user_id]
+
+    # ============ FINANZIERUNG TODOS ============
+    if not anfragen:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_fin_anfrage_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Finanzierungsanfrage stellen",
+            beschreibung="Stellen Sie eine Finanzierungsanfrage, um Angebote von Finanzierern zu erhalten.",
+            kategorie=TodoKategorie.FINANZIERUNG.value,
+            prioritaet=TodoPrioritaet.HOCH.value,
+            ist_system_todo=True,
+            system_typ="finanzierung_anfrage"
+        ))
+
+    if not wirtschaftsdaten:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_wirtschaftsdaten_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Wirtschaftsdaten hochladen",
+            beschreibung="Laden Sie Gehaltsnachweise, Steuerbescheide oder andere Bonitätsunterlagen hoch.",
+            kategorie=TodoKategorie.FINANZIERUNG.value,
+            prioritaet=TodoPrioritaet.HOCH.value,
+            ist_system_todo=True,
+            system_typ="wirtschaftsdaten_upload"
+        ))
+    elif len(wirtschaftsdaten) < 3:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_mehr_wirtschaftsdaten_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Weitere Bonitätsunterlagen hochladen",
+            beschreibung=f"Bisher {len(wirtschaftsdaten)} Dokument(e) hochgeladen. Mehr Unterlagen verbessern Ihre Finanzierungschancen.",
+            kategorie=TodoKategorie.FINANZIERUNG.value,
+            prioritaet=TodoPrioritaet.MITTEL.value,
+            ist_system_todo=True,
+            system_typ="wirtschaftsdaten_mehr"
+        ))
+
+    if anfragen and not angebote:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_angebot_pruefen_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Finanzierungsangebote prüfen",
+            beschreibung="Warten Sie auf Angebote von Finanzierern und prüfen Sie diese.",
+            kategorie=TodoKategorie.FINANZIERUNG.value,
+            prioritaet=TodoPrioritaet.HOCH.value,
+            ist_system_todo=True,
+            system_typ="angebot_pruefen"
+        ))
+
+    # ============ DOKUMENTE TODOS ============
+    # Ausweisdaten prüfen
+    ausweis = st.session_state.get('ausweisdaten', {}).get(user_id)
+    if not ausweis:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_ausweis_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Personalausweis erfassen",
+            beschreibung="Laden Sie Ihren Personalausweis für die Identifikation hoch.",
+            kategorie=TodoKategorie.DOKUMENTE.value,
+            prioritaet=TodoPrioritaet.HOCH.value,
+            ist_system_todo=True,
+            system_typ="ausweis_upload"
+        ))
+
+    # ============ KAUFVERTRAG TODOS ============
+    # Prüfen, ob Rechtsdokumente akzeptiert wurden
+    akzeptiert = st.session_state.get('document_acceptances', [])
+    user_akzeptiert = [a for a in akzeptiert if a.user_id == user_id]
+
+    benoetigte_docs = [DocumentType.DATENSCHUTZ.value, DocumentType.WIDERRUFSBELEHRUNG.value]
+    akzeptierte_typen = [a.document_type for a in user_akzeptiert]
+
+    for doc_type in benoetigte_docs:
+        if doc_type not in akzeptierte_typen:
+            system_todos.append(KaeuferTodo(
+                todo_id=f"sys_doc_{doc_type}_{projekt_id}",
+                kaeufer_id=user_id,
+                projekt_id=projekt_id,
+                titel=f"{doc_type} akzeptieren",
+                beschreibung=f"Bitte lesen und akzeptieren Sie die {doc_type}.",
+                kategorie=TodoKategorie.KAUFVERTRAG.value,
+                prioritaet=TodoPrioritaet.HOCH.value,
+                ist_system_todo=True,
+                system_typ=f"doc_akzeptieren_{doc_type}"
+            ))
+
+    # Finanzierung gesichert?
+    if angebote:
+        system_todos.append(KaeuferTodo(
+            todo_id=f"sys_finanzierung_bestaetigen_{projekt_id}",
+            kaeufer_id=user_id,
+            projekt_id=projekt_id,
+            titel="Finanzierungszusage abwarten",
+            beschreibung="Warten Sie auf die verbindliche Finanzierungszusage Ihrer Bank.",
+            kategorie=TodoKategorie.KAUFVERTRAG.value,
+            prioritaet=TodoPrioritaet.HOCH.value,
+            ist_system_todo=True,
+            system_typ="finanzierung_zusage"
+        ))
+
+    # Notartermin
+    if projekt.status not in [ProjektStatus.NOTARTERMIN_VEREINBART.value,
+                               ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value,
+                               ProjektStatus.ABGESCHLOSSEN.value]:
+        if angebote:  # Nur wenn Finanzierung läuft
+            system_todos.append(KaeuferTodo(
+                todo_id=f"sys_notartermin_{projekt_id}",
+                kaeufer_id=user_id,
+                projekt_id=projekt_id,
+                titel="Notartermin vorbereiten",
+                beschreibung="Sobald die Finanzierung gesichert ist, kann der Notartermin vereinbart werden.",
+                kategorie=TodoKategorie.KAUFVERTRAG.value,
+                prioritaet=TodoPrioritaet.MITTEL.value,
+                ist_system_todo=True,
+                system_typ="notartermin"
+            ))
+
+    return system_todos
+
+
+def kaeufer_aufgaben_view():
+    """Aufgaben-/Todo-Liste für Käufer"""
+    import uuid
+
+    st.subheader("📝 Meine Aufgaben")
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+
+    if not projekte:
+        st.info("Sie sind noch keinem Projekt zugeordnet. Aufgaben werden angezeigt, sobald Sie einem Projekt hinzugefügt wurden.")
+        return
+
+    # Sicherstellen, dass kaeufer_todos existiert
+    if 'kaeufer_todos' not in st.session_state:
+        st.session_state.kaeufer_todos = {}
+
+    # Projekt auswählen
+    projekt_namen = {p.projekt_id: p.name for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        options=list(projekt_namen.keys()),
+        format_func=lambda x: projekt_namen[x],
+        key="aufgaben_projekt_select"
+    )
+
+    st.markdown("---")
+
+    # Tabs für System-Todos und eigene Todos
+    aufgaben_tabs = st.tabs(["🔔 Offene Aufgaben", "✅ Erledigte Aufgaben", "➕ Eigene Aufgabe erstellen"])
+
+    with aufgaben_tabs[0]:
+        render_offene_aufgaben(user_id, selected_projekt_id)
+
+    with aufgaben_tabs[1]:
+        render_erledigte_aufgaben(user_id, selected_projekt_id)
+
+    with aufgaben_tabs[2]:
+        render_neue_aufgabe_form(user_id, selected_projekt_id)
+
+
+def render_offene_aufgaben(user_id: str, projekt_id: str):
+    """Zeigt offene Aufgaben (System + eigene)"""
+
+    # System-Todos generieren
+    system_todos = generate_system_todos(user_id, projekt_id)
+
+    # Eigene unerledigte Todos laden
+    eigene_todos = [t for t in st.session_state.kaeufer_todos.values()
+                   if t.kaeufer_id == user_id
+                   and t.projekt_id == projekt_id
+                   and not t.erledigt
+                   and not t.ist_system_todo]
+
+    # Filter-Optionen
+    col1, col2 = st.columns(2)
+    with col1:
+        filter_kategorie = st.selectbox(
+            "Nach Kategorie filtern",
+            options=["Alle"] + [k.value for k in TodoKategorie],
+            key="filter_kategorie_offen"
+        )
+    with col2:
+        filter_prioritaet = st.selectbox(
+            "Nach Priorität filtern",
+            options=["Alle"] + [p.value for p in TodoPrioritaet],
+            key="filter_prioritaet_offen"
+        )
+
+    # Alle offenen Todos kombinieren
+    alle_todos = system_todos + eigene_todos
+
+    # Filtern
+    if filter_kategorie != "Alle":
+        alle_todos = [t for t in alle_todos if t.kategorie == filter_kategorie]
+    if filter_prioritaet != "Alle":
+        alle_todos = [t for t in alle_todos if t.prioritaet == filter_prioritaet]
+
+    # Nach Priorität sortieren
+    prioritaet_order = {TodoPrioritaet.HOCH.value: 0, TodoPrioritaet.MITTEL.value: 1, TodoPrioritaet.NIEDRIG.value: 2}
+    alle_todos.sort(key=lambda t: (prioritaet_order.get(t.prioritaet, 99), t.kategorie))
+
+    if not alle_todos:
+        st.success("🎉 Keine offenen Aufgaben! Alles erledigt.")
+        return
+
+    # Gruppiert nach Kategorie anzeigen
+    kategorien = {}
+    for todo in alle_todos:
+        if todo.kategorie not in kategorien:
+            kategorien[todo.kategorie] = []
+        kategorien[todo.kategorie].append(todo)
+
+    # Kategorie-Reihenfolge
+    kategorie_order = [
+        TodoKategorie.FINANZIERUNG.value,
+        TodoKategorie.KAUFVERTRAG.value,
+        TodoKategorie.DOKUMENTE.value,
+        TodoKategorie.AUSSTATTUNG.value,
+        TodoKategorie.UMZUG.value,
+        TodoKategorie.SONSTIGES.value
+    ]
+
+    for kategorie in kategorie_order:
+        if kategorie in kategorien:
+            with st.expander(f"📁 {kategorie} ({len(kategorien[kategorie])})", expanded=True):
+                for todo in kategorien[kategorie]:
+                    render_todo_item(todo, user_id)
+
+
+def render_todo_item(todo: KaeuferTodo, user_id: str):
+    """Rendert ein einzelnes Todo-Item"""
+    col1, col2, col3 = st.columns([0.1, 0.7, 0.2])
+
+    # Prioritäts-Icon
+    prio_icons = {
+        TodoPrioritaet.HOCH.value: "🔴",
+        TodoPrioritaet.MITTEL.value: "🟡",
+        TodoPrioritaet.NIEDRIG.value: "🟢"
+    }
+    prio_icon = prio_icons.get(todo.prioritaet, "⚪")
+
+    with col1:
+        # Checkbox zum Erledigen (nur für eigene Todos oder wenn System-Todo als erledigt markierbar)
+        if not todo.ist_system_todo:
+            if st.checkbox("", key=f"check_{todo.todo_id}", value=todo.erledigt):
+                # Als erledigt markieren
+                if todo.todo_id in st.session_state.kaeufer_todos:
+                    st.session_state.kaeufer_todos[todo.todo_id].erledigt = True
+                    st.session_state.kaeufer_todos[todo.todo_id].erledigt_am = datetime.now()
+                    st.rerun()
+        else:
+            st.markdown(f"{prio_icon}")
+
+    with col2:
+        # Titel und Beschreibung
+        if todo.ist_system_todo:
+            st.markdown(f"**{todo.titel}** `System`")
+        else:
+            st.markdown(f"**{todo.titel}**")
+        if todo.beschreibung:
+            st.caption(todo.beschreibung)
+        if todo.faellig_am:
+            days_left = (todo.faellig_am - date.today()).days
+            if days_left < 0:
+                st.markdown(f"⚠️ **Überfällig** seit {abs(days_left)} Tag(en)")
+            elif days_left == 0:
+                st.markdown("⏰ **Heute fällig**")
+            elif days_left <= 3:
+                st.markdown(f"📅 Fällig in {days_left} Tag(en)")
+
+    with col3:
+        st.caption(f"{prio_icon} {todo.prioritaet}")
+        if not todo.ist_system_todo:
+            if st.button("🗑️", key=f"del_{todo.todo_id}", help="Aufgabe löschen"):
+                if todo.todo_id in st.session_state.kaeufer_todos:
+                    del st.session_state.kaeufer_todos[todo.todo_id]
+                    st.rerun()
+
+    st.markdown("---")
+
+
+def render_erledigte_aufgaben(user_id: str, projekt_id: str):
+    """Zeigt erledigte Aufgaben"""
+
+    # Erledigte Todos laden
+    erledigte_todos = [t for t in st.session_state.kaeufer_todos.values()
+                      if t.kaeufer_id == user_id
+                      and t.projekt_id == projekt_id
+                      and t.erledigt]
+
+    if not erledigte_todos:
+        st.info("Noch keine erledigten Aufgaben.")
+        return
+
+    # Nach Erledigt-Datum sortieren (neueste zuerst)
+    erledigte_todos.sort(key=lambda t: t.erledigt_am or datetime.min, reverse=True)
+
+    for todo in erledigte_todos:
+        col1, col2, col3 = st.columns([0.1, 0.7, 0.2])
+
+        with col1:
+            if st.checkbox("", key=f"uncheck_{todo.todo_id}", value=True):
+                pass  # Bleibt erledigt
+            else:
+                # Als unerledigt markieren
+                st.session_state.kaeufer_todos[todo.todo_id].erledigt = False
+                st.session_state.kaeufer_todos[todo.todo_id].erledigt_am = None
+                st.rerun()
+
+        with col2:
+            st.markdown(f"~~{todo.titel}~~")
+            if todo.erledigt_am:
+                st.caption(f"Erledigt am {todo.erledigt_am.strftime('%d.%m.%Y %H:%M')}")
+
+        with col3:
+            st.caption(todo.kategorie)
+
+        st.markdown("---")
+
+
+def render_neue_aufgabe_form(user_id: str, projekt_id: str):
+    """Formular zum Erstellen einer neuen Aufgabe"""
+    import uuid
+
+    st.markdown("### ➕ Neue Aufgabe erstellen")
+    st.caption("Erstellen Sie eigene Aufgaben, z.B. für Ausstattungsideen, Umzugsplanung oder andere Notizen.")
+
+    with st.form("neue_aufgabe_form"):
+        titel = st.text_input("Titel *", placeholder="z.B. Küchenmöbel recherchieren")
+        beschreibung = st.text_area("Beschreibung", placeholder="Weitere Details zur Aufgabe...")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            kategorie = st.selectbox(
+                "Kategorie",
+                options=[k.value for k in TodoKategorie],
+                index=3  # Default: Ausstattung & Ideen
+            )
+        with col2:
+            prioritaet = st.selectbox(
+                "Priorität",
+                options=[p.value for p in TodoPrioritaet],
+                index=1  # Default: Mittel
+            )
+
+        faellig_am = st.date_input(
+            "Fällig am (optional)",
+            value=None,
+            min_value=date.today()
+        )
+
+        submitted = st.form_submit_button("✅ Aufgabe erstellen", use_container_width=True)
+
+        if submitted:
+            if not titel.strip():
+                st.error("Bitte geben Sie einen Titel ein.")
+            else:
+                todo_id = f"todo_{uuid.uuid4().hex[:8]}"
+                neue_aufgabe = KaeuferTodo(
+                    todo_id=todo_id,
+                    kaeufer_id=user_id,
+                    projekt_id=projekt_id,
+                    titel=titel.strip(),
+                    beschreibung=beschreibung.strip(),
+                    kategorie=kategorie,
+                    prioritaet=prioritaet,
+                    faellig_am=faellig_am,
+                    ist_system_todo=False
+                )
+                st.session_state.kaeufer_todos[todo_id] = neue_aufgabe
+                st.success(f"✅ Aufgabe '{titel}' wurde erstellt!")
+                st.rerun()
+
 
 def kaeufer_finanzierung_view():
     """Finanzierungs-Bereich für Käufer - Erweitert"""
