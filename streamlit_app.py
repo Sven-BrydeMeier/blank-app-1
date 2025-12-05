@@ -26,6 +26,199 @@ STICHWORT_LISTE = [
     "Rechnung", "Mahnung", "Fristsetzung"
 ]
 
+# ---------------------------------------------------------
+# Finanzierungsangebote / Financing Offers
+# ---------------------------------------------------------
+
+FINANCING_OFFERS = [
+    {
+        "id": "standard",
+        "name": "Standard-Zahlung",
+        "description": "Einmalzahlung nach Rechnungsstellung",
+        "installments": 1,
+        "interest_rate": 0.0,
+        "min_amount": 0,
+        "max_amount": None,
+        "badge": None,
+    },
+    {
+        "id": "ratenzahlung_3",
+        "name": "3-Raten-Zahlung",
+        "description": "Zahlung in 3 monatlichen Raten, zinsfrei",
+        "installments": 3,
+        "interest_rate": 0.0,
+        "min_amount": 500,
+        "max_amount": 5000,
+        "badge": "Beliebt",
+    },
+    {
+        "id": "ratenzahlung_6",
+        "name": "6-Raten-Zahlung",
+        "description": "Zahlung in 6 monatlichen Raten",
+        "installments": 6,
+        "interest_rate": 2.9,
+        "min_amount": 1000,
+        "max_amount": 15000,
+        "badge": None,
+    },
+    {
+        "id": "ratenzahlung_12",
+        "name": "12-Raten-Zahlung",
+        "description": "Zahlung in 12 monatlichen Raten",
+        "installments": 12,
+        "interest_rate": 4.9,
+        "min_amount": 2000,
+        "max_amount": 50000,
+        "badge": "Flexibel",
+    },
+    {
+        "id": "prozesskostenfinanzierung",
+        "name": "Prozesskostenfinanzierung",
+        "description": "Finanzierung durch Drittanbieter, Rückzahlung nur bei Erfolg",
+        "installments": None,
+        "interest_rate": None,
+        "min_amount": 5000,
+        "max_amount": None,
+        "badge": "Kein Risiko",
+    },
+]
+
+# ---------------------------------------------------------
+# Rechtliche Dokumente / Legal Documents for Gating
+# ---------------------------------------------------------
+
+LEGAL_DOCUMENTS = {
+    "agb": {
+        "title": "Allgemeine Geschäftsbedingungen (AGB)",
+        "required": True,
+        "content": """
+## Allgemeine Geschäftsbedingungen der Kanzlei RHM | Anwälte
+
+### § 1 Geltungsbereich
+Diese Allgemeinen Geschäftsbedingungen gelten für alle Mandate und Rechtsdienstleistungen
+der Kanzlei RHM | Anwälte.
+
+### § 2 Mandatserteilung
+(1) Das Mandatsverhältnis kommt durch Unterzeichnung einer Vollmacht oder durch
+konkludente Handlung zustande.
+(2) Der Mandant ist verpflichtet, alle für die Bearbeitung des Mandats erforderlichen
+Informationen vollständig und wahrheitsgemäß mitzuteilen.
+
+### § 3 Vergütung
+(1) Die Vergütung richtet sich nach dem Rechtsanwaltsvergütungsgesetz (RVG),
+sofern keine abweichende Honorarvereinbarung getroffen wurde.
+(2) Vorschüsse können angefordert werden.
+
+### § 4 Haftung
+(1) Die Haftung ist auf die Mindestversicherungssumme der Berufshaftpflichtversicherung
+beschränkt, sofern nicht Vorsatz oder grobe Fahrlässigkeit vorliegt.
+
+### § 5 Datenschutz
+Die Verarbeitung personenbezogener Daten erfolgt gemäß der DSGVO und den
+berufsrechtlichen Verschwiegenheitspflichten.
+
+### § 6 Schlussbestimmungen
+Es gilt deutsches Recht. Gerichtsstand ist der Kanzleisitz.
+""",
+    },
+    "dsgvo": {
+        "title": "Datenschutzerklärung (DSGVO)",
+        "required": True,
+        "content": """
+## Datenschutzerklärung gemäß DSGVO
+
+### 1. Verantwortlicher
+Verantwortlich für die Datenverarbeitung ist die Kanzlei RHM | Anwälte.
+
+### 2. Zweck der Datenverarbeitung
+Ihre personenbezogenen Daten werden ausschließlich zur Bearbeitung Ihres Mandats
+und zur Erfüllung gesetzlicher Pflichten verarbeitet.
+
+### 3. Rechtsgrundlage
+Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO
+(Vertragserfüllung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung).
+
+### 4. Empfänger der Daten
+Ihre Daten werden nur an Dritte weitergegeben, soweit dies zur Mandatsbearbeitung
+erforderlich ist (z.B. Gerichte, Behörden, gegnerische Anwälte).
+
+### 5. Speicherdauer
+Mandatsbezogene Daten werden gemäß den berufsrechtlichen Aufbewahrungspflichten
+für mindestens 10 Jahre nach Mandatsabschluss gespeichert.
+
+### 6. Ihre Rechte
+Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
+Verarbeitung sowie Datenübertragbarkeit. Widerspruchsrechte können jederzeit
+geltend gemacht werden.
+
+### 7. Beschwerderecht
+Sie können sich bei der zuständigen Aufsichtsbehörde beschweren.
+""",
+    },
+    "mandatsbedingungen": {
+        "title": "Besondere Mandatsbedingungen",
+        "required": True,
+        "content": """
+## Besondere Mandatsbedingungen für digitale Postverarbeitung
+
+### 1. Nutzung des digitalen Posteingangs
+(1) Die Nutzung des digitalen Posteingangssystems erfolgt auf Grundlage dieser
+besonderen Mandatsbedingungen.
+(2) Der Mandant erklärt sich damit einverstanden, dass Dokumente digital
+verarbeitet und gespeichert werden.
+
+### 2. Fristüberwachung
+(1) Das System unterstützt bei der Fristüberwachung, ersetzt jedoch nicht
+die anwaltliche Prüfung.
+(2) Der Mandant wird über erkannte Fristen informiert.
+
+### 3. Vertraulichkeit
+(1) Alle Dokumente werden vertraulich behandelt und nur befugten Personen
+zugänglich gemacht.
+(2) Die elektronische Übermittlung erfolgt verschlüsselt.
+
+### 4. Haftungsausschluss
+(1) Für technische Störungen, die zu Verzögerungen führen, wird keine
+Haftung übernommen.
+(2) Die automatische Dokumentenerkennung ist ein Hilfsmittel und kann
+keine 100%ige Genauigkeit garantieren.
+
+### 5. Einwilligung
+Mit der Nutzung des Systems erklärt sich der Mandant mit diesen Bedingungen
+einverstanden.
+""",
+    },
+    "finanzierung": {
+        "title": "Finanzierungsbedingungen",
+        "required": False,
+        "content": """
+## Finanzierungsbedingungen für Ratenzahlung und Prozesskostenfinanzierung
+
+### 1. Allgemeines
+(1) Die angebotenen Finanzierungsoptionen ermöglichen flexible Zahlungsmodalitäten
+für Rechtsdienstleistungen.
+(2) Die Inanspruchnahme einer Finanzierung ist freiwillig.
+
+### 2. Ratenzahlung
+(1) Bei Ratenzahlung wird der Gesamtbetrag in gleichmäßige monatliche Raten aufgeteilt.
+(2) Die erste Rate ist bei Mandatsannahme fällig.
+(3) Bei Zahlungsverzug von mehr als 14 Tagen wird der gesamte Restbetrag sofort fällig.
+
+### 3. Zinsen
+(1) Für zinsfreie Ratenzahlungen (3 Raten) fallen keine zusätzlichen Kosten an.
+(2) Für längere Laufzeiten fallen die angegebenen Zinsen p.a. an.
+
+### 4. Prozesskostenfinanzierung
+(1) Bei Prozesskostenfinanzierung übernimmt ein Drittanbieter die Kosten.
+(2) Im Erfolgsfall wird ein vereinbarter Anteil des erstrittenen Betrags abgetreten.
+(3) Bei Misserfolg entstehen dem Mandanten keine Kosten.
+
+### 5. Bonitätsprüfung
+Für Finanzierungen ab 1.000 EUR kann eine Bonitätsprüfung erforderlich sein.
+""",
+    },
+}
+
 DATUM_REGEX = r"\b(?:0?[1-9]|[12][0-9]|3[01])\.(?:0?[1-9]|1[0-2])\.(?:19|20)\d{2}\b"
 
 # interne Aktenzeichen:
@@ -650,18 +843,278 @@ def create_excels_and_zips(
 
 
 # ---------------------------------------------------------
+# Session State Initialisierung / Legal Gating
+# ---------------------------------------------------------
+
+def init_session_state():
+    """Initialisiert Session State für Legal Gating und Finanzierungsauswahl."""
+    if "legal_documents_accepted" not in st.session_state:
+        st.session_state.legal_documents_accepted = {}
+    if "selected_financing" not in st.session_state:
+        st.session_state.selected_financing = "standard"
+    if "show_legal_modal" not in st.session_state:
+        st.session_state.show_legal_modal = False
+    if "downloads_unlocked" not in st.session_state:
+        st.session_state.downloads_unlocked = False
+
+
+def check_required_legal_docs_accepted() -> bool:
+    """Prüft, ob alle erforderlichen rechtlichen Dokumente akzeptiert wurden."""
+    for doc_id, doc_info in LEGAL_DOCUMENTS.items():
+        if doc_info["required"]:
+            if not st.session_state.legal_documents_accepted.get(doc_id, False):
+                return False
+    return True
+
+
+def get_missing_legal_docs() -> List[str]:
+    """Gibt Liste der noch nicht akzeptierten Pflichtdokumente zurück."""
+    missing = []
+    for doc_id, doc_info in LEGAL_DOCUMENTS.items():
+        if doc_info["required"]:
+            if not st.session_state.legal_documents_accepted.get(doc_id, False):
+                missing.append(doc_info["title"])
+    return missing
+
+
+def render_legal_gating_section():
+    """Rendert den Legal Gating Bereich mit allen rechtlichen Dokumenten."""
+    st.markdown("---")
+    st.subheader("Rechtliche Dokumente")
+    st.markdown(
+        "Bitte lesen und akzeptieren Sie die folgenden rechtlichen Dokumente, "
+        "um die Download-Funktion freizuschalten."
+    )
+
+    all_accepted = True
+
+    for doc_id, doc_info in LEGAL_DOCUMENTS.items():
+        required_badge = " *(Pflicht)*" if doc_info["required"] else " *(Optional)*"
+
+        with st.expander(f"{doc_info['title']}{required_badge}", expanded=False):
+            st.markdown(doc_info["content"])
+
+            # Checkbox für Akzeptanz
+            checkbox_key = f"accept_{doc_id}"
+            current_state = st.session_state.legal_documents_accepted.get(doc_id, False)
+
+            accepted = st.checkbox(
+                f"Ich habe die {doc_info['title']} gelesen und akzeptiere diese.",
+                value=current_state,
+                key=checkbox_key,
+            )
+
+            st.session_state.legal_documents_accepted[doc_id] = accepted
+
+            if doc_info["required"] and not accepted:
+                all_accepted = False
+
+    # Status-Anzeige
+    if all_accepted:
+        st.success("Alle erforderlichen Dokumente wurden akzeptiert. Downloads sind freigeschaltet.")
+        st.session_state.downloads_unlocked = True
+    else:
+        missing = get_missing_legal_docs()
+        st.warning(f"Bitte akzeptieren Sie noch: {', '.join(missing)}")
+        st.session_state.downloads_unlocked = False
+
+    return all_accepted
+
+
+def render_financing_sidebar():
+    """Rendert die Finanzierungsoptionen in der Sidebar."""
+    with st.sidebar:
+        st.header("Finanzierungsoptionen")
+        st.markdown("Wählen Sie Ihre bevorzugte Zahlungsart:")
+
+        for offer in FINANCING_OFFERS:
+            badge_html = ""
+            if offer["badge"]:
+                badge_html = f" `{offer['badge']}`"
+
+            # Erstelle Beschreibungstext
+            if offer["installments"] == 1:
+                rate_text = "Einmalzahlung"
+            elif offer["installments"] is None:
+                rate_text = "Erfolgsbasiert"
+            else:
+                rate_text = f"{offer['installments']} Raten"
+
+            if offer["interest_rate"] == 0.0:
+                interest_text = "zinsfrei"
+            elif offer["interest_rate"] is None:
+                interest_text = "nach Vereinbarung"
+            else:
+                interest_text = f"{offer['interest_rate']}% p.a."
+
+            # Betragsbereich
+            if offer["min_amount"] == 0:
+                amount_text = "Keine Mindesthöhe"
+            else:
+                amount_text = f"Ab {offer['min_amount']:,.0f} EUR".replace(",", ".")
+
+            if offer["max_amount"]:
+                amount_text += f" bis {offer['max_amount']:,.0f} EUR".replace(",", ".")
+
+            # Radio Button für Auswahl
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                selected = st.radio(
+                    "Auswahl",
+                    [offer["id"]],
+                    key=f"radio_{offer['id']}",
+                    label_visibility="collapsed",
+                    index=0 if st.session_state.selected_financing == offer["id"] else None,
+                )
+                if selected:
+                    st.session_state.selected_financing = offer["id"]
+
+            with col2:
+                st.markdown(f"**{offer['name']}**{badge_html}")
+                st.caption(f"{rate_text} | {interest_text}")
+                st.caption(f"{amount_text}")
+                st.caption(offer["description"])
+
+            st.markdown("---")
+
+        # Finanzierungsrechner
+        st.subheader("Ratenrechner")
+        betrag = st.number_input(
+            "Rechnungsbetrag (EUR)",
+            min_value=0.0,
+            max_value=100000.0,
+            value=1000.0,
+            step=100.0,
+        )
+
+        selected_offer = next(
+            (o for o in FINANCING_OFFERS if o["id"] == st.session_state.selected_financing),
+            FINANCING_OFFERS[0]
+        )
+
+        if selected_offer["installments"] and selected_offer["installments"] > 1:
+            # Berechne monatliche Rate
+            installments = selected_offer["installments"]
+            interest_rate = selected_offer["interest_rate"] or 0.0
+
+            # Einfache Zinsberechnung (nicht annuitätisch)
+            total_interest = betrag * (interest_rate / 100) * (installments / 12)
+            total_amount = betrag + total_interest
+            monthly_rate = total_amount / installments
+
+            st.metric("Monatliche Rate", f"{monthly_rate:,.2f} EUR".replace(",", "."))
+            st.metric("Gesamtbetrag", f"{total_amount:,.2f} EUR".replace(",", "."))
+            if total_interest > 0:
+                st.metric("Zinskosten", f"{total_interest:,.2f} EUR".replace(",", "."))
+        elif selected_offer["id"] == "prozesskostenfinanzierung":
+            st.info("Bei Prozesskostenfinanzierung entstehen Kosten nur im Erfolgsfall.")
+        else:
+            st.metric("Gesamtbetrag", f"{betrag:,.2f} EUR".replace(",", "."))
+
+        # Link zu Finanzierungsbedingungen
+        if st.button("Finanzierungsbedingungen lesen"):
+            st.session_state.show_financing_terms = True
+
+
+def render_financing_selection():
+    """Rendert die Finanzierungsauswahl im Hauptbereich."""
+    st.markdown("---")
+    st.subheader("Finanzierung & Zahlungsoptionen")
+
+    cols = st.columns(len(FINANCING_OFFERS))
+
+    for idx, offer in enumerate(FINANCING_OFFERS):
+        with cols[idx]:
+            # Card-ähnliche Darstellung
+            if offer["badge"]:
+                st.markdown(f"**{offer['badge']}**")
+            else:
+                st.markdown("&nbsp;")  # Platzhalter
+
+            st.markdown(f"### {offer['name']}")
+            st.caption(offer["description"])
+
+            # Details
+            if offer["installments"] == 1:
+                st.write("1 Zahlung")
+            elif offer["installments"] is None:
+                st.write("Erfolgsbasiert")
+            else:
+                st.write(f"{offer['installments']} Raten")
+
+            if offer["interest_rate"] == 0.0:
+                st.write("**Zinsfrei**")
+            elif offer["interest_rate"] is not None:
+                st.write(f"{offer['interest_rate']}% p.a.")
+
+            # Auswahl-Button
+            if st.button(
+                "Auswählen" if st.session_state.selected_financing != offer["id"] else "Ausgewählt",
+                key=f"select_{offer['id']}",
+                type="primary" if st.session_state.selected_financing == offer["id"] else "secondary",
+            ):
+                st.session_state.selected_financing = offer["id"]
+                st.rerun()
+
+    # Ausgewählte Option anzeigen
+    selected = next(
+        (o for o in FINANCING_OFFERS if o["id"] == st.session_state.selected_financing),
+        FINANCING_OFFERS[0]
+    )
+    st.info(f"Ausgewählt: **{selected['name']}** - {selected['description']}")
+
+
+def gated_download_button(
+    label: str,
+    data: bytes,
+    file_name: str,
+    mime: str,
+    key: str = None,
+) -> bool:
+    """
+    Download-Button mit Legal Gating.
+    Zeigt Warnung wenn Dokumente nicht akzeptiert wurden.
+    """
+    if st.session_state.downloads_unlocked:
+        return st.download_button(
+            label=label,
+            data=data,
+            file_name=file_name,
+            mime=mime,
+            key=key,
+        )
+    else:
+        missing = get_missing_legal_docs()
+        st.button(
+            f"{label} (gesperrt)",
+            key=key,
+            disabled=True,
+            help=f"Bitte akzeptieren Sie zuerst: {', '.join(missing)}",
+        )
+        return False
+
+
+# ---------------------------------------------------------
 # Streamlit GUI
 # ---------------------------------------------------------
 
 def main():
     st.set_page_config(page_title="Posteingang RHM | MASTER-WORKFLOW", layout="wide")
-    st.title("📥 Automatisierter Posteingang (RHM | Anwälte)")
+
+    # Session State initialisieren
+    init_session_state()
+
+    # Sidebar mit Finanzierungsoptionen rendern
+    render_financing_sidebar()
+
+    st.title("Automatisierter Posteingang (RHM | Anwälte)")
 
     st.markdown(
         "1. **Tagespost-PDF** hochladen (OCR, gesamter Posteingang, mit T-Trennblättern).  \n"
-        "2. **aktenregister.xlsx** hochladen (Tabellenblatt „akten“).  \n"
+        "2. **aktenregister.xlsx** hochladen (Tabellenblatt „akten").  \n"
         "3. **Eingangsdatum** wählen.  \n"
-        "4. Auf **„Posteingang verarbeiten“** klicken."
+        "4. **Rechtliche Dokumente** lesen und akzeptieren.  \n"
+        "5. Auf **„Posteingang verarbeiten"** klicken."
     )
 
     eingangsdatum = st.date_input("Eingangsdatum der Tagespost", value=date.today())
@@ -673,10 +1126,23 @@ def main():
         )
     with col2:
         akten_excel = st.file_uploader(
-            "Aktenregister (aktenregister.xlsx, Blatt „akten“ – Pflicht)", type=["xls", "xlsx"]
+            "Aktenregister (aktenregister.xlsx, Blatt „akten" – Pflicht)", type=["xls", "xlsx"]
         )
 
-    process_btn = st.button("🚀 Posteingang verarbeiten")
+    # Legal Gating Section - Rechtliche Dokumente müssen akzeptiert werden
+    render_legal_gating_section()
+
+    # Finanzierungsauswahl im Hauptbereich
+    render_financing_selection()
+
+    st.markdown("---")
+
+    # Verarbeitung nur möglich wenn rechtliche Dokumente akzeptiert
+    if not st.session_state.downloads_unlocked:
+        st.warning("Bitte akzeptieren Sie alle erforderlichen rechtlichen Dokumente, bevor Sie fortfahren.")
+        process_btn = st.button("Posteingang verarbeiten", disabled=True)
+    else:
+        process_btn = st.button("Posteingang verarbeiten")
 
     status_box = st.empty()
     log_lines = []
@@ -763,46 +1229,59 @@ def main():
         # -------------------------------------------------
         st.subheader("Ergebnisse")
 
-        # Downloads pro Sachbearbeiter
+        # Downloads pro Sachbearbeiter (mit Legal Gating)
         for sb in ["SQ", "TS", "M", "FÜ", "CV", SACHBEARBEITER_DEFAULT]:
             if sb in sb_files:
                 files = sb_files[sb]
                 st.markdown(f"### Sachbearbeiter: **{sb}**")
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.download_button(
-                        label=f"📦 Download {sb}.zip",
+                    gated_download_button(
+                        label=f"Download {sb}.zip",
                         data=files["zip"],
                         file_name=f"{sb}.zip",
                         mime="application/zip",
+                        key=f"dl_zip_{sb}",
                     )
                 with c2:
-                    st.download_button(
-                        label=f"📊 Download Excel {sb}",
+                    gated_download_button(
+                        label=f"Download Excel {sb}",
                         data=files["excel"],
                         file_name=f"{sb}_Posteingang.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"dl_excel_{sb}",
                     )
                 st.markdown("---")
 
         # Gesamt-Excel
-        st.markdown("### Gesamtübersicht „Fristen & Akten“")
-        st.download_button(
-            label="📊 Download Gesamt-Excel „Fristen_Akten_Gesamt.xlsx“",
+        st.markdown("### Gesamtübersicht „Fristen & Akten"")
+        gated_download_button(
+            label="Download Gesamt-Excel „Fristen_Akten_Gesamt.xlsx"",
             data=gesamt_excel_bytes,
             file_name="Fristen_Akten_Gesamt.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="dl_gesamt_excel",
         )
 
         # Stammdaten_Aktenzeichen
         if stammdaten_excel_bytes:
             st.markdown("### Neue Stammdaten_Aktenzeichen")
-            st.download_button(
-                label="📊 Download „Stammdaten_Aktenzeichen.xlsx“",
+            gated_download_button(
+                label="Download „Stammdaten_Aktenzeichen.xlsx"",
                 data=stammdaten_excel_bytes,
                 file_name="Stammdaten_Aktenzeichen.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="dl_stammdaten_excel",
             )
+
+        # Ausgewählte Finanzierungsoption anzeigen
+        st.markdown("---")
+        st.subheader("Ausgewählte Zahlungsoption")
+        selected_financing = next(
+            (o for o in FINANCING_OFFERS if o["id"] == st.session_state.selected_financing),
+            FINANCING_OFFERS[0]
+        )
+        st.success(f"**{selected_financing['name']}**: {selected_financing['description']}")
 
 
 if __name__ == "__main__":
