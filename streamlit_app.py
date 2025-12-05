@@ -855,12 +855,298 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     return ocr_text, kategorie
 
 
+def ocr_personalausweis_with_claude(image_data: bytes) -> Tuple['PersonalDaten', str, float]:
+    """
+    OCR-Erkennung für Personalausweis/Reisepass mit Claude Vision API (Anthropic)
+
+    Returns:
+        Tuple von (PersonalDaten, OCR-Rohtext, Vertrauenswürdigkeit 0-1)
+    """
+    import base64
+    import json
+
+    try:
+        import anthropic
+
+        # API-Key aus Streamlit Secrets oder Umgebungsvariable
+        api_key = None
+        try:
+            api_key = st.secrets.get("ANTHROPIC_API_KEY")
+        except:
+            pass
+
+        if not api_key:
+            import os
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+
+        if not api_key:
+            return None, "Kein Anthropic API-Key konfiguriert", 0.0
+
+        client = anthropic.Anthropic(api_key=api_key)
+
+        # Bild zu Base64 konvertieren
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+
+        # Bestimme Media-Type
+        media_type = "image/jpeg"  # Default
+
+        prompt = """Analysiere dieses Bild eines deutschen Personalausweises oder Reisepasses.
+
+Extrahiere alle sichtbaren Daten und gib sie im folgenden JSON-Format zurück:
+
+{
+    "vorname": "...",
+    "nachname": "...",
+    "geburtsdatum": "TT.MM.JJJJ",
+    "geburtsort": "...",
+    "nationalitaet": "DEUTSCH",
+    "strasse": "...",
+    "hausnummer": "...",
+    "plz": "...",
+    "ort": "...",
+    "ausweisnummer": "...",
+    "gueltig_bis": "TT.MM.JJJJ",
+    "ausweisart": "Personalausweis oder Reisepass",
+    "groesse_cm": 0,
+    "augenfarbe": "...",
+    "geschlecht": "M oder W"
+}
+
+Falls ein Feld nicht lesbar ist, setze es auf null.
+Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
+
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64_image
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        )
+
+        response_text = message.content[0].text
+        ocr_text = f"=== Claude Vision API Ergebnis ===\n\n{response_text}"
+
+        # JSON parsen (gleiche Logik wie bei OpenAI)
+        try:
+            json_start = response_text.find('{')
+            json_end = response_text.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = response_text[json_start:json_end]
+                data = json.loads(json_str)
+
+                personal_daten = PersonalDaten(
+                    vorname=data.get('vorname', '') or '',
+                    nachname=data.get('nachname', '') or '',
+                    geburtsort=data.get('geburtsort', '') or '',
+                    nationalitaet=data.get('nationalitaet', 'DEUTSCH') or 'DEUTSCH',
+                    strasse=data.get('strasse', '') or '',
+                    hausnummer=data.get('hausnummer', '') or '',
+                    plz=data.get('plz', '') or '',
+                    ort=data.get('ort', '') or '',
+                    ausweisnummer=data.get('ausweisnummer', '') or '',
+                    ausweisart=data.get('ausweisart', 'Personalausweis') or 'Personalausweis',
+                    augenfarbe=data.get('augenfarbe', '') or '',
+                    geschlecht=data.get('geschlecht', '') or ''
+                )
+
+                if data.get('geburtsdatum'):
+                    try:
+                        parts = data['geburtsdatum'].split('.')
+                        if len(parts) == 3:
+                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
+                    except:
+                        pass
+
+                if data.get('gueltig_bis'):
+                    try:
+                        parts = data['gueltig_bis'].split('.')
+                        if len(parts) == 3:
+                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
+                    except:
+                        pass
+
+                if data.get('groesse_cm'):
+                    try:
+                        personal_daten.groesse_cm = int(data['groesse_cm'])
+                    except:
+                        pass
+
+                return personal_daten, ocr_text, 0.95
+
+        except json.JSONDecodeError:
+            pass
+
+        return PersonalDaten(), ocr_text, 0.5
+
+    except ImportError:
+        return None, "Anthropic Bibliothek nicht installiert", 0.0
+    except Exception as e:
+        return None, f"Claude API Fehler: {str(e)}", 0.0
+
+
+def ocr_personalausweis_with_openai(image_data: bytes) -> Tuple['PersonalDaten', str, float]:
+    """
+    OCR-Erkennung für Personalausweis/Reisepass mit OpenAI Vision API (GPT-4 Vision)
+
+    Returns:
+        Tuple von (PersonalDaten, OCR-Rohtext, Vertrauenswürdigkeit 0-1)
+    """
+    import base64
+    import json
+
+    try:
+        from openai import OpenAI
+
+        # API-Key aus Streamlit Secrets oder Umgebungsvariable
+        api_key = None
+        try:
+            api_key = st.secrets.get("OPENAI_API_KEY")
+        except:
+            pass
+
+        if not api_key:
+            import os
+            api_key = os.environ.get("OPENAI_API_KEY")
+
+        if not api_key:
+            return None, "Kein OpenAI API-Key konfiguriert", 0.0
+
+        client = OpenAI(api_key=api_key)
+
+        # Bild zu Base64 konvertieren
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+
+        # Prompt für Ausweiserkennung
+        prompt = """Analysiere dieses Bild eines deutschen Personalausweises oder Reisepasses.
+
+Extrahiere alle sichtbaren Daten und gib sie im folgenden JSON-Format zurück:
+
+{
+    "vorname": "...",
+    "nachname": "...",
+    "geburtsdatum": "TT.MM.JJJJ",
+    "geburtsort": "...",
+    "nationalitaet": "DEUTSCH",
+    "strasse": "...",
+    "hausnummer": "...",
+    "plz": "...",
+    "ort": "...",
+    "ausweisnummer": "...",
+    "gueltig_bis": "TT.MM.JJJJ",
+    "ausweisart": "Personalausweis oder Reisepass",
+    "groesse_cm": 0,
+    "augenfarbe": "...",
+    "geschlecht": "M oder W"
+}
+
+Falls ein Feld nicht lesbar ist, setze es auf null.
+Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1000
+        )
+
+        # Antwort parsen
+        response_text = response.choices[0].message.content
+        ocr_text = f"=== OpenAI Vision API Ergebnis ===\n\n{response_text}"
+
+        # JSON extrahieren
+        try:
+            # Finde JSON im Response
+            json_start = response_text.find('{')
+            json_end = response_text.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = response_text[json_start:json_end]
+                data = json.loads(json_str)
+
+                personal_daten = PersonalDaten(
+                    vorname=data.get('vorname', '') or '',
+                    nachname=data.get('nachname', '') or '',
+                    geburtsort=data.get('geburtsort', '') or '',
+                    nationalitaet=data.get('nationalitaet', 'DEUTSCH') or 'DEUTSCH',
+                    strasse=data.get('strasse', '') or '',
+                    hausnummer=data.get('hausnummer', '') or '',
+                    plz=data.get('plz', '') or '',
+                    ort=data.get('ort', '') or '',
+                    ausweisnummer=data.get('ausweisnummer', '') or '',
+                    ausweisart=data.get('ausweisart', 'Personalausweis') or 'Personalausweis',
+                    augenfarbe=data.get('augenfarbe', '') or '',
+                    geschlecht=data.get('geschlecht', '') or ''
+                )
+
+                # Datumsfelder parsen
+                if data.get('geburtsdatum'):
+                    try:
+                        parts = data['geburtsdatum'].split('.')
+                        if len(parts) == 3:
+                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
+                    except:
+                        pass
+
+                if data.get('gueltig_bis'):
+                    try:
+                        parts = data['gueltig_bis'].split('.')
+                        if len(parts) == 3:
+                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
+                    except:
+                        pass
+
+                if data.get('groesse_cm'):
+                    try:
+                        personal_daten.groesse_cm = int(data['groesse_cm'])
+                    except:
+                        pass
+
+                return personal_daten, ocr_text, 0.95
+
+        except json.JSONDecodeError:
+            pass
+
+        return PersonalDaten(), ocr_text, 0.5
+
+    except ImportError:
+        return None, "OpenAI Bibliothek nicht installiert", 0.0
+    except Exception as e:
+        return None, f"OpenAI API Fehler: {str(e)}", 0.0
+
+
 def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDaten', str, float]:
     """
     OCR-Erkennung für Personalausweis/Reisepass
 
-    Versucht pytesseract zu verwenden, falls verfügbar.
-    Ansonsten Simulation mit Demo-Daten.
+    Priorität: 1. Claude Vision, 2. OpenAI Vision, 3. pytesseract, 4. Simulation
 
     Returns:
         Tuple von (PersonalDaten, OCR-Rohtext, Vertrauenswürdigkeit 0-1)
@@ -869,19 +1155,31 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
     vertrauenswuerdigkeit = 0.0
     personal_daten = PersonalDaten()
 
-    # Versuche echte OCR mit pytesseract
+    # 1. Versuche Claude Vision API (Anthropic)
+    result = ocr_personalausweis_with_claude(image_data)
+    if result[0] is not None and result[2] > 0.5:
+        personal_daten, ocr_text, vertrauenswuerdigkeit = result
+        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+        personal_daten.ocr_durchgefuehrt_am = datetime.now()
+        return personal_daten, ocr_text, vertrauenswuerdigkeit
+
+    # 2. Versuche OpenAI Vision API (GPT-4 Vision)
+    result = ocr_personalausweis_with_openai(image_data)
+    if result[0] is not None and result[2] > 0.5:
+        personal_daten, ocr_text, vertrauenswuerdigkeit = result
+        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+        personal_daten.ocr_durchgefuehrt_am = datetime.now()
+        return personal_daten, ocr_text, vertrauenswuerdigkeit
+
+    # 3. Versuche pytesseract als lokaler Fallback
     try:
         import pytesseract
         from PIL import Image
         import io as pio
 
-        # Bild laden
         image = Image.open(pio.BytesIO(image_data))
-
-        # OCR durchführen (Deutsch)
         ocr_text = pytesseract.image_to_string(image, lang='deu')
 
-        # Zusätzlich MRZ (Machine Readable Zone) erkennen
         try:
             mrz_text = pytesseract.image_to_string(
                 image,
@@ -892,21 +1190,36 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
             pass
 
         vertrauenswuerdigkeit = 0.75
-        # Echte OCR: Parsing erforderlich
         personal_daten = parse_ausweis_ocr_text(ocr_text)
 
     except ImportError:
-        # pytesseract nicht verfügbar - Simulation mit zuverlässigen Demo-Daten
+        # 4. Letzter Fallback: Simulation mit Demo-Daten
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
-        vertrauenswuerdigkeit = 0.85  # Simulation ist zuverlässig
+        vertrauenswuerdigkeit = 0.85
+        ocr_text = """⚠️ DEMO-MODUS
+
+Keine OCR-API konfiguriert. Um echte Ausweiserkennung zu aktivieren,
+fügen Sie einen der folgenden API-Keys in Streamlit Secrets hinzu:
+
+• ANTHROPIC_API_KEY - für Claude Vision (empfohlen)
+• OPENAI_API_KEY - für GPT-4 Vision
+
+Anleitung: Settings → Secrets → secrets.toml bearbeiten
+
+Beispiel:
+ANTHROPIC_API_KEY = "sk-ant-api..."
+oder
+OPENAI_API_KEY = "sk-..."
+
+Die folgenden Demo-Daten wurden generiert:
+
+""" + ocr_text
 
     except Exception as e:
-        # Anderer Fehler bei OCR - Fallback zu Simulation
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
         ocr_text = f"⚠️ OCR-Fehler: {str(e)}\n\n{ocr_text}"
         vertrauenswuerdigkeit = 0.85
 
-    # Metadaten setzen
     personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
     personal_daten.ocr_durchgefuehrt_am = datetime.now()
 
