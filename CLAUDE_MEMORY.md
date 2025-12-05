@@ -2,7 +2,7 @@
 
 **Letzte Aktualisierung:** 2025-12-05
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `5d76a3c` - Add comprehensive appointment coordination system
+**Letzter Commit:** `594094c` - Add Personalausweis OCR recognition for Käufer and Verkäufer
 
 ---
 
@@ -38,8 +38,9 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | Bereich | Zeilen | Beschreibung |
 |---------|--------|--------------|
 | Imports & Enums | 1-100 | UserRole, ProjektStatus, PropertyType, NotificationType |
-| User Dataclass | ~150-180 | Benutzer-Datenstruktur |
-| TimelineEvent | ~227-238 | Timeline-Events |
+| User Dataclass | ~214-228 | Benutzer mit personal_daten und ausweis_foto |
+| **PersonalDaten Dataclass** | ~230-263 | Ausweisdaten (Name, Geburt, Adresse, Ausweisnr, etc.) |
+| TimelineEvent | ~265-275 | Timeline-Events |
 | Projekt Dataclass | ~240-260 | Projekt mit termine-Liste |
 | **TerminTyp/TerminStatus** | ~262-278 | Termin-Enums |
 | **Termin Dataclass** | ~280-313 | Termin mit Bestätigungen, Outlook-Integration |
@@ -48,8 +49,13 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | **ExposeData Dataclass** | ~352-450 | Exposé mit allen Feldern (Adresse, Nutzungsart, Ausstattung, Entfernungen, Vergleichsobjekte) |
 | Session State Init | ~554-590 | init_session_state() mit termine, terminvorschlaege, notar_kalender |
 | Demo Users | ~590-700 | create_demo_users(), create_demo_projekt() |
-| validate_address_online | ~1320-1365 | Nominatim/OpenStreetMap API Adressvalidierung |
-| calculate_price_suggestion | ~1368-1431 | Kaufpreis-Vorschlag basierend auf Objektdaten |
+| simulate_ocr | ~720-740 | OCR-Simulation für Wirtschaftsdaten |
+| **ocr_personalausweis** | ~741-800 | OCR für Personalausweis/Reisepass (pytesseract oder Simulation) |
+| **simulate_personalausweis_ocr** | ~802-862 | Demo-Simulation für Ausweis-OCR |
+| **parse_ausweis_ocr_text** | ~864-958 | Extrahiert strukturierte Daten aus OCR-Text |
+| **render_ausweis_upload** | ~960-1148 | UI-Komponente für Ausweis-Upload und OCR |
+| validate_address_online | ~1380-1425 | Nominatim/OpenStreetMap API Adressvalidierung |
+| calculate_price_suggestion | ~1428-1491 | Kaufpreis-Vorschlag basierend auf Objektdaten |
 | **TERMIN-FUNKTIONEN** | ~1434-2078 | Alle Termin-Verwaltungsfunktionen |
 | render_expose_editor | ~2080-2500 | Exposé-Editor mit allen Feldern |
 | makler_dashboard | ~2850-2895 | Makler-Hauptdashboard |
