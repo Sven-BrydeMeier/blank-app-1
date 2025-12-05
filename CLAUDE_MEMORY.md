@@ -2,7 +2,7 @@
 
 **Letzte Aktualisierung:** 2025-12-05
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `594094c` - Add Personalausweis OCR recognition for Käufer and Verkäufer
+**Letzter Commit:** `b449d60` - Add camera capture for mobile devices (iPhone, iPad, Android)
 
 ---
 
@@ -91,6 +91,16 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] E-Mail-Benachrichtigungen (simuliert)
 - [x] ICS-Kalenderdatei-Export (Google, Apple, Outlook)
 - [x] Grünes Lämpchen bei bestätigten Terminen
+
+### Personalausweis-Erfassung (OCR)
+- [x] PersonalDaten Dataclass für Ausweisdaten
+- [x] OCR mit pytesseract (oder Simulation als Fallback)
+- [x] Regex-Parser für deutsche Ausweisdaten
+- [x] **Kamera-Aufnahme für Mobilgeräte** (st.camera_input)
+- [x] Datei-Upload als Alternative
+- [x] Bearbeitbares Formular nach OCR
+- [x] Validierung (Pflichtfelder, Ablaufdatum)
+- [x] Integration in Käufer- und Verkäufer-Dashboard
 
 ### Sonstige Features
 - [x] Financing Offers & Legal Document Gating
@@ -209,11 +219,12 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
+| b449d60 | Add camera capture for mobile devices (iPhone, iPad, Android) |
+| 0e445aa | Update memory file with OCR documentation |
+| 594094c | Add Personalausweis OCR recognition for Käufer and Verkäufer |
+| 047f451 | Add Claude memory file for session continuity |
 | 5d76a3c | Add comprehensive appointment coordination system |
 | 2194fc5 | Enhance Exposé editor with new features |
-| e989854 | Add financing offers and legal document gating |
-| f88a9d5 | Update streamlit_app.py |
-| fbdcc5a | Initial commit |
 
 ---
 
