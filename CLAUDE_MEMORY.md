@@ -2,7 +2,7 @@
 
 **Letzte Aktualisierung:** 2025-12-05
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `b449d60` - Add camera capture for mobile devices (iPhone, iPad, Android)
+**Letzter Commit:** `3a6b8ad` - Add financing/legal gating and Makler recommendation system
 
 ---
 
@@ -101,6 +101,17 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Bearbeitbares Formular nach OCR
 - [x] Validierung (Pflichtfelder, Ablaufdatum)
 - [x] Integration in Käufer- und Verkäufer-Dashboard
+
+### Makler-Empfehlungssystem
+- [x] MaklerEmpfehlung Dataclass für Einladungen
+- [x] MaklerEmpfehlungStatus Enum (Eingeladen, Daten eingegeben, Freigegeben, Abgelehnt, Deaktiviert)
+- [x] Notar: Makler per E-Mail einladen mit Onboarding-Token
+- [x] Notar: Makler freigeben/ablehnen/deaktivieren
+- [x] Verkäufer: "Makler finden" Tab mit freigegebenen Maklern
+- [x] Verkäufer: Filter nach Region und Spezialisierung
+- [x] Verkäufer: Kontaktformular für Makleranfragen
+- [x] Makler-Onboarding-Seite via URL-Token (?token=xxx)
+- [x] Makler: Eingabe von Bürodaten, Konditionen, AGB, Widerrufsbelehrung
 
 ### Sonstige Features
 - [x] Financing Offers & Legal Document Gating
