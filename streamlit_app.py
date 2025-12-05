@@ -368,6 +368,7 @@ class NotarProfile:
     # Zusätzliche Informationen
     notarkammer: str = ""  # z.B. "Notarkammer München"
     notarversicherung: str = ""  # z.B. "R+V Versicherung AG"
+    fachnummer: str = ""  # z.B. "Fach-Nr. 12345" oder "Fachnummer: 67890"
     handelsregister: str = ""
     steuernummer: str = ""
     ust_id: str = ""
@@ -1211,35 +1212,66 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
             elif any(kw in text_lower for kw in ["rechtsanwalt", "anwaltskanzlei", "anwaltsbüro", "rechtsanwälte"]):
                 kategorie = "RECHTSANWALT"
 
-            # Firmenname/Kanzleiname aus Impressum extrahieren
+            # Firmenname/Kanzleiname aus Impressum extrahieren - ERWEITERT
             firmenname = ""
 
-            # Strategie 1: Angaben gemäß § (für Impressum)
-            impressum_patterns = [
-                r'Angaben gemäß[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
-                r'Verantwortlich[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
-                r'Anbieter[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
-                r'Betreiber[^\n]*\n+([A-ZÄÖÜ][^\n]{5,80})',
-            ]
+            # Strategie 1: <title> Tag aus HTML (oft der Kanzleiname)
+            title_tag = soup.find('title')
+            if title_tag and title_tag.string:
+                title_text = title_tag.string.strip()
+                # Bereinige typische Zusätze
+                title_cleaned = re.sub(r'\s*[-|–]\s*(Startseite|Home|Impressum|Datenschutz|Notare|Rechtsanwälte).*$', '', title_text, flags=re.I)
+                title_cleaned = re.sub(r'\s*\|.*$', '', title_cleaned)  # Entferne alles nach |
+                if len(title_cleaned) > 5 and len(title_cleaned) < 100:
+                    firmenname = title_cleaned.strip()
 
-            for pattern in impressum_patterns:
-                matches = re.findall(pattern, text)
-                if matches:
-                    # Bereinige den gefundenen Namen
-                    name = matches[0].strip()
-                    # Entferne häufige Suffixe wie ":"
-                    name = re.sub(r':$', '', name)
-                    # Wenn es ein sinnvoller Name ist (nicht zu kurz, nicht nur Zahlen)
-                    if len(name) > 3 and not name.isdigit():
-                        firmenname = name
-                        break
+            # Strategie 2: Haupt-Heading <h1> auf Startseite
+            if not firmenname:
+                h1_tags = soup.find_all('h1')
+                for h1 in h1_tags[:2]:  # Nur erste 2 h1 Tags prüfen
+                    h1_text = h1.get_text().strip()
+                    if len(h1_text) > 5 and len(h1_text) < 100:
+                        # Prüfe ob es wie ein Kanzleiname aussieht
+                        if any(kw in h1_text.lower() for kw in ['kanzlei', 'rechtsanwält', 'notar', '&', 'und']):
+                            firmenname = h1_text
+                            break
 
-            # Strategie 2: Für Kanzleien - suche nach "Kanzlei" oder Rechtsanwälten
+            # Strategie 3: Angaben gemäß § (für Impressum)
+            if not firmenname:
+                impressum_patterns = [
+                    r'Angaben gemäß[^\n]*\n+([A-ZÄÖÜ][^\n]{5,100})',
+                    r'Verantwortlich[^\n]*\n+([A-ZÄÖÜ][^\n]{5,100})',
+                    r'Diensteanbieter[^\n]*\n+([A-ZÄÖÜ][^\n]{5,100})',
+                    r'Anbieter[^\n]*\n+([A-ZÄÖÜ][^\n]{5,100})',
+                    r'Betreiber[^\n]*\n+([A-ZÄÖÜ][^\n]{5,100})',
+                ]
+
+                for pattern in impressum_patterns:
+                    matches = re.findall(pattern, text)
+                    if matches:
+                        # Bereinige den gefundenen Namen
+                        name = matches[0].strip()
+                        # Entferne häufige Suffixe
+                        name = re.sub(r':$', '', name)
+                        name = re.sub(r'\s+', ' ', name)  # Normalisiere Whitespace
+                        # Wenn es ein sinnvoller Name ist
+                        if len(name) > 3 and not name.isdigit():
+                            firmenname = name
+                            break
+
+            # Strategie 4: Für Kanzleien - spezifische Patterns
             if not firmenname and kategorie in ["RECHTSANWALT", "RECHTSANWALT_NOTAR", "NOTAR"]:
                 kanzlei_patterns = [
-                    r'((?:Rechtsanwalt|Rechtsanwälte|Notar|Kanzlei)\s+[A-ZÄÖÜ][^\n]{5,80})',
-                    r'([A-ZÄÖÜ][a-zäöüß]+\s+(?:&|und)\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+Rechtsanwälte)?)',
-                    r'(Kanzlei\s+[A-ZÄÖÜ][^\n]{5,60})',
+                    # "Kanzlei Müller & Partner"
+                    r'(Kanzlei\s+[A-ZÄÖÜ][^\n]{5,80})',
+                    # "Rechtsanwälte Müller & Partner"
+                    r'(Rechtsanwält[e]?\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+(?:&|und|\,)\s+[A-ZÄÖÜ][a-zäöüß]+)+)',
+                    # "Notare Müller & Partner"
+                    r'(Notar[e]?\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+(?:&|und|\,)\s+[A-ZÄÖÜ][a-zäöüß]+)+)',
+                    # "Müller & Partner Rechtsanwälte"
+                    r'([A-ZÄÖÜ][a-zäöüß]+\s+(?:&|und)\s+[A-ZÄÖÜ][a-zäöüß]+(?:\s+(?:Rechtsanwält[e]?|Notar[e]?|PartG|mbB))?)',
+                    # "Müller, Schmidt & Partner"
+                    r'([A-ZÄÖÜ][a-zäöüß]+\s*,\s*[A-ZÄÖÜ][a-zäöüß]+\s*(?:&|und)\s*[A-ZÄÖÜ][a-zäöüß]+)',
                 ]
                 for pattern in kanzlei_patterns:
                     matches = re.findall(pattern, text)
@@ -1247,6 +1279,8 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                         firmenname = matches[0].strip()
                         # Entferne Zeilenumbrüche und extra Leerzeichen
                         firmenname = re.sub(r'\s+', ' ', firmenname)
+                        # Entferne trailing Satzzeichen
+                        firmenname = re.sub(r'[,;:]$', '', firmenname).strip()
                         break
 
             # Fallback: Domain-basierter Name
@@ -1275,24 +1309,48 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                         notarkammer = re.sub(r'\s+', ' ', notarkammer)
                         break
 
-                # Notarversicherung/Berufshaftpflicht extrahieren (verbesserte Patterns)
+                # Notarversicherung/Berufshaftpflicht extrahieren (ERWEITERTE Patterns)
                 versicherung_patterns = [
-                    r'Berufshaftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
-                    r'Haftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
-                    r'Versichert bei[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
-                    r'(?:Berufs-?)?Haftpflicht[:\s]+([A-ZÄÖÜ&][^\n]{10,100})',
+                    # Mit Doppelpunkt
+                    r'Berufshaftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,150})',
+                    r'Berufshaftpflicht[:\s]+([A-ZÄÖÜ&][^\n]{10,150})',
+                    r'Haftpflichtversicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,150})',
+                    r'Versichert\s+bei[:\s]+([A-ZÄÖÜ&][^\n]{10,150})',
+                    r'Versicherung[:\s]+([A-ZÄÖÜ&][^\n]{10,150}(?:Versicherung|AG|SE|VVaG))',
+                    # Ohne Doppelpunkt (direkt nach Keyword)
+                    r'(?:Berufs-?)?Haftpflicht(?:versicherung)?\s+([A-ZÄÖÜ&][a-zäöüß\s&]+(?:Versicherung|AG|SE|VVaG))',
+                    # In Satz eingebettet
+                    r'versichert\s+(?:ist\s+)?bei\s+(?:der\s+)?([A-ZÄÖÜ&][^\n]{10,100}(?:Versicherung|AG|SE|VVaG))',
                 ]
                 for pattern in versicherung_patterns:
-                    vers_matches = re.findall(pattern, text)
+                    vers_matches = re.findall(pattern, text, re.I)
                     if vers_matches:
                         vers_raw = vers_matches[0].strip()
-                        # Bereinige bis zum ersten Satzzeichen oder Zeilenumbruch
-                        vers_cleaned = re.split(r'[,;\n]', vers_raw)[0].strip()
-                        # Entferne trailing Wörter wie "Die", "Der", etc. am Ende
-                        vers_cleaned = re.sub(r'\s+(Die|Der|Das|Mit|In|Und)$', '', vers_cleaned, flags=re.I)
+                        # Bereinige bis zum ersten Satzzeichen
+                        vers_cleaned = re.split(r'[,;\n\.]', vers_raw)[0].strip()
+                        # Entferne trailing Wörter
+                        vers_cleaned = re.sub(r'\s+(Die|Der|Das|Mit|In|Und|Bei|Von|Für|Zu)$', '', vers_cleaned, flags=re.I)
+                        # Entferne führende Artikel
+                        vers_cleaned = re.sub(r'^(?:der|die|das)\s+', '', vers_cleaned, flags=re.I)
+                        # Normalisiere Whitespace
+                        vers_cleaned = re.sub(r'\s+', ' ', vers_cleaned).strip()
                         if len(vers_cleaned) > 5:
                             notarversicherung = vers_cleaned
                             break
+
+                # Fachnummer extrahieren (NEU)
+                fachnummer = ""
+                fach_patterns = [
+                    r'Fach-?Nr\.?\s*:?\s*(\d+)',
+                    r'Fachnummer\s*:?\s*(\d+)',
+                    r'Fach\s+Nr\.?\s*:?\s*(\d+)',
+                    r'Amtsgericht[^\n]*Fach-?Nr\.?\s*(\d+)',
+                ]
+                for pattern in fach_patterns:
+                    fach_matches = re.findall(pattern, text, re.I)
+                    if fach_matches:
+                        fachnummer = fach_matches[0].strip()
+                        break
 
                 # Namen extrahieren (Notar/Rechtsanwalt) - ALLE Notare finden
                 alle_notare = []  # Liste von (titel, vorname, nachname) Tupeln
@@ -1353,6 +1411,7 @@ Gib alle gefundenen Logo-URLs als Array zurück. Bei relativen URLs gib die voll
                 "notar_daten": {
                     "notarkammer": notarkammer,
                     "notarversicherung": notarversicherung,
+                    "fachnummer": fachnummer,
                     "titel": notar_titel,
                     "vorname": notar_vorname,
                     "nachname": notar_nachname,
@@ -5414,6 +5473,8 @@ def notar_profil_view():
                         with col2:
                             if notar_daten.get('notarversicherung'):
                                 st.write(f"**Versicherung:** {notar_daten['notarversicherung']}")
+                            if notar_daten.get('fachnummer'):
+                                st.write(f"**Fachnummer:** {notar_daten['fachnummer']}")
 
                     st.info("💡 Diese Daten wurden in die Formularfelder unten übernommen.")
         elif analysis_data and "error" in analysis_data:
@@ -5446,12 +5507,14 @@ def notar_profil_view():
                 default_notar_nachname = notar_daten.get('nachname', profile.notar_nachname) or profile.notar_nachname
                 default_notarkammer = notar_daten.get('notarkammer', profile.notarkammer) or profile.notarkammer
                 default_notarversicherung = notar_daten.get('notarversicherung', profile.notarversicherung) or profile.notarversicherung
+                default_fachnummer = notar_daten.get('fachnummer', profile.fachnummer) or profile.fachnummer
             else:
                 default_notar_titel = profile.notar_titel
                 default_notar_vorname = profile.notar_vorname
                 default_notar_nachname = profile.notar_nachname
                 default_notarkammer = profile.notarkammer
                 default_notarversicherung = profile.notarversicherung
+                default_fachnummer = profile.fachnummer
         else:
             default_kanzleiname = profile.kanzleiname
             default_email = profile.email
@@ -5465,6 +5528,7 @@ def notar_profil_view():
             default_notar_nachname = profile.notar_nachname
             default_notarkammer = profile.notarkammer
             default_notarversicherung = profile.notarversicherung
+            default_fachnummer = profile.fachnummer
 
         col1, col2 = st.columns([1, 2])
 
@@ -5563,6 +5627,7 @@ def notar_profil_view():
         with col1:
             notarkammer = st.text_input("Notarkammer", value=default_notarkammer, placeholder="z.B. Notarkammer München")
             notarversicherung = st.text_input("Berufshaftpflichtversicherung", value=default_notarversicherung, placeholder="z.B. R+V Versicherung AG")
+            fachnummer = st.text_input("Fachnummer", value=default_fachnummer, placeholder="z.B. 12345")
             handelsregister = st.text_input("Handelsregister", value=profile.handelsregister)
         with col2:
             steuernummer = st.text_input("Steuernummer", value=profile.steuernummer)
@@ -5587,6 +5652,7 @@ def notar_profil_view():
             profile.website = website
             profile.notarkammer = notarkammer
             profile.notarversicherung = notarversicherung
+            profile.fachnummer = fachnummer
             profile.handelsregister = handelsregister
             profile.steuernummer = steuernummer
             profile.ust_id = ust_id
