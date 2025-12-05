@@ -852,6 +852,118 @@ def hash_password(password: str) -> str:
     """Einfaches Password-Hashing"""
     return hashlib.sha256(password.encode()).hexdigest()
 
+
+def render_dashboard_search(dashboard_name: str) -> str:
+    """
+    Rendert eine Suchleiste für Dashboards und gibt den Suchbegriff zurück.
+    """
+    search_key = f"search_{dashboard_name}"
+
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        search_term = st.text_input(
+            "🔍 Suche",
+            key=search_key,
+            placeholder="Projekte, Dokumente, Namen durchsuchen...",
+            label_visibility="collapsed"
+        )
+    with col2:
+        if search_term:
+            if st.button("✖ Löschen", key=f"clear_{search_key}"):
+                st.session_state[search_key] = ""
+                st.rerun()
+
+    return search_term.lower().strip() if search_term else ""
+
+
+def search_matches(search_term: str, *fields) -> bool:
+    """
+    Prüft ob der Suchbegriff in einem der Felder vorkommt.
+
+    Args:
+        search_term: Der Suchbegriff (lowercase)
+        *fields: Felder zum Durchsuchen (werden zu String konvertiert)
+
+    Returns:
+        True wenn Suchbegriff gefunden wurde
+    """
+    if not search_term:
+        return True
+
+    for field in fields:
+        if field is not None:
+            field_str = str(field).lower()
+            if search_term in field_str:
+                return True
+    return False
+
+
+def filter_projekte_by_search(projekte: list, search_term: str) -> list:
+    """Filtert Projekte nach Suchbegriff"""
+    if not search_term:
+        return projekte
+
+    return [p for p in projekte if search_matches(
+        search_term,
+        p.name,
+        p.beschreibung,
+        p.adresse,
+        str(p.kaufpreis),
+        p.status
+    )]
+
+
+def filter_dokumente_by_search(dokumente: list, search_term: str) -> list:
+    """Filtert Dokumente nach Suchbegriff"""
+    if not search_term:
+        return dokumente
+
+    return [d for d in dokumente if search_matches(
+        search_term,
+        getattr(d, 'filename', ''),
+        getattr(d, 'name', ''),
+        getattr(d, 'kategorie', ''),
+        getattr(d, 'doc_type', ''),
+        getattr(d, 'ocr_text', '')
+    )]
+
+
+def filter_angebote_by_search(angebote: list, search_term: str) -> list:
+    """Filtert Finanzierungsangebote nach Suchbegriff"""
+    if not search_term:
+        return angebote
+
+    filtered = []
+    for offer in angebote:
+        # Projekt-Name holen
+        projekt = st.session_state.projekte.get(offer.projekt_id)
+        projekt_name = projekt.name if projekt else ""
+
+        # Finanzierer-Name holen
+        finanzierer = st.session_state.users.get(offer.finanzierer_id)
+        finanzierer_name = finanzierer.name if finanzierer else ""
+
+        if search_matches(
+            search_term,
+            projekt_name,
+            finanzierer_name,
+            offer.produktname,
+            str(offer.darlehensbetrag),
+            str(offer.zinssatz),
+            offer.besondere_bedingungen,
+            offer.status
+        ):
+            filtered.append(offer)
+
+    return filtered
+
+
+def display_search_results_info(total: int, filtered: int, search_term: str):
+    """Zeigt Info über Suchergebnisse an"""
+    if search_term:
+        st.caption(f"🔍 {filtered} von {total} Ergebnissen für \"{search_term}\"")
+
+
 # ============================================================================
 # HELPER-FUNKTIONEN
 # ============================================================================
@@ -3904,6 +4016,11 @@ def makler_dashboard():
     """Dashboard für Makler"""
     st.title("📊 Makler-Dashboard")
 
+    # Suchleiste
+    search_term = render_dashboard_search("makler")
+    if search_term:
+        st.session_state['makler_search'] = search_term
+
     tabs = st.tabs([
         "📋 Timeline",
         "📁 Projekte",
@@ -3944,10 +4061,15 @@ def makler_timeline_view():
     st.subheader("📊 Projekt-Übersicht mit Timeline")
 
     makler_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+    search_term = st.session_state.get('makler_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte vorhanden.")
         return
 
     for projekt in projekte:
@@ -4621,6 +4743,13 @@ def kaeufer_dashboard():
         onboarding_flow()
         return
 
+    # Suchleiste
+    search_term = render_dashboard_search("kaeufer")
+    if search_term:
+        st.session_state['kaeufer_search'] = search_term
+    else:
+        st.session_state['kaeufer_search'] = ''
+
     tabs = st.tabs(["📊 Timeline", "📋 Projekte", "💰 Finanzierung", "🪪 Ausweis", "💬 Nachrichten", "📄 Dokumente", "📅 Termine"])
 
     with tabs[0]:
@@ -4660,10 +4789,15 @@ def kaeufer_timeline_view():
     st.subheader("📊 Projekt-Fortschritt")
 
     user_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    search_term = st.session_state.get('kaeufer_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte vorhanden.")
         return
 
     for projekt in projekte:
@@ -4675,10 +4809,15 @@ def kaeufer_projekte_view():
     st.subheader("📋 Meine Projekte")
 
     user_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    search_term = st.session_state.get('kaeufer_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte vorhanden.")
         return
 
     for projekt in projekte:
@@ -5623,6 +5762,13 @@ def verkaeufer_dashboard():
         onboarding_flow()
         return
 
+    # Suchleiste
+    search_term = render_dashboard_search("verkaeufer")
+    if search_term:
+        st.session_state['verkaeufer_search'] = search_term
+    else:
+        st.session_state['verkaeufer_search'] = ''
+
     tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
 
     with tabs[0]:
@@ -5830,10 +5976,15 @@ def verkaeufer_timeline_view():
     st.subheader("📊 Projekt-Fortschritt")
 
     user_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    search_term = st.session_state.get('verkaeufer_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte vorhanden.")
         return
 
     for projekt in projekte:
@@ -5845,10 +5996,15 @@ def verkaeufer_projekte_view():
     st.subheader("📋 Meine Projekte")
 
     user_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    search_term = st.session_state.get('verkaeufer_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte vorhanden.")
         return
 
     for projekt in projekte:
@@ -6101,6 +6257,13 @@ def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
     st.title("💼 Finanzierer-Dashboard")
 
+    # Suchleiste
+    search_term = render_dashboard_search("finanzierer")
+    if search_term:
+        st.session_state['finanzierer_search'] = search_term
+    else:
+        st.session_state['finanzierer_search'] = ''
+
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Wirtschaftsdaten Käufer",
@@ -6125,10 +6288,15 @@ def finanzierer_timeline_view():
     st.subheader("📊 Projekt-Fortschritt")
 
     finanzierer_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if finanzierer_id in p.finanzierer_ids]
+    search_term = st.session_state.get('finanzierer_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if finanzierer_id in p.finanzierer_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte zugewiesen.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
     for projekt in projekte:
@@ -6526,6 +6694,13 @@ def notar_dashboard():
     """Dashboard für Notar"""
     st.title("⚖️ Notar-Dashboard")
 
+    # Suchleiste
+    search_term = render_dashboard_search("notar")
+    if search_term:
+        st.session_state['notar_search'] = search_term
+    else:
+        st.session_state['notar_search'] = ''
+
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
@@ -6574,10 +6749,15 @@ def notar_timeline_view():
     st.subheader("📊 Projekt-Fortschritt")
 
     notar_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+    search_term = st.session_state.get('notar_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte zugewiesen.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
     for projekt in projekte:
@@ -6589,10 +6769,15 @@ def notar_projekte_view():
     st.subheader("📋 Meine Projekte")
 
     notar_id = st.session_state.current_user.user_id
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+    search_term = st.session_state.get('notar_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Noch keine Projekte zugewiesen.")
+        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
     for projekt in projekte:
