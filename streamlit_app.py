@@ -222,6 +222,44 @@ class User:
     onboarding_complete: bool = False
     document_acceptances: List[DocumentAcceptance] = field(default_factory=list)
     notifications: List[str] = field(default_factory=list)
+    # Personalausweis-Daten
+    personal_daten: Optional['PersonalDaten'] = None
+    ausweis_foto: Optional[bytes] = None  # Foto des Ausweises
+
+@dataclass
+class PersonalDaten:
+    """Persönliche Daten aus Personalausweis/Reisepass"""
+    # Aus dem Ausweis extrahierte Daten
+    vorname: str = ""
+    nachname: str = ""
+    geburtsname: str = ""
+    geburtsdatum: Optional[date] = None
+    geburtsort: str = ""
+    nationalitaet: str = "DEUTSCH"
+
+    # Adresse
+    strasse: str = ""
+    hausnummer: str = ""
+    plz: str = ""
+    ort: str = ""
+
+    # Ausweis-Infos
+    ausweisnummer: str = ""
+    ausweisart: str = "Personalausweis"  # oder "Reisepass"
+    ausstellungsbehoerde: str = ""
+    ausstellungsdatum: Optional[date] = None
+    gueltig_bis: Optional[date] = None
+
+    # Zusätzliche Infos
+    augenfarbe: str = ""
+    groesse_cm: int = 0
+    geschlecht: str = ""  # "M", "W", "D"
+
+    # OCR-Metadaten
+    ocr_vertrauenswuerdigkeit: float = 0.0  # 0-1
+    ocr_durchgefuehrt_am: Optional[datetime] = None
+    manuell_bestaetigt: bool = False
+    bestaetigt_am: Optional[datetime] = None
 
 @dataclass
 class TimelineEvent:
@@ -698,6 +736,416 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
         ocr_text += "Dokumenttyp konnte nicht automatisch erkannt werden."
 
     return ocr_text, kategorie
+
+
+def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDaten', str, float]:
+    """
+    OCR-Erkennung für Personalausweis/Reisepass
+
+    Versucht pytesseract zu verwenden, falls verfügbar.
+    Ansonsten Simulation basierend auf Dateinamen.
+
+    Returns:
+        Tuple von (PersonalDaten, OCR-Rohtext, Vertrauenswürdigkeit 0-1)
+    """
+    import re
+    from datetime import datetime, date
+
+    ocr_text = ""
+    vertrauenswuerdigkeit = 0.0
+    personal_daten = PersonalDaten()
+    personal_daten.ocr_durchgefuehrt_am = datetime.now()
+
+    # Versuche echte OCR mit pytesseract
+    try:
+        import pytesseract
+        from PIL import Image
+        import io
+
+        # Bild laden
+        image = Image.open(io.BytesIO(image_data))
+
+        # OCR durchführen (Deutsch)
+        ocr_text = pytesseract.image_to_string(image, lang='deu')
+
+        # Zusätzlich MRZ (Machine Readable Zone) erkennen
+        # MRZ ist in monospace font, versuche mit speziellem Config
+        try:
+            mrz_text = pytesseract.image_to_string(
+                image,
+                config='--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<'
+            )
+            ocr_text += "\n\n[MRZ]:\n" + mrz_text
+        except:
+            pass
+
+        vertrauenswuerdigkeit = 0.75  # Echte OCR hat höhere Vertrauenswürdigkeit
+
+    except ImportError:
+        # pytesseract nicht verfügbar - Simulation
+        ocr_text = simulate_personalausweis_ocr(filename)
+        vertrauenswuerdigkeit = 0.5
+
+    except Exception as e:
+        # Anderer Fehler bei OCR
+        ocr_text = f"OCR-Fehler: {str(e)}\n\n" + simulate_personalausweis_ocr(filename)
+        vertrauenswuerdigkeit = 0.3
+
+    # Versuche Daten aus OCR-Text zu extrahieren
+    personal_daten = parse_ausweis_ocr_text(ocr_text)
+    personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+    personal_daten.ocr_durchgefuehrt_am = datetime.now()
+
+    return personal_daten, ocr_text, vertrauenswuerdigkeit
+
+
+def simulate_personalausweis_ocr(filename: str) -> str:
+    """Simuliert OCR-Text eines Personalausweises für Demo-Zwecke"""
+    import random
+
+    # Generiere realistische Demo-Daten
+    vornamen = ["Max", "Anna", "Thomas", "Maria", "Michael", "Julia", "Stefan", "Laura"]
+    nachnamen = ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker"]
+    orte = ["Berlin", "München", "Hamburg", "Köln", "Frankfurt", "Stuttgart", "Düsseldorf", "Leipzig"]
+    strassen = ["Hauptstraße", "Bahnhofstraße", "Berliner Straße", "Gartenweg", "Schulstraße", "Kirchplatz"]
+
+    vorname = random.choice(vornamen)
+    nachname = random.choice(nachnamen)
+    geburtsdatum = f"{random.randint(1, 28):02d}.{random.randint(1, 12):02d}.{random.randint(1960, 2000)}"
+    geburtsort = random.choice(orte)
+    wohnort = random.choice(orte)
+    strasse = random.choice(strassen)
+    hausnr = str(random.randint(1, 150))
+    plz = f"{random.randint(10000, 99999)}"
+    ausweisnummer = f"L{random.randint(10000000, 99999999)}"
+    gueltig_bis = f"{random.randint(1, 28):02d}.{random.randint(1, 12):02d}.{random.randint(2025, 2035)}"
+
+    ocr_text = f"""
+BUNDESREPUBLIK DEUTSCHLAND
+PERSONALAUSWEIS / IDENTITY CARD
+
+Nachname / Surname:
+{nachname.upper()}
+
+Vornamen / Given names:
+{vorname}
+
+Geburtsdatum / Date of birth:
+{geburtsdatum}
+
+Geburtsort / Place of birth:
+{geburtsort}
+
+Staatsangehörigkeit / Nationality:
+DEUTSCH
+
+Anschrift / Address:
+{strasse} {hausnr}
+{plz} {wohnort}
+
+Ausweisnummer / Document number:
+{ausweisnummer}
+
+Gültig bis / Date of expiry:
+{gueltig_bis}
+
+Größe / Height: {random.randint(160, 195)} cm
+Augenfarbe / Eye colour: {"BRAUN" if random.random() > 0.5 else "BLAU"}
+Geschlecht / Sex: {"M" if random.random() > 0.5 else "F"}
+
+[MRZ]:
+IDD<<{nachname.upper()[:20]}<<{vorname.upper()[:20]}<<<<<<<<<<
+{ausweisnummer[1:]}<{random.randint(0, 9)}D{geburtsdatum[6:10][-2:]}{geburtsdatum[3:5]}{geburtsdatum[0:2]}<{random.randint(0, 9)}<<<<<<<<<<<<<<<{random.randint(0, 9)}
+"""
+
+    return ocr_text
+
+
+def parse_ausweis_ocr_text(ocr_text: str) -> 'PersonalDaten':
+    """Extrahiert strukturierte Daten aus OCR-Text eines Ausweises"""
+    import re
+    from datetime import datetime
+
+    personal_daten = PersonalDaten()
+
+    # Text normalisieren
+    text_upper = ocr_text.upper()
+    lines = ocr_text.split('\n')
+
+    # Nachname extrahieren
+    nachname_match = re.search(r'NACHNAME.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-]+)', ocr_text, re.IGNORECASE | re.DOTALL)
+    if nachname_match:
+        personal_daten.nachname = nachname_match.group(1).strip().title()
+
+    # Vorname extrahieren
+    vorname_match = re.search(r'VORNAME.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
+    if vorname_match:
+        personal_daten.vorname = vorname_match.group(1).strip().split('\n')[0].strip().title()
+
+    # Geburtsdatum extrahieren (Format: DD.MM.YYYY)
+    gebdat_match = re.search(r'GEBURTSDATUM.*?(\d{2}[.\-/]\d{2}[.\-/]\d{4})', ocr_text, re.IGNORECASE | re.DOTALL)
+    if gebdat_match:
+        try:
+            date_str = gebdat_match.group(1).replace('-', '.').replace('/', '.')
+            personal_daten.geburtsdatum = datetime.strptime(date_str, '%d.%m.%Y').date()
+        except:
+            pass
+
+    # Geburtsort extrahieren
+    geburtsort_match = re.search(r'GEBURTSORT.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
+    if geburtsort_match:
+        personal_daten.geburtsort = geburtsort_match.group(1).strip().split('\n')[0].strip().title()
+
+    # Staatsangehörigkeit
+    if "DEUTSCH" in text_upper:
+        personal_daten.nationalitaet = "DEUTSCH"
+
+    # Adresse extrahieren
+    adresse_match = re.search(r'ANSCHRIFT.*?[\n:]\s*(.+?)\s*(\d{4,5})\s+([A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
+    if adresse_match:
+        strasse_hausnr = adresse_match.group(1).strip()
+        # Versuche Straße und Hausnummer zu trennen
+        strasse_match = re.match(r'(.+?)\s+(\d+\s*[a-zA-Z]?)$', strasse_hausnr)
+        if strasse_match:
+            personal_daten.strasse = strasse_match.group(1).strip()
+            personal_daten.hausnummer = strasse_match.group(2).strip()
+        else:
+            personal_daten.strasse = strasse_hausnr
+
+        personal_daten.plz = adresse_match.group(2).strip()
+        personal_daten.ort = adresse_match.group(3).strip().split('\n')[0].strip().title()
+
+    # Ausweisnummer extrahieren
+    ausweisnr_match = re.search(r'AUSWEISNUMMER.*?[\n:]\s*([A-Z0-9]{9,12})', ocr_text, re.IGNORECASE | re.DOTALL)
+    if ausweisnr_match:
+        personal_daten.ausweisnummer = ausweisnr_match.group(1).strip()
+
+    # Gültig bis extrahieren
+    gueltig_match = re.search(r'GÜLTIG BIS.*?(\d{2}[.\-/]\d{2}[.\-/]\d{4})', ocr_text, re.IGNORECASE | re.DOTALL)
+    if gueltig_match:
+        try:
+            date_str = gueltig_match.group(1).replace('-', '.').replace('/', '.')
+            personal_daten.gueltig_bis = datetime.strptime(date_str, '%d.%m.%Y').date()
+        except:
+            pass
+
+    # Größe extrahieren
+    groesse_match = re.search(r'GRÖSSE.*?(\d{3})\s*CM', ocr_text, re.IGNORECASE)
+    if groesse_match:
+        personal_daten.groesse_cm = int(groesse_match.group(1))
+
+    # Augenfarbe extrahieren
+    augenfarbe_match = re.search(r'AUGENFARBE.*?[\n:]\s*(BRAUN|BLAU|GRÜN|GRAU|SCHWARZ)', ocr_text, re.IGNORECASE)
+    if augenfarbe_match:
+        personal_daten.augenfarbe = augenfarbe_match.group(1).upper()
+
+    # Geschlecht extrahieren
+    geschlecht_match = re.search(r'GESCHLECHT.*?[\n:]\s*([MWD])', ocr_text, re.IGNORECASE)
+    if geschlecht_match:
+        personal_daten.geschlecht = geschlecht_match.group(1).upper()
+    elif re.search(r'\bSEX.*?[:\s]+M\b', ocr_text, re.IGNORECASE):
+        personal_daten.geschlecht = "M"
+    elif re.search(r'\bSEX.*?[:\s]+F\b', ocr_text, re.IGNORECASE):
+        personal_daten.geschlecht = "W"
+
+    # Ausweisart erkennen
+    if "REISEPASS" in text_upper or "PASSPORT" in text_upper:
+        personal_daten.ausweisart = "Reisepass"
+    else:
+        personal_daten.ausweisart = "Personalausweis"
+
+    return personal_daten
+
+
+def render_ausweis_upload(user_id: str, rolle: str):
+    """
+    Rendert das Ausweis-Upload-Widget mit OCR-Erkennung
+
+    Args:
+        user_id: ID des Benutzers
+        rolle: Rolle des Benutzers (Käufer, Verkäufer)
+    """
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden.")
+        return
+
+    st.markdown("### 🪪 Personalausweis / Reisepass")
+    st.info("Laden Sie ein Foto Ihres Personalausweises oder Reisepasses hoch. Die Daten werden automatisch per OCR erkannt und können dann übernommen werden.")
+
+    # Bestehende Daten anzeigen
+    if user.personal_daten and user.personal_daten.manuell_bestaetigt:
+        st.success("✅ Ausweisdaten wurden erfasst und bestätigt.")
+        with st.expander("📋 Gespeicherte Daten anzeigen", expanded=False):
+            pd = user.personal_daten
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Name:** {pd.vorname} {pd.nachname}")
+                st.write(f"**Geburtsdatum:** {pd.geburtsdatum.strftime('%d.%m.%Y') if pd.geburtsdatum else 'N/A'}")
+                st.write(f"**Geburtsort:** {pd.geburtsort}")
+                st.write(f"**Nationalität:** {pd.nationalitaet}")
+            with col2:
+                st.write(f"**Adresse:** {pd.strasse} {pd.hausnummer}")
+                st.write(f"**PLZ/Ort:** {pd.plz} {pd.ort}")
+                st.write(f"**Ausweisnummer:** {pd.ausweisnummer}")
+                st.write(f"**Gültig bis:** {pd.gueltig_bis.strftime('%d.%m.%Y') if pd.gueltig_bis else 'N/A'}")
+
+        if st.button("🔄 Neuen Ausweis hochladen", key=f"new_ausweis_{user_id}"):
+            st.session_state[f"upload_new_ausweis_{user_id}"] = True
+            st.rerun()
+
+        if not st.session_state.get(f"upload_new_ausweis_{user_id}", False):
+            return
+
+    # Upload-Bereich
+    uploaded_file = st.file_uploader(
+        "Ausweisfoto hochladen (Vorderseite)",
+        type=['jpg', 'jpeg', 'png', 'pdf'],
+        key=f"ausweis_upload_{user_id}",
+        help="Bitte laden Sie ein gut lesbares Foto der Vorderseite Ihres Ausweises hoch."
+    )
+
+    if uploaded_file:
+        file_data = uploaded_file.read()
+
+        # Bild anzeigen
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            try:
+                st.image(file_data, caption="Hochgeladenes Bild", width=300)
+            except:
+                st.info(f"Datei: {uploaded_file.name}")
+
+        with col2:
+            if st.button("🔍 OCR-Erkennung starten", key=f"start_ocr_{user_id}", type="primary"):
+                with st.spinner("Analysiere Ausweis..."):
+                    # OCR durchführen
+                    personal_daten, ocr_text, vertrauen = ocr_personalausweis(file_data, uploaded_file.name)
+
+                    # In Session State speichern für Bearbeitung
+                    st.session_state[f"ocr_result_{user_id}"] = {
+                        'personal_daten': personal_daten,
+                        'ocr_text': ocr_text,
+                        'vertrauen': vertrauen,
+                        'image_data': file_data
+                    }
+
+                st.success(f"✅ OCR abgeschlossen! Vertrauenswürdigkeit: {vertrauen*100:.0f}%")
+                st.rerun()
+
+    # OCR-Ergebnisse bearbeiten und bestätigen
+    ocr_result = st.session_state.get(f"ocr_result_{user_id}")
+    if ocr_result:
+        st.markdown("---")
+        st.markdown("### ✏️ Erkannte Daten prüfen und bearbeiten")
+
+        vertrauen = ocr_result['vertrauen']
+        if vertrauen < 0.5:
+            st.warning("⚠️ Niedrige OCR-Vertrauenswürdigkeit. Bitte prüfen Sie alle Daten sorgfältig.")
+        elif vertrauen < 0.75:
+            st.info("ℹ️ Mittlere OCR-Vertrauenswürdigkeit. Bitte prüfen Sie die Daten.")
+
+        pd = ocr_result['personal_daten']
+
+        # Bearbeitungsformular
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Persönliche Daten**")
+            vorname = st.text_input("Vorname*", value=pd.vorname, key=f"edit_vorname_{user_id}")
+            nachname = st.text_input("Nachname*", value=pd.nachname, key=f"edit_nachname_{user_id}")
+            geburtsname = st.text_input("Geburtsname (falls abweichend)", value=pd.geburtsname, key=f"edit_geburtsname_{user_id}")
+
+            # Geburtsdatum
+            geb_datum = pd.geburtsdatum if pd.geburtsdatum else date(1980, 1, 1)
+            geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"edit_gebdat_{user_id}")
+
+            geburtsort = st.text_input("Geburtsort", value=pd.geburtsort, key=f"edit_geburtsort_{user_id}")
+            nationalitaet = st.text_input("Nationalität", value=pd.nationalitaet, key=f"edit_nat_{user_id}")
+
+        with col2:
+            st.markdown("**Adresse**")
+            strasse = st.text_input("Straße*", value=pd.strasse, key=f"edit_strasse_{user_id}")
+            hausnummer = st.text_input("Hausnummer*", value=pd.hausnummer, key=f"edit_hausnr_{user_id}")
+            plz = st.text_input("PLZ*", value=pd.plz, key=f"edit_plz_{user_id}")
+            ort = st.text_input("Ort*", value=pd.ort, key=f"edit_ort_{user_id}")
+
+            st.markdown("**Ausweis-Infos**")
+            ausweisart = st.selectbox("Ausweisart", ["Personalausweis", "Reisepass"],
+                                      index=0 if pd.ausweisart == "Personalausweis" else 1,
+                                      key=f"edit_ausweisart_{user_id}")
+            ausweisnummer = st.text_input("Ausweisnummer*", value=pd.ausweisnummer, key=f"edit_ausweisnr_{user_id}")
+
+            # Gültig bis
+            gueltig_datum = pd.gueltig_bis if pd.gueltig_bis else date.today()
+            gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"edit_gueltig_{user_id}")
+
+        # OCR-Rohtext anzeigen (für Debugging)
+        with st.expander("🔍 OCR-Rohtext anzeigen"):
+            st.text_area("Erkannter Text", ocr_result['ocr_text'], height=200, disabled=True)
+
+        # Speichern-Button
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("💾 Daten übernehmen & bestätigen", key=f"save_ausweis_{user_id}", type="primary"):
+                # Validierung
+                if not all([vorname, nachname, strasse, hausnummer, plz, ort, ausweisnummer]):
+                    st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
+                elif gueltig_bis < date.today():
+                    st.error("⚠️ Der Ausweis ist abgelaufen! Bitte verwenden Sie einen gültigen Ausweis.")
+                else:
+                    # PersonalDaten aktualisieren
+                    new_pd = PersonalDaten(
+                        vorname=vorname,
+                        nachname=nachname,
+                        geburtsname=geburtsname,
+                        geburtsdatum=geburtsdatum,
+                        geburtsort=geburtsort,
+                        nationalitaet=nationalitaet,
+                        strasse=strasse,
+                        hausnummer=hausnummer,
+                        plz=plz,
+                        ort=ort,
+                        ausweisart=ausweisart,
+                        ausweisnummer=ausweisnummer,
+                        gueltig_bis=gueltig_bis,
+                        groesse_cm=pd.groesse_cm,
+                        augenfarbe=pd.augenfarbe,
+                        geschlecht=pd.geschlecht,
+                        ocr_vertrauenswuerdigkeit=vertrauen,
+                        ocr_durchgefuehrt_am=pd.ocr_durchgefuehrt_am,
+                        manuell_bestaetigt=True,
+                        bestaetigt_am=datetime.now()
+                    )
+
+                    # User aktualisieren
+                    user.personal_daten = new_pd
+                    user.ausweis_foto = ocr_result['image_data']
+                    user.name = f"{vorname} {nachname}"  # Name aktualisieren
+                    st.session_state.users[user_id] = user
+
+                    # Session State aufräumen
+                    del st.session_state[f"ocr_result_{user_id}"]
+                    if f"upload_new_ausweis_{user_id}" in st.session_state:
+                        del st.session_state[f"upload_new_ausweis_{user_id}"]
+
+                    st.success("✅ Ausweisdaten erfolgreich gespeichert!")
+                    st.balloons()
+                    st.rerun()
+
+        with col2:
+            if st.button("🔄 Erneut scannen", key=f"rescan_{user_id}"):
+                del st.session_state[f"ocr_result_{user_id}"]
+                st.rerun()
+
+        with col3:
+            if st.button("❌ Abbrechen", key=f"cancel_ausweis_{user_id}"):
+                del st.session_state[f"ocr_result_{user_id}"]
+                if f"upload_new_ausweis_{user_id}" in st.session_state:
+                    del st.session_state[f"upload_new_ausweis_{user_id}"]
+                st.rerun()
+
 
 def update_projekt_status(projekt_id: str):
     """Aktualisiert den Projektstatus basierend auf Timeline-Events"""
@@ -3575,7 +4023,7 @@ def kaeufer_dashboard():
         onboarding_flow()
         return
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "💰 Finanzierung", "💬 Nachrichten", "📄 Dokumente"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "💰 Finanzierung", "🪪 Ausweis", "💬 Nachrichten", "📄 Dokumente", "📅 Termine"])
 
     with tabs[0]:
         kaeufer_timeline_view()
@@ -3587,10 +4035,27 @@ def kaeufer_dashboard():
         kaeufer_finanzierung_view()
 
     with tabs[3]:
-        kaeufer_nachrichten()
+        # Personalausweis-Upload mit OCR
+        st.subheader("🪪 Ausweisdaten erfassen")
+        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
 
     with tabs[4]:
+        kaeufer_nachrichten()
+
+    with tabs[5]:
         kaeufer_dokumente_view()
+
+    with tabs[6]:
+        # Termin-Übersicht für Käufer
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+        if projekte:
+            for projekt in projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                    render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -3903,7 +4368,7 @@ def verkaeufer_dashboard():
         onboarding_flow()
         return
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -3912,13 +4377,30 @@ def verkaeufer_dashboard():
         verkaeufer_projekte_view()
 
     with tabs[2]:
-        verkaeufer_dokumente_view()
+        # Personalausweis-Upload mit OCR
+        st.subheader("🪪 Ausweisdaten erfassen")
+        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
     with tabs[3]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
+        verkaeufer_dokumente_view()
 
     with tabs[4]:
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
+
+    with tabs[5]:
         verkaeufer_nachrichten()
+
+    with tabs[6]:
+        # Termin-Übersicht für Verkäufer
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+        if projekte:
+            for projekt in projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                    render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
 
 def verkaeufer_timeline_view():
     """Timeline für Verkäufer"""
