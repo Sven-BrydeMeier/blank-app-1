@@ -2,6 +2,7 @@
 Immobilien-Transaktionsplattform
 Rollen: Makler, Käufer, Verkäufer, Finanzierer, Notar
 Erweiterte Version mit Timeline, OCR, Benachrichtigungen, etc.
+Responsive Design für Mobile, Tablet und Desktop
 """
 
 import streamlit as st
@@ -14,6 +15,908 @@ from enum import Enum
 import hashlib
 import re
 import base64
+
+# ============================================================================
+# RESPONSIVE DESIGN SYSTEM
+# ============================================================================
+
+class DeviceType(Enum):
+    """Gerätetypen für responsive Design"""
+    MOBILE = "mobile"      # iPhone, Android Phones (< 768px)
+    TABLET = "tablet"      # iPad, Android Tablets (768px - 1024px)
+    DESKTOP = "desktop"    # Laptop, Desktop (> 1024px)
+
+
+def inject_responsive_css():
+    """Injiziert modernes responsives CSS für alle Gerätetypen"""
+    st.markdown("""
+    <style>
+    /* ============================================
+       MODERNE APP-DESIGN BASIS
+       ============================================ */
+
+    /* CSS Variablen für konsistentes Design */
+    :root {
+        --primary-color: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-light: #3b82f6;
+        --secondary-color: #64748b;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --error-color: #ef4444;
+        --background-color: #f8fafc;
+        --card-background: #ffffff;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --border-color: #e2e8f0;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        --radius-sm: 0.375rem;
+        --radius-md: 0.5rem;
+        --radius-lg: 0.75rem;
+        --radius-xl: 1rem;
+    }
+
+    /* Dark Mode Unterstützung */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --background-color: #0f172a;
+            --card-background: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+    }
+
+    /* Basis-Styling */
+    .stApp {
+        background-color: var(--background-color);
+    }
+
+    /* Modernes Card-Design */
+    .modern-card {
+        background: var(--card-background);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .modern-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+
+    /* Moderne Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        border: none;
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .stButton > button:active {
+        transform: translateY(0);
+    }
+
+    /* Moderne Inputs */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stTextArea > div > div > textarea {
+        border-radius: var(--radius-md);
+        border: 2px solid var(--border-color);
+        padding: 0.75rem 1rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    /* Moderne Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background: var(--card-background);
+        padding: 0.5rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    /* Moderne Expander */
+    .streamlit-expanderHeader {
+        background: var(--card-background);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-color);
+        font-weight: 600;
+    }
+
+    /* Status-Badges */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .status-success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-info {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    /* ============================================
+       MOBILE STYLES (< 768px)
+       ============================================ */
+    @media (max-width: 767px) {
+        /* Mobile Header */
+        .mobile-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: var(--card-background);
+            padding: 1rem;
+            box-shadow: var(--shadow-md);
+            margin: -1rem -1rem 1rem -1rem;
+        }
+
+        /* Mobile Navigation */
+        .mobile-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card-background);
+            box-shadow: 0 -4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 0.5rem;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .mobile-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .mobile-nav-item.active {
+            color: var(--primary-color);
+        }
+
+        .mobile-nav-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Kompaktere Cards auf Mobile */
+        .modern-card {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Vollbreite Buttons auf Mobile */
+        .stButton > button {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+        }
+
+        /* Tabs als horizontales Scrolling */
+        .stTabs [data-baseweb="tab-list"] {
+            overflow-x: auto;
+            flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar {
+            display: none;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            white-space: nowrap;
+            flex-shrink: 0;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        /* Größere Touch-Targets */
+        .stCheckbox, .stRadio {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Angepasste Schriftgrößen */
+        h1 { font-size: 1.5rem !important; }
+        h2 { font-size: 1.25rem !important; }
+        h3 { font-size: 1.1rem !important; }
+
+        /* Sidebar verstecken auf Mobile */
+        [data-testid="stSidebar"] {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        [data-testid="stSidebar"].open {
+            transform: translateX(0);
+        }
+
+        /* Bottom Padding für Mobile Navigation */
+        .main .block-container {
+            padding-bottom: 5rem;
+        }
+    }
+
+    /* ============================================
+       TABLET STYLES (768px - 1024px)
+       ============================================ */
+    @media (min-width: 768px) and (max-width: 1024px) {
+        /* Tablet-optimiertes Grid */
+        .tablet-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        /* Mittlere Card-Größe */
+        .modern-card {
+            padding: 1.25rem;
+        }
+
+        /* Tabs mit mittlerer Größe */
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.625rem 1rem;
+        }
+
+        /* Sidebar schmaler auf Tablet */
+        [data-testid="stSidebar"] {
+            width: 250px;
+        }
+
+        /* Angepasste Schriftgrößen */
+        h1 { font-size: 1.75rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.25rem !important; }
+    }
+
+    /* ============================================
+       DESKTOP STYLES (> 1024px)
+       ============================================ */
+    @media (min-width: 1025px) {
+        /* Desktop Grid */
+        .desktop-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        /* Breite Cards */
+        .modern-card {
+            padding: 1.5rem;
+        }
+
+        /* Hover-Effekte auf Desktop */
+        .modern-card:hover {
+            transform: translateY(-4px);
+        }
+
+        /* Sidebar volle Breite */
+        [data-testid="stSidebar"] {
+            width: 300px;
+        }
+    }
+
+    /* ============================================
+       SPEZIELLE KOMPONENTEN
+       ============================================ */
+
+    /* Quick Actions Grid */
+    .quick-actions {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    @media (max-width: 767px) {
+        .quick-actions {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (min-width: 768px) {
+        .quick-actions {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    .quick-action-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+    }
+
+    .quick-action-btn:hover {
+        border-color: var(--primary-color);
+        background: rgba(37, 99, 235, 0.05);
+    }
+
+    .quick-action-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .quick-action-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* Progress Steps */
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+    }
+
+    .progress-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+        position: relative;
+    }
+
+    .progress-step::before {
+        content: '';
+        position: absolute;
+        top: 1rem;
+        left: 50%;
+        width: 100%;
+        height: 2px;
+        background: var(--border-color);
+        z-index: 0;
+    }
+
+    .progress-step:last-child::before {
+        display: none;
+    }
+
+    .progress-step-circle {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        color: var(--text-secondary);
+        z-index: 1;
+        position: relative;
+    }
+
+    .progress-step.active .progress-step-circle {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .progress-step.completed .progress-step-circle {
+        background: var(--success-color);
+        color: white;
+    }
+
+    .progress-step-label {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    @media (max-width: 767px) {
+        .progress-step-label {
+            display: none;
+        }
+
+        .progress-step-circle {
+            width: 1.5rem;
+            height: 1.5rem;
+            font-size: 0.75rem;
+        }
+    }
+
+    /* Stat Cards */
+    .stat-card {
+        background: var(--card-background);
+        border-radius: var(--radius-lg);
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    @media (max-width: 767px) {
+        .stat-value {
+            font-size: 1.5rem;
+        }
+
+        .stat-card {
+            padding: 1rem;
+        }
+    }
+
+    /* Avatar/Profilbild */
+    .avatar {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 1.25rem;
+    }
+
+    .avatar-sm {
+        width: 2rem;
+        height: 2rem;
+        font-size: 0.875rem;
+    }
+
+    .avatar-lg {
+        width: 4rem;
+        height: 4rem;
+        font-size: 1.5rem;
+    }
+
+    /* Floating Action Button (FAB) - Mobile */
+    .fab {
+        position: fixed;
+        bottom: 5rem;
+        right: 1rem;
+        width: 3.5rem;
+        height: 3.5rem;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        box-shadow: var(--shadow-lg);
+        cursor: pointer;
+        z-index: 999;
+        transition: transform 0.2s ease;
+    }
+
+    .fab:hover {
+        transform: scale(1.1);
+    }
+
+    @media (min-width: 768px) {
+        .fab {
+            display: none;
+        }
+    }
+
+    /* List Items */
+    .list-item {
+        display: flex;
+        align-items: center;
+        padding: 1rem;
+        background: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        margin-bottom: 0.5rem;
+        transition: all 0.2s ease;
+    }
+
+    .list-item:hover {
+        border-color: var(--primary-color);
+    }
+
+    .list-item-icon {
+        font-size: 1.5rem;
+        margin-right: 1rem;
+    }
+
+    .list-item-content {
+        flex: 1;
+    }
+
+    .list-item-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .list-item-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .list-item-action {
+        color: var(--text-secondary);
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .empty-state-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state-text {
+        font-size: 0.875rem;
+    }
+
+    /* Skeleton Loading */
+    .skeleton {
+        background: linear-gradient(90deg, var(--border-color) 25%, #f1f5f9 50%, var(--border-color) 75%);
+        background-size: 200% 100%;
+        animation: skeleton-loading 1.5s infinite;
+        border-radius: var(--radius-sm);
+    }
+
+    @keyframes skeleton-loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Pull to Refresh Indicator */
+    .pull-indicator {
+        text-align: center;
+        padding: 1rem;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    /* Toast Notifications */
+    .toast {
+        position: fixed;
+        bottom: 6rem;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--text-primary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        z-index: 10000;
+        animation: toast-in 0.3s ease;
+    }
+
+    @keyframes toast-in {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(1rem);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+
+    /* Swipe Actions (für Listen) */
+    .swipe-container {
+        overflow-x: hidden;
+        position: relative;
+    }
+
+    .swipe-content {
+        transition: transform 0.2s ease;
+    }
+
+    .swipe-actions {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        display: flex;
+    }
+
+    .swipe-action {
+        width: 4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .swipe-action-delete {
+        background: var(--error-color);
+    }
+
+    .swipe-action-edit {
+        background: var(--primary-color);
+    }
+
+    /* iOS Safe Area */
+    @supports (padding: max(0px)) {
+        .mobile-nav {
+            padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+        }
+
+        .main .block-container {
+            padding-bottom: max(5rem, calc(4rem + env(safe-area-inset-bottom)));
+        }
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def get_device_type() -> str:
+    """
+    Ermittelt den Gerätetyp basierend auf Session State.
+    In Streamlit können wir den User-Agent nicht direkt lesen,
+    daher verwenden wir JavaScript zur Erkennung.
+    """
+    # Default zu desktop
+    if 'device_type' not in st.session_state:
+        st.session_state.device_type = DeviceType.DESKTOP.value
+
+    return st.session_state.device_type
+
+
+def inject_device_detection():
+    """Injiziert JavaScript zur Geräteerkennung"""
+    st.markdown("""
+    <script>
+    (function() {
+        function detectDevice() {
+            const width = window.innerWidth;
+            let deviceType = 'desktop';
+
+            if (width < 768) {
+                deviceType = 'mobile';
+            } else if (width <= 1024) {
+                deviceType = 'tablet';
+            }
+
+            // Speichern im sessionStorage
+            sessionStorage.setItem('deviceType', deviceType);
+
+            // Klasse zum Body hinzufügen
+            document.body.classList.remove('device-mobile', 'device-tablet', 'device-desktop');
+            document.body.classList.add('device-' + deviceType);
+        }
+
+        // Initial und bei Resize
+        detectDevice();
+        window.addEventListener('resize', detectDevice);
+    })();
+    </script>
+    """, unsafe_allow_html=True)
+
+
+def render_mobile_header(title: str, show_back: bool = False, show_menu: bool = True):
+    """Rendert einen modernen Mobile Header"""
+    st.markdown(f"""
+    <div class="mobile-header">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                {"<span style='font-size: 1.5rem; cursor: pointer;'>←</span>" if show_back else ""}
+                <h1 style="margin: 0; font-size: 1.25rem; font-weight: 600;">{title}</h1>
+            </div>
+            {"<span style='font-size: 1.5rem; cursor: pointer;'>☰</span>" if show_menu else ""}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_mobile_nav(active_tab: str, role: str):
+    """Rendert die Bottom Navigation für Mobile"""
+
+    nav_items = {
+        UserRole.KAEUFER.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📝", "label": "Aufgaben", "key": "aufgaben"},
+            {"icon": "💰", "label": "Finanzierung", "key": "finanzierung"},
+            {"icon": "📄", "label": "Dokumente", "key": "dokumente"},
+            {"icon": "👤", "label": "Profil", "key": "profil"},
+        ],
+        UserRole.VERKAEUFER.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📋", "label": "Projekte", "key": "projekte"},
+            {"icon": "📄", "label": "Dokumente", "key": "dokumente"},
+            {"icon": "📅", "label": "Termine", "key": "termine"},
+            {"icon": "👤", "label": "Profil", "key": "profil"},
+        ],
+        UserRole.MAKLER.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📋", "label": "Projekte", "key": "projekte"},
+            {"icon": "📊", "label": "Exposés", "key": "exposes"},
+            {"icon": "👥", "label": "Kunden", "key": "kunden"},
+            {"icon": "👤", "label": "Profil", "key": "profil"},
+        ],
+        UserRole.FINANZIERER.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📊", "label": "Anfragen", "key": "anfragen"},
+            {"icon": "📋", "label": "Angebote", "key": "angebote"},
+            {"icon": "📄", "label": "Dokumente", "key": "dokumente"},
+            {"icon": "👤", "label": "Profil", "key": "profil"},
+        ],
+        UserRole.NOTAR.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📋", "label": "Projekte", "key": "projekte"},
+            {"icon": "📝", "label": "Checklisten", "key": "checklisten"},
+            {"icon": "📅", "label": "Termine", "key": "termine"},
+            {"icon": "⚙️", "label": "Mehr", "key": "mehr"},
+        ],
+    }
+
+    items = nav_items.get(role, nav_items[UserRole.KAEUFER.value])
+
+    nav_html = '<div class="mobile-nav">'
+    for item in items:
+        active_class = "active" if item["key"] == active_tab else ""
+        nav_html += f'''
+        <div class="mobile-nav-item {active_class}" data-tab="{item['key']}">
+            <span class="mobile-nav-icon">{item['icon']}</span>
+            <span>{item['label']}</span>
+        </div>
+        '''
+    nav_html += '</div>'
+
+    st.markdown(nav_html, unsafe_allow_html=True)
+
+
+def render_quick_actions(actions: List[Dict[str, str]]):
+    """Rendert Quick Action Buttons im Grid"""
+    cols = st.columns(len(actions) if len(actions) <= 4 else 4)
+    for i, action in enumerate(actions[:4]):
+        with cols[i % 4]:
+            st.markdown(f"""
+            <div class="quick-action-btn">
+                <span class="quick-action-icon">{action.get('icon', '📌')}</span>
+                <span class="quick-action-label">{action.get('label', 'Aktion')}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def render_stat_cards(stats: List[Dict[str, Any]]):
+    """Rendert Statistik-Cards"""
+    cols = st.columns(len(stats))
+    for i, stat in enumerate(stats):
+        with cols[i]:
+            st.markdown(f"""
+            <div class="stat-card">
+                <div class="stat-value">{stat.get('value', '0')}</div>
+                <div class="stat-label">{stat.get('label', 'Label')}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def render_progress_steps(steps: List[Dict[str, Any]], current_step: int):
+    """Rendert Progress Steps"""
+    steps_html = '<div class="progress-steps">'
+    for i, step in enumerate(steps):
+        status = "completed" if i < current_step else ("active" if i == current_step else "")
+        steps_html += f'''
+        <div class="progress-step {status}">
+            <div class="progress-step-circle">{i + 1 if status != "completed" else "✓"}</div>
+            <div class="progress-step-label">{step.get('label', '')}</div>
+        </div>
+        '''
+    steps_html += '</div>'
+    st.markdown(steps_html, unsafe_allow_html=True)
+
+
+def render_list_item(icon: str, title: str, subtitle: str = "", action_icon: str = "→"):
+    """Rendert ein List Item"""
+    st.markdown(f"""
+    <div class="list-item">
+        <span class="list-item-icon">{icon}</span>
+        <div class="list-item-content">
+            <div class="list-item-title">{title}</div>
+            {"<div class='list-item-subtitle'>" + subtitle + "</div>" if subtitle else ""}
+        </div>
+        <span class="list-item-action">{action_icon}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_empty_state(icon: str, title: str, text: str):
+    """Rendert einen Empty State"""
+    st.markdown(f"""
+    <div class="empty-state">
+        <div class="empty-state-icon">{icon}</div>
+        <div class="empty-state-title">{title}</div>
+        <div class="empty-state-text">{text}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_status_badge(text: str, status: str = "info"):
+    """Rendert ein Status Badge"""
+    return f'<span class="status-badge status-{status}">{text}</span>'
+
+
+def render_avatar(name: str, size: str = ""):
+    """Rendert einen Avatar mit Initialen"""
+    initials = "".join([n[0].upper() for n in name.split()[:2]]) if name else "?"
+    size_class = f"avatar-{size}" if size else ""
+    return f'<div class="avatar {size_class}">{initials}</div>'
 
 # ============================================================================
 # ENUMS UND KONSTANTEN
@@ -9115,6 +10018,10 @@ def main():
     )
 
     init_session_state()
+
+    # Responsive Design aktivieren
+    inject_responsive_css()
+    inject_device_detection()
 
     # Prüfe auf Makler-Onboarding-Token in URL
     query_params = st.query_params
