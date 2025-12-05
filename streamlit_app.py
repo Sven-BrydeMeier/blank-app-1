@@ -1746,7 +1746,7 @@ def parse_ausweis_ocr_text(ocr_text: str) -> 'PersonalDaten':
 
 def render_ausweis_upload(user_id: str, rolle: str):
     """
-    Rendert das Ausweis-Upload-Widget mit OCR-Erkennung
+    Rendert das Ausweis-Upload-Widget mit OCR-Erkennung für Vorder- und Rückseite
 
     Args:
         user_id: ID des Benutzers
@@ -1758,7 +1758,12 @@ def render_ausweis_upload(user_id: str, rolle: str):
         return
 
     st.markdown("### 🪪 Personalausweis / Reisepass")
-    st.info("📱 **Mobilgerät?** Nehmen Sie direkt ein Foto auf! Alternativ können Sie ein vorhandenes Foto hochladen. Die Daten werden automatisch per OCR erkannt und können dann übernommen werden.")
+    st.info("""
+    📱 **So funktioniert's:**
+    1. Laden Sie zuerst die **Vorderseite** Ihres Ausweises hoch (Name, Geburtsdatum, Foto)
+    2. Dann laden Sie die **Rückseite** hoch (Adresse, Ausweisnummer, Gültigkeit)
+    3. Die Daten werden automatisch per OCR erkannt und zusammengeführt
+    """)
 
     # Bestehende Daten anzeigen
     if user.personal_daten and user.personal_daten.manuell_bestaetigt:
@@ -1779,55 +1784,143 @@ def render_ausweis_upload(user_id: str, rolle: str):
 
         if st.button("🔄 Neuen Ausweis hochladen", key=f"new_ausweis_{user_id}"):
             st.session_state[f"upload_new_ausweis_{user_id}"] = True
+            # Reset der Seiten-Daten
+            if f"ausweis_vorderseite_{user_id}" in st.session_state:
+                del st.session_state[f"ausweis_vorderseite_{user_id}"]
+            if f"ausweis_rueckseite_{user_id}" in st.session_state:
+                del st.session_state[f"ausweis_rueckseite_{user_id}"]
             st.rerun()
 
         if not st.session_state.get(f"upload_new_ausweis_{user_id}", False):
             return
 
-    # Auswahl: Datei hochladen oder Foto aufnehmen
-    st.markdown("#### Ausweis erfassen")
+    # Initialisiere Session State für Ausweis-Seiten
+    if f"ausweis_vorderseite_{user_id}" not in st.session_state:
+        st.session_state[f"ausweis_vorderseite_{user_id}"] = None
+    if f"ausweis_rueckseite_{user_id}" not in st.session_state:
+        st.session_state[f"ausweis_rueckseite_{user_id}"] = None
 
+    # Fortschrittsanzeige
+    vorderseite_done = st.session_state[f"ausweis_vorderseite_{user_id}"] is not None
+    rueckseite_done = st.session_state[f"ausweis_rueckseite_{user_id}"] is not None
+
+    progress_col1, progress_col2, progress_col3 = st.columns(3)
+    with progress_col1:
+        if vorderseite_done:
+            st.success("✅ Vorderseite erfasst")
+        else:
+            st.warning("⏳ Vorderseite ausstehend")
+    with progress_col2:
+        if rueckseite_done:
+            st.success("✅ Rückseite erfasst")
+        else:
+            st.warning("⏳ Rückseite ausstehend")
+    with progress_col3:
+        if vorderseite_done and rueckseite_done:
+            st.success("✅ Bereit zur Übernahme")
+        else:
+            st.info("📋 Daten prüfen")
+
+    st.markdown("---")
+
+    # Tabs für Vorder- und Rückseite
+    ausweis_tabs = st.tabs(["📄 Vorderseite", "📄 Rückseite", "✅ Daten übernehmen"])
+
+    # === VORDERSEITE ===
+    with ausweis_tabs[0]:
+        st.markdown("#### Vorderseite des Ausweises")
+        st.caption("Enthält: Name, Geburtsdatum, Geburtsort, Nationalität, Foto")
+
+        render_ausweis_seite_upload(user_id, "vorderseite")
+
+    # === RÜCKSEITE ===
+    with ausweis_tabs[1]:
+        st.markdown("#### Rückseite des Ausweises")
+        st.caption("Enthält: Adresse, Ausweisnummer, Gültigkeitsdatum, Größe, Augenfarbe")
+
+        render_ausweis_seite_upload(user_id, "rueckseite")
+
+    # === DATEN ÜBERNEHMEN ===
+    with ausweis_tabs[2]:
+        render_ausweis_zusammenfassung(user_id)
+
+
+def render_ausweis_seite_upload(user_id: str, seite: str):
+    """Rendert den Upload für eine Ausweis-Seite (Vorder- oder Rückseite)"""
+
+    seite_key = f"ausweis_{seite}_{user_id}"
+    seite_label = "Vorderseite" if seite == "vorderseite" else "Rückseite"
+
+    # Prüfen ob bereits erfasst
+    if st.session_state.get(seite_key):
+        ocr_data = st.session_state[seite_key]
+        st.success(f"✅ {seite_label} wurde erfasst (Vertrauen: {ocr_data['vertrauen']*100:.0f}%)")
+
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            try:
+                st.image(ocr_data['image_data'], caption=seite_label, width=250)
+            except:
+                st.info("Bild gespeichert")
+
+        with col2:
+            with st.expander("📋 Erkannte Daten"):
+                pd = ocr_data['personal_daten']
+                if seite == "vorderseite":
+                    st.write(f"**Vorname:** {pd.vorname}")
+                    st.write(f"**Nachname:** {pd.nachname}")
+                    st.write(f"**Geburtsdatum:** {pd.geburtsdatum.strftime('%d.%m.%Y') if pd.geburtsdatum else '-'}")
+                    st.write(f"**Geburtsort:** {pd.geburtsort}")
+                    st.write(f"**Nationalität:** {pd.nationalitaet}")
+                else:
+                    st.write(f"**Straße:** {pd.strasse} {pd.hausnummer}")
+                    st.write(f"**PLZ/Ort:** {pd.plz} {pd.ort}")
+                    st.write(f"**Ausweisnummer:** {pd.ausweisnummer}")
+                    st.write(f"**Gültig bis:** {pd.gueltig_bis.strftime('%d.%m.%Y') if pd.gueltig_bis else '-'}")
+
+        if st.button(f"🔄 {seite_label} erneut erfassen", key=f"retry_{seite}_{user_id}"):
+            del st.session_state[seite_key]
+            st.rerun()
+
+        return
+
+    # Upload-Methode auswählen
     upload_methode = st.radio(
-        "Wie möchten Sie den Ausweis erfassen?",
+        f"Wie möchten Sie die {seite_label} erfassen?",
         ["📁 Datei hochladen", "📷 Foto aufnehmen (Kamera)"],
-        key=f"upload_methode_{user_id}",
-        horizontal=True,
-        help="Auf Mobilgeräten (iPhone, iPad, Android) können Sie direkt ein Foto aufnehmen."
+        key=f"upload_methode_{seite}_{user_id}",
+        horizontal=True
     )
 
     file_data = None
-    file_name = "camera_capture.jpg"
+    file_name = "capture.jpg"
 
     if upload_methode == "📁 Datei hochladen":
-        # Klassischer Datei-Upload
         uploaded_file = st.file_uploader(
-            "Ausweisfoto hochladen (Vorderseite)",
+            f"{seite_label} hochladen",
             type=['jpg', 'jpeg', 'png', 'pdf'],
-            key=f"ausweis_upload_{user_id}",
-            help="Bitte laden Sie ein gut lesbares Foto der Vorderseite Ihres Ausweises hoch."
+            key=f"upload_{seite}_{user_id}",
+            help=f"Bitte laden Sie ein gut lesbares Foto der {seite_label} Ihres Ausweises hoch."
         )
         if uploaded_file:
             file_data = uploaded_file.read()
             file_name = uploaded_file.name
     else:
-        # Kamera-Aufnahme (ideal für Mobilgeräte)
-        st.info("📱 **Tipp für Mobilgeräte:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen und Schatten.")
+        st.info("📱 **Tipp:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen.")
 
         camera_photo = st.camera_input(
-            "Ausweis fotografieren",
-            key=f"ausweis_camera_{user_id}",
-            help="Richten Sie die Kamera auf die Vorderseite Ihres Ausweises."
+            f"{seite_label} fotografieren",
+            key=f"camera_{seite}_{user_id}"
         )
         if camera_photo:
             file_data = camera_photo.read()
-            file_name = "kamera_aufnahme.jpg"
+            file_name = f"{seite}_kamera.jpg"
 
     if file_data:
-        # Bild anzeigen
         col1, col2 = st.columns([1, 2])
         with col1:
             try:
-                st.image(file_data, caption="Erfasstes Bild", width=300)
+                st.image(file_data, caption=f"Erfasste {seite_label}", width=300)
             except:
                 st.info(f"Datei: {file_name}")
 
@@ -1837,137 +1930,157 @@ def render_ausweis_upload(user_id: str, rolle: str):
             - ✅ Ausweis vollständig sichtbar
             - ✅ Text gut lesbar
             - ✅ Keine Reflexionen/Schatten
-            - ✅ Bild scharf und nicht verwackelt
             """)
 
-            if st.button("🔍 OCR-Erkennung starten", key=f"start_ocr_{user_id}", type="primary"):
-                with st.spinner("Analysiere Ausweis..."):
-                    # OCR durchführen
+            if st.button(f"🔍 {seite_label} analysieren", key=f"ocr_{seite}_{user_id}", type="primary"):
+                with st.spinner(f"Analysiere {seite_label}..."):
                     personal_daten, ocr_text, vertrauen = ocr_personalausweis(file_data, file_name)
 
-                    # In Session State speichern für Bearbeitung
-                    st.session_state[f"ocr_result_{user_id}"] = {
+                    st.session_state[seite_key] = {
                         'personal_daten': personal_daten,
                         'ocr_text': ocr_text,
                         'vertrauen': vertrauen,
                         'image_data': file_data
                     }
 
-                st.success(f"✅ OCR abgeschlossen! Vertrauenswürdigkeit: {vertrauen*100:.0f}%")
+                st.success(f"✅ {seite_label} analysiert!")
                 st.rerun()
 
-    # OCR-Ergebnisse bearbeiten und bestätigen
-    ocr_result = st.session_state.get(f"ocr_result_{user_id}")
-    if ocr_result:
-        st.markdown("---")
-        st.markdown("### ✏️ Erkannte Daten prüfen und bearbeiten")
 
-        vertrauen = ocr_result['vertrauen']
-        if vertrauen < 0.5:
-            st.warning("⚠️ Niedrige OCR-Vertrauenswürdigkeit. Bitte prüfen Sie alle Daten sorgfältig.")
-        elif vertrauen < 0.75:
-            st.info("ℹ️ Mittlere OCR-Vertrauenswürdigkeit. Bitte prüfen Sie die Daten.")
+def render_ausweis_zusammenfassung(user_id: str):
+    """Zeigt die kombinierten Daten aus Vorder- und Rückseite und ermöglicht Bearbeitung"""
 
-        pd = ocr_result['personal_daten']
+    vorderseite = st.session_state.get(f"ausweis_vorderseite_{user_id}")
+    rueckseite = st.session_state.get(f"ausweis_rueckseite_{user_id}")
 
-        # Bearbeitungsformular
-        col1, col2 = st.columns(2)
+    if not vorderseite and not rueckseite:
+        st.info("Bitte erfassen Sie zuerst die Vorder- und/oder Rückseite Ihres Ausweises.")
+        return
 
-        with col1:
-            st.markdown("**Persönliche Daten**")
-            vorname = st.text_input("Vorname*", value=pd.vorname, key=f"edit_vorname_{user_id}")
-            nachname = st.text_input("Nachname*", value=pd.nachname, key=f"edit_nachname_{user_id}")
-            geburtsname = st.text_input("Geburtsname (falls abweichend)", value=pd.geburtsname, key=f"edit_geburtsname_{user_id}")
+    st.markdown("### ✏️ Erkannte Daten prüfen und bearbeiten")
 
-            # Geburtsdatum
-            geb_datum = pd.geburtsdatum if pd.geburtsdatum else date(1980, 1, 1)
-            geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"edit_gebdat_{user_id}")
+    # Daten aus beiden Seiten kombinieren
+    pd_vorne = vorderseite['personal_daten'] if vorderseite else PersonalDaten()
+    pd_hinten = rueckseite['personal_daten'] if rueckseite else PersonalDaten()
 
-            geburtsort = st.text_input("Geburtsort", value=pd.geburtsort, key=f"edit_geburtsort_{user_id}")
-            nationalitaet = st.text_input("Nationalität", value=pd.nationalitaet, key=f"edit_nat_{user_id}")
+    # Vertrauen berechnen
+    vertrauen_vorne = vorderseite['vertrauen'] if vorderseite else 0
+    vertrauen_hinten = rueckseite['vertrauen'] if rueckseite else 0
+    gesamt_vertrauen = (vertrauen_vorne + vertrauen_hinten) / 2 if vorderseite and rueckseite else max(vertrauen_vorne, vertrauen_hinten)
 
-        with col2:
-            st.markdown("**Adresse**")
-            strasse = st.text_input("Straße*", value=pd.strasse, key=f"edit_strasse_{user_id}")
-            hausnummer = st.text_input("Hausnummer*", value=pd.hausnummer, key=f"edit_hausnr_{user_id}")
-            plz = st.text_input("PLZ*", value=pd.plz, key=f"edit_plz_{user_id}")
-            ort = st.text_input("Ort*", value=pd.ort, key=f"edit_ort_{user_id}")
+    if gesamt_vertrauen < 0.5:
+        st.warning("⚠️ Niedrige OCR-Vertrauenswürdigkeit. Bitte prüfen Sie alle Daten sorgfältig.")
+    elif gesamt_vertrauen < 0.75:
+        st.info("ℹ️ Mittlere OCR-Vertrauenswürdigkeit. Bitte prüfen Sie die Daten.")
 
-            st.markdown("**Ausweis-Infos**")
-            ausweisart = st.selectbox("Ausweisart", ["Personalausweis", "Reisepass"],
-                                      index=0 if pd.ausweisart == "Personalausweis" else 1,
-                                      key=f"edit_ausweisart_{user_id}")
-            ausweisnummer = st.text_input("Ausweisnummer*", value=pd.ausweisnummer, key=f"edit_ausweisnr_{user_id}")
+    # Bearbeitungsformular - Daten aus beiden Seiten zusammenführen
+    col1, col2 = st.columns(2)
 
-            # Gültig bis
-            gueltig_datum = pd.gueltig_bis if pd.gueltig_bis else date.today()
-            gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"edit_gueltig_{user_id}")
+    with col1:
+        st.markdown("**Persönliche Daten** (aus Vorderseite)")
+        vorname = st.text_input("Vorname*", value=pd_vorne.vorname or pd_hinten.vorname, key=f"final_vorname_{user_id}")
+        nachname = st.text_input("Nachname*", value=pd_vorne.nachname or pd_hinten.nachname, key=f"final_nachname_{user_id}")
+        geburtsname = st.text_input("Geburtsname", value=pd_vorne.geburtsname or pd_hinten.geburtsname, key=f"final_geburtsname_{user_id}")
 
-        # OCR-Rohtext anzeigen (für Debugging)
-        with st.expander("🔍 OCR-Rohtext anzeigen"):
-            st.text_area("Erkannter Text", ocr_result['ocr_text'], height=200, disabled=True)
+        geb_datum = pd_vorne.geburtsdatum or pd_hinten.geburtsdatum or date(1980, 1, 1)
+        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"final_gebdat_{user_id}")
 
-        # Speichern-Button
-        col1, col2, col3 = st.columns(3)
+        geburtsort = st.text_input("Geburtsort", value=pd_vorne.geburtsort or pd_hinten.geburtsort, key=f"final_geburtsort_{user_id}")
+        nationalitaet = st.text_input("Nationalität", value=pd_vorne.nationalitaet or pd_hinten.nationalitaet or "DEUTSCH", key=f"final_nat_{user_id}")
 
-        with col1:
-            if st.button("💾 Daten übernehmen & bestätigen", key=f"save_ausweis_{user_id}", type="primary"):
-                # Validierung
-                if not all([vorname, nachname, strasse, hausnummer, plz, ort, ausweisnummer]):
-                    st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
-                elif gueltig_bis < date.today():
-                    st.error("⚠️ Der Ausweis ist abgelaufen! Bitte verwenden Sie einen gültigen Ausweis.")
-                else:
-                    # PersonalDaten aktualisieren
-                    new_pd = PersonalDaten(
-                        vorname=vorname,
-                        nachname=nachname,
-                        geburtsname=geburtsname,
-                        geburtsdatum=geburtsdatum,
-                        geburtsort=geburtsort,
-                        nationalitaet=nationalitaet,
-                        strasse=strasse,
-                        hausnummer=hausnummer,
-                        plz=plz,
-                        ort=ort,
-                        ausweisart=ausweisart,
-                        ausweisnummer=ausweisnummer,
-                        gueltig_bis=gueltig_bis,
-                        groesse_cm=pd.groesse_cm,
-                        augenfarbe=pd.augenfarbe,
-                        geschlecht=pd.geschlecht,
-                        ocr_vertrauenswuerdigkeit=vertrauen,
-                        ocr_durchgefuehrt_am=pd.ocr_durchgefuehrt_am,
-                        manuell_bestaetigt=True,
-                        bestaetigt_am=datetime.now()
-                    )
+    with col2:
+        st.markdown("**Adresse & Ausweis** (aus Rückseite)")
+        strasse = st.text_input("Straße*", value=pd_hinten.strasse or pd_vorne.strasse, key=f"final_strasse_{user_id}")
+        hausnummer = st.text_input("Hausnummer*", value=pd_hinten.hausnummer or pd_vorne.hausnummer, key=f"final_hausnr_{user_id}")
+        plz = st.text_input("PLZ*", value=pd_hinten.plz or pd_vorne.plz, key=f"final_plz_{user_id}")
+        ort = st.text_input("Ort*", value=pd_hinten.ort or pd_vorne.ort, key=f"final_ort_{user_id}")
 
-                    # User aktualisieren
-                    user.personal_daten = new_pd
-                    user.ausweis_foto = ocr_result['image_data']
-                    user.name = f"{vorname} {nachname}"  # Name aktualisieren
-                    st.session_state.users[user_id] = user
+        ausweisart = st.selectbox("Ausweisart", ["Personalausweis", "Reisepass"],
+                                  index=0, key=f"final_ausweisart_{user_id}")
+        ausweisnummer = st.text_input("Ausweisnummer*", value=pd_hinten.ausweisnummer or pd_vorne.ausweisnummer, key=f"final_ausweisnr_{user_id}")
 
-                    # Session State aufräumen
-                    del st.session_state[f"ocr_result_{user_id}"]
-                    if f"upload_new_ausweis_{user_id}" in st.session_state:
-                        del st.session_state[f"upload_new_ausweis_{user_id}"]
+        gueltig_datum = pd_hinten.gueltig_bis or pd_vorne.gueltig_bis or date.today()
+        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"final_gueltig_{user_id}")
 
-                    st.success("✅ Ausweisdaten erfolgreich gespeichert!")
-                    st.balloons()
-                    st.rerun()
+    # OCR-Rohtext anzeigen
+    with st.expander("🔍 OCR-Rohtext anzeigen"):
+        if vorderseite:
+            st.markdown("**Vorderseite:**")
+            st.text_area("", vorderseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_vorne_{user_id}")
+        if rueckseite:
+            st.markdown("**Rückseite:**")
+            st.text_area("", rueckseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_hinten_{user_id}")
 
-        with col2:
-            if st.button("🔄 Erneut scannen", key=f"rescan_{user_id}"):
-                del st.session_state[f"ocr_result_{user_id}"]
+    # Buttons
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("💾 Daten übernehmen & bestätigen", key=f"final_save_{user_id}", type="primary"):
+            # Validierung
+            if not all([vorname, nachname, strasse, hausnummer, plz, ort, ausweisnummer]):
+                st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
+            elif gueltig_bis < date.today():
+                st.error("⚠️ Der Ausweis ist abgelaufen! Bitte verwenden Sie einen gültigen Ausweis.")
+            else:
+                user = st.session_state.users.get(user_id)
+                new_pd = PersonalDaten(
+                    vorname=vorname,
+                    nachname=nachname,
+                    geburtsname=geburtsname,
+                    geburtsdatum=geburtsdatum,
+                    geburtsort=geburtsort,
+                    nationalitaet=nationalitaet,
+                    strasse=strasse,
+                    hausnummer=hausnummer,
+                    plz=plz,
+                    ort=ort,
+                    ausweisart=ausweisart,
+                    ausweisnummer=ausweisnummer,
+                    gueltig_bis=gueltig_bis,
+                    groesse_cm=pd_hinten.groesse_cm or pd_vorne.groesse_cm,
+                    augenfarbe=pd_hinten.augenfarbe or pd_vorne.augenfarbe,
+                    geschlecht=pd_vorne.geschlecht or pd_hinten.geschlecht,
+                    ocr_vertrauenswuerdigkeit=gesamt_vertrauen,
+                    ocr_durchgefuehrt_am=datetime.now(),
+                    manuell_bestaetigt=True,
+                    bestaetigt_am=datetime.now()
+                )
+
+                # User aktualisieren
+                user.personal_daten = new_pd
+                # Vorderseite als Hauptbild speichern
+                if vorderseite:
+                    user.ausweis_foto = vorderseite['image_data']
+                elif rueckseite:
+                    user.ausweis_foto = rueckseite['image_data']
+                user.name = f"{vorname} {nachname}"
+                st.session_state.users[user_id] = user
+
+                # Session State aufräumen
+                for key in [f"ausweis_vorderseite_{user_id}", f"ausweis_rueckseite_{user_id}",
+                           f"upload_new_ausweis_{user_id}", f"ocr_result_{user_id}"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
+                st.success("✅ Ausweisdaten erfolgreich gespeichert!")
+                st.balloons()
                 st.rerun()
 
-        with col3:
-            if st.button("❌ Abbrechen", key=f"cancel_ausweis_{user_id}"):
-                del st.session_state[f"ocr_result_{user_id}"]
-                if f"upload_new_ausweis_{user_id}" in st.session_state:
-                    del st.session_state[f"upload_new_ausweis_{user_id}"]
-                st.rerun()
+    with col2:
+        if st.button("🔄 Alle Seiten neu erfassen", key=f"reset_all_{user_id}"):
+            for key in [f"ausweis_vorderseite_{user_id}", f"ausweis_rueckseite_{user_id}"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+    with col3:
+        if st.button("❌ Abbrechen", key=f"cancel_final_{user_id}"):
+            for key in [f"ausweis_vorderseite_{user_id}", f"ausweis_rueckseite_{user_id}",
+                       f"upload_new_ausweis_{user_id}"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
 
 
 def update_projekt_status(projekt_id: str):
