@@ -971,7 +971,7 @@ def render_ausweis_upload(user_id: str, rolle: str):
         return
 
     st.markdown("### 🪪 Personalausweis / Reisepass")
-    st.info("Laden Sie ein Foto Ihres Personalausweises oder Reisepasses hoch. Die Daten werden automatisch per OCR erkannt und können dann übernommen werden.")
+    st.info("📱 **Mobilgerät?** Nehmen Sie direkt ein Foto auf! Alternativ können Sie ein vorhandenes Foto hochladen. Die Daten werden automatisch per OCR erkannt und können dann übernommen werden.")
 
     # Bestehende Daten anzeigen
     if user.personal_daten and user.personal_daten.manuell_bestaetigt:
@@ -997,30 +997,66 @@ def render_ausweis_upload(user_id: str, rolle: str):
         if not st.session_state.get(f"upload_new_ausweis_{user_id}", False):
             return
 
-    # Upload-Bereich
-    uploaded_file = st.file_uploader(
-        "Ausweisfoto hochladen (Vorderseite)",
-        type=['jpg', 'jpeg', 'png', 'pdf'],
-        key=f"ausweis_upload_{user_id}",
-        help="Bitte laden Sie ein gut lesbares Foto der Vorderseite Ihres Ausweises hoch."
+    # Auswahl: Datei hochladen oder Foto aufnehmen
+    st.markdown("#### Ausweis erfassen")
+
+    upload_methode = st.radio(
+        "Wie möchten Sie den Ausweis erfassen?",
+        ["📁 Datei hochladen", "📷 Foto aufnehmen (Kamera)"],
+        key=f"upload_methode_{user_id}",
+        horizontal=True,
+        help="Auf Mobilgeräten (iPhone, iPad, Android) können Sie direkt ein Foto aufnehmen."
     )
 
-    if uploaded_file:
-        file_data = uploaded_file.read()
+    file_data = None
+    file_name = "camera_capture.jpg"
 
+    if upload_methode == "📁 Datei hochladen":
+        # Klassischer Datei-Upload
+        uploaded_file = st.file_uploader(
+            "Ausweisfoto hochladen (Vorderseite)",
+            type=['jpg', 'jpeg', 'png', 'pdf'],
+            key=f"ausweis_upload_{user_id}",
+            help="Bitte laden Sie ein gut lesbares Foto der Vorderseite Ihres Ausweises hoch."
+        )
+        if uploaded_file:
+            file_data = uploaded_file.read()
+            file_name = uploaded_file.name
+    else:
+        # Kamera-Aufnahme (ideal für Mobilgeräte)
+        st.info("📱 **Tipp für Mobilgeräte:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen und Schatten.")
+
+        camera_photo = st.camera_input(
+            "Ausweis fotografieren",
+            key=f"ausweis_camera_{user_id}",
+            help="Richten Sie die Kamera auf die Vorderseite Ihres Ausweises."
+        )
+        if camera_photo:
+            file_data = camera_photo.read()
+            file_name = "kamera_aufnahme.jpg"
+
+    if file_data:
         # Bild anzeigen
         col1, col2 = st.columns([1, 2])
         with col1:
             try:
-                st.image(file_data, caption="Hochgeladenes Bild", width=300)
+                st.image(file_data, caption="Erfasstes Bild", width=300)
             except:
-                st.info(f"Datei: {uploaded_file.name}")
+                st.info(f"Datei: {file_name}")
 
         with col2:
+            st.markdown("**Bildqualität prüfen:**")
+            st.markdown("""
+            - ✅ Ausweis vollständig sichtbar
+            - ✅ Text gut lesbar
+            - ✅ Keine Reflexionen/Schatten
+            - ✅ Bild scharf und nicht verwackelt
+            """)
+
             if st.button("🔍 OCR-Erkennung starten", key=f"start_ocr_{user_id}", type="primary"):
                 with st.spinner("Analysiere Ausweis..."):
                     # OCR durchführen
-                    personal_daten, ocr_text, vertrauen = ocr_personalausweis(file_data, uploaded_file.name)
+                    personal_daten, ocr_text, vertrauen = ocr_personalausweis(file_data, file_name)
 
                     # In Session State speichern für Bearbeitung
                     st.session_state[f"ocr_result_{user_id}"] = {
