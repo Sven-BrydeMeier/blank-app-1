@@ -5068,9 +5068,23 @@ def render_timeline(projekt_id: str, role: str):
 # AUTHENTIFIZIERUNG
 # ============================================================================
 
+def get_version_number() -> str:
+    """Generiert Versionsnummer im Format: JJ.MMTT.HH:MM"""
+    now = datetime.now()
+    year = now.strftime("%y")  # Letzte 2 Ziffern des Jahres
+    month_day = f"{now.month}{now.day}"  # Monat + Tag
+    time = now.strftime("%H:%M")  # Uhrzeit
+    return f"{year}.{month_day}.{time}"
+
+
 def login_page():
     """Login-Seite"""
     st.title("🏠 Immobilien-Transaktionsplattform")
+
+    # Versionsnummer anzeigen
+    version = get_version_number()
+    st.caption(f"Version {version}")
+
     st.subheader("Anmeldung")
 
     with st.form("login_form"):
