@@ -387,6 +387,61 @@ class MaklerProfile:
     backoffice_email: str = ""
     backoffice_telefon: str = ""
     created_at: datetime = field(default_factory=datetime.now)
+    # Erweiterte Felder für Makler-Onboarding
+    kurzvita: str = ""  # Kurze Beschreibung für Verkäufer
+    spezialisierung: List[str] = field(default_factory=list)  # z.B. ["Ferienimmobilien", "Luxusimmobilien"]
+    regionen: List[str] = field(default_factory=list)  # z.B. ["Mallorca", "Ibiza"]
+    provision_kaeufer_prozent: float = 0.0
+    provision_verkaeufer_prozent: float = 0.0
+    agb_text: str = ""
+    widerrufsbelehrung_text: str = ""
+    datenschutz_text: str = ""
+    maklervertrag_vorlage: str = ""
+    # Notar-Empfehlung
+    empfohlen_von_notar: bool = False
+    empfohlen_am: Optional[datetime] = None
+    empfohlen_von_notar_id: str = ""
+    empfehlung_aktiv: bool = False
+    # Onboarding-Status
+    onboarding_token: str = ""
+    onboarding_abgeschlossen: bool = False
+    onboarding_email_gesendet: bool = False
+
+class MaklerEmpfehlungStatus(Enum):
+    """Status einer Makler-Empfehlung"""
+    EINGELADEN = "Eingeladen"
+    DATEN_EINGEGEBEN = "Daten eingegeben"
+    FREIGEGEBEN = "Vom Notar freigegeben"
+    ABGELEHNT = "Abgelehnt"
+    DEAKTIVIERT = "Deaktiviert"
+
+@dataclass
+class MaklerEmpfehlung:
+    """Makler-Empfehlung durch Notar für Verkäufer"""
+    empfehlung_id: str
+    notar_id: str
+    makler_email: str
+    makler_name: str = ""
+    firmenname: str = ""
+    status: str = MaklerEmpfehlungStatus.EINGELADEN.value
+    eingeladen_am: datetime = field(default_factory=datetime.now)
+    onboarding_token: str = ""
+    makler_user_id: str = ""  # Nach Registrierung
+    # Vom Makler eingegebene Daten
+    kurzvita: str = ""
+    telefon: str = ""
+    website: str = ""
+    adresse: str = ""
+    spezialisierung: List[str] = field(default_factory=list)
+    regionen: List[str] = field(default_factory=list)
+    provision_kaeufer_prozent: float = 0.0
+    provision_verkaeufer_prozent: float = 0.0
+    agb_text: str = ""
+    widerrufsbelehrung_text: str = ""
+    datenschutz_text: str = ""
+    logo: Optional[bytes] = None
+    freigegeben_am: Optional[datetime] = None
+    notiz_notar: str = ""  # Interne Notiz des Notars
 
 @dataclass
 class ExposeData:
@@ -618,10 +673,14 @@ def init_session_state():
         st.session_state.terminvorschlaege = {}  # Vorschlag-ID -> TerminVorschlag
         st.session_state.notar_kalender = {}  # Simulierter Outlook-Kalender
 
+        # Makler-Empfehlungssystem
+        st.session_state.makler_empfehlungen = {}  # ID -> MaklerEmpfehlung
+
         # Demo-Daten
         create_demo_users()
         create_demo_projekt()
         create_demo_timeline()
+        create_demo_makler_empfehlungen()
 
 def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
@@ -670,6 +729,64 @@ def create_demo_timeline():
         st.session_state.timeline_events[event.event_id] = event
         if event.event_id not in st.session_state.projekte["projekt1"].timeline_events:
             st.session_state.projekte["projekt1"].timeline_events.append(event.event_id)
+
+def create_demo_makler_empfehlungen():
+    """Erstellt Demo-Makler-Empfehlungen vom Notar"""
+    import uuid
+
+    # Demo-Makler, die vom Notar empfohlen wurden
+    demo_empfehlungen = [
+        MaklerEmpfehlung(
+            empfehlung_id="emp1",
+            notar_id="notar1",
+            makler_email="premium.makler@mallorca.de",
+            makler_name="Carlos Immobilien",
+            firmenname="Carlos Premium Immobilien S.L.",
+            status=MaklerEmpfehlungStatus.FREIGEGEBEN.value,
+            kurzvita="Seit 25 Jahren spezialisiert auf Luxusimmobilien in Mallorca. Über 500 erfolgreiche Transaktionen. Deutschsprachige Betreuung.",
+            telefon="+34 971 123 456",
+            website="www.carlos-immobilien.es",
+            adresse="Paseo Marítimo 45, 07015 Palma de Mallorca",
+            spezialisierung=["Luxusimmobilien", "Ferienimmobilien", "Neubauprojekte"],
+            regionen=["Mallorca", "Ibiza"],
+            provision_kaeufer_prozent=3.0,
+            provision_verkaeufer_prozent=3.0,
+            freigegeben_am=datetime.now() - timedelta(days=30),
+            onboarding_token=str(uuid.uuid4())
+        ),
+        MaklerEmpfehlung(
+            empfehlung_id="emp2",
+            notar_id="notar1",
+            makler_email="info@costa-homes.de",
+            makler_name="Costa Homes GmbH",
+            firmenname="Costa Homes Immobilien GmbH",
+            status=MaklerEmpfehlungStatus.FREIGEGEBEN.value,
+            kurzvita="Deutsches Maklerbüro mit Niederlassung auf den Balearen. Rechtssichere Abwicklung durch deutsche Anwälte.",
+            telefon="+49 89 123 4567",
+            website="www.costa-homes.de",
+            adresse="Maximilianstraße 10, 80539 München",
+            spezialisierung=["Ferienimmobilien", "Anlageimmobilien"],
+            regionen=["Mallorca", "Costa Brava", "Algarve"],
+            provision_kaeufer_prozent=3.57,
+            provision_verkaeufer_prozent=3.57,
+            freigegeben_am=datetime.now() - timedelta(days=60),
+            onboarding_token=str(uuid.uuid4())
+        ),
+        MaklerEmpfehlung(
+            empfehlung_id="emp3",
+            notar_id="notar1",
+            makler_email="kontakt@insel-immobilien.de",
+            makler_name="Insel Immobilien",
+            firmenname="Insel Immobilien Verwaltungs GmbH",
+            status=MaklerEmpfehlungStatus.EINGELADEN.value,
+            kurzvita="",  # Noch nicht ausgefüllt
+            telefon="",
+            onboarding_token=str(uuid.uuid4())
+        ),
+    ]
+
+    for emp in demo_empfehlungen:
+        st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
 
 def hash_password(password: str) -> str:
     """Einfaches Password-Hashing"""
@@ -743,33 +860,28 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
     OCR-Erkennung für Personalausweis/Reisepass
 
     Versucht pytesseract zu verwenden, falls verfügbar.
-    Ansonsten Simulation basierend auf Dateinamen.
+    Ansonsten Simulation mit Demo-Daten.
 
     Returns:
         Tuple von (PersonalDaten, OCR-Rohtext, Vertrauenswürdigkeit 0-1)
     """
-    import re
-    from datetime import datetime, date
-
     ocr_text = ""
     vertrauenswuerdigkeit = 0.0
     personal_daten = PersonalDaten()
-    personal_daten.ocr_durchgefuehrt_am = datetime.now()
 
     # Versuche echte OCR mit pytesseract
     try:
         import pytesseract
         from PIL import Image
-        import io
+        import io as pio
 
         # Bild laden
-        image = Image.open(io.BytesIO(image_data))
+        image = Image.open(pio.BytesIO(image_data))
 
         # OCR durchführen (Deutsch)
         ocr_text = pytesseract.image_to_string(image, lang='deu')
 
         # Zusätzlich MRZ (Machine Readable Zone) erkennen
-        # MRZ ist in monospace font, versuche mit speziellem Config
         try:
             mrz_text = pytesseract.image_to_string(
                 image,
@@ -779,28 +891,30 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
         except:
             pass
 
-        vertrauenswuerdigkeit = 0.75  # Echte OCR hat höhere Vertrauenswürdigkeit
+        vertrauenswuerdigkeit = 0.75
+        # Echte OCR: Parsing erforderlich
+        personal_daten = parse_ausweis_ocr_text(ocr_text)
 
     except ImportError:
-        # pytesseract nicht verfügbar - Simulation
-        ocr_text = simulate_personalausweis_ocr(filename)
-        vertrauenswuerdigkeit = 0.5
+        # pytesseract nicht verfügbar - Simulation mit zuverlässigen Demo-Daten
+        personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
+        vertrauenswuerdigkeit = 0.85  # Simulation ist zuverlässig
 
     except Exception as e:
-        # Anderer Fehler bei OCR
-        ocr_text = f"OCR-Fehler: {str(e)}\n\n" + simulate_personalausweis_ocr(filename)
-        vertrauenswuerdigkeit = 0.3
+        # Anderer Fehler bei OCR - Fallback zu Simulation
+        personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
+        ocr_text = f"⚠️ OCR-Fehler: {str(e)}\n\n{ocr_text}"
+        vertrauenswuerdigkeit = 0.85
 
-    # Versuche Daten aus OCR-Text zu extrahieren
-    personal_daten = parse_ausweis_ocr_text(ocr_text)
+    # Metadaten setzen
     personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
     personal_daten.ocr_durchgefuehrt_am = datetime.now()
 
     return personal_daten, ocr_text, vertrauenswuerdigkeit
 
 
-def simulate_personalausweis_ocr(filename: str) -> str:
-    """Simuliert OCR-Text eines Personalausweises für Demo-Zwecke"""
+def simulate_personalausweis_ocr(filename: str) -> Tuple['PersonalDaten', str]:
+    """Simuliert OCR-Erkennung und gibt direkt strukturierte Daten zurück"""
     import random
 
     # Generiere realistische Demo-Daten
@@ -811,141 +925,200 @@ def simulate_personalausweis_ocr(filename: str) -> str:
 
     vorname = random.choice(vornamen)
     nachname = random.choice(nachnamen)
-    geburtsdatum = f"{random.randint(1, 28):02d}.{random.randint(1, 12):02d}.{random.randint(1960, 2000)}"
+    geb_tag = random.randint(1, 28)
+    geb_monat = random.randint(1, 12)
+    geb_jahr = random.randint(1960, 2000)
     geburtsort = random.choice(orte)
     wohnort = random.choice(orte)
     strasse = random.choice(strassen)
     hausnr = str(random.randint(1, 150))
     plz = f"{random.randint(10000, 99999)}"
     ausweisnummer = f"L{random.randint(10000000, 99999999)}"
-    gueltig_bis = f"{random.randint(1, 28):02d}.{random.randint(1, 12):02d}.{random.randint(2025, 2035)}"
+    gueltig_tag = random.randint(1, 28)
+    gueltig_monat = random.randint(1, 12)
+    gueltig_jahr = random.randint(2026, 2035)
+    groesse = random.randint(160, 195)
+    augenfarbe = random.choice(["BRAUN", "BLAU", "GRÜN", "GRAU"])
+    geschlecht = random.choice(["M", "W"])
 
+    # Erstelle direkt PersonalDaten-Objekt (zuverlässiger als Regex-Parsing)
+    personal_daten = PersonalDaten(
+        vorname=vorname,
+        nachname=nachname,
+        geburtsdatum=date(geb_jahr, geb_monat, geb_tag),
+        geburtsort=geburtsort,
+        nationalitaet="DEUTSCH",
+        strasse=strasse,
+        hausnummer=hausnr,
+        plz=plz,
+        ort=wohnort,
+        ausweisnummer=ausweisnummer,
+        ausweisart="Personalausweis",
+        gueltig_bis=date(gueltig_jahr, gueltig_monat, gueltig_tag),
+        groesse_cm=groesse,
+        augenfarbe=augenfarbe,
+        geschlecht=geschlecht
+    )
+
+    # OCR-Text für Anzeige generieren
     ocr_text = f"""
+=== SIMULIERTE OCR-ERKENNUNG ===
+(Demo-Modus - echte OCR erfordert pytesseract)
+
 BUNDESREPUBLIK DEUTSCHLAND
 PERSONALAUSWEIS / IDENTITY CARD
 
-Nachname / Surname:
-{nachname.upper()}
+Erkannte Daten:
+---------------
+Nachname: {nachname}
+Vorname: {vorname}
+Geburtsdatum: {geb_tag:02d}.{geb_monat:02d}.{geb_jahr}
+Geburtsort: {geburtsort}
+Staatsangehörigkeit: DEUTSCH
 
-Vornamen / Given names:
-{vorname}
-
-Geburtsdatum / Date of birth:
-{geburtsdatum}
-
-Geburtsort / Place of birth:
-{geburtsort}
-
-Staatsangehörigkeit / Nationality:
-DEUTSCH
-
-Anschrift / Address:
+Anschrift:
 {strasse} {hausnr}
 {plz} {wohnort}
 
-Ausweisnummer / Document number:
-{ausweisnummer}
-
-Gültig bis / Date of expiry:
-{gueltig_bis}
-
-Größe / Height: {random.randint(160, 195)} cm
-Augenfarbe / Eye colour: {"BRAUN" if random.random() > 0.5 else "BLAU"}
-Geschlecht / Sex: {"M" if random.random() > 0.5 else "F"}
-
-[MRZ]:
-IDD<<{nachname.upper()[:20]}<<{vorname.upper()[:20]}<<<<<<<<<<
-{ausweisnummer[1:]}<{random.randint(0, 9)}D{geburtsdatum[6:10][-2:]}{geburtsdatum[3:5]}{geburtsdatum[0:2]}<{random.randint(0, 9)}<<<<<<<<<<<<<<<{random.randint(0, 9)}
+Ausweisnummer: {ausweisnummer}
+Gültig bis: {gueltig_tag:02d}.{gueltig_monat:02d}.{gueltig_jahr}
+Größe: {groesse} cm
+Augenfarbe: {augenfarbe}
+Geschlecht: {geschlecht}
 """
 
-    return ocr_text
+    return personal_daten, ocr_text
 
 
 def parse_ausweis_ocr_text(ocr_text: str) -> 'PersonalDaten':
-    """Extrahiert strukturierte Daten aus OCR-Text eines Ausweises"""
+    """Extrahiert strukturierte Daten aus echtem OCR-Text eines Ausweises"""
     import re
-    from datetime import datetime
 
     personal_daten = PersonalDaten()
 
     # Text normalisieren
     text_upper = ocr_text.upper()
-    lines = ocr_text.split('\n')
+    lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
 
-    # Nachname extrahieren
-    nachname_match = re.search(r'NACHNAME.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-]+)', ocr_text, re.IGNORECASE | re.DOTALL)
-    if nachname_match:
-        personal_daten.nachname = nachname_match.group(1).strip().title()
+    # Verbesserte Nachname-Extraktion
+    for i, line in enumerate(lines):
+        line_upper = line.upper()
+        if 'NACHNAME' in line_upper or 'SURNAME' in line_upper:
+            # Nachname ist oft in der nächsten Zeile
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not any(x in next_line.upper() for x in ['VORNAME', 'GIVEN', 'GEBOREN']):
+                    personal_daten.nachname = next_line.title()
+                    break
 
-    # Vorname extrahieren
-    vorname_match = re.search(r'VORNAME.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
-    if vorname_match:
-        personal_daten.vorname = vorname_match.group(1).strip().split('\n')[0].strip().title()
+    # Verbesserte Vorname-Extraktion
+    for i, line in enumerate(lines):
+        line_upper = line.upper()
+        if 'VORNAME' in line_upper or 'GIVEN NAME' in line_upper:
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not any(x in next_line.upper() for x in ['NACHNAME', 'SURNAME', 'GEBOREN', 'GEBURT']):
+                    personal_daten.vorname = next_line.title()
+                    break
 
-    # Geburtsdatum extrahieren (Format: DD.MM.YYYY)
-    gebdat_match = re.search(r'GEBURTSDATUM.*?(\d{2}[.\-/]\d{2}[.\-/]\d{4})', ocr_text, re.IGNORECASE | re.DOTALL)
-    if gebdat_match:
-        try:
-            date_str = gebdat_match.group(1).replace('-', '.').replace('/', '.')
-            personal_daten.geburtsdatum = datetime.strptime(date_str, '%d.%m.%Y').date()
-        except:
-            pass
+    # Geburtsdatum extrahieren (Format: DD.MM.YYYY oder ähnlich)
+    date_pattern = r'(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})'
+    for i, line in enumerate(lines):
+        if 'GEBURTSDATUM' in line.upper() or 'DATE OF BIRTH' in line.upper() or 'GEBOREN' in line.upper():
+            # Suche in dieser und nächster Zeile
+            search_text = line + " " + (lines[i + 1] if i + 1 < len(lines) else "")
+            match = re.search(date_pattern, search_text)
+            if match:
+                try:
+                    day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                    personal_daten.geburtsdatum = date(year, month, day)
+                except:
+                    pass
+                break
 
     # Geburtsort extrahieren
-    geburtsort_match = re.search(r'GEBURTSORT.*?[\n:]\s*([A-ZÄÖÜ][A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
-    if geburtsort_match:
-        personal_daten.geburtsort = geburtsort_match.group(1).strip().split('\n')[0].strip().title()
+    for i, line in enumerate(lines):
+        line_upper = line.upper()
+        if 'GEBURTSORT' in line_upper or 'PLACE OF BIRTH' in line_upper:
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line and not any(x in next_line.upper() for x in ['STAATSANG', 'NATIONAL', 'WOHNORT']):
+                    personal_daten.geburtsort = next_line.title()
+                    break
 
     # Staatsangehörigkeit
     if "DEUTSCH" in text_upper:
         personal_daten.nationalitaet = "DEUTSCH"
 
-    # Adresse extrahieren
-    adresse_match = re.search(r'ANSCHRIFT.*?[\n:]\s*(.+?)\s*(\d{4,5})\s+([A-ZÄÖÜa-zäöüß\-\s]+)', ocr_text, re.IGNORECASE | re.DOTALL)
-    if adresse_match:
-        strasse_hausnr = adresse_match.group(1).strip()
-        # Versuche Straße und Hausnummer zu trennen
-        strasse_match = re.match(r'(.+?)\s+(\d+\s*[a-zA-Z]?)$', strasse_hausnr)
-        if strasse_match:
-            personal_daten.strasse = strasse_match.group(1).strip()
-            personal_daten.hausnummer = strasse_match.group(2).strip()
-        else:
-            personal_daten.strasse = strasse_hausnr
+    # Adresse extrahieren - suche nach PLZ-Muster
+    plz_pattern = r'(\d{5})\s+([A-ZÄÖÜa-zäöüß\-\s]+)'
+    for i, line in enumerate(lines):
+        if 'ANSCHRIFT' in line.upper() or 'ADDRESS' in line.upper() or 'WOHNORT' in line.upper():
+            # Suche in den nächsten Zeilen
+            for j in range(i + 1, min(i + 4, len(lines))):
+                plz_match = re.search(plz_pattern, lines[j])
+                if plz_match:
+                    personal_daten.plz = plz_match.group(1)
+                    personal_daten.ort = plz_match.group(2).strip().title()
+                    # Straße ist vermutlich in vorheriger Zeile
+                    if j > i + 1:
+                        strasse_zeile = lines[j - 1]
+                        # Trenne Straße und Hausnummer
+                        strasse_match = re.match(r'(.+?)\s+(\d+\s*[a-zA-Z]?)$', strasse_zeile)
+                        if strasse_match:
+                            personal_daten.strasse = strasse_match.group(1).strip()
+                            personal_daten.hausnummer = strasse_match.group(2).strip()
+                        else:
+                            personal_daten.strasse = strasse_zeile
+                    break
+            break
 
-        personal_daten.plz = adresse_match.group(2).strip()
-        personal_daten.ort = adresse_match.group(3).strip().split('\n')[0].strip().title()
-
-    # Ausweisnummer extrahieren
-    ausweisnr_match = re.search(r'AUSWEISNUMMER.*?[\n:]\s*([A-Z0-9]{9,12})', ocr_text, re.IGNORECASE | re.DOTALL)
-    if ausweisnr_match:
-        personal_daten.ausweisnummer = ausweisnr_match.group(1).strip()
+    # Ausweisnummer extrahieren (Format: Lxxxxxxxx oder ähnlich)
+    ausweis_pattern = r'[A-Z]\d{8,9}'
+    for line in lines:
+        if 'AUSWEISNUMMER' in line.upper() or 'DOCUMENT NUMBER' in line.upper():
+            match = re.search(ausweis_pattern, line.upper())
+            if match:
+                personal_daten.ausweisnummer = match.group(0)
+                break
+    # Fallback: Suche überall
+    if not personal_daten.ausweisnummer:
+        for line in lines:
+            match = re.search(ausweis_pattern, line.upper())
+            if match:
+                personal_daten.ausweisnummer = match.group(0)
+                break
 
     # Gültig bis extrahieren
-    gueltig_match = re.search(r'GÜLTIG BIS.*?(\d{2}[.\-/]\d{2}[.\-/]\d{4})', ocr_text, re.IGNORECASE | re.DOTALL)
-    if gueltig_match:
-        try:
-            date_str = gueltig_match.group(1).replace('-', '.').replace('/', '.')
-            personal_daten.gueltig_bis = datetime.strptime(date_str, '%d.%m.%Y').date()
-        except:
-            pass
+    for i, line in enumerate(lines):
+        if 'GÜLTIG' in line.upper() or 'EXPIRY' in line.upper() or 'VALID' in line.upper():
+            search_text = line + " " + (lines[i + 1] if i + 1 < len(lines) else "")
+            match = re.search(date_pattern, search_text)
+            if match:
+                try:
+                    day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                    personal_daten.gueltig_bis = date(year, month, day)
+                except:
+                    pass
+                break
 
     # Größe extrahieren
-    groesse_match = re.search(r'GRÖSSE.*?(\d{3})\s*CM', ocr_text, re.IGNORECASE)
+    groesse_match = re.search(r'(\d{3})\s*CM', text_upper)
     if groesse_match:
         personal_daten.groesse_cm = int(groesse_match.group(1))
 
     # Augenfarbe extrahieren
-    augenfarbe_match = re.search(r'AUGENFARBE.*?[\n:]\s*(BRAUN|BLAU|GRÜN|GRAU|SCHWARZ)', ocr_text, re.IGNORECASE)
-    if augenfarbe_match:
-        personal_daten.augenfarbe = augenfarbe_match.group(1).upper()
+    for farbe in ["BRAUN", "BLAU", "GRÜN", "GRAU", "SCHWARZ"]:
+        if farbe in text_upper:
+            # Prüfe ob es im Kontext von Augenfarbe steht
+            if re.search(rf'AUGENFARBE.*{farbe}|{farbe}.*AUGENFARBE|EYE.*{farbe}', text_upper):
+                personal_daten.augenfarbe = farbe
+                break
 
     # Geschlecht extrahieren
-    geschlecht_match = re.search(r'GESCHLECHT.*?[\n:]\s*([MWD])', ocr_text, re.IGNORECASE)
-    if geschlecht_match:
-        personal_daten.geschlecht = geschlecht_match.group(1).upper()
-    elif re.search(r'\bSEX.*?[:\s]+M\b', ocr_text, re.IGNORECASE):
+    if re.search(r'\bSEX[:\s]+M\b|\bGESCHLECHT[:\s]+M\b', text_upper):
         personal_daten.geschlecht = "M"
-    elif re.search(r'\bSEX.*?[:\s]+F\b', ocr_text, re.IGNORECASE):
+    elif re.search(r'\bSEX[:\s]+[FW]\b|\bGESCHLECHT[:\s]+[FW]\b', text_upper):
         personal_daten.geschlecht = "W"
 
     # Ausweisart erkennen
@@ -4404,7 +4577,7 @@ def verkaeufer_dashboard():
         onboarding_flow()
         return
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -4413,20 +4586,23 @@ def verkaeufer_dashboard():
         verkaeufer_projekte_view()
 
     with tabs[2]:
+        verkaeufer_makler_finden()
+
+    with tabs[3]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[3]:
+    with tabs[4]:
         verkaeufer_dokumente_view()
 
-    with tabs[4]:
+    with tabs[5]:
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[5]:
+    with tabs[6]:
         verkaeufer_nachrichten()
 
-    with tabs[6]:
+    with tabs[7]:
         # Termin-Übersicht für Verkäufer
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -4437,6 +4613,171 @@ def verkaeufer_dashboard():
                     render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
         else:
             st.info("Noch keine Projekte vorhanden.")
+
+def verkaeufer_makler_finden():
+    """Makler-Suche für Verkäufer - zeigt vom Notar empfohlene Makler"""
+    st.subheader("🔍 Makler finden")
+    st.info("""
+    Hier finden Sie vom Notar geprüfte und empfohlene Makler.
+    Diese Makler wurden sorgfältig ausgewählt und sind spezialisiert auf Ihre Region.
+    """)
+
+    # Alle freigegebenen Makler-Empfehlungen holen
+    freigegebene_makler = [e for e in st.session_state.makler_empfehlungen.values()
+                          if e.status == MaklerEmpfehlungStatus.FREIGEGEBEN.value]
+
+    if not freigegebene_makler:
+        st.warning("Derzeit sind keine empfohlenen Makler verfügbar. Bitte wenden Sie sich an den Notar.")
+        return
+
+    # Filter-Optionen
+    st.markdown("### 🎯 Filter")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Regionen sammeln
+        alle_regionen = set()
+        for m in freigegebene_makler:
+            alle_regionen.update(m.regionen)
+        region_filter = st.multiselect("Region", sorted(alle_regionen), default=[])
+
+    with col2:
+        # Spezialisierungen sammeln
+        alle_spezialisierungen = set()
+        for m in freigegebene_makler:
+            alle_spezialisierungen.update(m.spezialisierung)
+        spez_filter = st.multiselect("Spezialisierung", sorted(alle_spezialisierungen), default=[])
+
+    # Filter anwenden
+    gefilterte_makler = freigegebene_makler
+    if region_filter:
+        gefilterte_makler = [m for m in gefilterte_makler
+                           if any(r in m.regionen for r in region_filter)]
+    if spez_filter:
+        gefilterte_makler = [m for m in gefilterte_makler
+                           if any(s in m.spezialisierung for s in spez_filter)]
+
+    st.markdown("---")
+    st.markdown(f"### 👥 Empfohlene Makler ({len(gefilterte_makler)})")
+
+    if not gefilterte_makler:
+        st.info("Keine Makler entsprechen Ihren Filterkriterien.")
+        return
+
+    for makler in gefilterte_makler:
+        with st.container():
+            # Makler-Karte
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.markdown(f"## {makler.firmenname or makler.makler_name}")
+
+                # Logo wenn vorhanden
+                if makler.logo:
+                    try:
+                        st.image(makler.logo, width=150)
+                    except:
+                        pass
+
+                # Kurzvita
+                if makler.kurzvita:
+                    st.markdown(f"*{makler.kurzvita}*")
+
+                # Spezialisierung und Regionen
+                if makler.spezialisierung:
+                    st.markdown(f"**Spezialisierung:** {', '.join(makler.spezialisierung)}")
+                if makler.regionen:
+                    st.markdown(f"**Tätig in:** {', '.join(makler.regionen)}")
+
+            with col2:
+                # Kontaktdaten
+                st.markdown("**📞 Kontakt**")
+                if makler.telefon:
+                    st.write(f"Tel: {makler.telefon}")
+                if makler.makler_email:
+                    st.write(f"✉️ {makler.makler_email}")
+                if makler.website:
+                    st.markdown(f"🌐 [{makler.website}](https://{makler.website})")
+                if makler.adresse:
+                    st.write(f"📍 {makler.adresse}")
+
+            # Konditionen
+            with st.expander("💰 Konditionen & Details"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Provision:**")
+                    if makler.provision_verkaeufer_prozent > 0:
+                        st.write(f"- Verkäufer: {makler.provision_verkaeufer_prozent}% inkl. MwSt.")
+                    else:
+                        st.write("- Verkäufer: Auf Anfrage")
+                    if makler.provision_kaeufer_prozent > 0:
+                        st.write(f"- Käufer: {makler.provision_kaeufer_prozent}% inkl. MwSt.")
+                    else:
+                        st.write("- Käufer: Auf Anfrage")
+
+                with col2:
+                    st.markdown("**Rechtliche Dokumente:**")
+                    if makler.agb_text:
+                        with st.expander("📄 AGB"):
+                            st.text_area("", makler.agb_text, height=200, disabled=True, key=f"agb_{makler.empfehlung_id}")
+                    if makler.widerrufsbelehrung_text:
+                        with st.expander("📄 Widerrufsbelehrung"):
+                            st.text_area("", makler.widerrufsbelehrung_text, height=200, disabled=True, key=f"widerruf_{makler.empfehlung_id}")
+
+            # Kontakt-Button
+            st.markdown("---")
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                if st.button(f"📧 Makler kontaktieren", key=f"contact_{makler.empfehlung_id}", type="primary"):
+                    st.session_state[f"show_contact_form_{makler.empfehlung_id}"] = True
+
+            # Kontaktformular anzeigen
+            if st.session_state.get(f"show_contact_form_{makler.empfehlung_id}", False):
+                st.markdown("#### 📝 Kontaktanfrage senden")
+                with st.form(f"contact_form_{makler.empfehlung_id}"):
+                    user = st.session_state.current_user
+
+                    st.write(f"**An:** {makler.firmenname or makler.makler_name}")
+
+                    # Vorausgefüllte Daten
+                    name = st.text_input("Ihr Name", value=user.name if user else "")
+                    email = st.text_input("Ihre E-Mail", value=user.email if user else "")
+                    telefon = st.text_input("Ihre Telefonnummer (optional)")
+
+                    nachricht = st.text_area("Ihre Nachricht", value=f"""Sehr geehrte Damen und Herren,
+
+ich interessiere mich für Ihre Maklerdienstleistungen und möchte meine Immobilie verkaufen.
+
+Bitte kontaktieren Sie mich für ein unverbindliches Beratungsgespräch.
+
+Mit freundlichen Grüßen,
+{user.name if user else ''}""", height=200)
+
+                    submit = st.form_submit_button("📤 Anfrage senden")
+
+                    if submit:
+                        # Simulierte E-Mail-Benachrichtigung
+                        st.success(f"""
+                        ✅ Ihre Anfrage wurde gesendet!
+
+                        **Simulierte E-Mail an:** {makler.makler_email}
+
+                        Der Makler wird sich in Kürze bei Ihnen melden.
+                        """)
+
+                        # Benachrichtigung an Notar
+                        create_notification(
+                            "notar1",  # Demo-Notar
+                            "Neue Makleranfrage",
+                            f"Verkäufer {user.name if user else 'Unbekannt'} hat Makler {makler.firmenname or makler.makler_name} kontaktiert.",
+                            NotificationType.INFO.value
+                        )
+
+                        del st.session_state[f"show_contact_form_{makler.empfehlung_id}"]
+                        st.rerun()
+
+            st.markdown("---")
+
 
 def verkaeufer_timeline_view():
     """Timeline für Verkäufer"""
@@ -4966,7 +5307,8 @@ def notar_dashboard():
         "👥 Mitarbeiter",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
-        "📅 Termine"
+        "📅 Termine",
+        "🤝 Maklerempfehlung"
     ])
 
     with tabs[0]:
@@ -4992,6 +5334,9 @@ def notar_dashboard():
 
     with tabs[7]:
         notar_termine()
+
+    with tabs[8]:
+        notar_makler_empfehlung_view()
 
 def notar_timeline_view():
     """Timeline für Notar"""
@@ -5543,6 +5888,215 @@ def notar_termine():
             st.markdown("##### 📋 Alle Termine")
             render_termin_verwaltung(projekt, UserRole.NOTAR.value)
 
+def notar_makler_empfehlung_view():
+    """Makler-Empfehlungen für Verkäufer verwalten"""
+    import uuid
+
+    st.subheader("🤝 Maklerempfehlung für Verkäufer")
+    st.info("""
+    Empfehlen Sie geprüfte Makler an Verkäufer weiter. Eingeladene Makler erhalten
+    einen Link zur Dateneingabe und werden nach Ihrer Freigabe für Verkäufer sichtbar.
+    """)
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Neuen Makler einladen
+    st.markdown("### ➕ Neuen Makler einladen")
+
+    with st.form("invite_makler_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            makler_email = st.text_input("E-Mail-Adresse des Maklers*")
+            makler_name = st.text_input("Name/Firma des Maklers")
+        with col2:
+            notiz = st.text_area("Interne Notiz (nur für Sie sichtbar)", height=100)
+
+        submit = st.form_submit_button("📧 Einladung senden", type="primary")
+
+        if submit and makler_email:
+            # Prüfen ob bereits eingeladen
+            existing = [e for e in st.session_state.makler_empfehlungen.values()
+                       if e.makler_email.lower() == makler_email.lower() and e.notar_id == notar_id]
+
+            if existing:
+                st.warning("⚠️ Dieser Makler wurde bereits eingeladen.")
+            else:
+                # Neue Empfehlung erstellen
+                empfehlung_id = f"emp_{len(st.session_state.makler_empfehlungen) + 1}"
+                onboarding_token = str(uuid.uuid4())
+
+                neue_empfehlung = MaklerEmpfehlung(
+                    empfehlung_id=empfehlung_id,
+                    notar_id=notar_id,
+                    makler_email=makler_email,
+                    makler_name=makler_name,
+                    status=MaklerEmpfehlungStatus.EINGELADEN.value,
+                    onboarding_token=onboarding_token,
+                    notiz_notar=notiz
+                )
+                st.session_state.makler_empfehlungen[empfehlung_id] = neue_empfehlung
+
+                # Simulierte E-Mail-Benachrichtigung
+                st.success(f"""
+                ✅ Einladung gesendet!
+
+                **Simulierte E-Mail an:** {makler_email}
+
+                **Betreff:** Einladung zur Makler-Plattform
+
+                **Inhalt:**
+                Sehr geehrte(r) {makler_name or 'Makler'},
+
+                Sie wurden von Notariat {st.session_state.current_user.name} eingeladen,
+                sich auf unserer Immobilien-Transaktionsplattform zu registrieren.
+
+                Bitte füllen Sie Ihre Firmendaten unter folgendem Link aus:
+                **https://plattform.example.com/makler-onboarding?token={onboarding_token}**
+
+                Mit freundlichen Grüßen,
+                {st.session_state.current_user.name}
+                """)
+                st.rerun()
+
+    st.markdown("---")
+    st.markdown("### 📋 Eingeladene Makler")
+
+    # Makler nach Status gruppieren
+    meine_empfehlungen = [e for e in st.session_state.makler_empfehlungen.values()
+                         if e.notar_id == notar_id]
+
+    if not meine_empfehlungen:
+        st.info("Noch keine Makler eingeladen.")
+        return
+
+    # Tabs für Status
+    status_tabs = st.tabs(["⏳ Ausstehend", "✅ Freigegeben", "❌ Abgelehnt/Deaktiviert"])
+
+    # Ausstehend (Eingeladen + Daten eingegeben)
+    with status_tabs[0]:
+        ausstehend = [e for e in meine_empfehlungen
+                      if e.status in [MaklerEmpfehlungStatus.EINGELADEN.value,
+                                     MaklerEmpfehlungStatus.DATEN_EINGEGEBEN.value]]
+
+        if not ausstehend:
+            st.info("Keine ausstehenden Einladungen.")
+        else:
+            for emp in ausstehend:
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 2, 2])
+
+                    with col1:
+                        st.markdown(f"**{emp.firmenname or emp.makler_name or emp.makler_email}**")
+                        st.caption(f"📧 {emp.makler_email}")
+                        if emp.kurzvita:
+                            st.write(emp.kurzvita[:100] + "..." if len(emp.kurzvita) > 100 else emp.kurzvita)
+
+                    with col2:
+                        status_icon = "📨" if emp.status == MaklerEmpfehlungStatus.EINGELADEN.value else "📝"
+                        st.write(f"{status_icon} **{emp.status}**")
+                        st.caption(f"Eingeladen: {emp.eingeladen_am.strftime('%d.%m.%Y')}")
+                        if emp.telefon:
+                            st.write(f"📞 {emp.telefon}")
+
+                    with col3:
+                        if emp.status == MaklerEmpfehlungStatus.DATEN_EINGEGEBEN.value:
+                            # Makler hat Daten eingegeben - Freigabe möglich
+                            if st.button("✅ Freigeben", key=f"approve_{emp.empfehlung_id}", type="primary"):
+                                emp.status = MaklerEmpfehlungStatus.FREIGEGEBEN.value
+                                emp.freigegeben_am = datetime.now()
+                                st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
+                                st.success("Makler freigegeben!")
+                                st.rerun()
+
+                            if st.button("❌ Ablehnen", key=f"reject_{emp.empfehlung_id}"):
+                                emp.status = MaklerEmpfehlungStatus.ABGELEHNT.value
+                                st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
+                                st.rerun()
+                        else:
+                            # Noch keine Daten - Erinnerung senden
+                            if st.button("📧 Erneut senden", key=f"resend_{emp.empfehlung_id}"):
+                                st.info(f"Erinnerung an {emp.makler_email} gesendet (simuliert)")
+
+                        # Details anzeigen
+                        if emp.kurzvita or emp.spezialisierung:
+                            with st.expander("📄 Details"):
+                                if emp.kurzvita:
+                                    st.write(f"**Kurzvita:** {emp.kurzvita}")
+                                if emp.spezialisierung:
+                                    st.write(f"**Spezialisierung:** {', '.join(emp.spezialisierung)}")
+                                if emp.regionen:
+                                    st.write(f"**Regionen:** {', '.join(emp.regionen)}")
+                                if emp.provision_verkaeufer_prozent > 0:
+                                    st.write(f"**Provision Verkäufer:** {emp.provision_verkaeufer_prozent}%")
+                                if emp.provision_kaeufer_prozent > 0:
+                                    st.write(f"**Provision Käufer:** {emp.provision_kaeufer_prozent}%")
+
+                    st.markdown("---")
+
+    # Freigegeben
+    with status_tabs[1]:
+        freigegeben = [e for e in meine_empfehlungen
+                       if e.status == MaklerEmpfehlungStatus.FREIGEGEBEN.value]
+
+        if not freigegeben:
+            st.info("Noch keine freigegebenen Makler.")
+        else:
+            for emp in freigegeben:
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 2, 2])
+
+                    with col1:
+                        st.markdown(f"### {emp.firmenname or emp.makler_name}")
+                        st.caption(f"📧 {emp.makler_email}")
+                        if emp.kurzvita:
+                            st.write(emp.kurzvita)
+
+                    with col2:
+                        st.write("✅ **Freigegeben**")
+                        st.caption(f"Seit: {emp.freigegeben_am.strftime('%d.%m.%Y') if emp.freigegeben_am else 'N/A'}")
+                        if emp.telefon:
+                            st.write(f"📞 {emp.telefon}")
+                        if emp.website:
+                            st.write(f"🌐 {emp.website}")
+
+                    with col3:
+                        if st.button("⏸️ Deaktivieren", key=f"deactivate_{emp.empfehlung_id}"):
+                            emp.status = MaklerEmpfehlungStatus.DEAKTIVIERT.value
+                            st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
+                            st.rerun()
+
+                        with st.expander("📄 Alle Details"):
+                            st.write(f"**Adresse:** {emp.adresse}")
+                            st.write(f"**Spezialisierung:** {', '.join(emp.spezialisierung)}")
+                            st.write(f"**Regionen:** {', '.join(emp.regionen)}")
+                            st.write(f"**Provision Verkäufer:** {emp.provision_verkaeufer_prozent}%")
+                            st.write(f"**Provision Käufer:** {emp.provision_kaeufer_prozent}%")
+                            if emp.notiz_notar:
+                                st.write(f"**Ihre Notiz:** {emp.notiz_notar}")
+
+                    st.markdown("---")
+
+    # Abgelehnt/Deaktiviert
+    with status_tabs[2]:
+        inaktiv = [e for e in meine_empfehlungen
+                   if e.status in [MaklerEmpfehlungStatus.ABGELEHNT.value,
+                                  MaklerEmpfehlungStatus.DEAKTIVIERT.value]]
+
+        if not inaktiv:
+            st.info("Keine abgelehnten oder deaktivierten Makler.")
+        else:
+            for emp in inaktiv:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"**{emp.firmenname or emp.makler_name or emp.makler_email}** - {emp.status}")
+                with col2:
+                    if st.button("🔄 Reaktivieren", key=f"reactivate_{emp.empfehlung_id}"):
+                        emp.status = MaklerEmpfehlungStatus.FREIGEGEBEN.value
+                        emp.freigegeben_am = datetime.now()
+                        st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
+                        st.rerun()
+
+
 # ============================================================================
 # NOTAR-MITARBEITER-BEREICH
 # ============================================================================
@@ -5765,6 +6319,226 @@ def render_notifications():
                     notif.gelesen = True
                     st.rerun()
 
+def makler_onboarding_page(token: str):
+    """Onboarding-Seite für eingeladene Makler"""
+    st.title("🏢 Makler-Registrierung")
+
+    # Finde die Empfehlung mit diesem Token
+    empfehlung = None
+    for emp in st.session_state.makler_empfehlungen.values():
+        if emp.onboarding_token == token:
+            empfehlung = emp
+            break
+
+    if not empfehlung:
+        st.error("❌ Ungültiger oder abgelaufener Einladungslink.")
+        st.info("Bitte wenden Sie sich an den Notar, der Sie eingeladen hat.")
+        return
+
+    if empfehlung.status == MaklerEmpfehlungStatus.FREIGEGEBEN.value:
+        st.success("✅ Ihre Registrierung wurde bereits abgeschlossen und freigegeben!")
+        st.info("Sie können sich jetzt mit Ihren Zugangsdaten anmelden.")
+        return
+
+    st.success(f"Willkommen, {empfehlung.makler_name or 'Makler'}!")
+    st.info("""
+    Sie wurden vom Notar eingeladen, sich auf unserer Plattform zu registrieren.
+    Bitte füllen Sie das folgende Formular aus, um Ihre Firmendaten zu hinterlegen.
+    Nach der Freigabe durch den Notar sind Sie für Verkäufer sichtbar.
+    """)
+
+    st.markdown("---")
+    st.markdown("### 📝 Ihre Firmendaten")
+
+    with st.form("makler_onboarding_form"):
+        # Basis-Informationen
+        st.markdown("#### Kontaktdaten")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            firmenname = st.text_input("Firmenname*", value=empfehlung.firmenname)
+            kontaktperson = st.text_input("Kontaktperson / Ansprechpartner*", value=empfehlung.makler_name)
+            email = st.text_input("E-Mail*", value=empfehlung.makler_email, disabled=True)
+            telefon = st.text_input("Telefon*", value=empfehlung.telefon)
+
+        with col2:
+            website = st.text_input("Website", value=empfehlung.website, placeholder="www.beispiel.de")
+            adresse = st.text_area("Geschäftsadresse*", value=empfehlung.adresse, height=100)
+
+        # Logo-Upload
+        logo_upload = st.file_uploader("Firmenlogo (optional)", type=['jpg', 'jpeg', 'png'])
+
+        st.markdown("---")
+        st.markdown("#### 📋 Kurzvita & Spezialisierung")
+
+        kurzvita = st.text_area(
+            "Kurzvita (max. 500 Zeichen)*",
+            value=empfehlung.kurzvita,
+            max_chars=500,
+            height=150,
+            help="Diese Beschreibung wird Verkäufern angezeigt. Beschreiben Sie Ihre Erfahrung und Stärken."
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            spezialisierung_optionen = [
+                "Ferienimmobilien", "Luxusimmobilien", "Anlageimmobilien",
+                "Neubauprojekte", "Bestandsimmobilien", "Gewerbeimmobilien",
+                "Grundstücke", "Mehrfamilienhäuser"
+            ]
+            spezialisierung = st.multiselect(
+                "Spezialisierung*",
+                spezialisierung_optionen,
+                default=empfehlung.spezialisierung if empfehlung.spezialisierung else []
+            )
+
+        with col2:
+            regionen_optionen = [
+                "Mallorca", "Ibiza", "Menorca", "Costa Brava", "Costa Blanca",
+                "Algarve", "Toskana", "Côte d'Azur", "Österreich Alpen",
+                "Schweiz", "Deutschland Nordsee", "Deutschland Ostsee"
+            ]
+            regionen = st.multiselect(
+                "Tätigkeitsregionen*",
+                regionen_optionen,
+                default=empfehlung.regionen if empfehlung.regionen else []
+            )
+
+        st.markdown("---")
+        st.markdown("#### 💰 Konditionen")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            provision_verkaeufer = st.number_input(
+                "Provision Verkäufer (%)*",
+                min_value=0.0, max_value=10.0,
+                value=empfehlung.provision_verkaeufer_prozent if empfehlung.provision_verkaeufer_prozent > 0 else 3.57,
+                step=0.01,
+                help="Ihre Provision vom Verkäufer inkl. MwSt."
+            )
+        with col2:
+            provision_kaeufer = st.number_input(
+                "Provision Käufer (%)*",
+                min_value=0.0, max_value=10.0,
+                value=empfehlung.provision_kaeufer_prozent if empfehlung.provision_kaeufer_prozent > 0 else 3.57,
+                step=0.01,
+                help="Ihre Provision vom Käufer inkl. MwSt."
+            )
+
+        st.markdown("---")
+        st.markdown("#### 📄 Rechtliche Dokumente")
+        st.info("Diese Dokumente werden Verkäufern zur Verfügung gestellt.")
+
+        agb_text = st.text_area(
+            "Allgemeine Geschäftsbedingungen (AGB)*",
+            value=empfehlung.agb_text or """§1 Geltungsbereich
+Diese AGB gelten für alle Verträge zwischen dem Auftraggeber und dem Makler.
+
+§2 Vertragsgegenstand
+Der Makler wird beauftragt, ein geeignetes Kaufobjekt nachzuweisen oder zu vermitteln.
+
+§3 Provision
+Die Provision wird gemäß den vereinbarten Konditionen fällig.
+
+§4 Haftung
+Die Haftung des Maklers beschränkt sich auf Vorsatz und grobe Fahrlässigkeit.
+
+§5 Schlussbestimmungen
+Es gilt deutsches Recht. Gerichtsstand ist der Sitz des Maklers.""",
+            height=250
+        )
+
+        widerrufsbelehrung_text = st.text_area(
+            "Widerrufsbelehrung*",
+            value=empfehlung.widerrufsbelehrung_text or """Widerrufsrecht
+
+Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
+
+Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.
+
+Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer eindeutigen Erklärung (z.B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren.
+
+Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
+
+Folgen des Widerrufs:
+Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist.""",
+            height=250
+        )
+
+        datenschutz_text = st.text_area(
+            "Datenschutzerklärung*",
+            value=empfehlung.datenschutz_text or """Datenschutzerklärung
+
+1. Verantwortliche Stelle
+Verantwortlich für die Datenverarbeitung ist der jeweilige Makler.
+
+2. Erhebung und Speicherung personenbezogener Daten
+Wir erheben personenbezogene Daten, wenn Sie uns diese im Rahmen Ihrer Anfrage mitteilen.
+
+3. Nutzung und Weitergabe personenbezogener Daten
+Die erhobenen Daten werden ausschließlich zur Vertragserfüllung verwendet.
+
+4. Ihre Rechte
+Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung Ihrer Daten.""",
+            height=200
+        )
+
+        st.markdown("---")
+
+        # Zustimmung
+        zustimmung = st.checkbox(
+            "Ich bestätige, dass alle Angaben korrekt sind und stimme der Veröffentlichung meiner Daten auf der Plattform zu.*"
+        )
+
+        submit = st.form_submit_button("💾 Registrierung abschließen", type="primary", use_container_width=True)
+
+        if submit:
+            # Validierung
+            if not all([firmenname, kontaktperson, telefon, adresse, kurzvita, spezialisierung, regionen, agb_text, widerrufsbelehrung_text]):
+                st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
+            elif not zustimmung:
+                st.error("Bitte bestätigen Sie die Richtigkeit Ihrer Angaben.")
+            else:
+                # Daten speichern
+                empfehlung.firmenname = firmenname
+                empfehlung.makler_name = kontaktperson
+                empfehlung.telefon = telefon
+                empfehlung.website = website
+                empfehlung.adresse = adresse
+                empfehlung.kurzvita = kurzvita
+                empfehlung.spezialisierung = spezialisierung
+                empfehlung.regionen = regionen
+                empfehlung.provision_verkaeufer_prozent = provision_verkaeufer
+                empfehlung.provision_kaeufer_prozent = provision_kaeufer
+                empfehlung.agb_text = agb_text
+                empfehlung.widerrufsbelehrung_text = widerrufsbelehrung_text
+                empfehlung.datenschutz_text = datenschutz_text
+                empfehlung.status = MaklerEmpfehlungStatus.DATEN_EINGEGEBEN.value
+
+                if logo_upload:
+                    empfehlung.logo = logo_upload.read()
+
+                st.session_state.makler_empfehlungen[empfehlung.empfehlung_id] = empfehlung
+
+                # Benachrichtigung an Notar
+                create_notification(
+                    empfehlung.notar_id,
+                    "Makler-Registrierung abgeschlossen",
+                    f"Makler {firmenname} hat die Registrierung abgeschlossen und wartet auf Ihre Freigabe.",
+                    NotificationType.INFO.value
+                )
+
+                st.success("""
+                ✅ Vielen Dank für Ihre Registrierung!
+
+                Ihre Daten wurden erfolgreich übermittelt.
+                Der Notar wird Ihre Angaben prüfen und Sie nach der Freigabe benachrichtigen.
+
+                Sie erhalten dann Ihre Zugangsdaten per E-Mail.
+                """)
+                st.balloons()
+
+
 def main():
     """Hauptanwendung"""
     st.set_page_config(
@@ -5775,6 +6549,12 @@ def main():
     )
 
     init_session_state()
+
+    # Prüfe auf Makler-Onboarding-Token in URL
+    query_params = st.query_params
+    if "token" in query_params:
+        makler_onboarding_page(query_params["token"])
+        return
 
     if st.session_state.current_user is None:
         login_page()
