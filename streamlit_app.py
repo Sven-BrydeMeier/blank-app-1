@@ -1314,6 +1314,28 @@ class PersonalDaten:
     manuell_bestaetigt: bool = False
     bestaetigt_am: Optional[datetime] = None
 
+class PreisangebotStatus(Enum):
+    """Status für Preisangebote"""
+    OFFEN = "Offen"
+    ANGENOMMEN = "Angenommen"
+    ABGELEHNT = "Abgelehnt"
+    GEGENANGEBOT = "Gegenangebot"
+    ZURUECKGEZOGEN = "Zurückgezogen"
+
+@dataclass
+class Preisangebot:
+    """Preisangebot für Verhandlung zwischen Käufer und Verkäufer"""
+    angebot_id: str
+    projekt_id: str
+    von_user_id: str  # Wer das Angebot macht
+    von_rolle: str  # "Käufer" oder "Verkäufer"
+    betrag: float  # Angebotener Preis
+    nachricht: str = ""  # Optionale Nachricht/Begründung
+    status: str = PreisangebotStatus.OFFEN.value
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    beantwortet_am: Optional[datetime] = None
+    antwort_nachricht: str = ""
+
 @dataclass
 class TimelineEvent:
     """Timeline-Event"""
@@ -1343,6 +1365,8 @@ class Projekt:
     notar_id: str = ""
     status: str = ProjektStatus.VORBEREITUNG.value
     expose_nach_akzeptanz: bool = True
+    rechtsdokumente_erforderlich: bool = True  # Müssen Käufer/Verkäufer Datenschutz/AGB akzeptieren?
+    preisverhandlung_erlaubt: bool = False  # Können Käufer/Verkäufer über Preis verhandeln?
     created_at: datetime = field(default_factory=datetime.now)
     timeline_events: List[str] = field(default_factory=list)
     notartermin: Optional[datetime] = None
@@ -1832,6 +1856,7 @@ def init_session_state():
         st.session_state.projekte = {}
         st.session_state.legal_documents = {}
         st.session_state.financing_offers = {}
+        st.session_state.preisangebote = {}  # Preisverhandlung zwischen Käufer/Verkäufer
         st.session_state.wirtschaftsdaten = {}
         st.session_state.notifications = {}
         st.session_state.comments = {}
@@ -2072,6 +2097,36 @@ def create_demo_handwerker():
             empfohlen=True,
             notizen="Spezialisiert auf hochwertige Einbauten"
         ),
+        Handwerker(
+            handwerker_id="hw5",
+            notar_id="notar1",
+            firmenname="Schnell & Sicher Umzüge GmbH",
+            kategorie=HandwerkerKategorie.UMZUG.value,
+            kontaktperson="Stefan Bauer",
+            telefon="089 567 890",
+            email="info@schnell-sicher-umzuege.de",
+            adresse="Transportweg 15, 80341 München",
+            webseite="www.schnell-sicher-umzuege.de",
+            beschreibung="Komplettumzüge, Möbelmontage, Einlagerung. Umzüge bundesweit und international. Versichert und zertifiziert.",
+            bewertung=5,
+            empfohlen=True,
+            notizen="Sehr pünktlich, sorgfältiger Umgang mit Möbeln"
+        ),
+        Handwerker(
+            handwerker_id="hw6",
+            notar_id="notar1",
+            firmenname="Glanzrein Gebäudereinigung",
+            kategorie=HandwerkerKategorie.REINIGUNG.value,
+            kontaktperson="Anna Glaser",
+            telefon="089 678 901",
+            email="service@glanzrein.de",
+            adresse="Sauberstraße 7, 80343 München",
+            webseite="www.glanzrein.de",
+            beschreibung="Bauendreinigung, Umzugsreinigung, regelmäßige Gebäudereinigung. Ökologische Reinigungsmittel.",
+            bewertung=4,
+            empfohlen=True,
+            notizen="Ideal für Endreinigung vor Übergabe"
+        ),
     ]
 
     for hw in demo_handwerker:
@@ -2302,6 +2357,164 @@ def get_unread_notifications(user_id: str) -> List[Notification]:
             notifications.append(notif)
 
     return sorted(notifications, key=lambda x: x.created_at, reverse=True)
+
+# ===== PREISVERHANDLUNG HELPER FUNCTIONS =====
+
+def kann_preisverhandlung_fuehren(projekt: Projekt, user_id: str, user_rolle: str) -> bool:
+    """
+    Prüft ob ein User Preisverhandlungen für dieses Projekt führen kann.
+    - Ohne Makler: immer erlaubt für Käufer/Verkäufer
+    - Mit Makler: nur wenn preisverhandlung_erlaubt = True
+    """
+    if user_rolle not in ["Käufer", "Verkäufer"]:
+        return False
+
+    # Prüfen ob User am Projekt beteiligt ist
+    if user_rolle == "Käufer" and user_id not in projekt.kaeufer_ids:
+        return False
+    if user_rolle == "Verkäufer" and user_id not in projekt.verkaeufer_ids:
+        return False
+
+    # Ohne Makler: immer erlaubt
+    if not projekt.makler_id:
+        return True
+
+    # Mit Makler: nur wenn erlaubt
+    return getattr(projekt, 'preisverhandlung_erlaubt', False)
+
+def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betrag: float, nachricht: str = "") -> str:
+    """Erstellt ein neues Preisangebot"""
+    angebot_id = f"preis_{len(st.session_state.preisangebote)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    angebot = Preisangebot(
+        angebot_id=angebot_id,
+        projekt_id=projekt_id,
+        von_user_id=von_user_id,
+        von_rolle=von_rolle,
+        betrag=betrag,
+        nachricht=nachricht,
+        status=PreisangebotStatus.OFFEN.value,
+        erstellt_am=datetime.now()
+    )
+
+    st.session_state.preisangebote[angebot_id] = angebot
+
+    # Benachrichtigungen an Gegenseite
+    projekt = st.session_state.projekte.get(projekt_id)
+    if projekt:
+        von_user = st.session_state.users.get(von_user_id)
+        von_name = von_user.name if von_user else "Unbekannt"
+
+        # Benachrichtige Gegenseite
+        if von_rolle == "Käufer":
+            # Benachrichtige alle Verkäufer
+            for vk_id in projekt.verkaeufer_ids:
+                create_notification(
+                    user_id=vk_id,
+                    titel="💰 Neues Preisangebot erhalten",
+                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    typ=NotificationType.INFO.value
+                )
+        else:
+            # Benachrichtige alle Käufer
+            for kf_id in projekt.kaeufer_ids:
+                create_notification(
+                    user_id=kf_id,
+                    titel="💰 Neues Preisangebot vom Verkäufer",
+                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    typ=NotificationType.INFO.value
+                )
+
+        # Wenn Makler vorhanden, auch informieren
+        if projekt.makler_id:
+            create_notification(
+                user_id=projekt.makler_id,
+                titel="💰 Preisangebot in Ihrem Projekt",
+                nachricht=f"{von_name} ({von_rolle}) hat ein Angebot über {betrag:,.2f} € für {projekt.name} gemacht.",
+                typ=NotificationType.INFO.value
+            )
+
+    return angebot_id
+
+def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachricht: str = "", gegenangebot_betrag: float = None) -> Optional[str]:
+    """
+    Reagiert auf ein Preisangebot.
+    Bei Gegenangebot wird ein neues Angebot erstellt.
+    Gibt die ID des Gegenangebots zurück, falls erstellt.
+    """
+    angebot = st.session_state.preisangebote.get(angebot_id)
+    if not angebot:
+        return None
+
+    angebot.status = neuer_status
+    angebot.beantwortet_am = datetime.now()
+    angebot.antwort_nachricht = antwort_nachricht
+
+    projekt = st.session_state.projekte.get(angebot.projekt_id)
+    von_user = st.session_state.users.get(angebot.von_user_id)
+
+    if projekt and von_user:
+        # Benachrichtige den Angebotssteller
+        if neuer_status == PreisangebotStatus.ANGENOMMEN.value:
+            create_notification(
+                user_id=angebot.von_user_id,
+                titel="✅ Preisangebot angenommen!",
+                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde angenommen!",
+                typ=NotificationType.SUCCESS.value
+            )
+            # Auch Makler benachrichtigen
+            if projekt.makler_id:
+                create_notification(
+                    user_id=projekt.makler_id,
+                    titel="✅ Preiseinigung erzielt",
+                    nachricht=f"Käufer und Verkäufer haben sich auf {angebot.betrag:,.2f} € für {projekt.name} geeinigt.",
+                    typ=NotificationType.SUCCESS.value
+                )
+        elif neuer_status == PreisangebotStatus.ABGELEHNT.value:
+            create_notification(
+                user_id=angebot.von_user_id,
+                titel="❌ Preisangebot abgelehnt",
+                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde abgelehnt. {antwort_nachricht}",
+                typ=NotificationType.WARNING.value
+            )
+        elif neuer_status == PreisangebotStatus.GEGENANGEBOT.value and gegenangebot_betrag:
+            # Erstelle Gegenangebot
+            gegenseite_rolle = "Verkäufer" if angebot.von_rolle == "Käufer" else "Käufer"
+
+            # Finde User der Gegenseite der antwortet
+            current_user_id = st.session_state.current_user.user_id
+
+            gegenangebot_id = create_preisangebot(
+                projekt_id=angebot.projekt_id,
+                von_user_id=current_user_id,
+                von_rolle=gegenseite_rolle,
+                betrag=gegenangebot_betrag,
+                nachricht=antwort_nachricht
+            )
+
+            create_notification(
+                user_id=angebot.von_user_id,
+                titel="💬 Gegenangebot erhalten",
+                nachricht=f"Auf Ihr Angebot über {angebot.betrag:,.2f} € wurde ein Gegenangebot von {gegenangebot_betrag:,.2f} € gemacht.",
+                typ=NotificationType.INFO.value
+            )
+
+            return gegenangebot_id
+
+    return None
+
+def get_preisangebote_fuer_projekt(projekt_id: str) -> List[Preisangebot]:
+    """Holt alle Preisangebote für ein Projekt, sortiert nach Datum (neueste zuerst)"""
+    angebote = [a for a in st.session_state.preisangebote.values() if a.projekt_id == projekt_id]
+    return sorted(angebote, key=lambda x: x.erstellt_am, reverse=True)
+
+def get_letztes_offenes_angebot(projekt_id: str) -> Optional[Preisangebot]:
+    """Holt das letzte offene Angebot für ein Projekt"""
+    angebote = get_preisangebote_fuer_projekt(projekt_id)
+    for angebot in angebote:
+        if angebot.status == PreisangebotStatus.OFFEN.value:
+            return angebot
+    return None
 
 def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     """Simuliert OCR und KI-Klassifizierung"""
@@ -4787,6 +5000,243 @@ def render_alle_termine(projekt: 'Projekt', user_rolle: str):
             render_termin_card(termin, projekt, user_rolle, context="alle")
 
 
+def generate_expose_druckversion(expose: 'ExposeData') -> str:
+    """
+    Generiert eine druckbare HTML-Version des Exposés.
+    Professionelles Layout für Druck und PDF-Export.
+    """
+    html = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exposé - {expose.objekttitel}</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }}
+        .expose {{
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }}
+        .header h1 {{
+            font-size: 32px;
+            margin-bottom: 15px;
+        }}
+        .preis {{
+            font-size: 28px;
+            background: rgba(255,255,255,0.2);
+            display: inline-block;
+            padding: 10px 30px;
+            border-radius: 30px;
+            margin-top: 10px;
+        }}
+        .content {{
+            padding: 40px;
+        }}
+        .section {{
+            margin-bottom: 30px;
+        }}
+        .section h2 {{
+            color: #1a365d;
+            border-bottom: 2px solid #2c5282;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }}
+        .data-item {{
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }}
+        .data-item .label {{
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }}
+        .data-item .value {{
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }}
+        .beschreibung {{
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #2c5282;
+        }}
+        .energie-badge {{
+            display: inline-block;
+            padding: 5px 15px;
+            background: #48bb78;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+        }}
+        .kosten-tabelle {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        .kosten-tabelle td {{
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }}
+        .kosten-tabelle td:first-child {{
+            color: #666;
+        }}
+        .kosten-tabelle td:last-child {{
+            text-align: right;
+            font-weight: 600;
+        }}
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            font-size: 12px;
+            color: #666;
+        }}
+        @media print {{
+            body {{
+                background: white;
+                padding: 0;
+            }}
+            .expose {{
+                box-shadow: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="expose">
+        <div class="header">
+            <h1>{expose.objekttitel}</h1>
+            <p>{expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}</p>
+            <div class="preis">{expose.kaufpreis:,.2f} €</div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>📋 Objektdaten</h2>
+                <div class="grid">
+                    <div class="data-item">
+                        <div class="label">Objektart</div>
+                        <div class="value">{expose.objektart}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Wohnfläche</div>
+                        <div class="value">{expose.wohnflaeche} m²</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Zimmer</div>
+                        <div class="value">{expose.anzahl_zimmer}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Baujahr</div>
+                        <div class="value">{expose.baujahr if expose.baujahr > 0 else 'N/A'}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Etage</div>
+                        <div class="value">{expose.etage if expose.etage else 'N/A'}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Zustand</div>
+                        <div class="value">{expose.zustand if expose.zustand else 'N/A'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📝 Objektbeschreibung</h2>
+                <div class="beschreibung">
+                    <p>{expose.objektbeschreibung or 'Keine Beschreibung verfügbar.'}</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>⚡ Energieausweis</h2>
+                <div class="grid">
+                    <div class="data-item">
+                        <div class="label">Effizienzklasse</div>
+                        <div class="value"><span class="energie-badge">{expose.energieeffizienzklasse or 'N/A'}</span></div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Endenergieverbrauch</div>
+                        <div class="value">{expose.endenergieverbrauch} kWh/m²a</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Wesentlicher Energieträger</div>
+                        <div class="value">{expose.wesentlicher_energietraeger or 'N/A'}</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">Ausweistyp</div>
+                        <div class="value">{expose.energieausweis_typ or 'N/A'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>💰 Kosten</h2>
+                <table class="kosten-tabelle">
+                    <tr>
+                        <td>Kaufpreis</td>
+                        <td>{expose.kaufpreis:,.2f} €</td>
+                    </tr>
+                    <tr>
+                        <td>Hausgeld (monatlich)</td>
+                        <td>{expose.hausgeld:,.2f} €</td>
+                    </tr>
+                    <tr>
+                        <td>Grundsteuer (jährlich)</td>
+                        <td>{expose.grundsteuer:,.2f} €</td>
+                    </tr>
+                    <tr>
+                        <td>Provision</td>
+                        <td>{expose.provision or 'N/A'}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {"<div class='section'><h2>📍 Lagebeschreibung</h2><div class='beschreibung'><p>" + expose.lagebeschreibung + "</p></div></div>" if expose.lagebeschreibung else ""}
+
+            {"<div class='section'><h2>🏠 Ausstattung</h2><div class='beschreibung'><p>" + expose.ausstattung + "</p></div></div>" if expose.ausstattung else ""}
+        </div>
+
+        <div class="footer">
+            <p>Dieses Exposé wurde über die Immobilien-Transaktionsplattform erstellt.</p>
+            <p>Erstellt am {datetime.now().strftime('%d.%m.%Y')}</p>
+        </div>
+    </div>
+
+    <script>
+        // Zum Drucken: window.print();
+    </script>
+</body>
+</html>"""
+
+    return html
+
+
 def render_expose_editor(projekt: Projekt):
     """Rendert den Exposé-Editor für ein Projekt"""
 
@@ -5293,6 +5743,22 @@ def render_expose_editor(projekt: Projekt):
         import streamlit.components.v1 as components
         components.html(preview_html, height=800, scrolling=True)
 
+        # Download-Button für das Exposé
+        full_expose_html = generate_expose_druckversion(expose)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="📥 Exposé als HTML herunterladen",
+                data=full_expose_html,
+                file_name=f"Expose_{expose.objekttitel.replace(' ', '_')}.html",
+                mime="text/html",
+                key=f"download_expose_{expose.expose_id}"
+            )
+        with col2:
+            if st.button("❌ Vorschau schließen", key=f"close_preview_{expose.expose_id}"):
+                st.session_state[f"show_web_preview_{expose.expose_id}"] = False
+                st.rerun()
+
 
 # ============================================================================
 # TIMELINE-KOMPONENTE
@@ -5711,6 +6177,18 @@ def makler_projekte_view():
             adresse = st.text_input("Adresse", placeholder="Straße, PLZ Ort")
             kaufpreis = st.number_input("Kaufpreis (€)", min_value=0.0, value=0.0, step=1000.0)
 
+            st.markdown("#### ⚙️ Projekt-Einstellungen")
+            rechtsdokumente_erforderlich = st.checkbox(
+                "📜 Käufer/Verkäufer müssen Datenschutz & AGB akzeptieren",
+                value=True,
+                help="Wenn aktiviert, müssen Käufer und Verkäufer die Rechtsdokumente des Notars akzeptieren, bevor sie auf ihr Dashboard zugreifen können."
+            )
+            preisverhandlung_erlaubt = st.checkbox(
+                "💰 Preisverhandlung zwischen Käufer und Verkäufer erlauben",
+                value=False,
+                help="Wenn aktiviert, können Käufer und Verkäufer direkt über den Preis verhandeln."
+            )
+
             col1, col2 = st.columns(2)
             with col1:
                 submit = st.form_submit_button("💾 Projekt erstellen", type="primary")
@@ -5726,7 +6204,9 @@ def makler_projekte_view():
                     beschreibung=beschreibung,
                     adresse=adresse,
                     kaufpreis=kaufpreis,
-                    makler_id=st.session_state.current_user.user_id
+                    makler_id=st.session_state.current_user.user_id,
+                    rechtsdokumente_erforderlich=rechtsdokumente_erforderlich,
+                    preisverhandlung_erlaubt=preisverhandlung_erlaubt
                 )
 
                 st.session_state.projekte[projekt_id] = projekt
@@ -5763,6 +6243,30 @@ def makler_projekte_view():
                 st.write(f"👥 Verkäufer: {len(projekt.verkaeufer_ids)}")
                 st.write(f"💼 Finanzierer: {len(projekt.finanzierer_ids)}")
                 st.write(f"⚖️ Notar: {'Ja' if projekt.notar_id else 'Nein'}")
+
+            # Projekt-Einstellungen
+            with st.expander("⚙️ Projekt-Einstellungen", expanded=False):
+                rechtsdokumente_aktuell = getattr(projekt, 'rechtsdokumente_erforderlich', True)
+                preisverhandlung_aktuell = getattr(projekt, 'preisverhandlung_erlaubt', False)
+
+                rechtsdokumente_neu = st.checkbox(
+                    "📜 Käufer/Verkäufer müssen Datenschutz & AGB akzeptieren",
+                    value=rechtsdokumente_aktuell,
+                    key=f"rechtsdok_{projekt.projekt_id}",
+                    help="Wenn deaktiviert, können Käufer und Verkäufer sofort auf ihr Dashboard zugreifen."
+                )
+                preisverhandlung_neu = st.checkbox(
+                    "💰 Preisverhandlung zwischen Käufer und Verkäufer erlauben",
+                    value=preisverhandlung_aktuell,
+                    key=f"preisverh_{projekt.projekt_id}",
+                    help="Wenn aktiviert, können Käufer und Verkäufer direkt über den Preis verhandeln."
+                )
+
+                if st.button("💾 Einstellungen speichern", key=f"save_settings_{projekt.projekt_id}"):
+                    projekt.rechtsdokumente_erforderlich = rechtsdokumente_neu
+                    projekt.preisverhandlung_erlaubt = preisverhandlung_neu
+                    st.success("✅ Projekt-Einstellungen gespeichert!")
+                    st.rerun()
 
             st.markdown("---")
 
@@ -6552,6 +7056,279 @@ def kaeufer_projekte_view():
             else:
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
 
+            # === PREISVERHANDLUNG ===
+            if kann_preisverhandlung_fuehren(projekt, user_id, "Käufer"):
+                st.markdown("---")
+                st.markdown("### 💰 Preisverhandlung")
+
+                # Zeige aktuellen Verhandlungsstand
+                angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
+                letztes_offenes = get_letztes_offenes_angebot(projekt.projekt_id)
+
+                if letztes_offenes:
+                    von_user = st.session_state.users.get(letztes_offenes.von_user_id)
+                    von_name = von_user.name if von_user else "Unbekannt"
+
+                    if letztes_offenes.von_user_id == user_id:
+                        # Eigenes offenes Angebot
+                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Verkäufers.")
+                        if letztes_offenes.nachricht:
+                            st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
+
+                        if st.button("🔙 Angebot zurückziehen", key=f"zurueck_{letztes_offenes.angebot_id}"):
+                            letztes_offenes.status = PreisangebotStatus.ZURUECKGEZOGEN.value
+                            st.success("Angebot zurückgezogen.")
+                            st.rerun()
+                    else:
+                        # Offenes Angebot vom Verkäufer
+                        st.warning(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        if letztes_offenes.nachricht:
+                            st.caption(f"Nachricht: {letztes_offenes.nachricht}")
+
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if st.button("✅ Annehmen", key=f"annehmen_{letztes_offenes.angebot_id}"):
+                                respond_to_preisangebot(letztes_offenes.angebot_id, PreisangebotStatus.ANGENOMMEN.value)
+                                st.success("Angebot angenommen!")
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Ablehnen", key=f"ablehnen_{letztes_offenes.angebot_id}"):
+                                respond_to_preisangebot(letztes_offenes.angebot_id, PreisangebotStatus.ABGELEHNT.value)
+                                st.warning("Angebot abgelehnt.")
+                                st.rerun()
+                        with col3:
+                            if st.button("💬 Gegenangebot", key=f"gegen_{letztes_offenes.angebot_id}"):
+                                st.session_state[f"zeige_gegenangebot_{projekt.projekt_id}"] = True
+
+                        if st.session_state.get(f"zeige_gegenangebot_{projekt.projekt_id}"):
+                            gegen_betrag = st.number_input(
+                                "Ihr Gegenangebot (€)",
+                                min_value=0.0,
+                                value=float(letztes_offenes.betrag),
+                                step=1000.0,
+                                key=f"gegen_betrag_{projekt.projekt_id}"
+                            )
+                            gegen_nachricht = st.text_input("Nachricht (optional)", key=f"gegen_msg_{projekt.projekt_id}")
+                            if st.button("📤 Gegenangebot senden", key=f"sende_gegen_{projekt.projekt_id}"):
+                                respond_to_preisangebot(
+                                    letztes_offenes.angebot_id,
+                                    PreisangebotStatus.GEGENANGEBOT.value,
+                                    gegen_nachricht,
+                                    gegen_betrag
+                                )
+                                st.session_state[f"zeige_gegenangebot_{projekt.projekt_id}"] = False
+                                st.success("Gegenangebot gesendet!")
+                                st.rerun()
+                else:
+                    # Kein offenes Angebot - neues Angebot machen
+                    st.markdown("**Neues Preisangebot abgeben:**")
+                    angebot_betrag = st.number_input(
+                        "Ihr Angebot (€)",
+                        min_value=0.0,
+                        value=float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 0.0,
+                        step=1000.0,
+                        key=f"neues_angebot_{projekt.projekt_id}"
+                    )
+                    angebot_nachricht = st.text_input("Nachricht an Verkäufer (optional)", key=f"msg_{projekt.projekt_id}")
+
+                    if st.button("📤 Angebot senden", key=f"sende_{projekt.projekt_id}"):
+                        create_preisangebot(
+                            projekt_id=projekt.projekt_id,
+                            von_user_id=user_id,
+                            von_rolle="Käufer",
+                            betrag=angebot_betrag,
+                            nachricht=angebot_nachricht
+                        )
+                        st.success(f"Angebot über {angebot_betrag:,.2f} € gesendet!")
+                        st.rerun()
+
+                # Zeige Verhandlungsverlauf
+                if angebote:
+                    with st.expander("📜 Verhandlungsverlauf", expanded=False):
+                        for angebot in angebote:
+                            von_user = st.session_state.users.get(angebot.von_user_id)
+                            von_name = von_user.name if von_user else "Unbekannt"
+                            status_icon = {
+                                PreisangebotStatus.OFFEN.value: "⏳",
+                                PreisangebotStatus.ANGENOMMEN.value: "✅",
+                                PreisangebotStatus.ABGELEHNT.value: "❌",
+                                PreisangebotStatus.GEGENANGEBOT.value: "💬",
+                                PreisangebotStatus.ZURUECKGEZOGEN.value: "🔙"
+                            }.get(angebot.status, "❓")
+
+                            st.markdown(f"""
+                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            - Status: {angebot.status}
+                            - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+                            {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
+                            """)
+            elif projekt.makler_id:
+                # Makler vorhanden aber Verhandlung nicht erlaubt
+                st.markdown("---")
+                st.info("💡 Preisverhandlungen sind für dieses Projekt nicht aktiviert. Bei Interesse wenden Sie sich an den Makler.")
+
+
+def generate_handwerker_steckbrief(handwerker: 'Handwerker') -> str:
+    """
+    Generiert ein druckbares HTML-Steckbrief/Exposé für einen Handwerker.
+    Enthält alle Kontaktdaten und Beschreibung in einem professionellen Layout.
+    """
+    sterne = "⭐" * handwerker.bewertung if handwerker.bewertung > 0 else "Keine Bewertung"
+
+    html = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steckbrief - {handwerker.firmenname}</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }}
+        .steckbrief {{
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            font-size: 28px;
+            margin-bottom: 10px;
+        }}
+        .header .kategorie {{
+            font-size: 16px;
+            opacity: 0.9;
+            background: rgba(255,255,255,0.2);
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+        }}
+        .content {{
+            padding: 30px;
+        }}
+        .bewertung {{
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }}
+        .beschreibung {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border-left: 4px solid #2563eb;
+        }}
+        .beschreibung h3 {{
+            color: #2563eb;
+            margin-bottom: 10px;
+        }}
+        .kontakt {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }}
+        .kontakt-item {{
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }}
+        .kontakt-item .icon {{
+            font-size: 24px;
+            margin-right: 15px;
+            width: 40px;
+            text-align: center;
+        }}
+        .kontakt-item .label {{
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }}
+        .kontakt-item .value {{
+            font-size: 16px;
+            font-weight: 500;
+        }}
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            font-size: 12px;
+            color: #666;
+        }}
+        @media print {{
+            body {{
+                background: white;
+                padding: 0;
+            }}
+            .steckbrief {{
+                box-shadow: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="steckbrief">
+        <div class="header">
+            <h1>{handwerker.firmenname}</h1>
+            <span class="kategorie">🔧 {handwerker.kategorie}</span>
+        </div>
+
+        <div class="content">
+            <div class="bewertung">{sterne}</div>
+
+            <div class="beschreibung">
+                <h3>📝 Über uns</h3>
+                <p>{handwerker.beschreibung or 'Keine Beschreibung verfügbar.'}</p>
+            </div>
+
+            <h3 style="margin-bottom: 15px; color: #333;">📞 Kontaktdaten</h3>
+            <div class="kontakt">
+                {"<div class='kontakt-item'><span class='icon'>👤</span><div><div class='label'>Ansprechpartner</div><div class='value'>" + handwerker.kontaktperson + "</div></div></div>" if handwerker.kontaktperson else ""}
+
+                {"<div class='kontakt-item'><span class='icon'>📞</span><div><div class='label'>Telefon</div><div class='value'>" + handwerker.telefon + "</div></div></div>" if handwerker.telefon else ""}
+
+                {"<div class='kontakt-item'><span class='icon'>📧</span><div><div class='label'>E-Mail</div><div class='value'>" + handwerker.email + "</div></div></div>" if handwerker.email else ""}
+
+                {"<div class='kontakt-item'><span class='icon'>📍</span><div><div class='label'>Adresse</div><div class='value'>" + handwerker.adresse + "</div></div></div>" if handwerker.adresse else ""}
+
+                {"<div class='kontakt-item'><span class='icon'>🌐</span><div><div class='label'>Webseite</div><div class='value'>" + handwerker.webseite + "</div></div></div>" if handwerker.webseite else ""}
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Dieser Steckbrief wurde über die Immobilien-Transaktionsplattform erstellt.</p>
+            <p>Empfohlen vom Notar | Erstellt am {datetime.now().strftime('%d.%m.%Y')}</p>
+        </div>
+    </div>
+
+    <script>
+        // Automatisch Druckdialog öffnen
+        // window.print();
+    </script>
+</body>
+</html>"""
+
+    return html
+
 
 def kaeufer_handwerker_empfehlungen():
     """Zeigt vom Notar empfohlene Handwerker"""
@@ -6628,6 +7405,16 @@ def kaeufer_handwerker_empfehlungen():
                 with col2:
                     if hw.webseite:
                         st.markdown(f"🌐 [Webseite besuchen]({hw.webseite if hw.webseite.startswith('http') else 'https://' + hw.webseite})")
+
+                    # Steckbrief-Download Button
+                    steckbrief_html = generate_handwerker_steckbrief(hw)
+                    st.download_button(
+                        label="📄 Steckbrief",
+                        data=steckbrief_html,
+                        file_name=f"Steckbrief_{hw.firmenname.replace(' ', '_')}.html",
+                        mime="text/html",
+                        key=f"steckbrief_{hw.handwerker_id}"
+                    )
 
                 st.markdown("---")
 
@@ -8397,6 +9184,117 @@ def verkaeufer_projekte_view():
             if projekt.kaufpreis > 0:
                 st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
             st.markdown(f"**Status:** {projekt.status}")
+
+            # === PREISVERHANDLUNG ===
+            if kann_preisverhandlung_fuehren(projekt, user_id, "Verkäufer"):
+                st.markdown("---")
+                st.markdown("### 💰 Preisverhandlung")
+
+                # Zeige aktuellen Verhandlungsstand
+                angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
+                letztes_offenes = get_letztes_offenes_angebot(projekt.projekt_id)
+
+                if letztes_offenes:
+                    von_user = st.session_state.users.get(letztes_offenes.von_user_id)
+                    von_name = von_user.name if von_user else "Unbekannt"
+
+                    if letztes_offenes.von_user_id == user_id:
+                        # Eigenes offenes Angebot
+                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Käufers.")
+                        if letztes_offenes.nachricht:
+                            st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
+
+                        if st.button("🔙 Angebot zurückziehen", key=f"vk_zurueck_{letztes_offenes.angebot_id}"):
+                            letztes_offenes.status = PreisangebotStatus.ZURUECKGEZOGEN.value
+                            st.success("Angebot zurückgezogen.")
+                            st.rerun()
+                    else:
+                        # Offenes Angebot vom Käufer
+                        st.success(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        if letztes_offenes.nachricht:
+                            st.caption(f"Nachricht: {letztes_offenes.nachricht}")
+
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            if st.button("✅ Annehmen", key=f"vk_annehmen_{letztes_offenes.angebot_id}"):
+                                respond_to_preisangebot(letztes_offenes.angebot_id, PreisangebotStatus.ANGENOMMEN.value)
+                                st.success("Angebot angenommen!")
+                                st.rerun()
+                        with col2:
+                            if st.button("❌ Ablehnen", key=f"vk_ablehnen_{letztes_offenes.angebot_id}"):
+                                respond_to_preisangebot(letztes_offenes.angebot_id, PreisangebotStatus.ABGELEHNT.value)
+                                st.warning("Angebot abgelehnt.")
+                                st.rerun()
+                        with col3:
+                            if st.button("💬 Gegenangebot", key=f"vk_gegen_{letztes_offenes.angebot_id}"):
+                                st.session_state[f"vk_zeige_gegenangebot_{projekt.projekt_id}"] = True
+
+                        if st.session_state.get(f"vk_zeige_gegenangebot_{projekt.projekt_id}"):
+                            gegen_betrag = st.number_input(
+                                "Ihr Gegenangebot (€)",
+                                min_value=0.0,
+                                value=float(letztes_offenes.betrag),
+                                step=1000.0,
+                                key=f"vk_gegen_betrag_{projekt.projekt_id}"
+                            )
+                            gegen_nachricht = st.text_input("Nachricht (optional)", key=f"vk_gegen_msg_{projekt.projekt_id}")
+                            if st.button("📤 Gegenangebot senden", key=f"vk_sende_gegen_{projekt.projekt_id}"):
+                                respond_to_preisangebot(
+                                    letztes_offenes.angebot_id,
+                                    PreisangebotStatus.GEGENANGEBOT.value,
+                                    gegen_nachricht,
+                                    gegen_betrag
+                                )
+                                st.session_state[f"vk_zeige_gegenangebot_{projekt.projekt_id}"] = False
+                                st.success("Gegenangebot gesendet!")
+                                st.rerun()
+                else:
+                    # Kein offenes Angebot - Verkäufer kann auch initiieren
+                    st.markdown("**Neues Preisangebot an Käufer senden:**")
+                    angebot_betrag = st.number_input(
+                        "Ihr Preisvorschlag (€)",
+                        min_value=0.0,
+                        value=float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 0.0,
+                        step=1000.0,
+                        key=f"vk_neues_angebot_{projekt.projekt_id}"
+                    )
+                    angebot_nachricht = st.text_input("Nachricht an Käufer (optional)", key=f"vk_msg_{projekt.projekt_id}")
+
+                    if st.button("📤 Preisvorschlag senden", key=f"vk_sende_{projekt.projekt_id}"):
+                        create_preisangebot(
+                            projekt_id=projekt.projekt_id,
+                            von_user_id=user_id,
+                            von_rolle="Verkäufer",
+                            betrag=angebot_betrag,
+                            nachricht=angebot_nachricht
+                        )
+                        st.success(f"Preisvorschlag über {angebot_betrag:,.2f} € gesendet!")
+                        st.rerun()
+
+                # Zeige Verhandlungsverlauf
+                if angebote:
+                    with st.expander("📜 Verhandlungsverlauf", expanded=False):
+                        for angebot in angebote:
+                            von_user = st.session_state.users.get(angebot.von_user_id)
+                            von_name = von_user.name if von_user else "Unbekannt"
+                            status_icon = {
+                                PreisangebotStatus.OFFEN.value: "⏳",
+                                PreisangebotStatus.ANGENOMMEN.value: "✅",
+                                PreisangebotStatus.ABGELEHNT.value: "❌",
+                                PreisangebotStatus.GEGENANGEBOT.value: "💬",
+                                PreisangebotStatus.ZURUECKGEZOGEN.value: "🔙"
+                            }.get(angebot.status, "❓")
+
+                            st.markdown(f"""
+                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            - Status: {angebot.status}
+                            - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+                            {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
+                            """)
+            elif projekt.makler_id:
+                # Makler vorhanden aber Verhandlung nicht erlaubt
+                st.markdown("---")
+                st.info("💡 Preisverhandlungen sind für dieses Projekt nicht aktiviert. Bei Interesse wenden Sie sich an den Makler.")
 
             # Anzeige hochgeladener Dokumente für dieses Projekt
             projekt_docs = [d for d in st.session_state.verkaeufer_dokumente.values()
@@ -10848,10 +11746,26 @@ def render_rechtsdokument_akzeptanz_status(notar_id: str):
                             st.warning("⏳ Widerruf")
 
 
-def get_user_notar_ids(user_id: str, rolle: str) -> List[str]:
-    """Ermittelt alle Notar-IDs für Projekte des Benutzers"""
+def get_user_notar_ids(user_id: str, rolle: str, nur_mit_rechtsdokument_pflicht: bool = True) -> List[str]:
+    """
+    Ermittelt alle Notar-IDs für Projekte des Benutzers.
+
+    Args:
+        user_id: Die Benutzer-ID
+        rolle: Die Rolle des Benutzers (Käufer/Verkäufer)
+        nur_mit_rechtsdokument_pflicht: Wenn True, nur Notare von Projekten wo Rechtsdokumente erforderlich sind
+
+    Returns:
+        Liste der Notar-IDs
+    """
     notar_ids = set()
     for projekt in st.session_state.projekte.values():
+        # Prüfen ob Rechtsdokumente für dieses Projekt erforderlich sind
+        rechtsdokumente_erforderlich = getattr(projekt, 'rechtsdokumente_erforderlich', True)
+
+        if nur_mit_rechtsdokument_pflicht and not rechtsdokumente_erforderlich:
+            continue  # Überspringen wenn nicht erforderlich
+
         if rolle == UserRole.KAEUFER.value and user_id in projekt.kaeufer_ids:
             if projekt.notar_id:
                 notar_ids.add(projekt.notar_id)
@@ -10967,6 +11881,29 @@ def render_rechtsdokumente_akzeptanz_pflicht(user_id: str, rolle: str) -> bool:
                         'akzeptiert_am': datetime.now().isoformat(),
                         'version': version
                     }
+
+                    # Benachrichtigungen senden
+                    user = st.session_state.users.get(user_id)
+                    notar = st.session_state.users.get(notar_id)
+                    user_name = user.name if user else user_id
+                    notar_name = notar.name if notar else "Notar"
+
+                    # Nachricht an den User selbst
+                    create_notification(
+                        user_id=user_id,
+                        titel=f"✅ {titel} akzeptiert",
+                        nachricht=f"Sie haben die {titel} (Version {version}) von {notar_name} erfolgreich akzeptiert.",
+                        typ=NotificationType.SUCCESS.value
+                    )
+
+                    # Nachricht an den Notar
+                    if notar_id:
+                        create_notification(
+                            user_id=notar_id,
+                            titel=f"📋 Dokument akzeptiert",
+                            nachricht=f"{user_name} hat die {titel} (Version {version}) akzeptiert.",
+                            typ=NotificationType.INFO.value
+                        )
 
                     st.success(f"✅ {titel} wurde akzeptiert!")
                     st.rerun()
@@ -11102,6 +12039,54 @@ def notar_einstellungen_view():
     - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
     - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
     """)
+
+    # Demo-Modus Einstellungen
+    st.markdown("---")
+    st.markdown("### 🧪 Demo-Modus")
+
+    # Demo-Modus initialisieren falls nicht vorhanden
+    if 'demo_modus_aktiv' not in st.session_state:
+        st.session_state.demo_modus_aktiv = True  # Standard: Demo-Modus AN
+
+    st.info("""
+    **Demo-Modus:** Alle Dashboards sind voll funktionsfähig mit simulierten Daten.
+    Im aktiven Modus werden bestimmte Funktionen eingeschränkt, bis alle erforderlichen
+    Konfigurationen (API-Keys, echte Daten) vorgenommen wurden.
+    """)
+
+    demo_modus = st.toggle(
+        "Demo-Modus aktiviert",
+        value=st.session_state.demo_modus_aktiv,
+        help="AN = Volle Funktionalität mit Demo-Daten | AUS = Aktiver Modus mit Einschränkungen"
+    )
+
+    if demo_modus != st.session_state.demo_modus_aktiv:
+        st.session_state.demo_modus_aktiv = demo_modus
+        if demo_modus:
+            st.success("✅ Demo-Modus aktiviert - Alle Funktionen verfügbar")
+        else:
+            st.warning("⚠️ Aktiver Modus - Einige Funktionen erfordern echte Konfiguration")
+        st.rerun()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.session_state.demo_modus_aktiv:
+            st.success("🟢 **Demo-Modus AKTIV**")
+            st.caption("Alle Dashboards funktionieren mit simulierten Daten")
+        else:
+            st.error("🔴 **Aktiver Modus**")
+            st.caption("Produktivbetrieb - echte Daten erforderlich")
+
+    with col2:
+        st.markdown("**Aktuelle Einstellung:**")
+        if st.session_state.demo_modus_aktiv:
+            st.markdown("- ✅ Demo-Handwerker verfügbar")
+            st.markdown("- ✅ Demo-Rechtsdokumente verfügbar")
+            st.markdown("- ✅ OCR mit Demo-Daten als Fallback")
+        else:
+            st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
+            st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
+            st.markdown("- ⚠️ API-Keys für OCR erforderlich")
 
 
 # ============================================================================
