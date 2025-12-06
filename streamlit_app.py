@@ -3242,6 +3242,11 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
                         'image_data': file_data
                     }
 
+                    # Widget-Cache für Zusammenfassungs-Formular invalidieren
+                    # damit neue Daten übernommen werden
+                    ocr_version_key = f"ausweis_ocr_version_{user_id}"
+                    st.session_state[ocr_version_key] = st.session_state.get(ocr_version_key, 0) + 1
+
                 st.success(f"✅ {seite_label} analysiert!")
                 st.rerun()
 
@@ -3249,7 +3254,10 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
 def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
     """Zeigt die kombinierten Daten aus Vorder- und Rückseite und ermöglicht Bearbeitung"""
 
-    widget_prefix = key_prefix if key_prefix else user_id
+    # OCR-Version für Widget-Key-Invalidierung (damit neue Daten angezeigt werden)
+    ocr_version = st.session_state.get(f"ausweis_ocr_version_{user_id}", 0)
+    widget_prefix = f"{key_prefix}_{ocr_version}" if key_prefix else f"{user_id}_{ocr_version}"
+
     vorderseite = st.session_state.get(f"ausweis_vorderseite_{user_id}")
     rueckseite = st.session_state.get(f"ausweis_rueckseite_{user_id}")
 
