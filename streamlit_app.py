@@ -1888,11 +1888,19 @@ def init_session_state():
         # Session-Tokens für "Angemeldet bleiben"
         st.session_state.valid_tokens = {}
 
+        # Rechtsdokumente-Akzeptanzen (User -> Notar -> Dokument -> Datum)
+        st.session_state.rechtsdokument_akzeptanzen = {}
+
+        # Notar-Rechtsdokumente (Datenschutz, AGB, Widerruf)
+        st.session_state.notar_rechtsdokumente = {}
+
         # Demo-Daten
         create_demo_users()
         create_demo_projekt()
         create_demo_timeline()
         create_demo_makler_empfehlungen()
+        create_demo_handwerker()
+        create_demo_notar_rechtsdokumente()
 
 def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
@@ -1999,6 +2007,150 @@ def create_demo_makler_empfehlungen():
 
     for emp in demo_empfehlungen:
         st.session_state.makler_empfehlungen[emp.empfehlung_id] = emp
+
+
+def create_demo_handwerker():
+    """Erstellt Demo-Handwerker vom Notar"""
+    demo_handwerker = [
+        Handwerker(
+            handwerker_id="hw1",
+            notar_id="notar1",
+            firmenname="Müller Elektrotechnik GmbH",
+            kategorie=HandwerkerKategorie.ELEKTRIKER.value,
+            kontaktperson="Thomas Müller",
+            telefon="089 123 456",
+            email="info@mueller-elektro.de",
+            adresse="Elektrikerstraße 5, 80333 München",
+            webseite="www.mueller-elektro.de",
+            beschreibung="Spezialisiert auf Smart Home Installation, E-Check und Photovoltaik. Meisterbetrieb seit 1985.",
+            bewertung=5,
+            empfohlen=True,
+            notizen="Sehr zuverlässig, faire Preise"
+        ),
+        Handwerker(
+            handwerker_id="hw2",
+            notar_id="notar1",
+            firmenname="Schmidt Sanitär & Heizung",
+            kategorie=HandwerkerKategorie.SANITAER.value,
+            kontaktperson="Klaus Schmidt",
+            telefon="089 234 567",
+            email="kontakt@schmidt-sanitaer.de",
+            adresse="Wasserweg 12, 80335 München",
+            webseite="www.schmidt-sanitaer.de",
+            beschreibung="Badsanierung, Heizungsmodernisierung, 24h Notdienst. Fachbetrieb für Wärmepumpen.",
+            bewertung=4,
+            empfohlen=True,
+            notizen="Schnelle Reaktionszeit"
+        ),
+        Handwerker(
+            handwerker_id="hw3",
+            notar_id="notar1",
+            firmenname="Meister Maler Huber",
+            kategorie=HandwerkerKategorie.MALER.value,
+            kontaktperson="Franz Huber",
+            telefon="089 345 678",
+            email="huber@meister-maler.de",
+            adresse="Farbgasse 8, 80337 München",
+            webseite="",
+            beschreibung="Malerarbeiten, Tapezieren, Fassadengestaltung. Traditioneller Handwerksbetrieb.",
+            bewertung=5,
+            empfohlen=True,
+            notizen=""
+        ),
+        Handwerker(
+            handwerker_id="hw4",
+            notar_id="notar1",
+            firmenname="Schreiner Werkstatt Weber",
+            kategorie=HandwerkerKategorie.TISCHLER.value,
+            kontaktperson="Michael Weber",
+            telefon="089 456 789",
+            email="weber@schreiner-weber.de",
+            adresse="Holzstraße 20, 80339 München",
+            webseite="www.schreiner-weber.de",
+            beschreibung="Einbauschränke, Küchenmontage, Türen und Fenster. Individuelle Möbelanfertigung.",
+            bewertung=4,
+            empfohlen=True,
+            notizen="Spezialisiert auf hochwertige Einbauten"
+        ),
+    ]
+
+    for hw in demo_handwerker:
+        st.session_state.handwerker_empfehlungen[hw.handwerker_id] = hw
+
+
+def create_demo_notar_rechtsdokumente():
+    """Erstellt Demo-Rechtsdokumente für den Notar"""
+    if 'notar_rechtsdokumente' not in st.session_state:
+        st.session_state.notar_rechtsdokumente = {}
+
+    # Demo-Rechtsdokumente für notar1
+    st.session_state.notar_rechtsdokumente["notar1"] = {
+        'datenschutz': {
+            'titel': 'Datenschutzerklärung',
+            'inhalt': '''**Datenschutzerklärung für die Immobilien-Transaktionsplattform**
+
+1. **Verantwortlicher:** Notariat München, Leopoldstraße 1, 80802 München
+
+2. **Erhebung und Verarbeitung personenbezogener Daten:**
+   Wir erheben und verarbeiten Ihre personenbezogenen Daten (Name, Adresse, Kontaktdaten, Ausweisdaten) ausschließlich zur Durchführung der Immobilientransaktion.
+
+3. **Rechtsgrundlage:** Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung).
+
+4. **Speicherdauer:** Ihre Daten werden für die Dauer der gesetzlichen Aufbewahrungsfristen (10 Jahre) gespeichert.
+
+5. **Ihre Rechte:** Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung sowie Datenübertragbarkeit.
+
+6. **Kontakt:** Bei Fragen wenden Sie sich an datenschutz@notariat-muenchen.de''',
+            'version': '1.0',
+            'gueltig_ab': datetime.now().date(),
+            'pflicht': True
+        },
+        'agb': {
+            'titel': 'Allgemeine Geschäftsbedingungen',
+            'inhalt': '''**Allgemeine Geschäftsbedingungen (AGB) für die Nutzung der Immobilien-Transaktionsplattform**
+
+§1 **Geltungsbereich**
+Diese AGB gelten für alle Nutzer der Plattform zur Abwicklung von Immobilientransaktionen.
+
+§2 **Leistungsumfang**
+Die Plattform dient der digitalen Unterstützung bei Immobilienkäufen und -verkäufen, insbesondere der Dokumentenverwaltung, Terminkoordination und Kommunikation zwischen den Parteien.
+
+§3 **Pflichten der Nutzer**
+- Wahrheitsgemäße Angaben zu persönlichen Daten
+- Vertrauliche Behandlung von Zugangsdaten
+- Unverzügliche Meldung von Sicherheitsvorfällen
+
+§4 **Haftung**
+Die Haftung beschränkt sich auf Vorsatz und grobe Fahrlässigkeit. Die Haftung für leichte Fahrlässigkeit ist ausgeschlossen.
+
+§5 **Schlussbestimmungen**
+Es gilt deutsches Recht. Gerichtsstand ist München.''',
+            'version': '1.0',
+            'gueltig_ab': datetime.now().date(),
+            'pflicht': True
+        },
+        'widerruf': {
+            'titel': 'Widerrufsbelehrung',
+            'inhalt': '''**Widerrufsbelehrung**
+
+**Widerrufsrecht:**
+Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
+
+Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.
+
+Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (Notariat München, Leopoldstraße 1, 80802 München, E-Mail: widerruf@notariat-muenchen.de) mittels einer eindeutigen Erklärung über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren.
+
+**Folgen des Widerrufs:**
+Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich zurückzuzahlen.
+
+**Hinweis:**
+Das Widerrufsrecht erlischt bei Verträgen zur Erbringung von Dienstleistungen, wenn die Dienstleistung vollständig erbracht wurde.''',
+            'version': '1.0',
+            'gueltig_ab': datetime.now().date(),
+            'pflicht': True
+        }
+    }
+
 
 def hash_password(password: str) -> str:
     """Einfaches Password-Hashing"""
@@ -2849,14 +3001,17 @@ def parse_ausweis_ocr_text(ocr_text: str) -> 'PersonalDaten':
     return personal_daten
 
 
-def render_ausweis_upload(user_id: str, rolle: str):
+def render_ausweis_upload(user_id: str, rolle: str, context: str = ""):
     """
     Rendert das Ausweis-Upload-Widget mit OCR-Erkennung für Vorder- und Rückseite
 
     Args:
         user_id: ID des Benutzers
         rolle: Rolle des Benutzers (Käufer, Verkäufer)
+        context: Optionaler Kontext für eindeutige Widget-Keys (z.B. "makler_", "notar_")
     """
+    # Eindeutiger Key-Prefix für diesen Kontext
+    key_prefix = f"{context}_{user_id}" if context else user_id
     user = st.session_state.users.get(user_id)
     if not user:
         st.error("Benutzer nicht gefunden.")
@@ -2904,7 +3059,7 @@ def render_ausweis_upload(user_id: str, rolle: str):
                 st.write(f"**Ausweisnummer:** {pd.ausweisnummer}")
                 st.write(f"**Gültig bis:** {pd.gueltig_bis.strftime('%d.%m.%Y') if pd.gueltig_bis else 'N/A'}")
 
-        if st.button("🔄 Neuen Ausweis hochladen", key=f"new_ausweis_{user_id}"):
+        if st.button("🔄 Neuen Ausweis hochladen", key=f"new_ausweis_{key_prefix}"):
             st.session_state[f"upload_new_ausweis_{user_id}"] = True
             # Reset der Seiten-Daten
             if f"ausweis_vorderseite_{user_id}" in st.session_state:
@@ -2953,24 +3108,26 @@ def render_ausweis_upload(user_id: str, rolle: str):
         st.markdown("#### Vorderseite des Ausweises")
         st.caption("Enthält: Name, Geburtsdatum, Geburtsort, Nationalität, Foto")
 
-        render_ausweis_seite_upload(user_id, "vorderseite")
+        render_ausweis_seite_upload(user_id, "vorderseite", key_prefix)
 
     # === RÜCKSEITE ===
     with ausweis_tabs[1]:
         st.markdown("#### Rückseite des Ausweises")
         st.caption("Enthält: Adresse, Ausweisnummer, Gültigkeitsdatum, Größe, Augenfarbe")
 
-        render_ausweis_seite_upload(user_id, "rueckseite")
+        render_ausweis_seite_upload(user_id, "rueckseite", key_prefix)
 
     # === DATEN ÜBERNEHMEN ===
     with ausweis_tabs[2]:
-        render_ausweis_zusammenfassung(user_id)
+        render_ausweis_zusammenfassung(user_id, key_prefix)
 
 
-def render_ausweis_seite_upload(user_id: str, seite: str):
+def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
     """Rendert den Upload für eine Ausweis-Seite (Vorder- oder Rückseite)"""
 
+    # Data key bleibt user_id basiert, Widget key nutzt key_prefix
     seite_key = f"ausweis_{seite}_{user_id}"
+    widget_prefix = key_prefix if key_prefix else user_id
     seite_label = "Vorderseite" if seite == "vorderseite" else "Rückseite"
 
     # Prüfen ob bereits erfasst
@@ -3000,7 +3157,7 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
                     st.write(f"**Ausweisnummer:** {pd.ausweisnummer}")
                     st.write(f"**Gültig bis:** {pd.gueltig_bis.strftime('%d.%m.%Y') if pd.gueltig_bis else '-'}")
 
-        if st.button(f"🔄 {seite_label} erneut erfassen", key=f"retry_{seite}_{user_id}"):
+        if st.button(f"🔄 {seite_label} erneut erfassen", key=f"retry_{seite}_{widget_prefix}"):
             del st.session_state[seite_key]
             st.rerun()
 
@@ -3010,7 +3167,7 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
     upload_methode = st.radio(
         f"Wie möchten Sie die {seite_label} erfassen?",
         ["📁 Datei hochladen", "📷 Foto aufnehmen (Kamera)"],
-        key=f"upload_methode_{seite}_{user_id}",
+        key=f"upload_methode_{seite}_{widget_prefix}",
         horizontal=True
     )
 
@@ -3021,7 +3178,7 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
         uploaded_file = st.file_uploader(
             f"{seite_label} hochladen",
             type=['jpg', 'jpeg', 'png', 'pdf'],
-            key=f"upload_{seite}_{user_id}",
+            key=f"upload_{seite}_{widget_prefix}",
             help=f"Bitte laden Sie ein gut lesbares Foto der {seite_label} Ihres Ausweises hoch."
         )
         if uploaded_file:
@@ -3052,7 +3209,7 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
 
         camera_photo = st.camera_input(
             f"{seite_label} fotografieren",
-            key=f"camera_{seite}_{user_id}"
+            key=f"camera_{seite}_{widget_prefix}"
         )
         if camera_photo:
             file_data = camera_photo.read()
@@ -3074,7 +3231,7 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
             - ✅ Keine Reflexionen/Schatten
             """)
 
-            if st.button(f"🔍 {seite_label} analysieren", key=f"ocr_{seite}_{user_id}", type="primary"):
+            if st.button(f"🔍 {seite_label} analysieren", key=f"ocr_{seite}_{widget_prefix}", type="primary"):
                 with st.spinner(f"Analysiere {seite_label}..."):
                     personal_daten, ocr_text, vertrauen = ocr_personalausweis(file_data, file_name)
 
@@ -3089,9 +3246,10 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
                 st.rerun()
 
 
-def render_ausweis_zusammenfassung(user_id: str):
+def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
     """Zeigt die kombinierten Daten aus Vorder- und Rückseite und ermöglicht Bearbeitung"""
 
+    widget_prefix = key_prefix if key_prefix else user_id
     vorderseite = st.session_state.get(f"ausweis_vorderseite_{user_id}")
     rueckseite = st.session_state.get(f"ausweis_rueckseite_{user_id}")
 
@@ -3120,45 +3278,45 @@ def render_ausweis_zusammenfassung(user_id: str):
 
     with col1:
         st.markdown("**Persönliche Daten** (aus Vorderseite)")
-        vorname = st.text_input("Vorname*", value=pd_vorne.vorname or pd_hinten.vorname, key=f"final_vorname_{user_id}")
-        nachname = st.text_input("Nachname*", value=pd_vorne.nachname or pd_hinten.nachname, key=f"final_nachname_{user_id}")
-        geburtsname = st.text_input("Geburtsname", value=pd_vorne.geburtsname or pd_hinten.geburtsname, key=f"final_geburtsname_{user_id}")
+        vorname = st.text_input("Vorname*", value=pd_vorne.vorname or pd_hinten.vorname, key=f"final_vorname_{widget_prefix}")
+        nachname = st.text_input("Nachname*", value=pd_vorne.nachname or pd_hinten.nachname, key=f"final_nachname_{widget_prefix}")
+        geburtsname = st.text_input("Geburtsname", value=pd_vorne.geburtsname or pd_hinten.geburtsname, key=f"final_geburtsname_{widget_prefix}")
 
         geb_datum = pd_vorne.geburtsdatum or pd_hinten.geburtsdatum or date(1980, 1, 1)
-        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"final_gebdat_{user_id}")
+        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"final_gebdat_{widget_prefix}")
 
-        geburtsort = st.text_input("Geburtsort", value=pd_vorne.geburtsort or pd_hinten.geburtsort, key=f"final_geburtsort_{user_id}")
-        nationalitaet = st.text_input("Nationalität", value=pd_vorne.nationalitaet or pd_hinten.nationalitaet or "DEUTSCH", key=f"final_nat_{user_id}")
+        geburtsort = st.text_input("Geburtsort", value=pd_vorne.geburtsort or pd_hinten.geburtsort, key=f"final_geburtsort_{widget_prefix}")
+        nationalitaet = st.text_input("Nationalität", value=pd_vorne.nationalitaet or pd_hinten.nationalitaet or "DEUTSCH", key=f"final_nat_{widget_prefix}")
 
     with col2:
         st.markdown("**Adresse & Ausweis** (aus Rückseite)")
-        strasse = st.text_input("Straße*", value=pd_hinten.strasse or pd_vorne.strasse, key=f"final_strasse_{user_id}")
-        hausnummer = st.text_input("Hausnummer*", value=pd_hinten.hausnummer or pd_vorne.hausnummer, key=f"final_hausnr_{user_id}")
-        plz = st.text_input("PLZ*", value=pd_hinten.plz or pd_vorne.plz, key=f"final_plz_{user_id}")
-        ort = st.text_input("Ort*", value=pd_hinten.ort or pd_vorne.ort, key=f"final_ort_{user_id}")
+        strasse = st.text_input("Straße*", value=pd_hinten.strasse or pd_vorne.strasse, key=f"final_strasse_{widget_prefix}")
+        hausnummer = st.text_input("Hausnummer*", value=pd_hinten.hausnummer or pd_vorne.hausnummer, key=f"final_hausnr_{widget_prefix}")
+        plz = st.text_input("PLZ*", value=pd_hinten.plz or pd_vorne.plz, key=f"final_plz_{widget_prefix}")
+        ort = st.text_input("Ort*", value=pd_hinten.ort or pd_vorne.ort, key=f"final_ort_{widget_prefix}")
 
         ausweisart = st.selectbox("Ausweisart", ["Personalausweis", "Reisepass"],
-                                  index=0, key=f"final_ausweisart_{user_id}")
-        ausweisnummer = st.text_input("Ausweisnummer*", value=pd_hinten.ausweisnummer or pd_vorne.ausweisnummer, key=f"final_ausweisnr_{user_id}")
+                                  index=0, key=f"final_ausweisart_{widget_prefix}")
+        ausweisnummer = st.text_input("Ausweisnummer*", value=pd_hinten.ausweisnummer or pd_vorne.ausweisnummer, key=f"final_ausweisnr_{widget_prefix}")
 
         gueltig_datum = pd_hinten.gueltig_bis or pd_vorne.gueltig_bis or date.today()
-        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"final_gueltig_{user_id}")
+        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"final_gueltig_{widget_prefix}")
 
     # OCR-Rohtext anzeigen
     with st.expander("🔍 OCR-Rohtext anzeigen"):
         if vorderseite:
             st.markdown("**Vorderseite:**")
-            st.text_area("", vorderseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_vorne_{user_id}")
+            st.text_area("", vorderseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_vorne_{widget_prefix}")
         if rueckseite:
             st.markdown("**Rückseite:**")
-            st.text_area("", rueckseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_hinten_{user_id}")
+            st.text_area("", rueckseite['ocr_text'], height=100, disabled=True, key=f"ocr_raw_hinten_{widget_prefix}")
 
     # Buttons
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("💾 Daten übernehmen & bestätigen", key=f"final_save_{user_id}", type="primary"):
+        if st.button("💾 Daten übernehmen & bestätigen", key=f"final_save_{widget_prefix}", type="primary"):
             # Validierung
             if not all([vorname, nachname, strasse, hausnummer, plz, ort, ausweisnummer]):
                 st.error("Bitte füllen Sie alle Pflichtfelder (*) aus.")
@@ -4003,7 +4161,8 @@ Teilnehmer:
 Hinweis: Bitte bringen Sie einen gültigen Personalausweis oder Reisepass mit.
 """
 
-    # ICS Format
+    # ICS Format - Beschreibung für ICS aufbereiten (Newlines durch \n ersetzen)
+    beschreibung_ics = beschreibung.replace('\n', '\\n')
     ics_content = f"""BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Immobilien-Transaktionsplattform//DE
@@ -4013,7 +4172,7 @@ DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%SZ')}
 DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}
 DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}
 SUMMARY:{termin.termin_typ}: {projekt.name}
-DESCRIPTION:{beschreibung.replace(chr(10), '\\n')}
+DESCRIPTION:{beschreibung_ics}
 LOCATION:{termin.ort}
 STATUS:CONFIRMED
 END:VEVENT
@@ -5474,7 +5633,8 @@ def makler_dashboard():
         "⚖️ Rechtliche Dokumente",
         "👥 Teilnehmer-Status",
         "✉️ Einladungen",
-        "💬 Kommentare"
+        "💬 Kommentare",
+        "🪪 Ausweisdaten erfassen"
     ])
 
     with tabs[0]:
@@ -5500,6 +5660,9 @@ def makler_dashboard():
 
     with tabs[7]:
         makler_kommentare()
+
+    with tabs[8]:
+        makler_ausweis_erfassung()
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -6067,6 +6230,82 @@ def makler_kommentare():
                         st.success("✅ Nachricht gesendet!")
                         st.rerun()
 
+
+def makler_ausweis_erfassung():
+    """Ausweisdaten für Käufer und Verkäufer erfassen (Makler)"""
+    st.subheader("🪪 Ausweisdaten erfassen")
+    st.caption("Erfassen Sie hier die Ausweisdaten der Käufer und Verkäufer für Ihre Projekte.")
+
+    makler_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        return
+
+    # Projekt auswählen
+    projekt_options = {p.name: p for p in projekte}
+    selected_projekt_name = st.selectbox(
+        "Projekt auswählen",
+        list(projekt_options.keys()),
+        key="makler_ausweis_projekt"
+    )
+    selected_projekt = projekt_options[selected_projekt_name]
+
+    # Tabs für Käufer und Verkäufer
+    ausweis_tabs = st.tabs(["👤 Käufer", "👤 Verkäufer"])
+
+    with ausweis_tabs[0]:
+        st.markdown("### Käufer-Ausweisdaten")
+        if selected_projekt.kaeufer_ids:
+            for kaeufer_id in selected_projekt.kaeufer_ids:
+                kaeufer = st.session_state.users.get(kaeufer_id)
+                if kaeufer:
+                    with st.expander(f"🪪 {kaeufer.name}", expanded=True):
+                        # Prüfen ob Daten bereits erfasst
+                        personal_key = f"personal_{kaeufer_id}"
+                        if personal_key in st.session_state:
+                            st.success("✅ Ausweisdaten bereits erfasst")
+                            daten = st.session_state[personal_key]
+                            st.write(f"**Name:** {daten.get('vorname', '')} {daten.get('nachname', '')}")
+                            st.write(f"**Geburtsdatum:** {daten.get('geburtsdatum', '')}")
+                            st.write(f"**Adresse:** {daten.get('adresse', '')}")
+
+                            if st.button(f"🔄 Neu erfassen", key=f"reupload_k_{kaeufer_id}"):
+                                del st.session_state[personal_key]
+                                st.rerun()
+                        else:
+                            st.info("Ausweisdaten noch nicht erfasst.")
+                            render_ausweis_upload(kaeufer_id, UserRole.KAEUFER.value, context=f"makler_{kaeufer_id}")
+        else:
+            st.info("Noch keine Käufer für dieses Projekt.")
+
+    with ausweis_tabs[1]:
+        st.markdown("### Verkäufer-Ausweisdaten")
+        if selected_projekt.verkaeufer_ids:
+            for verkaeufer_id in selected_projekt.verkaeufer_ids:
+                verkaeufer = st.session_state.users.get(verkaeufer_id)
+                if verkaeufer:
+                    with st.expander(f"🪪 {verkaeufer.name}", expanded=True):
+                        # Prüfen ob Daten bereits erfasst
+                        personal_key = f"personal_{verkaeufer_id}"
+                        if personal_key in st.session_state:
+                            st.success("✅ Ausweisdaten bereits erfasst")
+                            daten = st.session_state[personal_key]
+                            st.write(f"**Name:** {daten.get('vorname', '')} {daten.get('nachname', '')}")
+                            st.write(f"**Geburtsdatum:** {daten.get('geburtsdatum', '')}")
+                            st.write(f"**Adresse:** {daten.get('adresse', '')}")
+
+                            if st.button(f"🔄 Neu erfassen", key=f"reupload_v_{verkaeufer_id}"):
+                                del st.session_state[personal_key]
+                                st.rerun()
+                        else:
+                            st.info("Ausweisdaten noch nicht erfasst.")
+                            render_ausweis_upload(verkaeufer_id, UserRole.VERKAEUFER.value, context=f"makler_{verkaeufer_id}")
+        else:
+            st.info("Noch keine Verkäufer für dieses Projekt.")
+
+
 # ============================================================================
 # KÄUFER/VERKÄUFER ONBOARDING
 # ============================================================================
@@ -6186,6 +6425,12 @@ def kaeufer_dashboard():
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
+        return
+
+    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
+    user_id = st.session_state.current_user.user_id
+    if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
+        # User muss erst Dokumente akzeptieren
         return
 
     # Suchleiste
@@ -6309,11 +6554,22 @@ def kaeufer_handwerker_empfehlungen():
     if 'handwerker_empfehlungen' not in st.session_state:
         st.session_state.handwerker_empfehlungen = {}
 
-    # Nur freigegebene Handwerker anzeigen
-    empfohlene_handwerker = [h for h in st.session_state.handwerker_empfehlungen.values() if h.empfohlen]
+    # Notar-IDs der Käufer-Projekte ermitteln
+    user_id = st.session_state.current_user.user_id
+    meine_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    meine_notar_ids = list(set(p.notar_id for p in meine_projekte if p.notar_id))
+
+    # Nur freigegebene Handwerker vom zugewiesenen Notar anzeigen
+    empfohlene_handwerker = [
+        h for h in st.session_state.handwerker_empfehlungen.values()
+        if h.empfohlen and h.notar_id in meine_notar_ids
+    ]
 
     if not empfohlene_handwerker:
-        st.info("Der Notar hat noch keine Handwerker-Empfehlungen hinterlegt.")
+        if not meine_notar_ids:
+            st.info("Ihren Projekten ist noch kein Notar zugewiesen.")
+        else:
+            st.info("Der Notar hat noch keine Handwerker-Empfehlungen hinterlegt.")
         return
 
     # Filter nach Kategorie
@@ -7873,6 +8129,12 @@ def verkaeufer_dashboard():
         onboarding_flow()
         return
 
+    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
+    user_id = st.session_state.current_user.user_id
+    if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.VERKAEUFER.value):
+        # User muss erst Dokumente akzeptieren
+        return
+
     # Suchleiste
     search_term = render_dashboard_search("verkaeufer")
     if search_term:
@@ -8824,6 +9086,8 @@ def notar_dashboard():
         "📅 Termine",
         "🤝 Maklerempfehlung",
         "🔧 Handwerker",
+        "🪪 Ausweisdaten",
+        "📜 Rechtsdokumente",
         "⚙️ Einstellungen"
     ])
 
@@ -8861,6 +9125,12 @@ def notar_dashboard():
         notar_handwerker_view()
 
     with tabs[11]:
+        notar_ausweis_erfassung()
+
+    with tabs[12]:
+        notar_rechtsdokumente_view()
+
+    with tabs[13]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -10304,6 +10574,396 @@ def notar_handwerker_view():
                     st.session_state.handwerker_empfehlungen[hw_id] = neuer_handwerker
                     st.success(f"✅ Handwerker '{firmenname}' wurde angelegt!")
                     st.rerun()
+
+
+def notar_ausweis_erfassung():
+    """Ausweisdaten für Käufer und Verkäufer erfassen (Notar)"""
+    st.subheader("🪪 Ausweisdaten erfassen")
+    st.caption("Erfassen Sie hier die Ausweisdaten der Käufer und Verkäufer für Ihre Projekte.")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Projekt auswählen
+    projekt_options = {p.name: p for p in projekte}
+    selected_projekt_name = st.selectbox(
+        "Projekt auswählen",
+        list(projekt_options.keys()),
+        key="notar_ausweis_projekt"
+    )
+    selected_projekt = projekt_options[selected_projekt_name]
+
+    # Tabs für Käufer und Verkäufer
+    ausweis_tabs = st.tabs(["👤 Käufer", "👤 Verkäufer"])
+
+    with ausweis_tabs[0]:
+        st.markdown("### Käufer-Ausweisdaten")
+        if selected_projekt.kaeufer_ids:
+            for kaeufer_id in selected_projekt.kaeufer_ids:
+                kaeufer = st.session_state.users.get(kaeufer_id)
+                if kaeufer:
+                    with st.expander(f"🪪 {kaeufer.name}", expanded=True):
+                        # Prüfen ob Daten bereits erfasst
+                        personal_key = f"personal_{kaeufer_id}"
+                        if personal_key in st.session_state or (kaeufer.personal_daten and kaeufer.personal_daten.manuell_bestaetigt):
+                            st.success("✅ Ausweisdaten bereits erfasst")
+                            if kaeufer.personal_daten:
+                                pd = kaeufer.personal_daten
+                                st.write(f"**Name:** {pd.vorname} {pd.nachname}")
+                                st.write(f"**Geburtsdatum:** {pd.geburtsdatum.strftime('%d.%m.%Y') if pd.geburtsdatum else '-'}")
+                                st.write(f"**Adresse:** {pd.strasse} {pd.hausnummer}, {pd.plz} {pd.ort}")
+
+                            if st.button(f"🔄 Neu erfassen", key=f"reupload_notar_k_{kaeufer_id}"):
+                                if f"ausweis_vorderseite_{kaeufer_id}" in st.session_state:
+                                    del st.session_state[f"ausweis_vorderseite_{kaeufer_id}"]
+                                if f"ausweis_rueckseite_{kaeufer_id}" in st.session_state:
+                                    del st.session_state[f"ausweis_rueckseite_{kaeufer_id}"]
+                                st.rerun()
+                        else:
+                            st.info("Ausweisdaten noch nicht erfasst.")
+                            render_ausweis_upload(kaeufer_id, UserRole.KAEUFER.value, context=f"notar_{kaeufer_id}")
+        else:
+            st.info("Noch keine Käufer für dieses Projekt.")
+
+    with ausweis_tabs[1]:
+        st.markdown("### Verkäufer-Ausweisdaten")
+        if selected_projekt.verkaeufer_ids:
+            for verkaeufer_id in selected_projekt.verkaeufer_ids:
+                verkaeufer = st.session_state.users.get(verkaeufer_id)
+                if verkaeufer:
+                    with st.expander(f"🪪 {verkaeufer.name}", expanded=True):
+                        # Prüfen ob Daten bereits erfasst
+                        personal_key = f"personal_{verkaeufer_id}"
+                        if personal_key in st.session_state or (verkaeufer.personal_daten and verkaeufer.personal_daten.manuell_bestaetigt):
+                            st.success("✅ Ausweisdaten bereits erfasst")
+                            if verkaeufer.personal_daten:
+                                pd = verkaeufer.personal_daten
+                                st.write(f"**Name:** {pd.vorname} {pd.nachname}")
+                                st.write(f"**Geburtsdatum:** {pd.geburtsdatum.strftime('%d.%m.%Y') if pd.geburtsdatum else '-'}")
+                                st.write(f"**Adresse:** {pd.strasse} {pd.hausnummer}, {pd.plz} {pd.ort}")
+
+                            if st.button(f"🔄 Neu erfassen", key=f"reupload_notar_v_{verkaeufer_id}"):
+                                if f"ausweis_vorderseite_{verkaeufer_id}" in st.session_state:
+                                    del st.session_state[f"ausweis_vorderseite_{verkaeufer_id}"]
+                                if f"ausweis_rueckseite_{verkaeufer_id}" in st.session_state:
+                                    del st.session_state[f"ausweis_rueckseite_{verkaeufer_id}"]
+                                st.rerun()
+                        else:
+                            st.info("Ausweisdaten noch nicht erfasst.")
+                            render_ausweis_upload(verkaeufer_id, UserRole.VERKAEUFER.value, context=f"notar_{verkaeufer_id}")
+        else:
+            st.info("Noch keine Verkäufer für dieses Projekt.")
+
+
+def notar_rechtsdokumente_view():
+    """Verwaltung von Datenschutz, AGB und Widerrufsbelehrung"""
+    st.subheader("📜 Rechtsdokumente verwalten")
+    st.caption("Hier können Sie die rechtlichen Dokumente verwalten, die Käufer und Verkäufer akzeptieren müssen.")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sicherstellen dass notar_rechtsdokumente existiert
+    if 'notar_rechtsdokumente' not in st.session_state:
+        st.session_state.notar_rechtsdokumente = {}
+
+    # Aktuelle Dokumente laden oder Standard erstellen
+    if notar_id not in st.session_state.notar_rechtsdokumente:
+        st.session_state.notar_rechtsdokumente[notar_id] = {}
+
+    dokumente = st.session_state.notar_rechtsdokumente[notar_id]
+
+    # Tabs für verschiedene Dokumente
+    doc_tabs = st.tabs(["📋 Datenschutzerklärung", "📋 AGB", "📋 Widerrufsbelehrung", "📊 Akzeptanz-Status"])
+
+    with doc_tabs[0]:
+        render_rechtsdokument_editor(notar_id, "datenschutz", "Datenschutzerklärung")
+
+    with doc_tabs[1]:
+        render_rechtsdokument_editor(notar_id, "agb", "Allgemeine Geschäftsbedingungen")
+
+    with doc_tabs[2]:
+        render_rechtsdokument_editor(notar_id, "widerruf", "Widerrufsbelehrung")
+
+    with doc_tabs[3]:
+        render_rechtsdokument_akzeptanz_status(notar_id)
+
+
+def render_rechtsdokument_editor(notar_id: str, doc_type: str, doc_title: str):
+    """Rendert den Editor für ein Rechtsdokument"""
+
+    dokumente = st.session_state.notar_rechtsdokumente.get(notar_id, {})
+    doc = dokumente.get(doc_type, {})
+
+    st.markdown(f"### {doc_title}")
+
+    if doc:
+        st.success(f"✅ {doc_title} ist konfiguriert (Version {doc.get('version', '1.0')})")
+        st.caption(f"Gültig ab: {doc.get('gueltig_ab', 'Nicht gesetzt')}")
+
+        with st.expander("📄 Aktuellen Inhalt anzeigen", expanded=False):
+            st.markdown(doc.get('inhalt', ''))
+
+    with st.form(f"form_{doc_type}_{notar_id}"):
+        st.markdown("#### Dokument bearbeiten")
+
+        titel = st.text_input(
+            "Titel",
+            value=doc.get('titel', doc_title),
+            key=f"titel_{doc_type}_{notar_id}"
+        )
+
+        inhalt = st.text_area(
+            "Inhalt (Markdown unterstützt)",
+            value=doc.get('inhalt', ''),
+            height=300,
+            key=f"inhalt_{doc_type}_{notar_id}",
+            placeholder=f"Geben Sie hier den vollständigen Text der {doc_title} ein..."
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            version = st.text_input(
+                "Version",
+                value=doc.get('version', '1.0'),
+                key=f"version_{doc_type}_{notar_id}"
+            )
+        with col2:
+            gueltig_ab = st.date_input(
+                "Gültig ab",
+                value=doc.get('gueltig_ab', date.today()),
+                key=f"gueltig_{doc_type}_{notar_id}"
+            )
+
+        pflicht = st.checkbox(
+            "Pflichtdokument (muss akzeptiert werden)",
+            value=doc.get('pflicht', True),
+            key=f"pflicht_{doc_type}_{notar_id}"
+        )
+
+        submitted = st.form_submit_button("💾 Dokument speichern", type="primary")
+
+        if submitted:
+            if not inhalt.strip():
+                st.error("Bitte geben Sie einen Inhalt ein.")
+            else:
+                if notar_id not in st.session_state.notar_rechtsdokumente:
+                    st.session_state.notar_rechtsdokumente[notar_id] = {}
+
+                st.session_state.notar_rechtsdokumente[notar_id][doc_type] = {
+                    'titel': titel,
+                    'inhalt': inhalt,
+                    'version': version,
+                    'gueltig_ab': gueltig_ab,
+                    'pflicht': pflicht
+                }
+                st.success(f"✅ {doc_title} wurde gespeichert!")
+                st.rerun()
+
+
+def render_rechtsdokument_akzeptanz_status(notar_id: str):
+    """Zeigt den Akzeptanz-Status der Rechtsdokumente für alle Käufer und Verkäufer"""
+
+    st.markdown("### 📊 Akzeptanz-Übersicht")
+
+    # Projekte des Notars
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Akzeptanzen laden
+    akzeptanzen = st.session_state.get('rechtsdokument_akzeptanzen', {})
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+            # Käufer
+            st.markdown("**Käufer:**")
+            for kaeufer_id in projekt.kaeufer_ids:
+                kaeufer = st.session_state.users.get(kaeufer_id)
+                if kaeufer:
+                    user_akzeptanz = akzeptanzen.get(kaeufer_id, {}).get(notar_id, {})
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.write(f"👤 {kaeufer.name}")
+
+                    with col2:
+                        if user_akzeptanz.get('datenschutz'):
+                            st.success("✅ Datenschutz")
+                        else:
+                            st.warning("⏳ Datenschutz")
+
+                    with col3:
+                        if user_akzeptanz.get('agb'):
+                            st.success("✅ AGB")
+                        else:
+                            st.warning("⏳ AGB")
+
+                    with col4:
+                        if user_akzeptanz.get('widerruf'):
+                            st.success("✅ Widerruf")
+                        else:
+                            st.warning("⏳ Widerruf")
+
+            # Verkäufer
+            st.markdown("**Verkäufer:**")
+            for verkaeufer_id in projekt.verkaeufer_ids:
+                verkaeufer = st.session_state.users.get(verkaeufer_id)
+                if verkaeufer:
+                    user_akzeptanz = akzeptanzen.get(verkaeufer_id, {}).get(notar_id, {})
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.write(f"👤 {verkaeufer.name}")
+
+                    with col2:
+                        if user_akzeptanz.get('datenschutz'):
+                            st.success("✅ Datenschutz")
+                        else:
+                            st.warning("⏳ Datenschutz")
+
+                    with col3:
+                        if user_akzeptanz.get('agb'):
+                            st.success("✅ AGB")
+                        else:
+                            st.warning("⏳ AGB")
+
+                    with col4:
+                        if user_akzeptanz.get('widerruf'):
+                            st.success("✅ Widerruf")
+                        else:
+                            st.warning("⏳ Widerruf")
+
+
+def get_user_notar_ids(user_id: str, rolle: str) -> List[str]:
+    """Ermittelt alle Notar-IDs für Projekte des Benutzers"""
+    notar_ids = set()
+    for projekt in st.session_state.projekte.values():
+        if rolle == UserRole.KAEUFER.value and user_id in projekt.kaeufer_ids:
+            if projekt.notar_id:
+                notar_ids.add(projekt.notar_id)
+        elif rolle == UserRole.VERKAEUFER.value and user_id in projekt.verkaeufer_ids:
+            if projekt.notar_id:
+                notar_ids.add(projekt.notar_id)
+    return list(notar_ids)
+
+
+def check_rechtsdokumente_akzeptiert(user_id: str, notar_id: str) -> Tuple[bool, List[str]]:
+    """
+    Prüft ob der User alle Pflicht-Rechtsdokumente des Notars akzeptiert hat.
+    Gibt (alle_akzeptiert, liste_fehlender_dokumente) zurück.
+    """
+    # Notar-Dokumente laden
+    notar_docs = st.session_state.notar_rechtsdokumente.get(notar_id, {})
+
+    if not notar_docs:
+        # Keine Dokumente konfiguriert -> keine Akzeptanz erforderlich
+        return True, []
+
+    # User-Akzeptanzen laden
+    user_akzeptanzen = st.session_state.rechtsdokument_akzeptanzen.get(user_id, {}).get(notar_id, {})
+
+    fehlende = []
+    for doc_type, doc_data in notar_docs.items():
+        if doc_data.get('pflicht', False):
+            if not user_akzeptanzen.get(doc_type):
+                fehlende.append(doc_type)
+
+    return len(fehlende) == 0, fehlende
+
+
+def check_alle_rechtsdokumente_akzeptiert(user_id: str, rolle: str) -> Tuple[bool, Dict[str, List[str]]]:
+    """
+    Prüft für alle Projekte des Users ob Rechtsdokumente akzeptiert wurden.
+    Gibt (alle_akzeptiert, {notar_id: [fehlende_docs]}) zurück.
+    """
+    notar_ids = get_user_notar_ids(user_id, rolle)
+
+    if not notar_ids:
+        return True, {}
+
+    alle_fehlend = {}
+    for notar_id in notar_ids:
+        akzeptiert, fehlende = check_rechtsdokumente_akzeptiert(user_id, notar_id)
+        if not akzeptiert:
+            alle_fehlend[notar_id] = fehlende
+
+    return len(alle_fehlend) == 0, alle_fehlend
+
+
+def render_rechtsdokumente_akzeptanz_pflicht(user_id: str, rolle: str) -> bool:
+    """
+    Zeigt Pflicht-Rechtsdokumente an, die akzeptiert werden müssen.
+    Gibt True zurück wenn alle akzeptiert wurden, False wenn noch ausstehend.
+    """
+    alle_akzeptiert, fehlende_pro_notar = check_alle_rechtsdokumente_akzeptiert(user_id, rolle)
+
+    if alle_akzeptiert:
+        return True
+
+    st.warning("⚠️ **Bitte akzeptieren Sie die folgenden Rechtsdokumente, bevor Sie fortfahren können.**")
+    st.markdown("---")
+
+    for notar_id, fehlende_docs in fehlende_pro_notar.items():
+        # Notar-Infos holen
+        notar = st.session_state.users.get(notar_id)
+        notar_name = notar.name if notar else notar_id
+
+        notar_docs = st.session_state.notar_rechtsdokumente.get(notar_id, {})
+
+        st.subheader(f"📜 Rechtsdokumente von {notar_name}")
+
+        for doc_type in fehlende_docs:
+            doc_data = notar_docs.get(doc_type, {})
+            titel = doc_data.get('titel', doc_type.capitalize())
+            inhalt = doc_data.get('inhalt', '')
+            version = doc_data.get('version', '1.0')
+
+            with st.expander(f"📄 {titel} (Version {version})", expanded=True):
+                # Scrollbarer Container für den Inhalt
+                st.markdown(f"""
+                <div style="
+                    max-height: 300px;
+                    overflow-y: auto;
+                    padding: 15px;
+                    background-color: #f8f9fa;
+                    border-radius: 8px;
+                    border: 1px solid #dee2e6;
+                    margin-bottom: 15px;
+                ">
+                    {inhalt.replace(chr(10), '<br>')}
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Akzeptanz-Checkbox und Button
+                checkbox_key = f"akzeptanz_check_{user_id}_{notar_id}_{doc_type}"
+                akzeptiert_cb = st.checkbox(
+                    f"Ich habe die {titel} gelesen und akzeptiere diese",
+                    key=checkbox_key
+                )
+
+                button_key = f"akzeptanz_btn_{user_id}_{notar_id}_{doc_type}"
+                if st.button(f"✅ {titel} akzeptieren", key=button_key, disabled=not akzeptiert_cb):
+                    # Akzeptanz speichern
+                    if user_id not in st.session_state.rechtsdokument_akzeptanzen:
+                        st.session_state.rechtsdokument_akzeptanzen[user_id] = {}
+                    if notar_id not in st.session_state.rechtsdokument_akzeptanzen[user_id]:
+                        st.session_state.rechtsdokument_akzeptanzen[user_id][notar_id] = {}
+
+                    st.session_state.rechtsdokument_akzeptanzen[user_id][notar_id][doc_type] = {
+                        'akzeptiert_am': datetime.now().isoformat(),
+                        'version': version
+                    }
+
+                    st.success(f"✅ {titel} wurde akzeptiert!")
+                    st.rerun()
+
+    return False
 
 
 def notar_einstellungen_view():
