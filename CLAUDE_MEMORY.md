@@ -2,7 +2,7 @@
 
 **Letzte Aktualisierung:** 2025-12-05
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `f67cad0` - Add Käufer todo list with system-generated and custom tasks
+**Letzter Commit:** `956ba52` - Add comprehensive responsive design system for mobile, tablet and desktop
 
 ---
 
@@ -23,7 +23,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ```
 /home/user/blank-app-1/
-├── streamlit_app.py      # Hauptanwendung (~8500+ Zeilen)
+├── streamlit_app.py      # Hauptanwendung (~10000+ Zeilen)
 ├── requirements.txt      # Python-Abhängigkeiten
 ├── CLAUDE_MEMORY.md      # Diese Datei
 └── .gitignore
@@ -38,28 +38,59 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | Bereich | Zeilen | Beschreibung |
 |---------|--------|--------------|
 | Imports & Enums | 1-130 | UserRole, ProjektStatus, PropertyType, NotificationType |
-| TodoKategorie/TodoPrioritaet | ~214-228 | Enums für Käufer-Todos |
-| KaeuferTodo | ~229-244 | Dataclass für Käufer-Aufgaben |
-| HandwerkerKategorie | ~247-263 | Enum für Handwerker-Kategorien |
-| IdeenKategorie | ~266-277 | Enum für Ideenboard-Kategorien |
-| Handwerker | ~280-296 | Dataclass für Handwerker-Empfehlungen |
-| IdeenboardEintrag | ~299-315 | Dataclass für Ideenboard-Einträge |
-| Session State Init | ~830-856 | Inkl. kaeufer_todos, handwerker_empfehlungen, ideenboard |
-| Dashboard-Suchfunktionen | ~934-1032 | render_dashboard_search(), search_matches(), filter_* |
-| Käufer-Dashboard | ~4851-4914 | Mit 9 Tabs inkl. Aufgaben und Handwerker |
-| kaeufer_handwerker_empfehlungen | ~4971-5036 | Handwerker-Ansicht für Käufer |
-| generate_system_todos | ~5039-5112 | Generiert automatische Todos |
-| kaeufer_aufgaben_view | ~5115-5149 | Aufgaben-Tab mit 4 Untertabs |
-| render_ideenboard | ~5366-5487 | Ideenboard für kreative Ideen |
-| kaeufer_finanzierungsrechner | ~5712-5999 | Umfassender Kreditrechner |
-| Notar-Dashboard | ~7280-7335 | Mit 11 Tabs inkl. Handwerker |
-| notar_handwerker_view | ~8105-8244 | Handwerker-Verwaltung für Notar |
+| **RESPONSIVE DESIGN** | 19-920 | DeviceType, inject_responsive_css, Helper-Funktionen |
+| TodoKategorie/TodoPrioritaet | ~1120-1135 | Enums für Käufer-Todos |
+| KaeuferTodo | ~1135-1150 | Dataclass für Käufer-Aufgaben |
+| HandwerkerKategorie | ~1153-1170 | Enum für Handwerker-Kategorien |
+| IdeenKategorie | ~1173-1184 | Enum für Ideenboard-Kategorien |
+| Handwerker | ~1187-1203 | Dataclass für Handwerker-Empfehlungen |
+| IdeenboardEintrag | ~1206-1222 | Dataclass für Ideenboard-Einträge |
+| Session State Init | ~1737-1763 | Inkl. kaeufer_todos, handwerker_empfehlungen, ideenboard |
+| **Ausweis-Upload (Vorder/Rückseite)** | ~2650-2990 | render_ausweis_upload mit 3 Tabs |
+| Dashboard-Suchfunktionen | ~1840-1940 | render_dashboard_search(), search_matches(), filter_* |
+| Käufer-Dashboard | ~5760-5820 | Mit 9 Tabs inkl. Aufgaben und Handwerker |
+| Käufer-Aufgaben | ~5920-6250 | Todos, Ideenboard, System-Todos |
+| Käufer-Finanzierungsrechner | ~6620-6910 | Umfassender Kreditrechner |
+| Notar-Dashboard | ~8190-8250 | Mit 11 Tabs inkl. Handwerker und Einstellungen |
+| Notar-Handwerker | ~9010-9150 | Handwerker-Verwaltung für Notar |
+| main() | ~10011 | Hauptfunktion mit Responsive Design Injection |
 
 ---
 
 ## Implementierte Features
 
-### Dashboard-Suche (NEU)
+### Responsive Design System (NEU)
+- [x] **DeviceType Enum** für Geräte-Kategorisierung (mobile, tablet, desktop)
+- [x] **CSS Variablen** für konsistentes Design
+- [x] **Dark Mode Support** via prefers-color-scheme
+- [x] **Media Queries** für:
+  - Mobile (< 768px): Volle Breite, Bottom-Navigation, Sticky Header
+  - Tablet (768-1024px): 2-Spalten Grid, optimierte Sidebar
+  - Desktop (> 1024px): 3-Spalten Grid, volle Features
+- [x] **iOS Safe Area Support** für Notch/Home-Indicator
+- [x] **Moderne UI-Komponenten:**
+  - `render_mobile_header()` - App-Header mit Zurück/Menü
+  - `render_mobile_nav()` - Bottom Navigation Bar
+  - `render_quick_actions()` - Quick Action Buttons
+  - `render_stat_cards()` - Statistik-Karten
+  - `render_progress_steps()` - Fortschritts-Steps
+  - `render_list_item()` - Listen-Einträge
+  - `render_empty_state()` - Leere Zustände
+  - `render_status_badge()` - Status-Badges
+  - `render_avatar()` - Avatar-Komponente
+- [x] **Device Detection** via JavaScript
+
+### Personalausweis-Erfassung mit Vorder- und Rückseite (NEU)
+- [x] **3-Tab-Layout:** Vorderseite, Rückseite, Daten übernehmen
+- [x] **Fortschrittsanzeige:** Zeigt welche Seiten erfasst wurden
+- [x] **OCR für beide Seiten:**
+  - Vorderseite: Vorname, Nachname, Geburtsort, Geburtsdatum
+  - Rückseite: Adresse, Ausweisnummer, Ablaufdatum
+- [x] **Daten-Kombination:** Zusammenführung beider OCR-Ergebnisse
+- [x] **Kamera oder Datei-Upload** für jede Seite
+- [x] **Verfügbar für Käufer und Verkäufer**
+
+### Dashboard-Suche
 - [x] Suchleiste in allen 5 Dashboards (Makler, Käufer, Verkäufer, Finanzierer, Notar)
 - [x] Wiederverwendbare `render_dashboard_search()` Komponente
 - [x] `search_matches()` für flexible Feldsuche
@@ -67,19 +98,19 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] `filter_dokumente_by_search()` - Dokumente filtern
 - [x] `filter_angebote_by_search()` - Finanzierungsangebote filtern
 
-### Käufer-Todoliste (NEU)
+### Käufer-Todoliste
 - [x] **System-generierte Todos** basierend auf Projekt-Status:
   - Finanzierung: Anfrage stellen, Wirtschaftsdaten hochladen, Angebote prüfen
   - Dokumente: Personalausweis erfassen
   - Kaufvertrag: Rechtsdokumente akzeptieren, Finanzierungszusage, Notartermin
 - [x] **Eigene Todos** mit Titel, Beschreibung, Kategorie, Priorität, Fälligkeitsdatum
 - [x] Kategorien: Finanzierung, Kaufvertrag, Dokumente, Ausstattung & Ideen, Umzug, Sonstiges
-- [x] Prioritäten: Hoch (🔴), Mittel (🟡), Niedrig (🟢)
+- [x] Prioritäten: Hoch, Mittel, Niedrig
 - [x] Überfällig-Warnung bei Fälligkeitsdatum
 - [x] Erledigt-Status mit Toggle zum Reaktivieren
 - [x] Gruppierung nach Kategorie, Sortierung nach Priorität
 
-### Ideenboard für Käufer (NEU)
+### Ideenboard für Käufer
 - [x] Kreative Ideen sammeln für neues Objekt
 - [x] Kategorien: Einrichtung, Renovierung, Lichtkonzept, Küche, Bad, Garten, Smart Home, Farben, Böden
 - [x] Geschätzte Kosten pro Idee
@@ -88,7 +119,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Als "umgesetzt" markieren
 - [x] Filter nach Kategorie
 
-### Handwerker-Empfehlungen (NEU)
+### Handwerker-Empfehlungen
 - [x] **Notar**: Handwerker anlegen mit vollständigen Kontaktdaten
   - Kategorien: Elektriker, Sanitär, Maler, Tischler, Bodenleger, Fliesenleger, etc.
   - Bewertung (1-5 Sterne)
@@ -135,6 +166,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Bearbeitbares Formular nach OCR
 - [x] Validierung (Pflichtfelder, Ablaufdatum)
 - [x] Integration in Käufer- und Verkäufer-Dashboard
+- [x] **Vorder- und Rückseite** separat erfassen
 
 ### Makler-Empfehlungssystem
 - [x] MaklerEmpfehlung Dataclass für Einladungen
@@ -225,6 +257,8 @@ st.session_state = {
     'ideenboard': Dict[str, IdeenboardEintrag],  # Kreative Ideen
     # API-Keys (vom Notar konfigurierbar)
     'api_keys': {'openai': str, 'anthropic': str},
+    # Device Detection
+    'device_type': str,  # mobile, tablet, desktop
 }
 ```
 
@@ -243,6 +277,7 @@ st.session_state = {
 - [x] Exposé-Daten erst nach Kurzdaten möglich (jetzt direkt sichtbar)
 - [x] Marktanalyse Links nicht klickbar (jetzt mit Markdown-Links)
 - [x] Dashboard-Suche implementiert
+- [x] Features nicht sichtbar nach Deploy (Branch-Mismatch behoben)
 
 ---
 
@@ -258,6 +293,8 @@ git commit -m "Beschreibung"
 
 # Pushen
 git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
+
+# WICHTIG: Nach Push muss User auf GitHub PR erstellen und nach main mergen!
 ```
 
 ---
@@ -266,12 +303,26 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
-| (pending) | Add Ideenboard and Handwerker recommendations |
+| 956ba52 | Add comprehensive responsive design system for mobile, tablet and desktop |
+| 219ed33 | Add front and back ID card upload with OCR combination |
+| 5aee548 | Add Ideenboard and Handwerker recommendations for Käufer |
 | f67cad0 | Add Käufer todo list with system-generated and custom tasks |
 | eccc867 | Add search functionality to all dashboards |
 | dacda13 | Add comprehensive financing module with calculator and invitation system |
 | a4c5b16 | Add API key configuration to Notar dashboard |
 | 6935b68 | Add AI Vision API support for Personalausweis OCR |
+
+---
+
+## Deployment-Hinweis
+
+**WICHTIG:** Streamlit Cloud deployed von `main` Branch!
+
+Nach jedem Push auf den Feature-Branch muss der User:
+1. Auf GitHub gehen
+2. Pull Request erstellen: Feature-Branch -> main
+3. PR mergen (Merge oder Squash)
+4. Streamlit App redeployen oder warten (auto-redeploy)
 
 ---
 
@@ -282,13 +333,15 @@ Bei Fortsetzung einer abgebrochenen Session:
 1. **Branch prüfen:** `git branch` - sollte auf `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt` sein
 2. **Letzten Stand prüfen:** `git log -3 --oneline`
 3. **Diese Datei lesen:** `/home/user/blank-app-1/CLAUDE_MEMORY.md`
-4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~8500 Zeilen)
+4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~10000 Zeilen)
 
 ### Wichtige Code-Bereiche zum Nachlesen:
-- Käufer-Todos: Zeile ~229-244 (Dataclass), ~5039-5350 (Funktionen)
-- Ideenboard: Zeile ~299-315 (Dataclass), ~5366-5536 (Funktionen)
-- Handwerker: Zeile ~280-296 (Dataclass), ~8105-8244 (Notar), ~4971-5036 (Käufer)
-- Dashboard-Suche: Zeile ~934-1032
+- Responsive Design: Zeile ~19-920
+- Ausweis-Upload (Vorder/Rückseite): Zeile ~2650-2990
+- Käufer-Todos: Zeile ~1135-1150 (Dataclass), ~5920-6250 (Funktionen)
+- Ideenboard: Zeile ~1206-1222 (Dataclass), ~6270-6440 (Funktionen)
+- Handwerker: Zeile ~1187-1203 (Dataclass), ~9010-9150 (Notar), ~5880-5920 (Käufer)
+- Dashboard-Suche: Zeile ~1840-1940
 
 ---
 
@@ -308,3 +361,4 @@ Der Benutzer (Sven-BrydeMeier) arbeitet an einer deutschen Immobilien-Transaktio
 - **Übergabe** = Handover
 - **Handwerker** = Craftsmen/tradespeople
 - **Ideenboard** = Idea board for creative planning
+- **Vorderseite/Rückseite** = Front/back (of ID card)
