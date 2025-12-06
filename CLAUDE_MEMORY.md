@@ -2,18 +2,18 @@
 
 **Letzte Aktualisierung:** 2025-12-06
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `6f8e544` - Fix AttributeError: projekt.verkaeufer_id changed to verkaeufer_ids
+**Letzter Commit:** `e6612d1` - Add financing/legal gating features for Käufer/Verkäufer
 
 ---
 
 ## Projekt-Übersicht
 
 Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die Kommunikation zwischen folgenden Parteien koordiniert:
-- **Makler** - Erstellt Projekte, verwaltet Exposés, koordiniert Termine
-- **Käufer** - Lädt Bonitätsunterlagen hoch, akzeptiert Dokumente, bestätigt Termine
-- **Verkäufer** - Stellt Unterlagen bereit, akzeptiert Dokumente, bestätigt Termine
+- **Makler** - Erstellt Projekte, verwaltet Exposés, koordiniert Termine, **kann Ausweise scannen**
+- **Käufer** - Lädt Bonitätsunterlagen hoch, akzeptiert Dokumente, bestätigt Termine, **muss Rechtsdokumente akzeptieren**
+- **Verkäufer** - Stellt Unterlagen bereit, akzeptiert Dokumente, bestätigt Termine, **muss Rechtsdokumente akzeptieren**
 - **Finanzierer** - Prüft Bonität, erstellt Finanzierungsangebote
-- **Notar** - Prüft Dokumente, erstellt Kaufvertragsentwürfe, koordiniert Beurkundungstermine
+- **Notar** - Prüft Dokumente, erstellt Kaufvertragsentwürfe, koordiniert Beurkundungstermine, **verwaltet Rechtsdokumente & Handwerker**
 
 **Streamlit App URL:** https://blank-app-1-01jm3ycngfksr1qvslfzhqrz.streamlit.app/
 
@@ -23,7 +23,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ```
 /home/user/blank-app-1/
-├── streamlit_app.py      # Hauptanwendung (~10800+ Zeilen)
+├── streamlit_app.py      # Hauptanwendung (~11100+ Zeilen)
 ├── requirements.txt      # Python-Abhängigkeiten
 ├── CLAUDE_MEMORY.md      # Diese Datei
 └── .gitignore
@@ -47,25 +47,58 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | Handwerker | ~1287-1303 | Dataclass für Handwerker-Empfehlungen |
 | IdeenboardEintrag | ~1306-1322 | Dataclass für Ideenboard-Einträge |
 | **Projekt-Klasse** | ~1330-1351 | verkaeufer_ids (Liste!), kaeufer_ids (Liste!), makler_id, notar_id |
-| Session State Init | ~1809-1878 | Inkl. valid_tokens, API-Keys aus st.secrets |
-| OCR-Verfügbarkeitsprüfung | ~2041-2095 | check_ocr_availability() |
-| **Ausweis-Upload (Vorder/Rückseite)** | ~2750-3090 | render_ausweis_upload mit 3 Tabs + Rückkamera |
+| Session State Init | ~1809-1903 | Inkl. valid_tokens, API-Keys, rechtsdokument_akzeptanzen |
+| **Demo-Daten Handwerker** | ~2003-2080 | create_demo_handwerker() |
+| **Demo-Daten Rechtsdokumente** | ~2081-2145 | create_demo_notar_rechtsdokumente() |
+| OCR-Verfügbarkeitsprüfung | ~2150-2200 | check_ocr_availability() |
+| **Ausweis-Upload (Vorder/Rückseite)** | ~3004-3200 | render_ausweis_upload mit context-Parameter |
+| ICS-Kalender-Export | ~4164-4180 | fix: beschreibung_ics Variable statt inline |
 | Dashboard-Suchfunktionen | ~1940-2040 | render_dashboard_search(), search_matches(), filter_* |
 | **Login-Seite** | ~5319-5417 | Mit "Angemeldet bleiben" Checkbox, Versionsnummer |
-| Käufer-Dashboard | ~5860-5920 | Mit 9 Tabs inkl. Aufgaben und Handwerker |
-| Käufer-Aufgaben | ~6020-6350 | Todos, Ideenboard, System-Todos |
-| Käufer-Finanzierungsrechner | ~6720-7010 | Umfassender Kreditrechner |
-| Notar-Dashboard | ~8290-8350 | Mit 12 Tabs inkl. KI-Kaufvertrag und Einstellungen |
-| **KI-Kaufvertragsentwurf** | ~9076-9650 | notar_kaufvertrag_generator() mit 4 Sub-Tabs |
-| Notar-Handwerker | ~10110-10250 | Handwerker-Verwaltung für Notar |
-| **Notar-Einstellungen** | ~10309-10435 | API-Keys mit Hinweis zu st.secrets |
-| main() | ~10860 | Hauptfunktion mit Responsive Design Injection |
+| **Makler-Dashboard** | ~5621-5658 | Mit neuem Tab "🪪 Ausweisdaten erfassen" |
+| **Makler Ausweis-Erfassung** | ~6227-6300 | makler_ausweis_erfassung() |
+| **Käufer-Dashboard** | ~6421-6490 | Mit Pflicht-Akzeptanz Check, 9 Tabs |
+| Käufer-Handwerker (gefiltert) | ~6455-6520 | kaeufer_handwerker_empfehlungen() nach Notar gefiltert |
+| Käufer-Aufgaben | ~6550-6750 | Todos, Ideenboard, System-Todos |
+| Käufer-Finanzierungsrechner | ~7000-7300 | Umfassender Kreditrechner |
+| **Verkäufer-Dashboard** | ~8123-8170 | Mit Pflicht-Akzeptanz Check |
+| **Notar-Dashboard** | ~9064-9121 | Mit 14 Tabs inkl. Ausweisdaten & Rechtsdokumente |
+| **KI-Kaufvertragsentwurf** | ~9200-9750 | notar_kaufvertrag_generator() mit 4 Sub-Tabs |
+| Notar-Handwerker | ~10200-10400 | Handwerker-Verwaltung für Notar |
+| **Notar Ausweis-Erfassung** | ~10566-10646 | notar_ausweis_erfassung() |
+| **Notar Rechtsdokumente** | ~10649-10751 | notar_rechtsdokumente_view(), render_rechtsdokument_editor() |
+| **Rechtsdokument Akzeptanz-Status** | ~10754-10827 | render_rechtsdokument_akzeptanz_status() |
+| **Pflicht-Akzeptanz Funktionen** | ~10830-10953 | get_user_notar_ids(), check_rechtsdokumente_akzeptiert(), render_rechtsdokumente_akzeptanz_pflicht() |
+| **Notar-Einstellungen** | ~10956-11050 | API-Keys mit Hinweis zu st.secrets |
+| main() | ~11100 | Hauptfunktion mit Responsive Design Injection |
 
 ---
 
 ## Implementierte Features
 
-### Session-Persistenz (NEU - 2025-12-06)
+### Rechtsdokumente & Pflicht-Akzeptanz (NEU - 2025-12-06)
+- [x] **Notar: Rechtsdokumente-Verwaltung** (Datenschutz, AGB, Widerrufsbelehrung)
+  - Neuer Tab "📜 Rechtsdokumente" im Notar-Dashboard
+  - Editor für Titel, Inhalt, Version, Gültigkeitsdatum, Pflicht-Flag
+  - Akzeptanz-Status-Übersicht aller Käufer/Verkäufer pro Projekt
+- [x] **Käufer/Verkäufer: Pflicht-Akzeptanz vor Dashboard-Zugang**
+  - Prüfung beim Dashboard-Laden via `check_alle_rechtsdokumente_akzeptiert()`
+  - Scrollbarer Dokumenteninhalt mit Checkbox-Bestätigung
+  - Akzeptanz wird mit Timestamp und Version gespeichert
+  - Dashboard erst nach Akzeptanz aller Pflicht-Dokumente zugänglich
+
+### Personalausweis-Scan für Makler/Notar (NEU - 2025-12-06)
+- [x] **Makler-Dashboard:** Neuer Tab "🪪 Ausweisdaten erfassen"
+- [x] **Notar-Dashboard:** Neuer Tab "🪪 Ausweisdaten"
+- [x] **Context-Parameter** für render_ausweis_upload() - unique Widget-Keys
+- [x] Auswahl des Projekts und der Person (Käufer/Verkäufer)
+
+### Handwerker-Empfehlungen verbessert (NEU - 2025-12-06)
+- [x] **Demo-Handwerker erstellt** (Elektriker, Sanitär, Maler, Schreiner)
+- [x] **Käufer sehen nur Handwerker vom Notar ihrer Projekte**
+- [x] Filterung via `get_user_notar_ids()` und `meine_notar_ids`
+
+### Session-Persistenz (2025-12-06)
 - [x] **"Angemeldet bleiben" Checkbox** auf Login-Seite (standardmäßig aktiviert)
 - [x] **localStorage-basierte Session-Speicherung** via JavaScript
 - [x] **Session-Token-System** für sichere Wiederherstellung
@@ -73,11 +106,11 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] **Automatisches Laden von API-Keys aus st.secrets** beim Start
 - [x] **Logout löscht Session** aus Browser und Server
 
-### Versionsnummer auf Login-Seite (NEU)
+### Versionsnummer auf Login-Seite
 - [x] Format: `JJ.MMTT.HH:MM` (z.B. 25.126.13:26)
 - [x] Dynamisch generiert bei jedem Seitenaufruf
 
-### KI-Kaufvertragsentwurf Generator (NEU)
+### KI-Kaufvertragsentwurf Generator
 - [x] **Notar-Dashboard Tab** "KI-Kaufvertrag"
 - [x] **4 Sub-Tabs:**
   - Datenübersicht: Alle Projekt-/Teilnehmer-Daten
@@ -88,7 +121,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] **Datensammlung:** Verkäufer, Käufer, Makler, Objekt, Exposé
 - [x] **Optionen:** Auflassungsvormerkung, Räumungsfrist, Finanzierungsvollmacht, etc.
 
-### OCR-Verbesserungen (NEU)
+### OCR-Verbesserungen
 - [x] **check_ocr_availability()** - Prüft ob OCR verfügbar ist
 - [x] **Klare Status-Anzeige** wenn OCR nicht verfügbar (Demo-Modus)
 - [x] **Rückkamera-Präferenz** für mobile Geräte via JavaScript
@@ -103,7 +136,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
   - Tablet (768-1024px): 2-Spalten Grid, optimierte Sidebar
   - Desktop (> 1024px): 3-Spalten Grid, volle Features
 - [x] **iOS Safe Area Support** für Notch/Home-Indicator
-- [x] **Sidebar funktioniert** auf allen Geräten (Fix vom 2025-12-06)
+- [x] **Sidebar funktioniert** auf allen Geräten
 
 ### Personalausweis-Erfassung mit Vorder- und Rückseite
 - [x] **3-Tab-Layout:** Vorderseite, Rückseite, Daten übernehmen
@@ -114,7 +147,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] **Daten-Kombination:** Zusammenführung beider OCR-Ergebnisse
 - [x] **Kamera oder Datei-Upload** für jede Seite
 - [x] **Rückkamera-Präferenz** auf Mobilgeräten
-- [x] **Verfügbar für Käufer und Verkäufer**
+- [x] **Verfügbar für Käufer, Verkäufer, Makler und Notar**
 
 ### Dashboard-Suche
 - [x] Suchleiste in allen 5 Dashboards (Makler, Käufer, Verkäufer, Finanzierer, Notar)
@@ -136,7 +169,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ### Handwerker-Empfehlungen
 - [x] **Notar**: Handwerker anlegen mit vollständigen Kontaktdaten
-- [x] **Käufer**: Vom Notar empfohlene Handwerker einsehen
+- [x] **Käufer**: Vom Notar empfohlene Handwerker einsehen (gefiltert nach Projekt-Notar)
 
 ### Exposé-System
 - [x] ExposeData Dataclass mit ~50 Feldern
@@ -156,8 +189,8 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 - [x] Neuer Tab "Einstellungen" im Notar-Dashboard
 - [x] OpenAI API-Key eingeben und speichern
 - [x] Anthropic API-Key eingeben und speichern
-- [x] **NEU:** Hinweis zur permanenten Speicherung in Streamlit Secrets
-- [x] **NEU:** Automatisches Laden aus st.secrets beim Start
+- [x] Hinweis zur permanenten Speicherung in Streamlit Secrets
+- [x] Automatisches Laden aus st.secrets beim Start
 
 ### Erweitertes Finanzierungsmodul
 - [x] Finanzierung anfragen Tab mit Kaufpreis/Eigenkapital-Eingabe
@@ -205,12 +238,15 @@ st.session_state = {
     'kaeufer_todos': Dict[str, KaeuferTodo],
     'handwerker_empfehlungen': Dict[str, Handwerker],
     'ideenboard': Dict[str, IdeenboardEintrag],
-    # Session-Persistenz (NEU)
+    # Session-Persistenz
     'valid_tokens': Dict[str, str],  # email -> token
     # API-Keys (vom Notar konfigurierbar, aus st.secrets geladen)
     'api_keys': {'openai': str, 'anthropic': str},
     # Device Detection
     'device_type': str,  # mobile, tablet, desktop
+    # NEU: Rechtsdokumente
+    'rechtsdokument_akzeptanzen': Dict[str, Dict[str, Dict[str, Any]]],  # user_id -> notar_id -> doc_type -> {akzeptiert_am, version}
+    'notar_rechtsdokumente': Dict[str, Dict[str, Dict]],  # notar_id -> doc_type -> {titel, inhalt, version, pflicht, ...}
 }
 ```
 
@@ -224,7 +260,14 @@ st.session_state = {
 - [ ] Echte E-Mail-Versendung (SMTP)
 - [ ] PDF-Exposé-Generierung (reportlab/weasyprint)
 
-### Behoben (2025-12-06)
+### Behoben (2025-12-06 - Aktuelle Session)
+- [x] **Handwerker nicht sichtbar für Käufer:** → Filterung nach Notar + Demo-Daten
+- [x] **Makler/Notar können keine Ausweise scannen:** → Neue Tabs in beiden Dashboards
+- [x] **Keine Rechtsdokumente-Verwaltung:** → Notar-Tab mit Editor und Akzeptanz-Status
+- [x] **Keine Pflicht-Akzeptanz:** → Käufer/Verkäufer müssen vor Dashboard-Zugang akzeptieren
+- [x] **ICS Syntax-Fehler:** → beschreibung_ics Variable statt inline f-string
+
+### Behoben (2025-12-06 - Frühere Session)
 - [x] **Session-Persistenz:** Login bei Reload verloren → "Angemeldet bleiben" implementiert
 - [x] **API-Keys vergessen:** → Automatisches Laden aus st.secrets
 - [x] **verkaeufer_id AttributeError:** → Alle Referenzen zu verkaeufer_ids korrigiert
@@ -262,13 +305,12 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
+| e6612d1 | Add financing/legal gating features for Käufer/Verkäufer |
+| 1015ebd | Add session persistence and API key improvements |
 | 6f8e544 | Fix AttributeError: projekt.verkaeufer_id changed to verkaeufer_ids |
-| 859075a | Add OCR availability check and rear camera preference |
-| (pending) | Add session persistence and API key improvements |
+| 859075a | Improve ID card OCR and camera handling |
+| f6be46d | Add AI contract generator and fix duplicate key error |
 | 07d64c1 | Fix sidebar visibility on mobile devices |
-| 03e713b | Add version number to login page |
-| 0cef74f | Add comprehensive responsive design system |
-| b6ea8d2 | Add front and back ID card upload with OCR combination |
 
 ---
 
@@ -301,13 +343,16 @@ Bei Fortsetzung einer abgebrochenen Session:
 1. **Branch prüfen:** `git branch` - sollte auf `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt` sein
 2. **Letzten Stand prüfen:** `git log -3 --oneline`
 3. **Diese Datei lesen:** `/home/user/blank-app-1/CLAUDE_MEMORY.md`
-4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~10800 Zeilen)
+4. **Hauptdatei:** `/home/user/blank-app-1/streamlit_app.py` (~11100 Zeilen)
 
 ### Wichtige Code-Bereiche zum Nachlesen:
 - Session-Persistenz: Zeile ~1696-1820
 - Login-Seite mit "Angemeldet bleiben": Zeile ~5319-5417
-- KI-Kaufvertragsentwurf: Zeile ~9076-9650
-- Notar-Einstellungen (API-Keys): Zeile ~10309-10435
+- Makler Ausweis-Erfassung: Zeile ~6227-6300
+- Käufer-Dashboard (mit Pflicht-Akzeptanz): Zeile ~6421-6490
+- Verkäufer-Dashboard (mit Pflicht-Akzeptanz): Zeile ~8123-8170
+- Notar Rechtsdokumente: Zeile ~10649-10827
+- Pflicht-Akzeptanz Funktionen: Zeile ~10830-10953
 - Projekt-Klasse (verkaeufer_ids!): Zeile ~1330-1351
 
 ---
@@ -330,3 +375,7 @@ Der Benutzer (Sven-BrydeMeier) arbeitet an einer deutschen Immobilien-Transaktio
 - **Ideenboard** = Idea board for creative planning
 - **Vorderseite/Rückseite** = Front/back (of ID card)
 - **Angemeldet bleiben** = Stay logged in / Remember me
+- **Datenschutzerklärung** = Privacy policy
+- **AGB** = Terms and conditions (Allgemeine Geschäftsbedingungen)
+- **Widerrufsbelehrung** = Cancellation policy
+- **Pflicht-Akzeptanz** = Mandatory acceptance
