@@ -9149,22 +9149,28 @@ def render_vertrag_datenuebersicht(projekt):
 
     # Verkäufer-Daten
     st.markdown("#### 👤 Verkäufer")
-    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
-    if verkaeufer:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"**Name:** {verkaeufer.name}")
-            st.write(f"**E-Mail:** {verkaeufer.email}")
-        with col2:
-            personal_key = f"personal_{verkaeufer.user_id}"
-            if personal_key in st.session_state:
-                pd = st.session_state[personal_key]
-                st.write(f"**Geburtsdatum:** {pd.get('geburtsdatum', 'N/A')}")
-                st.write(f"**Adresse:** {pd.get('strasse', '')} {pd.get('hausnummer', '')}, {pd.get('plz', '')} {pd.get('ort', '')}")
-            else:
-                st.warning("⚠️ Personalausweis nicht erfasst")
+    verkaeufer_list = []
+    for vid in projekt.verkaeufer_ids:
+        v = st.session_state.users.get(vid)
+        if v:
+            verkaeufer_list.append(v)
+
+    if verkaeufer_list:
+        for verkaeufer in verkaeufer_list:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Name:** {verkaeufer.name}")
+                st.write(f"**E-Mail:** {verkaeufer.email}")
+            with col2:
+                personal_key = f"personal_{verkaeufer.user_id}"
+                if personal_key in st.session_state:
+                    pd = st.session_state[personal_key]
+                    st.write(f"**Geburtsdatum:** {pd.get('geburtsdatum', 'N/A')}")
+                    st.write(f"**Adresse:** {pd.get('strasse', '')} {pd.get('hausnummer', '')}, {pd.get('plz', '')} {pd.get('ort', '')}")
+                else:
+                    st.warning("⚠️ Personalausweis nicht erfasst")
     else:
-        st.error("❌ Verkäufer nicht gefunden")
+        st.warning("⚠️ Kein Verkäufer zugewiesen")
 
     st.markdown("---")
 
@@ -9236,8 +9242,8 @@ def render_vertrag_datenuebersicht(projekt):
     st.markdown("### ✅ Vollständigkeitsprüfung")
 
     checks = {
-        "Verkäufer erfasst": verkaeufer is not None,
-        "Verkäufer Ausweis": f"personal_{projekt.verkaeufer_id}" in st.session_state if verkaeufer else False,
+        "Verkäufer erfasst": len(verkaeufer_list) > 0,
+        "Verkäufer Ausweis": all(f"personal_{v.user_id}" in st.session_state for v in verkaeufer_list) if verkaeufer_list else False,
         "Käufer erfasst": len(projekt.kaeufer_ids) > 0,
         "Käufer Ausweis": all(f"personal_{kid}" in st.session_state for kid in projekt.kaeufer_ids),
         "Objektdaten vorhanden": expose is not None,
@@ -9279,7 +9285,8 @@ def render_ki_vertrag_generator(projekt):
 
     st.success(f"✅ API-Key konfiguriert ({api_type.upper()})")
 
-    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+    verkaeufer_list = [st.session_state.users.get(vid) for vid in projekt.verkaeufer_ids if st.session_state.users.get(vid)]
+    verkaeufer = verkaeufer_list[0] if verkaeufer_list else None
     kaeufer_list = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
     expose = st.session_state.expose_data.get(projekt.projekt_id)
     makler = st.session_state.users.get(projekt.makler_id)
@@ -9543,15 +9550,20 @@ def render_vertrag_versenden(projekt):
 
     st.markdown("#### 📧 Empfänger auswählen")
 
-    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
-    kaeufer_list = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
+    verkaeufer_list = [st.session_state.users.get(vid) for vid in projekt.verkaeufer_ids if st.session_state.users.get(vid)]
+    kaeufer_list = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids if st.session_state.users.get(kid)]
     makler = st.session_state.users.get(projekt.makler_id)
 
-    send_to_verkaeufer = st.checkbox(
-        f"📧 Verkäufer: {verkaeufer.name if verkaeufer else 'N/A'}",
-        value=True,
-        key="send_verkaeufer"
-    )
+    # Verkäufer auswählen
+    send_to_verkaeufer = []
+    for verkaeufer in verkaeufer_list:
+        checked = st.checkbox(
+            f"📧 Verkäufer: {verkaeufer.name}",
+            value=True,
+            key=f"send_verkaeufer_{verkaeufer.user_id}"
+        )
+        if checked:
+            send_to_verkaeufer.append(verkaeufer)
 
     send_to_kaeufer = []
     for kaeufer in kaeufer_list:
@@ -9575,7 +9587,7 @@ def render_vertrag_versenden(projekt):
     if st.button("📤 Vertragsentwurf versenden", type="primary", use_container_width=True, key="send_vertrag"):
         empfaenger = []
 
-        if send_to_verkaeufer and verkaeufer:
+        for verkaeufer in send_to_verkaeufer:
             empfaenger.append(verkaeufer)
             create_notification(
                 verkaeufer.user_id,
