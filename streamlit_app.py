@@ -279,14 +279,9 @@ def inject_responsive_css():
         h2 { font-size: 1.25rem !important; }
         h3 { font-size: 1.1rem !important; }
 
-        /* Sidebar verstecken auf Mobile */
+        /* Sidebar auf Mobile - Streamlit Standard beibehalten */
         [data-testid="stSidebar"] {
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-        }
-
-        [data-testid="stSidebar"].open {
-            transform: translateX(0);
+            /* Sidebar bleibt nutzbar über Streamlit's eigenes Menü */
         }
 
         /* Bottom Padding für Mobile Navigation */
