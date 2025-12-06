@@ -2544,6 +2544,82 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     return ocr_text, kategorie
 
 
+def safe_parse_date(date_string: str, fallback: date = None) -> Optional[date]:
+    """
+    Sicher ein Datum aus einem String parsen.
+    Gibt fallback zurück wenn das Datum ungültig ist.
+
+    Args:
+        date_string: Datum als String (Format: DD.MM.YYYY oder DD.MM.YY)
+        fallback: Fallback-Datum wenn Parsing fehlschlägt
+
+    Returns:
+        date oder fallback
+    """
+    if not date_string:
+        return fallback
+
+    try:
+        parts = date_string.strip().split('.')
+        if len(parts) == 3:
+            day = int(parts[0])
+            month = int(parts[1])
+            year = int(parts[2])
+
+            # 2-stelliges Jahr korrigieren
+            if year < 100:
+                year = 2000 + year if year < 50 else 1900 + year
+
+            # Validierung: Jahr muss zwischen 1900 und 2100 liegen
+            if not (1900 <= year <= 2100):
+                return fallback
+
+            # Validierung: Monat 1-12
+            if not (1 <= month <= 12):
+                return fallback
+
+            # Validierung: Tag 1-31
+            if not (1 <= day <= 31):
+                return fallback
+
+            return date(year, month, day)
+    except (ValueError, TypeError, IndexError):
+        pass
+
+    return fallback
+
+
+def validate_date_for_input(d: Optional[date], fallback: date = None) -> date:
+    """
+    Validiert ein Datum für st.date_input.
+    JavaScript kann keine Daten vor 1970 oder nach 9999 verarbeiten.
+
+    Args:
+        d: Das zu validierende Datum
+        fallback: Fallback wenn ungültig (default: date.today())
+
+    Returns:
+        Gültiges date-Objekt
+    """
+    if fallback is None:
+        fallback = date.today()
+
+    if d is None:
+        return fallback
+
+    try:
+        # JavaScript kann Daten von 1970-01-01 bis ca. 275760-09-13 verarbeiten
+        # Wir beschränken auf sinnvolle Werte: 1900-2100
+        if d.year < 1900 or d.year > 2100:
+            return fallback
+
+        # Prüfe ob das Datum gültig ist
+        _ = d.isoformat()
+        return d
+    except (ValueError, AttributeError, OverflowError):
+        return fallback
+
+
 def check_ocr_availability() -> dict:
     """
     Prüft ob OCR verfügbar ist und gibt Status zurück
@@ -2729,20 +2805,10 @@ Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
                 )
 
                 if data.get('geburtsdatum'):
-                    try:
-                        parts = data['geburtsdatum'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.geburtsdatum = safe_parse_date(data['geburtsdatum'])
 
                 if data.get('gueltig_bis'):
-                    try:
-                        parts = data['gueltig_bis'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.gueltig_bis = safe_parse_date(data['gueltig_bis'])
 
                 if data.get('groesse_cm'):
                     try:
@@ -2879,20 +2945,10 @@ Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
 
                 # Datumsfelder parsen
                 if data.get('geburtsdatum'):
-                    try:
-                        parts = data['geburtsdatum'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.geburtsdatum = safe_parse_date(data['geburtsdatum'])
 
                 if data.get('gueltig_bis'):
-                    try:
-                        parts = data['gueltig_bis'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.gueltig_bis = safe_parse_date(data['gueltig_bis'])
 
                 if data.get('groesse_cm'):
                     try:
@@ -3503,8 +3559,11 @@ def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
         nachname = st.text_input("Nachname*", value=pd_vorne.nachname or pd_hinten.nachname, key=f"final_nachname_{widget_prefix}")
         geburtsname = st.text_input("Geburtsname", value=pd_vorne.geburtsname or pd_hinten.geburtsname, key=f"final_geburtsname_{widget_prefix}")
 
-        geb_datum = pd_vorne.geburtsdatum or pd_hinten.geburtsdatum or date(1980, 1, 1)
-        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"final_gebdat_{widget_prefix}")
+        geb_datum = validate_date_for_input(
+            pd_vorne.geburtsdatum or pd_hinten.geburtsdatum,
+            fallback=date(1980, 1, 1)
+        )
+        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, format="DD.MM.YYYY", key=f"final_gebdat_{widget_prefix}")
 
         geburtsort = st.text_input("Geburtsort", value=pd_vorne.geburtsort or pd_hinten.geburtsort, key=f"final_geburtsort_{widget_prefix}")
         nationalitaet = st.text_input("Nationalität", value=pd_vorne.nationalitaet or pd_hinten.nationalitaet or "DEUTSCH", key=f"final_nat_{widget_prefix}")
@@ -3520,8 +3579,11 @@ def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
                                   index=0, key=f"final_ausweisart_{widget_prefix}")
         ausweisnummer = st.text_input("Ausweisnummer*", value=pd_hinten.ausweisnummer or pd_vorne.ausweisnummer, key=f"final_ausweisnr_{widget_prefix}")
 
-        gueltig_datum = pd_hinten.gueltig_bis or pd_vorne.gueltig_bis or date.today()
-        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"final_gueltig_{widget_prefix}")
+        gueltig_datum = validate_date_for_input(
+            pd_hinten.gueltig_bis or pd_vorne.gueltig_bis,
+            fallback=date.today() + timedelta(days=365*5)  # Default: 5 Jahre gültig
+        )
+        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, format="DD.MM.YYYY", key=f"final_gueltig_{widget_prefix}")
 
     # OCR-Rohtext anzeigen
     with st.expander("🔍 OCR-Rohtext anzeigen"):
