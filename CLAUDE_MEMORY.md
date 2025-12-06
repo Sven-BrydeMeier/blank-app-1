@@ -76,6 +76,39 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ## Implementierte Features
 
+### Preisverhandlung zwischen Käufer/Verkäufer (NEU - 2025-12-06)
+- [x] **Preisangebot-System** mit Status: Offen, Angenommen, Abgelehnt, Gegenangebot, Zurückgezogen
+- [x] **Ohne Makler:** Preisverhandlung immer erlaubt
+- [x] **Mit Makler:** Nur wenn `preisverhandlung_erlaubt = True` im Projekt
+- [x] **Käufer-Dashboard:** Preisangebot abgeben, Verkäufer-Angebote annehmen/ablehnen/Gegenangebot
+- [x] **Verkäufer-Dashboard:** Preisvorschlag senden, Käufer-Angebote annehmen/ablehnen/Gegenangebot
+- [x] **Verhandlungsverlauf:** Alle Angebote chronologisch mit Status-Icons
+- [x] **Benachrichtigungen:** Bei neuem Angebot, Annahme, Ablehnung, Gegenangebot
+
+### Benachrichtigungen bei Rechtsdokument-Akzeptanz (NEU - 2025-12-06)
+- [x] **Käufer/Verkäufer erhält Bestätigung** in Posteingang nach Akzeptanz
+- [x] **Notar wird informiert** wenn Käufer/Verkäufer Dokumente akzeptiert
+
+### Optionale Rechtsdokument-Pflicht (NEU - 2025-12-06)
+- [x] **Makler-Einstellung:** `rechtsdokumente_erforderlich` beim Projekt-Erstellen
+- [x] **Projekt-Editor:** Toggle für bestehende Projekte
+- [x] Wenn deaktiviert: Käufer/Verkäufer können ohne Akzeptanz auf Dashboard zugreifen
+
+### Druckfunktionen (NEU - 2025-12-06)
+- [x] **Handwerker-Steckbrief:** Druckbares HTML mit Kontaktdaten, Bewertung, Beschreibung
+- [x] **Exposé-Druckversion:** Professionelles HTML mit CSS Grid, Print-optimiert
+- [x] Download-Buttons für beide Dokumenttypen
+
+### Demo-Modus Toggle (NEU - 2025-12-06)
+- [x] **Notar-Einstellungen:** Toggle für Demo-Modus AN/AUS
+- [x] AN = Volle Funktionalität mit Demo-Daten
+- [x] AUS = Produktionsmodus (Hinweis auf echte API-Keys)
+
+### Erweiterte Handwerker-Kategorien (NEU - 2025-12-06)
+- [x] **Umzugsunternehmen** hinzugefügt (HandwerkerKategorie.UMZUG)
+- [x] **Reinigungsservice** hinzugefügt (HandwerkerKategorie.REINIGUNG)
+- [x] Demo-Handwerker für beide Kategorien
+
 ### Rechtsdokumente & Pflicht-Akzeptanz (NEU - 2025-12-06)
 - [x] **Notar: Rechtsdokumente-Verwaltung** (Datenschutz, AGB, Widerrufsbelehrung)
   - Neuer Tab "📜 Rechtsdokumente" im Notar-Dashboard
@@ -201,7 +234,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ## Wichtige Datenklassen
 
-### Projekt (Zeile ~1330)
+### Projekt (Zeile ~1352)
 ```python
 @dataclass
 class Projekt:
@@ -212,9 +245,33 @@ class Projekt:
     verkaeufer_ids: List[str] = [] # LISTE - Mehrere Verkäufer möglich
     notar_id: str = ""            # SINGULAR - Ein Notar
     finanzierer_ids: List[str] = [] # LISTE - Mehrere Finanzierer
+    rechtsdokumente_erforderlich: bool = True  # NEU: Pflicht-Akzeptanz
+    preisverhandlung_erlaubt: bool = False     # NEU: Preisverhandlung
 ```
 
 **WICHTIG:** `verkaeufer_ids` und `kaeufer_ids` sind Listen! Nicht `verkaeufer_id` (singular) verwenden!
+
+### Preisangebot (Zeile ~1325)
+```python
+class PreisangebotStatus(Enum):
+    OFFEN = "Offen"
+    ANGENOMMEN = "Angenommen"
+    ABGELEHNT = "Abgelehnt"
+    GEGENANGEBOT = "Gegenangebot"
+    ZURUECKGEZOGEN = "Zurückgezogen"
+
+@dataclass
+class Preisangebot:
+    angebot_id: str
+    projekt_id: str
+    von_user_id: str  # Wer das Angebot macht
+    von_rolle: str    # "Käufer" oder "Verkäufer"
+    betrag: float     # Angebotener Preis
+    nachricht: str = ""
+    status: str = PreisangebotStatus.OFFEN.value
+    erstellt_am: datetime
+    beantwortet_am: Optional[datetime] = None
+```
 
 ---
 
@@ -228,6 +285,7 @@ st.session_state = {
     'projekte': Dict[str, Projekt],
     'legal_documents': Dict,
     'financing_offers': Dict,
+    'preisangebote': Dict[str, Preisangebot],  # NEU: Preisverhandlung
     'wirtschaftsdaten': Dict,
     'notifications': Dict,
     'timeline_events': Dict[str, TimelineEvent],
