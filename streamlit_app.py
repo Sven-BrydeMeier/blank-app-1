@@ -4177,7 +4177,7 @@ def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
 
     if projekt_termine:
         for termin in projekt_termine:
-            render_termin_card(termin, projekt, user_rolle)
+            render_termin_card(termin, projekt, user_rolle, context=f"section_{termin_typ}")
     else:
         st.info(f"Noch keine {termin_typ}-Termine vorhanden.")
 
@@ -4198,7 +4198,7 @@ def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
             render_neuer_termin_form(projekt, termin_typ, user_rolle)
 
 
-def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str):
+def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str, context: str = ""):
     """Rendert eine Termin-Karte"""
 
     status_colors = {
@@ -4243,7 +4243,7 @@ def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str):
                 if bereits_bestaetigt:
                     st.success("✓ Sie haben bestätigt")
                 else:
-                    if st.button("✅ Termin bestätigen", key=f"confirm_{termin.termin_id}_{user_rolle}"):
+                    if st.button("✅ Termin bestätigen", key=f"confirm_{termin.termin_id}_{user_rolle}_{context}"):
                         bestatige_termin(termin.termin_id, user_id, user_rolle)
                         st.success("Termin bestätigt!")
                         st.rerun()
@@ -4256,7 +4256,7 @@ def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str):
                     data=ics_content,
                     file_name=f"termin_{termin.termin_id}.ics",
                     mime="text/calendar",
-                    key=f"ics_{termin.termin_id}"
+                    key=f"ics_{termin.termin_id}_{context}"
                 )
 
         st.markdown("---")
@@ -4356,7 +4356,7 @@ def render_alle_termine(projekt: 'Projekt', user_rolle: str):
     for termin_id in projekt.termine:
         termin = st.session_state.termine.get(termin_id)
         if termin:
-            render_termin_card(termin, projekt, user_rolle)
+            render_termin_card(termin, projekt, user_rolle, context="alle")
 
 
 def render_expose_editor(projekt: Projekt):
@@ -8513,6 +8513,7 @@ def notar_dashboard():
         "👥 Mitarbeiter",
         "💰 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
+        "📜 Kaufvertrag",
         "📅 Termine",
         "🤝 Maklerempfehlung",
         "🔧 Handwerker",
@@ -8541,15 +8542,18 @@ def notar_dashboard():
         notar_dokumenten_freigaben()
 
     with tabs[7]:
-        notar_termine()
+        notar_kaufvertrag_generator()
 
     with tabs[8]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[9]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[10]:
+        notar_handwerker_view()
+
+    with tabs[11]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -8971,6 +8975,526 @@ def notar_dokumenten_freigaben():
             st.info("Noch keine Dokumente freigegeben.")
 
         st.markdown("---")
+
+
+def notar_kaufvertrag_generator():
+    """KI-gestützter Kaufvertragsentwurf-Generator"""
+    st.subheader("📜 Kaufvertragsentwurf-Generator")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Projekt auswählen
+    projekt_namen = {p.projekt_id: p.name for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        options=list(projekt_namen.keys()),
+        format_func=lambda x: projekt_namen[x],
+        key="vertrag_projekt_select"
+    )
+
+    if not selected_projekt_id:
+        return
+
+    projekt = st.session_state.projekte.get(selected_projekt_id)
+
+    # Tabs für verschiedene Funktionen
+    vertrag_tabs = st.tabs([
+        "📊 Datenübersicht",
+        "🤖 KI-Vertrag generieren",
+        "📝 Vertrag bearbeiten",
+        "📤 Vertrag versenden"
+    ])
+
+    with vertrag_tabs[0]:
+        render_vertrag_datenuebersicht(projekt)
+
+    with vertrag_tabs[1]:
+        render_ki_vertrag_generator(projekt)
+
+    with vertrag_tabs[2]:
+        render_vertrag_editor(projekt)
+
+    with vertrag_tabs[3]:
+        render_vertrag_versenden(projekt)
+
+
+def render_vertrag_datenuebersicht(projekt):
+    """Zeigt alle gesammelten Daten für den Kaufvertrag"""
+    st.markdown("### 📊 Gesammelte Vertragsdaten")
+
+    # Verkäufer-Daten
+    st.markdown("#### 👤 Verkäufer")
+    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+    if verkaeufer:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Name:** {verkaeufer.name}")
+            st.write(f"**E-Mail:** {verkaeufer.email}")
+        with col2:
+            personal_key = f"personal_{verkaeufer.user_id}"
+            if personal_key in st.session_state:
+                pd = st.session_state[personal_key]
+                st.write(f"**Geburtsdatum:** {pd.get('geburtsdatum', 'N/A')}")
+                st.write(f"**Adresse:** {pd.get('strasse', '')} {pd.get('hausnummer', '')}, {pd.get('plz', '')} {pd.get('ort', '')}")
+            else:
+                st.warning("⚠️ Personalausweis nicht erfasst")
+    else:
+        st.error("❌ Verkäufer nicht gefunden")
+
+    st.markdown("---")
+
+    # Käufer-Daten
+    st.markdown("#### 👥 Käufer")
+    for kaeufer_id in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kaeufer_id)
+        if kaeufer:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Name:** {kaeufer.name}")
+                st.write(f"**E-Mail:** {kaeufer.email}")
+            with col2:
+                personal_key = f"personal_{kaeufer.user_id}"
+                if personal_key in st.session_state:
+                    pd = st.session_state[personal_key]
+                    st.write(f"**Geburtsdatum:** {pd.get('geburtsdatum', 'N/A')}")
+                    st.write(f"**Adresse:** {pd.get('strasse', '')} {pd.get('hausnummer', '')}, {pd.get('plz', '')} {pd.get('ort', '')}")
+                else:
+                    st.warning("⚠️ Personalausweis nicht erfasst")
+
+    st.markdown("---")
+
+    # Objekt-Daten
+    st.markdown("#### 🏠 Objektdaten")
+    expose = st.session_state.expose_data.get(projekt.projekt_id)
+    if expose:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Objekttitel:** {expose.objekttitel or 'N/A'}")
+            st.write(f"**Adresse:** {expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}")
+            st.write(f"**Objektart:** {expose.objektart}")
+            st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
+        with col2:
+            st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €" if expose.kaufpreis else "**Kaufpreis:** N/A")
+            st.write(f"**Grundstücksfläche:** {expose.grundstuecksflaeche} m²" if expose.grundstuecksflaeche else "")
+            st.write(f"**Baujahr:** {expose.baujahr}" if expose.baujahr else "")
+            st.write(f"**Zimmer:** {expose.anzahl_zimmer}" if expose.anzahl_zimmer else "")
+    else:
+        st.warning("⚠️ Keine Exposé-Daten vorhanden")
+
+    st.markdown("---")
+
+    # Makler-Daten
+    st.markdown("#### 🏢 Makler")
+    makler = st.session_state.users.get(projekt.makler_id)
+    if makler:
+        st.write(f"**Name:** {makler.name}")
+        st.write(f"**E-Mail:** {makler.email}")
+        profile = st.session_state.makler_profiles.get(projekt.makler_id)
+        if profile:
+            st.write(f"**Firma:** {profile.get('firma', 'N/A')}")
+            st.write(f"**Provision:** {profile.get('provision', 'N/A')}")
+
+    st.markdown("---")
+
+    # Finanzierung
+    st.markdown("#### 💰 Finanzierung")
+    angebote = [o for o in st.session_state.financing_offers.values()
+                if o.projekt_id == projekt.projekt_id and o.status == "Angenommen"]
+    if angebote:
+        for angebot in angebote:
+            st.success(f"✅ Finanzierung gesichert: {angebot.betrag:,.2f} € bei {angebot.zinssatz}% Zinsen")
+    else:
+        st.warning("⚠️ Keine angenommene Finanzierung")
+
+    # Vollständigkeitscheck
+    st.markdown("---")
+    st.markdown("### ✅ Vollständigkeitsprüfung")
+
+    checks = {
+        "Verkäufer erfasst": verkaeufer is not None,
+        "Verkäufer Ausweis": f"personal_{projekt.verkaeufer_id}" in st.session_state if verkaeufer else False,
+        "Käufer erfasst": len(projekt.kaeufer_ids) > 0,
+        "Käufer Ausweis": all(f"personal_{kid}" in st.session_state for kid in projekt.kaeufer_ids),
+        "Objektdaten vorhanden": expose is not None,
+        "Kaufpreis definiert": expose.kaufpreis > 0 if expose else False,
+        "Finanzierung gesichert": len(angebote) > 0,
+    }
+
+    for check_name, check_result in checks.items():
+        if check_result:
+            st.write(f"✅ {check_name}")
+        else:
+            st.write(f"❌ {check_name}")
+
+    vollstaendig = all(checks.values())
+    if vollstaendig:
+        st.success("🎉 Alle Daten vollständig!")
+    else:
+        st.warning("⚠️ Bitte vervollständigen Sie die fehlenden Daten.")
+
+
+def render_ki_vertrag_generator(projekt):
+    """KI-gestützte Vertragsgenerierung"""
+    st.markdown("### 🤖 KI-Kaufvertragsentwurf generieren")
+
+    api_key = None
+    api_type = None
+
+    if st.session_state.get('api_keys', {}).get('openai'):
+        api_key = st.session_state['api_keys']['openai']
+        api_type = "openai"
+    elif st.session_state.get('api_keys', {}).get('anthropic'):
+        api_key = st.session_state['api_keys']['anthropic']
+        api_type = "anthropic"
+
+    if not api_key:
+        st.warning("⚠️ Kein API-Key konfiguriert. Bitte hinterlegen Sie einen OpenAI oder Anthropic API-Key in den Einstellungen.")
+        st.info("💡 Alternativ können Sie einen Vertrag manuell im Tab 'Vertrag bearbeiten' erstellen.")
+        return
+
+    st.success(f"✅ API-Key konfiguriert ({api_type.upper()})")
+
+    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+    kaeufer_list = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
+    expose = st.session_state.expose_data.get(projekt.projekt_id)
+    makler = st.session_state.users.get(projekt.makler_id)
+
+    st.markdown("#### ⚙️ Vertragsoptionen")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        include_ruecktrittsrecht = st.checkbox("Rücktrittsrecht bei Finanzierungsvorbehalt", value=True)
+        include_gewaehrleistung = st.checkbox("Gewährleistungsausschluss (gebraucht)", value=True)
+        include_besitzuebergang = st.checkbox("Besitzübergangsklausel", value=True)
+    with col2:
+        include_auflassung = st.checkbox("Auflassungsvormerkung", value=True)
+        include_erschliessungskosten = st.checkbox("Regelung Erschließungskosten", value=True)
+        include_maklerklausel = st.checkbox("Maklerklausel", value=makler is not None)
+
+    uebergabe_datum = st.date_input(
+        "Geplantes Übergabedatum",
+        value=date.today() + timedelta(days=60),
+        min_value=date.today()
+    )
+
+    zusaetzliche_klauseln = st.text_area(
+        "Zusätzliche Klauseln/Hinweise für die KI",
+        placeholder="z.B. Besondere Vereinbarungen, Inventar das mitverkauft wird, etc."
+    )
+
+    if st.button("🤖 Kaufvertrag generieren", type="primary", use_container_width=True):
+        with st.spinner("KI generiert Kaufvertragsentwurf..."):
+            vertrag_text = generate_kaufvertrag_mit_ki(
+                projekt=projekt,
+                verkaeufer=verkaeufer,
+                kaeufer_list=kaeufer_list,
+                expose=expose,
+                makler=makler,
+                optionen={
+                    "ruecktrittsrecht": include_ruecktrittsrecht,
+                    "gewaehrleistung": include_gewaehrleistung,
+                    "besitzuebergang": include_besitzuebergang,
+                    "auflassung": include_auflassung,
+                    "erschliessungskosten": include_erschliessungskosten,
+                    "maklerklausel": include_maklerklausel,
+                    "uebergabe_datum": uebergabe_datum,
+                    "zusaetzliche_klauseln": zusaetzliche_klauseln
+                },
+                api_key=api_key,
+                api_type=api_type
+            )
+
+            if vertrag_text:
+                vertrag_key = f"kaufvertrag_{projekt.projekt_id}"
+                st.session_state[vertrag_key] = {
+                    "text": vertrag_text,
+                    "erstellt_am": datetime.now().isoformat(),
+                    "status": "Entwurf"
+                }
+                st.success("✅ Kaufvertragsentwurf wurde generiert!")
+                st.rerun()
+
+
+def generate_kaufvertrag_mit_ki(projekt, verkaeufer, kaeufer_list, expose, makler, optionen, api_key, api_type):
+    """Generiert einen Kaufvertrag mit KI"""
+
+    verkaeufer_data = "Unbekannt"
+    if verkaeufer:
+        verkaeufer_personal = st.session_state.get(f"personal_{verkaeufer.user_id}", {})
+        verkaeufer_data = f"""Name: {verkaeufer.name}
+Geburtsdatum: {verkaeufer_personal.get('geburtsdatum', 'N/A')}
+Adresse: {verkaeufer_personal.get('strasse', '')} {verkaeufer_personal.get('hausnummer', '')}, {verkaeufer_personal.get('plz', '')} {verkaeufer_personal.get('ort', '')}"""
+
+    kaeufer_data = ""
+    for i, kaeufer in enumerate(kaeufer_list, 1):
+        if kaeufer:
+            kaeufer_personal = st.session_state.get(f"personal_{kaeufer.user_id}", {})
+            kaeufer_data += f"""Käufer {i}: {kaeufer.name}
+Geburtsdatum: {kaeufer_personal.get('geburtsdatum', 'N/A')}
+Adresse: {kaeufer_personal.get('strasse', '')} {kaeufer_personal.get('hausnummer', '')}, {kaeufer_personal.get('plz', '')} {kaeufer_personal.get('ort', '')}
+"""
+
+    objekt_data = "Keine Objektdaten"
+    if expose:
+        objekt_data = f"""Adresse: {expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}
+Objektart: {expose.objektart}
+Wohnfläche: {expose.wohnflaeche} m²
+Kaufpreis: {expose.kaufpreis:,.2f} EUR"""
+
+    prompt = f"""Erstelle einen professionellen deutschen Kaufvertragsentwurf.
+
+VERKÄUFER: {verkaeufer_data}
+KÄUFER: {kaeufer_data}
+OBJEKT: {objekt_data}
+
+OPTIONEN:
+- Rücktrittsrecht: {"Ja" if optionen.get('ruecktrittsrecht') else "Nein"}
+- Gewährleistungsausschluss: {"Ja" if optionen.get('gewaehrleistung') else "Nein"}
+- Auflassungsvormerkung: {"Ja" if optionen.get('auflassung') else "Nein"}
+- Übergabedatum: {optionen.get('uebergabe_datum')}
+
+Zusätzliche Hinweise: {optionen.get('zusaetzliche_klauseln', 'Keine')}
+
+Erstelle einen vollständigen notariellen Kaufvertragsentwurf mit: Präambel, Kaufgegenstand, Kaufpreis, Übergabe, Gewährleistung, Auflassung, Kosten, Schlussbestimmungen."""
+
+    try:
+        if api_type == "openai":
+            import urllib.request
+            import json as json_module
+
+            data = json_module.dumps({
+                "model": "gpt-4",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 4000,
+                "temperature": 0.3
+            }).encode('utf-8')
+
+            req = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=data,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req, timeout=120) as response:
+                result = json_module.loads(response.read().decode('utf-8'))
+                return result['choices'][0]['message']['content']
+
+        elif api_type == "anthropic":
+            import urllib.request
+            import json as json_module
+
+            data = json_module.dumps({
+                "model": "claude-3-sonnet-20240229",
+                "max_tokens": 4000,
+                "messages": [{"role": "user", "content": prompt}]
+            }).encode('utf-8')
+
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=data,
+                headers={"Content-Type": "application/json", "x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req, timeout=120) as response:
+                result = json_module.loads(response.read().decode('utf-8'))
+                return result['content'][0]['text']
+
+    except Exception as e:
+        st.error(f"API-Fehler: {str(e)}")
+        return None
+
+    return None
+
+
+def render_vertrag_editor(projekt):
+    """Editor für den Kaufvertragsentwurf"""
+    st.markdown("### 📝 Vertragsentwurf bearbeiten")
+
+    vertrag_key = f"kaufvertrag_{projekt.projekt_id}"
+
+    if vertrag_key not in st.session_state:
+        st.info("💡 Noch kein Vertragsentwurf vorhanden.")
+
+        if st.button("📝 Leeren Entwurf erstellen", key="create_empty_vertrag"):
+            st.session_state[vertrag_key] = {
+                "text": """KAUFVERTRAGSENTWURF
+
+Urkundenrolle Nr. ___/____
+
+Verhandelt zu _____________ am ______________
+
+§ 1 KAUFGEGENSTAND
+[Beschreibung des Objekts]
+
+§ 2 KAUFPREIS
+[Kaufpreis und Zahlungsmodalitäten]
+
+§ 3 ÜBERGABE
+[Übergaberegelungen]
+
+§ 4 GEWÄHRLEISTUNG
+[Gewährleistungsregelungen]
+
+§ 5 AUFLASSUNG
+[Auflassungserklärung]
+
+§ 6 KOSTEN
+[Kostenverteilung]
+
+§ 7 SCHLUSSBESTIMMUNGEN
+[Weitere Vereinbarungen]
+""",
+                "erstellt_am": datetime.now().isoformat(),
+                "status": "Entwurf"
+            }
+            st.rerun()
+        return
+
+    vertrag = st.session_state[vertrag_key]
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.write(f"**Status:** {vertrag.get('status', 'Entwurf')}")
+    with col2:
+        erstellt = vertrag.get('erstellt_am', '')
+        if erstellt:
+            try:
+                dt = datetime.fromisoformat(erstellt)
+                st.write(f"**Erstellt:** {dt.strftime('%d.%m.%Y %H:%M')}")
+            except:
+                pass
+
+    neuer_text = st.text_area(
+        "Vertragstext",
+        value=vertrag.get('text', ''),
+        height=500,
+        key=f"vertrag_editor_{projekt.projekt_id}"
+    )
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("💾 Speichern", use_container_width=True, key="save_vertrag"):
+            st.session_state[vertrag_key]['text'] = neuer_text
+            st.session_state[vertrag_key]['geaendert_am'] = datetime.now().isoformat()
+            st.success("✅ Gespeichert!")
+
+    with col2:
+        if st.button("📄 Als Entwurf", use_container_width=True, key="mark_draft"):
+            st.session_state[vertrag_key]['status'] = "Entwurf"
+            st.success("✅ Status: Entwurf")
+
+    with col3:
+        if st.button("✅ Als Final", use_container_width=True, key="mark_final"):
+            st.session_state[vertrag_key]['status'] = "Final"
+            st.success("✅ Status: Final")
+
+    st.markdown("---")
+    st.download_button(
+        "📥 Vertrag als TXT herunterladen",
+        data=neuer_text,
+        file_name=f"Kaufvertrag_{projekt.name}_{date.today().isoformat()}.txt",
+        mime="text/plain",
+        use_container_width=True,
+        key="download_vertrag"
+    )
+
+
+def render_vertrag_versenden(projekt):
+    """Vertrag an Parteien versenden"""
+    st.markdown("### 📤 Vertragsentwurf versenden")
+
+    vertrag_key = f"kaufvertrag_{projekt.projekt_id}"
+
+    if vertrag_key not in st.session_state:
+        st.warning("⚠️ Noch kein Vertragsentwurf vorhanden.")
+        return
+
+    vertrag = st.session_state[vertrag_key]
+
+    if vertrag.get('status') != "Final":
+        st.warning("⚠️ Der Vertrag ist noch nicht als 'Final' markiert.")
+
+    st.markdown("#### 📧 Empfänger auswählen")
+
+    verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+    kaeufer_list = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
+    makler = st.session_state.users.get(projekt.makler_id)
+
+    send_to_verkaeufer = st.checkbox(
+        f"📧 Verkäufer: {verkaeufer.name if verkaeufer else 'N/A'}",
+        value=True,
+        key="send_verkaeufer"
+    )
+
+    send_to_kaeufer = []
+    for kaeufer in kaeufer_list:
+        if kaeufer:
+            checked = st.checkbox(
+                f"📧 Käufer: {kaeufer.name}",
+                value=True,
+                key=f"send_kaeufer_{kaeufer.user_id}"
+            )
+            if checked:
+                send_to_kaeufer.append(kaeufer)
+
+    send_to_makler = False
+    if makler:
+        send_to_makler = st.checkbox(
+            f"📧 Makler: {makler.name}",
+            value=True,
+            key="send_makler"
+        )
+
+    if st.button("📤 Vertragsentwurf versenden", type="primary", use_container_width=True, key="send_vertrag"):
+        empfaenger = []
+
+        if send_to_verkaeufer and verkaeufer:
+            empfaenger.append(verkaeufer)
+            create_notification(
+                verkaeufer.user_id,
+                "Kaufvertragsentwurf erhalten",
+                f"Sie haben den Kaufvertragsentwurf für '{projekt.name}' erhalten.",
+                NotificationType.INFO.value
+            )
+
+        for kaeufer in send_to_kaeufer:
+            empfaenger.append(kaeufer)
+            create_notification(
+                kaeufer.user_id,
+                "Kaufvertragsentwurf erhalten",
+                f"Sie haben den Kaufvertragsentwurf für '{projekt.name}' erhalten.",
+                NotificationType.INFO.value
+            )
+
+        if send_to_makler and makler:
+            empfaenger.append(makler)
+            create_notification(
+                makler.user_id,
+                "Kaufvertragsentwurf versendet",
+                f"Der Kaufvertragsentwurf für '{projekt.name}' wurde versendet.",
+                NotificationType.INFO.value
+            )
+
+        st.session_state[vertrag_key]['status'] = "Versendet"
+        st.session_state[vertrag_key]['versendet_am'] = datetime.now().isoformat()
+
+        create_timeline_event(
+            projekt.projekt_id,
+            "Kaufvertrag",
+            "Kaufvertragsentwurf versendet",
+            f"Der Kaufvertragsentwurf wurde an {len(empfaenger)} Empfänger versendet."
+        )
+
+        st.success(f"✅ Vertragsentwurf an {len(empfaenger)} Empfänger versendet!")
+        st.balloons()
+
 
 def notar_termine():
     """Erweiterte Termin-Verwaltung für Notar mit Outlook-Kalender-Integration"""
