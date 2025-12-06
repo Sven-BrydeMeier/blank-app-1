@@ -15,6 +15,7 @@ from enum import Enum
 import hashlib
 import re
 import base64
+import uuid
 
 # ============================================================================
 # RESPONSIVE DESIGN SYSTEM
@@ -1693,6 +1694,132 @@ class VerkäuferDokument:
     status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
 
 # ============================================================================
+# SESSION PERSISTENZ (COOKIES/LOCAL STORAGE)
+# ============================================================================
+
+def inject_session_persistence():
+    """Injiziert JavaScript für Session-Persistenz über Browser-Refreshes"""
+    st.markdown("""
+    <script>
+    (function() {
+        // Session Token aus localStorage lesen und URL aktualisieren
+        const sessionData = localStorage.getItem('immo_session');
+        if (sessionData) {
+            try {
+                const data = JSON.parse(sessionData);
+                const url = new URL(window.location.href);
+
+                // Nur hinzufügen wenn noch nicht vorhanden
+                if (!url.searchParams.has('session_email') && data.email && data.token) {
+                    url.searchParams.set('session_email', data.email);
+                    url.searchParams.set('session_token', data.token);
+
+                    // URL aktualisieren ohne Seite neu zu laden (falls möglich)
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, '', url.toString());
+                        // Seite neu laden um Session zu aktivieren
+                        window.location.reload();
+                    }
+                }
+            } catch (e) {
+                console.log('Session parse error:', e);
+            }
+        }
+    })();
+
+    // Funktion zum Speichern der Session
+    window.saveImmoSession = function(email, token) {
+        const data = {email: email, token: token, timestamp: Date.now()};
+        localStorage.setItem('immo_session', JSON.stringify(data));
+
+        // URL mit Session-Parametern aktualisieren
+        const url = new URL(window.location.href);
+        url.searchParams.set('session_email', email);
+        url.searchParams.set('session_token', token);
+        window.history.replaceState({}, '', url.toString());
+    };
+
+    // Funktion zum Löschen der Session
+    window.clearImmoSession = function() {
+        localStorage.removeItem('immo_session');
+
+        // URL-Parameter entfernen
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_email');
+        url.searchParams.delete('session_token');
+        window.history.replaceState({}, '', url.toString());
+    };
+
+    // Funktion zum Abrufen der Session
+    window.getImmoSession = function() {
+        const data = localStorage.getItem('immo_session');
+        return data ? JSON.parse(data) : null;
+    };
+    </script>
+    """, unsafe_allow_html=True)
+
+
+def get_session_token(email: str) -> str:
+    """Generiert einen Session-Token für den Benutzer"""
+    # Kombination aus Email und einem Salt für Sicherheit
+    token_data = f"{email}_{datetime.now().isoformat()}"
+    return hashlib.sha256(token_data.encode()).hexdigest()[:32]
+
+
+def save_session_to_browser(email: str, token: str):
+    """Speichert Session-Daten im Browser localStorage"""
+    st.markdown(f"""
+    <script>
+    if (typeof window.saveImmoSession === 'function') {{
+        window.saveImmoSession('{email}', '{token}');
+    }} else {{
+        const data = {{email: '{email}', token: '{token}', timestamp: Date.now()}};
+        localStorage.setItem('immo_session', JSON.stringify(data));
+    }}
+    </script>
+    """, unsafe_allow_html=True)
+
+
+def clear_session_from_browser():
+    """Löscht Session-Daten aus dem Browser localStorage"""
+    st.markdown("""
+    <script>
+    if (typeof window.clearImmoSession === 'function') {
+        window.clearImmoSession();
+    } else {
+        localStorage.removeItem('immo_session');
+    }
+    </script>
+    """, unsafe_allow_html=True)
+
+
+def restore_session_from_storage():
+    """Versucht Session aus Browser-Storage wiederherzustellen"""
+    # Diese Funktion verwendet st.query_params als Workaround
+    # da JavaScript localStorage nicht direkt aus Python lesbar ist
+    query_params = st.query_params
+
+    if "session_email" in query_params and "session_token" in query_params:
+        email = query_params.get("session_email")
+        token = query_params.get("session_token")
+
+        # Benutzer anhand der Email finden
+        for user in st.session_state.users.values():
+            if user.email == email:
+                # Session-Token validieren (vereinfacht)
+                if st.session_state.get('valid_tokens', {}).get(email) == token:
+                    return user
+
+        # Auch Notar-Mitarbeiter prüfen
+        for ma in st.session_state.notar_mitarbeiter.values():
+            if ma.email == email and ma.aktiv:
+                if st.session_state.get('valid_tokens', {}).get(email) == token:
+                    return ma
+
+    return None
+
+
+# ============================================================================
 # SESSION STATE INITIALISIERUNG
 # ============================================================================
 
@@ -1742,10 +1869,24 @@ def init_session_state():
         st.session_state.ideenboard = {}  # ID -> IdeenboardEintrag
 
         # API-Keys für OCR (vom Notar konfigurierbar)
+        # Zuerst versuchen aus st.secrets zu laden (persistent)
         st.session_state.api_keys = {
             'openai': '',
             'anthropic': ''
         }
+
+        # API-Keys aus Streamlit Secrets laden (falls vorhanden)
+        try:
+            if hasattr(st, 'secrets'):
+                if 'OPENAI_API_KEY' in st.secrets:
+                    st.session_state.api_keys['openai'] = st.secrets['OPENAI_API_KEY']
+                if 'ANTHROPIC_API_KEY' in st.secrets:
+                    st.session_state.api_keys['anthropic'] = st.secrets['ANTHROPIC_API_KEY']
+        except Exception:
+            pass  # Secrets nicht verfügbar
+
+        # Session-Tokens für "Angemeldet bleiben"
+        st.session_state.valid_tokens = {}
 
         # Demo-Daten
         create_demo_users()
@@ -5200,11 +5341,24 @@ def login_page():
     version = get_version_number()
     st.caption(f"Version {version}")
 
+    # Session-Persistenz JavaScript injizieren
+    inject_session_persistence()
+
+    # Versuche Session aus URL-Parametern wiederherzustellen
+    restored_user = restore_session_from_storage()
+    if restored_user:
+        st.session_state.current_user = restored_user
+        is_mitarbeiter = hasattr(restored_user, 'notar_id')  # Mitarbeiter haben notar_id
+        st.session_state.is_notar_mitarbeiter = is_mitarbeiter
+        st.rerun()
+
     st.subheader("Anmeldung")
 
     with st.form("login_form"):
         email = st.text_input("E-Mail")
         password = st.text_input("Passwort", type="password")
+        remember_me = st.checkbox("🔐 Angemeldet bleiben", value=True,
+                                  help="Ihre Sitzung bleibt auch nach einem Seiten-Reload aktiv")
         submit = st.form_submit_button("Anmelden")
 
         if submit:
@@ -5231,6 +5385,15 @@ def login_page():
             if user:
                 st.session_state.current_user = user
                 st.session_state.is_notar_mitarbeiter = False
+
+                # Session-Token erstellen und speichern wenn "Angemeldet bleiben" aktiv
+                if remember_me:
+                    token = get_session_token(email)
+                    if 'valid_tokens' not in st.session_state:
+                        st.session_state.valid_tokens = {}
+                    st.session_state.valid_tokens[email] = token
+                    save_session_to_browser(email, token)
+
                 create_notification(
                     user.user_id,
                     "Willkommen zurück!",
@@ -5242,6 +5405,15 @@ def login_page():
                 # Für Mitarbeiter ein pseudo-User-Objekt erstellen
                 st.session_state.current_user = mitarbeiter
                 st.session_state.is_notar_mitarbeiter = True
+
+                # Session-Token für Mitarbeiter
+                if remember_me:
+                    token = get_session_token(email)
+                    if 'valid_tokens' not in st.session_state:
+                        st.session_state.valid_tokens = {}
+                    st.session_state.valid_tokens[email] = token
+                    save_session_to_browser(email, token)
+
                 st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
                 st.rerun()
             else:
@@ -5261,7 +5433,22 @@ def login_page():
         """)
 
 def logout():
-    """Benutzer abmelden"""
+    """Benutzer abmelden und Session aus Browser löschen"""
+    # Session-Token invalidieren
+    if st.session_state.current_user:
+        email = st.session_state.current_user.email
+        if 'valid_tokens' in st.session_state and email in st.session_state.valid_tokens:
+            del st.session_state.valid_tokens[email]
+
+    # Browser-Session löschen
+    clear_session_from_browser()
+
+    # URL-Parameter entfernen
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
     st.session_state.current_user = None
     st.session_state.is_notar_mitarbeiter = False
     st.rerun()
@@ -10126,6 +10313,24 @@ def notar_einstellungen_view():
     st.info("""
     Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
     Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
+    """)
+
+    st.warning("""
+    ⚠️ **Wichtig für dauerhafte Speicherung:**
+
+    API-Schlüssel, die hier eingegeben werden, gehen bei einem Seiten-Reload verloren.
+    Für permanente Speicherung konfigurieren Sie die Schlüssel in **Streamlit Cloud**:
+
+    1. Gehen Sie zu Ihrer App auf [share.streamlit.io](https://share.streamlit.io)
+    2. Klicken Sie auf ⚙️ **Settings** → **Secrets**
+    3. Fügen Sie folgendes hinzu:
+    ```
+    OPENAI_API_KEY = "sk-..."
+    ANTHROPIC_API_KEY = "sk-ant-..."
+    ```
+    4. Klicken Sie auf **Save**
+
+    Die Schlüssel werden dann automatisch bei jedem Start geladen.
     """)
 
     # Sicherstellen, dass api_keys existiert
