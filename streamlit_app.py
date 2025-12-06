@@ -2038,6 +2038,72 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     return ocr_text, kategorie
 
 
+def check_ocr_availability() -> dict:
+    """
+    Prüft ob OCR verfügbar ist und gibt Status zurück
+
+    Returns:
+        dict mit 'available' (bool), 'method' (str), 'message' (str)
+    """
+    # 1. Prüfe Anthropic API-Key
+    anthropic_key = None
+    if 'api_keys' in st.session_state and st.session_state.api_keys.get('anthropic'):
+        anthropic_key = st.session_state.api_keys['anthropic']
+    if not anthropic_key:
+        try:
+            anthropic_key = st.secrets.get("ANTHROPIC_API_KEY")
+        except:
+            pass
+    if not anthropic_key:
+        import os
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    if anthropic_key:
+        return {
+            'available': True,
+            'method': 'Claude Vision (Anthropic)',
+            'message': ''
+        }
+
+    # 2. Prüfe OpenAI API-Key
+    openai_key = None
+    if 'api_keys' in st.session_state and st.session_state.api_keys.get('openai'):
+        openai_key = st.session_state.api_keys['openai']
+    if not openai_key:
+        try:
+            openai_key = st.secrets.get("OPENAI_API_KEY")
+        except:
+            pass
+    if not openai_key:
+        import os
+        openai_key = os.environ.get("OPENAI_API_KEY")
+
+    if openai_key:
+        return {
+            'available': True,
+            'method': 'GPT-4 Vision (OpenAI)',
+            'message': ''
+        }
+
+    # 3. Prüfe pytesseract
+    try:
+        import pytesseract
+        return {
+            'available': True,
+            'method': 'Tesseract OCR (lokal)',
+            'message': ''
+        }
+    except ImportError:
+        pass
+
+    # Kein OCR verfügbar
+    return {
+        'available': False,
+        'method': 'Demo-Modus',
+        'message': 'Kein API-Key für OCR konfiguriert. Es werden Beispieldaten generiert.'
+    }
+
+
 def ocr_personalausweis_with_claude(image_data: bytes) -> Tuple['PersonalDaten', str, float]:
     """
     OCR-Erkennung für Personalausweis/Reisepass mit Claude Vision API (Anthropic)
@@ -2656,6 +2722,23 @@ def render_ausweis_upload(user_id: str, rolle: str):
         return
 
     st.markdown("### 🪪 Personalausweis / Reisepass")
+
+    # OCR-Status prüfen und anzeigen
+    ocr_status = check_ocr_availability()
+    if ocr_status['available']:
+        st.success(f"✅ OCR aktiviert: {ocr_status['method']}")
+    else:
+        st.warning(f"""
+        ⚠️ **OCR nicht verfügbar** - Demo-Modus aktiv
+
+        {ocr_status['message']}
+
+        **So aktivieren Sie echte OCR:**
+        1. Gehen Sie zu **Notar-Dashboard → Einstellungen**
+        2. Hinterlegen Sie einen **OpenAI** oder **Anthropic API-Key**
+        3. Laden Sie die Seite neu
+        """)
+
     st.info("""
     📱 **So funktioniert's:**
     1. Laden Sie zuerst die **Vorderseite** Ihres Ausweises hoch (Name, Geburtsdatum, Foto)
@@ -2804,7 +2887,27 @@ def render_ausweis_seite_upload(user_id: str, seite: str):
             file_data = uploaded_file.read()
             file_name = uploaded_file.name
     else:
-        st.info("📱 **Tipp:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen.")
+        st.info("📱 **Tipp:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen. Die **Rückkamera** wird für bessere Qualität verwendet.")
+
+        # JavaScript um Rückkamera zu bevorzugen
+        st.markdown("""
+        <script>
+        // Versuche Rückkamera (environment) zu verwenden
+        (function() {
+            const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = function(constraints) {
+                if (constraints && constraints.video) {
+                    if (typeof constraints.video === 'boolean') {
+                        constraints.video = { facingMode: { ideal: 'environment' } };
+                    } else if (typeof constraints.video === 'object' && !constraints.video.facingMode) {
+                        constraints.video.facingMode = { ideal: 'environment' };
+                    }
+                }
+                return originalGetUserMedia(constraints);
+            };
+        })();
+        </script>
+        """, unsafe_allow_html=True)
 
         camera_photo = st.camera_input(
             f"{seite_label} fotografieren",
@@ -2954,6 +3057,23 @@ def render_ausweis_zusammenfassung(user_id: str):
                     user.ausweis_foto = rueckseite['image_data']
                 user.name = f"{vorname} {nachname}"
                 st.session_state.users[user_id] = user
+
+                # Daten auch für Kaufvertrag-Generator speichern
+                st.session_state[f"personal_{user_id}"] = {
+                    'vorname': vorname,
+                    'nachname': nachname,
+                    'geburtsname': geburtsname,
+                    'geburtsdatum': geburtsdatum.strftime('%d.%m.%Y') if geburtsdatum else '',
+                    'geburtsort': geburtsort,
+                    'nationalitaet': nationalitaet,
+                    'strasse': strasse,
+                    'hausnummer': hausnummer,
+                    'plz': plz,
+                    'ort': ort,
+                    'ausweisart': ausweisart,
+                    'ausweisnummer': ausweisnummer,
+                    'gueltig_bis': gueltig_bis.strftime('%d.%m.%Y') if gueltig_bis else ''
+                }
 
                 # Session State aufräumen
                 for key in [f"ausweis_vorderseite_{user_id}", f"ausweis_rueckseite_{user_id}",
