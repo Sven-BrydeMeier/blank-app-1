@@ -1189,10 +1189,22 @@ class Handwerker:
     adresse: str = ""
     webseite: str = ""
     beschreibung: str = ""
-    bewertung: int = 0  # 1-5 Sterne
+    bewertung: int = 0  # Durchschnittsbewertung 1-5 Sterne
     empfohlen: bool = True  # Vom Notar freigegeben
     erstellt_am: datetime = field(default_factory=datetime.now)
     notizen: str = ""
+    anzahl_bewertungen: int = 0  # VERBESSERUNG 7: Anzahl der Käufer-Bewertungen
+
+@dataclass
+class HandwerkerBewertung:
+    """VERBESSERUNG 7: Einzelbewertung eines Handwerkers durch Käufer"""
+    bewertung_id: str
+    handwerker_id: str
+    kaeufer_id: str
+    projekt_id: str  # In welchem Projekt kontaktiert
+    sterne: int  # 1-5
+    kommentar: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
 
 
 @dataclass
@@ -1889,6 +1901,7 @@ def init_session_state():
 
         # Handwerker-Empfehlungen (vom Notar verwaltet)
         st.session_state.handwerker_empfehlungen = {}  # ID -> Handwerker
+        st.session_state.handwerker_bewertungen = {}  # VERBESSERUNG 7: ID -> HandwerkerBewertung
 
         # Ideenboard für Käufer
         st.session_state.ideenboard = {}  # ID -> IdeenboardEintrag
@@ -2456,20 +2469,42 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
     if projekt and von_user:
         # Benachrichtige den Angebotssteller
         if neuer_status == PreisangebotStatus.ANGENOMMEN.value:
+            # VERBESSERUNG 1: Preis automatisch ins Projekt übernehmen
+            alter_preis = projekt.kaufpreis
+            projekt.kaufpreis = angebot.betrag
+
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="✅ Preisangebot angenommen!",
-                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde angenommen!",
+                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde angenommen! Der Kaufpreis wurde aktualisiert.",
                 typ=NotificationType.SUCCESS.value
             )
+
             # Auch Makler benachrichtigen
             if projekt.makler_id:
                 create_notification(
                     user_id=projekt.makler_id,
                     titel="✅ Preiseinigung erzielt",
-                    nachricht=f"Käufer und Verkäufer haben sich auf {angebot.betrag:,.2f} € für {projekt.name} geeinigt.",
+                    nachricht=f"Käufer und Verkäufer haben sich auf {angebot.betrag:,.2f} € für {projekt.name} geeinigt. Kaufpreis wurde von {alter_preis:,.2f} € aktualisiert.",
                     typ=NotificationType.SUCCESS.value
                 )
+
+            # VERBESSERUNG 6: Notar benachrichtigen für Beurkundungsvorbereitung
+            if projekt.notar_id:
+                create_notification(
+                    user_id=projekt.notar_id,
+                    titel="💰 Preiseinigung für Beurkundung",
+                    nachricht=f"Für {projekt.name} wurde eine Preiseinigung über {angebot.betrag:,.2f} € erzielt. Bitte Beurkundungstermin vorbereiten.",
+                    typ=NotificationType.INFO.value
+                )
+
+            # VERBESSERUNG 5: Alle anderen offenen Angebote als überholt markieren
+            for andere_angebot_id, anderes_angebot in st.session_state.preisangebote.items():
+                if (anderes_angebot.projekt_id == angebot.projekt_id and
+                    anderes_angebot.angebot_id != angebot_id and
+                    anderes_angebot.status == PreisangebotStatus.OFFEN.value):
+                    anderes_angebot.status = PreisangebotStatus.ZURUECKGEZOGEN.value
+                    anderes_angebot.antwort_nachricht = "Automatisch geschlossen: Preiseinigung erzielt"
         elif neuer_status == PreisangebotStatus.ABGELEHNT.value:
             create_notification(
                 user_id=angebot.von_user_id,
@@ -2542,6 +2577,82 @@ def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
         ocr_text += "Dokumenttyp konnte nicht automatisch erkannt werden."
 
     return ocr_text, kategorie
+
+
+def safe_parse_date(date_string: str, fallback: date = None) -> Optional[date]:
+    """
+    Sicher ein Datum aus einem String parsen.
+    Gibt fallback zurück wenn das Datum ungültig ist.
+
+    Args:
+        date_string: Datum als String (Format: DD.MM.YYYY oder DD.MM.YY)
+        fallback: Fallback-Datum wenn Parsing fehlschlägt
+
+    Returns:
+        date oder fallback
+    """
+    if not date_string:
+        return fallback
+
+    try:
+        parts = date_string.strip().split('.')
+        if len(parts) == 3:
+            day = int(parts[0])
+            month = int(parts[1])
+            year = int(parts[2])
+
+            # 2-stelliges Jahr korrigieren
+            if year < 100:
+                year = 2000 + year if year < 50 else 1900 + year
+
+            # Validierung: Jahr muss zwischen 1900 und 2100 liegen
+            if not (1900 <= year <= 2100):
+                return fallback
+
+            # Validierung: Monat 1-12
+            if not (1 <= month <= 12):
+                return fallback
+
+            # Validierung: Tag 1-31
+            if not (1 <= day <= 31):
+                return fallback
+
+            return date(year, month, day)
+    except (ValueError, TypeError, IndexError):
+        pass
+
+    return fallback
+
+
+def validate_date_for_input(d: Optional[date], fallback: date = None) -> date:
+    """
+    Validiert ein Datum für st.date_input.
+    JavaScript kann keine Daten vor 1970 oder nach 9999 verarbeiten.
+
+    Args:
+        d: Das zu validierende Datum
+        fallback: Fallback wenn ungültig (default: date.today())
+
+    Returns:
+        Gültiges date-Objekt
+    """
+    if fallback is None:
+        fallback = date.today()
+
+    if d is None:
+        return fallback
+
+    try:
+        # JavaScript kann Daten von 1970-01-01 bis ca. 275760-09-13 verarbeiten
+        # Wir beschränken auf sinnvolle Werte: 1900-2100
+        if d.year < 1900 or d.year > 2100:
+            return fallback
+
+        # Prüfe ob das Datum gültig ist
+        _ = d.isoformat()
+        return d
+    except (ValueError, AttributeError, OverflowError):
+        return fallback
 
 
 def check_ocr_availability() -> dict:
@@ -2729,20 +2840,10 @@ Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
                 )
 
                 if data.get('geburtsdatum'):
-                    try:
-                        parts = data['geburtsdatum'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.geburtsdatum = safe_parse_date(data['geburtsdatum'])
 
                 if data.get('gueltig_bis'):
-                    try:
-                        parts = data['gueltig_bis'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.gueltig_bis = safe_parse_date(data['gueltig_bis'])
 
                 if data.get('groesse_cm'):
                     try:
@@ -2879,20 +2980,10 @@ Antworte NUR mit dem JSON, ohne weitere Erklärungen."""
 
                 # Datumsfelder parsen
                 if data.get('geburtsdatum'):
-                    try:
-                        parts = data['geburtsdatum'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.geburtsdatum = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.geburtsdatum = safe_parse_date(data['geburtsdatum'])
 
                 if data.get('gueltig_bis'):
-                    try:
-                        parts = data['gueltig_bis'].split('.')
-                        if len(parts) == 3:
-                            personal_daten.gueltig_bis = date(int(parts[2]), int(parts[1]), int(parts[0]))
-                    except:
-                        pass
+                    personal_daten.gueltig_bis = safe_parse_date(data['gueltig_bis'])
 
                 if data.get('groesse_cm'):
                     try:
@@ -3503,8 +3594,11 @@ def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
         nachname = st.text_input("Nachname*", value=pd_vorne.nachname or pd_hinten.nachname, key=f"final_nachname_{widget_prefix}")
         geburtsname = st.text_input("Geburtsname", value=pd_vorne.geburtsname or pd_hinten.geburtsname, key=f"final_geburtsname_{widget_prefix}")
 
-        geb_datum = pd_vorne.geburtsdatum or pd_hinten.geburtsdatum or date(1980, 1, 1)
-        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, key=f"final_gebdat_{widget_prefix}")
+        geb_datum = validate_date_for_input(
+            pd_vorne.geburtsdatum or pd_hinten.geburtsdatum,
+            fallback=date(1980, 1, 1)
+        )
+        geburtsdatum = st.date_input("Geburtsdatum*", value=geb_datum, format="DD.MM.YYYY", key=f"final_gebdat_{widget_prefix}")
 
         geburtsort = st.text_input("Geburtsort", value=pd_vorne.geburtsort or pd_hinten.geburtsort, key=f"final_geburtsort_{widget_prefix}")
         nationalitaet = st.text_input("Nationalität", value=pd_vorne.nationalitaet or pd_hinten.nationalitaet or "DEUTSCH", key=f"final_nat_{widget_prefix}")
@@ -3520,8 +3614,11 @@ def render_ausweis_zusammenfassung(user_id: str, key_prefix: str = ""):
                                   index=0, key=f"final_ausweisart_{widget_prefix}")
         ausweisnummer = st.text_input("Ausweisnummer*", value=pd_hinten.ausweisnummer or pd_vorne.ausweisnummer, key=f"final_ausweisnr_{widget_prefix}")
 
-        gueltig_datum = pd_hinten.gueltig_bis or pd_vorne.gueltig_bis or date.today()
-        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, key=f"final_gueltig_{widget_prefix}")
+        gueltig_datum = validate_date_for_input(
+            pd_hinten.gueltig_bis or pd_vorne.gueltig_bis,
+            fallback=date.today() + timedelta(days=365*5)  # Default: 5 Jahre gültig
+        )
+        gueltig_bis = st.date_input("Gültig bis*", value=gueltig_datum, format="DD.MM.YYYY", key=f"final_gueltig_{widget_prefix}")
 
     # OCR-Rohtext anzeigen
     with st.expander("🔍 OCR-Rohtext anzeigen"):
@@ -6268,6 +6365,41 @@ def makler_projekte_view():
                     st.success("✅ Projekt-Einstellungen gespeichert!")
                     st.rerun()
 
+            # ===== VERBESSERUNG 3: MAKLER-EINSICHT PREISVERHANDLUNG =====
+            angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
+            if angebote:
+                with st.expander(f"💰 Preisverhandlung ({len(angebote)} Angebote)", expanded=False):
+                    # Aktueller Status
+                    letztes_angebot = angebote[0] if angebote else None
+                    angenommene = [a for a in angebote if a.status == PreisangebotStatus.ANGENOMMEN.value]
+
+                    if angenommene:
+                        einigung = angenommene[0]
+                        st.success(f"✅ **Preiseinigung erzielt:** {einigung.betrag:,.2f} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
+                    elif letztes_angebot and letztes_angebot.status == PreisangebotStatus.OFFEN.value:
+                        von_user = st.session_state.users.get(letztes_angebot.von_user_id)
+                        von_name = von_user.name if von_user else "Unbekannt"
+                        st.info(f"⏳ **Offenes Angebot:** {letztes_angebot.betrag:,.2f} € von {von_name} ({letztes_angebot.von_rolle})")
+
+                    # Vollständiger Verlauf
+                    st.markdown("**Verhandlungsverlauf:**")
+                    for angebot in angebote:
+                        von_user = st.session_state.users.get(angebot.von_user_id)
+                        von_name = von_user.name if von_user else "Unbekannt"
+                        status_icon = {
+                            PreisangebotStatus.OFFEN.value: "⏳",
+                            PreisangebotStatus.ANGENOMMEN.value: "✅",
+                            PreisangebotStatus.ABGELEHNT.value: "❌",
+                            PreisangebotStatus.GEGENANGEBOT.value: "💬",
+                            PreisangebotStatus.ZURUECKGEZOGEN.value: "🔙"
+                        }.get(angebot.status, "❓")
+
+                        st.markdown(f"""
+                        {status_icon} **{angebot.betrag:,.2f} €** - {von_name} ({angebot.von_rolle})
+                        - Status: {angebot.status} | {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+                        {"- *" + angebot.nachricht + "*" if angebot.nachricht else ""}
+                        """)
+
             st.markdown("---")
 
             # ===== EXPOSÉ-VERWALTUNG (DIREKT SICHTBAR) =====
@@ -7415,6 +7547,65 @@ def kaeufer_handwerker_empfehlungen():
                         mime="text/html",
                         key=f"steckbrief_{hw.handwerker_id}"
                     )
+
+                    # VERBESSERUNG 7: Bewertung abgeben
+                    # Prüfen ob Käufer schon bewertet hat
+                    meine_bewertung = None
+                    for bew in st.session_state.get('handwerker_bewertungen', {}).values():
+                        if bew.handwerker_id == hw.handwerker_id and bew.kaeufer_id == user_id:
+                            meine_bewertung = bew
+                            break
+
+                    if meine_bewertung:
+                        st.success(f"✅ Ihre Bewertung: {'⭐' * meine_bewertung.sterne}")
+                    else:
+                        if st.button("⭐ Bewerten", key=f"rate_btn_{hw.handwerker_id}"):
+                            st.session_state[f"show_rating_{hw.handwerker_id}"] = True
+
+                    if st.session_state.get(f"show_rating_{hw.handwerker_id}"):
+                        st.markdown("**Ihre Bewertung:**")
+                        new_rating = st.slider(
+                            "Sterne",
+                            min_value=1,
+                            max_value=5,
+                            value=4,
+                            key=f"rating_slider_{hw.handwerker_id}"
+                        )
+                        kommentar = st.text_area(
+                            "Kommentar (optional)",
+                            key=f"rating_comment_{hw.handwerker_id}",
+                            height=80
+                        )
+                        if st.button("💾 Bewertung speichern", key=f"save_rating_{hw.handwerker_id}"):
+                            # Bewertung speichern
+                            bewertung_id = f"hwbew_{len(st.session_state.get('handwerker_bewertungen', {}))}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                            neue_bewertung = HandwerkerBewertung(
+                                bewertung_id=bewertung_id,
+                                handwerker_id=hw.handwerker_id,
+                                kaeufer_id=user_id,
+                                projekt_id=meine_projekte[0].projekt_id if meine_projekte else "",
+                                sterne=new_rating,
+                                kommentar=kommentar
+                            )
+                            if 'handwerker_bewertungen' not in st.session_state:
+                                st.session_state.handwerker_bewertungen = {}
+                            st.session_state.handwerker_bewertungen[bewertung_id] = neue_bewertung
+
+                            # Durchschnittsbewertung aktualisieren
+                            alle_bewertungen = [
+                                b.sterne for b in st.session_state.handwerker_bewertungen.values()
+                                if b.handwerker_id == hw.handwerker_id
+                            ]
+                            hw.bewertung = round(sum(alle_bewertungen) / len(alle_bewertungen))
+                            hw.anzahl_bewertungen = len(alle_bewertungen)
+
+                            st.session_state[f"show_rating_{hw.handwerker_id}"] = False
+                            st.success("✅ Vielen Dank für Ihre Bewertung!")
+                            st.rerun()
+
+                # Anzahl Bewertungen anzeigen
+                if getattr(hw, 'anzahl_bewertungen', 0) > 0:
+                    st.caption(f"📊 {hw.anzahl_bewertungen} Bewertung(en)")
 
                 st.markdown("---")
 
@@ -9983,10 +10174,11 @@ def notar_dashboard():
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
+        "💰 Preiseinigungen",  # NEU: Verbesserung 4
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👥 Mitarbeiter",
-        "💰 Finanzierungsnachweise",
+        "💵 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📜 Kaufvertrag",
         "📅 Termine",
@@ -10004,39 +10196,42 @@ def notar_dashboard():
         notar_projekte_view()
 
     with tabs[2]:
-        notar_checklisten_view()
+        notar_preiseinigungen_view()  # NEU
 
     with tabs[3]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
+        notar_checklisten_view()
 
     with tabs[4]:
-        notar_mitarbeiter_view()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[5]:
-        notar_finanzierungsnachweise()
+        notar_mitarbeiter_view()
 
     with tabs[6]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[7]:
-        notar_kaufvertrag_generator()
+        notar_dokumenten_freigaben()
 
     with tabs[8]:
-        notar_termine()
+        notar_kaufvertrag_generator()
 
     with tabs[9]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[10]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[11]:
-        notar_ausweis_erfassung()
+        notar_handwerker_view()
 
     with tabs[12]:
-        notar_rechtsdokumente_view()
+        notar_ausweis_erfassung()
 
     with tabs[13]:
+        notar_rechtsdokumente_view()
+
+    with tabs[14]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -10097,6 +10292,108 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+def notar_preiseinigungen_view():
+    """VERBESSERUNG 4: Übersicht aller Preiseinigungen für Beurkundungsvorbereitung"""
+    st.subheader("💰 Preiseinigungen")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Statistik
+    col1, col2, col3 = st.columns(3)
+
+    einigungen = []
+    offene_verhandlungen = []
+    ohne_verhandlung = []
+
+    for projekt in projekte:
+        angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
+        angenommene = [a for a in angebote if a.status == PreisangebotStatus.ANGENOMMEN.value]
+        offene = [a for a in angebote if a.status == PreisangebotStatus.OFFEN.value]
+
+        if angenommene:
+            einigungen.append((projekt, angenommene[0]))
+        elif offene:
+            offene_verhandlungen.append((projekt, offene[0]))
+        else:
+            ohne_verhandlung.append(projekt)
+
+    with col1:
+        st.metric("✅ Mit Einigung", len(einigungen))
+    with col2:
+        st.metric("⏳ In Verhandlung", len(offene_verhandlungen))
+    with col3:
+        st.metric("📋 Ohne Verhandlung", len(ohne_verhandlung))
+
+    st.markdown("---")
+
+    # Einigungen (bereit für Beurkundung)
+    if einigungen:
+        st.markdown("### ✅ Bereit für Beurkundung")
+        for projekt, einigung in einigungen:
+            kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids if st.session_state.users.get(kid)]
+            verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids if st.session_state.users.get(vid)]
+
+            with st.expander(f"🏠 {projekt.name} - {einigung.betrag:,.2f} €", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Kaufpreis:** {einigung.betrag:,.2f} €")
+                    st.markdown(f"**Einigung am:** {einigung.beantwortet_am.strftime('%d.%m.%Y %H:%M') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
+                    st.markdown(f"**Adresse:** {projekt.adresse or 'Nicht angegeben'}")
+                with col2:
+                    st.markdown(f"**Käufer:** {', '.join(kaeufer_namen) or 'Keine'}")
+                    st.markdown(f"**Verkäufer:** {', '.join(verkaeufer_namen) or 'Keine'}")
+
+                # Button für Terminvorschlag
+                if st.button("📅 Beurkundungstermin vorschlagen", key=f"termin_einigung_{projekt.projekt_id}"):
+                    st.session_state[f"zeige_termin_form_{projekt.projekt_id}"] = True
+
+                if st.session_state.get(f"zeige_termin_form_{projekt.projekt_id}"):
+                    st.markdown("**Neuen Beurkundungstermin erstellen:**")
+                    termin_datum = st.date_input("Datum", value=date.today() + timedelta(days=14), key=f"notar_termin_datum_{projekt.projekt_id}")
+                    termin_uhrzeit = st.time_input("Uhrzeit", value=None, key=f"notar_termin_uhr_{projekt.projekt_id}")
+
+                    if st.button("✅ Termin vorschlagen", key=f"erstelle_termin_{projekt.projekt_id}"):
+                        # Termin erstellen (vereinfacht)
+                        create_notification(
+                            user_id=notar_id,
+                            titel="📅 Beurkundungstermin erstellt",
+                            nachricht=f"Termin für {projekt.name} am {termin_datum.strftime('%d.%m.%Y')} vorgeschlagen.",
+                            typ=NotificationType.SUCCESS.value
+                        )
+                        # Alle Parteien benachrichtigen
+                        for kid in projekt.kaeufer_ids:
+                            create_notification(kid, "📅 Beurkundungstermin", f"Der Notar schlägt einen Beurkundungstermin für {projekt.name} am {termin_datum.strftime('%d.%m.%Y')} vor.", NotificationType.INFO.value)
+                        for vid in projekt.verkaeufer_ids:
+                            create_notification(vid, "📅 Beurkundungstermin", f"Der Notar schlägt einen Beurkundungstermin für {projekt.name} am {termin_datum.strftime('%d.%m.%Y')} vor.", NotificationType.INFO.value)
+                        if projekt.makler_id:
+                            create_notification(projekt.makler_id, "📅 Beurkundungstermin", f"Beurkundungstermin für {projekt.name} am {termin_datum.strftime('%d.%m.%Y')} vorgeschlagen.", NotificationType.INFO.value)
+
+                        st.session_state[f"zeige_termin_form_{projekt.projekt_id}"] = False
+                        st.success("✅ Termin vorgeschlagen und alle Parteien benachrichtigt!")
+                        st.rerun()
+
+    # Offene Verhandlungen
+    if offene_verhandlungen:
+        st.markdown("---")
+        st.markdown("### ⏳ Laufende Verhandlungen")
+        for projekt, letztes in offene_verhandlungen:
+            von_user = st.session_state.users.get(letztes.von_user_id)
+            von_name = von_user.name if von_user else "Unbekannt"
+            st.info(f"**{projekt.name}**: Offenes Angebot von {von_name} ({letztes.von_rolle}) über {letztes.betrag:,.2f} €")
+
+    # Ohne Verhandlung
+    if ohne_verhandlung:
+        st.markdown("---")
+        st.markdown("### 📋 Ohne aktive Preisverhandlung")
+        for projekt in ohne_verhandlung:
+            st.write(f"• {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
 
 def notar_checklisten_view():
     """Notarielle Checklisten-Verwaltung"""

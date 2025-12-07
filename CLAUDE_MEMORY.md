@@ -23,7 +23,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ```
 /home/user/blank-app-1/
-├── streamlit_app.py      # Hauptanwendung (~11100+ Zeilen)
+├── streamlit_app.py      # Hauptanwendung (~12600 Zeilen)
 ├── requirements.txt      # Python-Abhängigkeiten
 ├── CLAUDE_MEMORY.md      # Diese Datei
 └── .gitignore
@@ -70,7 +70,10 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | **Rechtsdokument Akzeptanz-Status** | ~10754-10827 | render_rechtsdokument_akzeptanz_status() |
 | **Pflicht-Akzeptanz Funktionen** | ~10830-10953 | get_user_notar_ids(), check_rechtsdokumente_akzeptiert(), render_rechtsdokumente_akzeptanz_pflicht() |
 | **Notar-Einstellungen** | ~10956-11050 | API-Keys mit Hinweis zu st.secrets |
-| main() | ~11100 | Hauptfunktion mit Responsive Design Injection |
+| **Preisverhandlung Helper** | ~2361-2517 | kann_preisverhandlung_fuehren(), create_preisangebot(), respond_to_preisangebot() |
+| **Käufer Preisverhandlung UI** | ~7059-7168 | In kaeufer_projekte_view() |
+| **Verkäufer Preisverhandlung UI** | ~9188-9297 | In verkaeufer_projekte_view() |
+| main() | ~12500 | Hauptfunktion mit Responsive Design Injection |
 
 ---
 
@@ -318,7 +321,23 @@ st.session_state = {
 - [ ] Echte E-Mail-Versendung (SMTP)
 - [ ] PDF-Exposé-Generierung (reportlab/weasyprint)
 
+### Verbesserungsvorschläge (NEU - 2025-12-06)
+- [ ] **Preisübernahme:** Vereinbarter Preis automatisch als neuer kaufpreis im Projekt setzen
+- [ ] **E-Mail-Benachrichtigungen:** Für Preisangebote, Rechtsdokument-Akzeptanz, Termine
+- [ ] **Makler-Einsicht:** Preisverhandlungsverlauf für Makler lesend einsehbar
+- [ ] **PDF-Export:** Handwerker-Steckbrief und Exposé als PDF (WeasyPrint/ReportLab)
+- [ ] **Automatische Ablehnung:** Offene Angebote bei Kaufpreisänderung als "veraltet" markieren
+- [ ] **Notar-Preisübersicht:** Tab für Preiseinigungen zur Beurkundungsvorbereitung
+- [ ] **Handwerker-Bewertung:** Käufer können nach Abschluss Handwerker bewerten
+- [ ] **Terminvorschlag nach Einigung:** Nach Preiseinigung automatischer Notartermin-Vorschlag
+
 ### Behoben (2025-12-06 - Aktuelle Session)
+- [x] **Preisverhandlung:** Käufer/Verkäufer können Preise verhandeln (ohne Makler immer, mit Makler nur wenn erlaubt)
+- [x] **Benachrichtigungen:** Bei Rechtsdokument-Akzeptanz (User + Notar)
+- [x] **Druckfunktionen:** Handwerker-Steckbrief + Exposé als HTML downloadbar
+- [x] **Demo-Modus Toggle:** In Notar-Einstellungen AN/AUS
+- [x] **Optionale Rechtsdokument-Pflicht:** Makler kann pro Projekt entscheiden
+- [x] **Umzug/Reinigung:** Neue Handwerker-Kategorien mit Demo-Daten
 - [x] **Handwerker nicht sichtbar für Käufer:** → Filterung nach Notar + Demo-Daten
 - [x] **Makler/Notar können keine Ausweise scannen:** → Neue Tabs in beiden Dashboards
 - [x] **Keine Rechtsdokumente-Verwaltung:** → Notar-Tab mit Editor und Akzeptanz-Status
@@ -363,6 +382,7 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
+| 473ba6b | Add price negotiation, notifications, print functions, and demo mode |
 | e6612d1 | Add financing/legal gating features for Käufer/Verkäufer |
 | 1015ebd | Add session persistence and API key improvements |
 | 6f8e544 | Fix AttributeError: projekt.verkaeufer_id changed to verkaeufer_ids |
