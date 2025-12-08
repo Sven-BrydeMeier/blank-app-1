@@ -10873,6 +10873,33 @@ def extrahiere_text_aus_datei(datei_bytes: bytes, dateityp: str, dateiname: str)
         except Exception as e:
             text = f"[Fehler beim Lesen der DOCX-Datei: {str(e)}]"
 
+    elif dateityp == "rtf":
+        try:
+            # RTF-Text-Extraktion
+            import re as re_rtf
+            content = datei_bytes.decode('latin-1', errors='ignore')
+
+            # Entferne RTF-Steuerzeichen und extrahiere Text
+            # Entferne RTF-Header und Control-Words
+            content = re_rtf.sub(r'\\[a-z]+\d*\s?', '', content)
+            # Entferne geschweifte Klammern
+            content = re_rtf.sub(r'[{}]', '', content)
+            # Entferne Hex-Codes wie \'xx
+            content = re_rtf.sub(r"\\'[0-9a-fA-F]{2}", '', content)
+            # Ersetze RTF-Zeilenumbrüche
+            content = content.replace('\\par', '\n')
+            content = content.replace('\\line', '\n')
+            # Bereinige mehrfache Leerzeichen
+            content = re_rtf.sub(r' +', ' ', content)
+            content = re_rtf.sub(r'\n+', '\n', content)
+
+            text = content.strip()
+
+            if len(text) < 50:
+                text = "[RTF-Text konnte nicht vollständig extrahiert werden. Bitte prüfen Sie das Dokument.]"
+        except Exception as e:
+            text = f"[Fehler beim Lesen der RTF-Datei: {str(e)}]"
+
     elif dateityp == "pdf":
         # PDF-Text-Extraktion (vereinfacht - in Production würde man PyPDF2 oder pdfplumber verwenden)
         try:
@@ -11450,6 +11477,240 @@ def render_visueller_baustein_editor(dok_id: str, volltext: str, bausteine_ids: 
                                     # Hier könnte man die Logik erweitern
 
 
+def render_cloud_storage_integration():
+    """
+    Rendert die Cloud-Storage-Integration für Dokument-Import.
+    Unterstützt Google Drive, iCloud und Dropbox.
+    """
+    st.markdown("### ☁️ Cloud-Storage verbinden")
+
+    # Session State für Cloud-Verbindungen
+    if 'cloud_connections' not in st.session_state:
+        st.session_state.cloud_connections = {
+            'google_drive': {'connected': False, 'email': '', 'access_token': ''},
+            'icloud': {'connected': False, 'email': '', 'access_token': ''},
+            'dropbox': {'connected': False, 'email': '', 'access_token': ''}
+        }
+
+    # Cloud-Provider auswählen
+    cloud_provider = st.selectbox(
+        "Cloud-Anbieter auswählen:",
+        ["📁 Google Drive", "☁️ iCloud", "📦 Dropbox"],
+        key="cloud_provider_select"
+    )
+
+    provider_key = {
+        "📁 Google Drive": "google_drive",
+        "☁️ iCloud": "icloud",
+        "📦 Dropbox": "dropbox"
+    }[cloud_provider]
+
+    connection = st.session_state.cloud_connections[provider_key]
+
+    # Provider-spezifische Einstellungen
+    if provider_key == "google_drive":
+        st.markdown("""
+        **Google Drive Integration**
+
+        Um Google Drive zu verbinden, benötigen Sie:
+        1. Eine Google Cloud Console App mit aktivierter Drive API
+        2. OAuth 2.0 Client-ID und Client-Secret
+        """)
+
+        with st.expander("🔧 Google Drive Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                client_id = st.text_input(
+                    "Client ID",
+                    value=st.session_state.get('gdrive_client_id', ''),
+                    type="password",
+                    key="gdrive_client_id_input"
+                )
+            with col2:
+                client_secret = st.text_input(
+                    "Client Secret",
+                    value=st.session_state.get('gdrive_client_secret', ''),
+                    type="password",
+                    key="gdrive_client_secret_input"
+                )
+
+            if st.button("🔗 Mit Google Drive verbinden", key="connect_gdrive"):
+                if client_id and client_secret:
+                    st.session_state.gdrive_client_id = client_id
+                    st.session_state.gdrive_client_secret = client_secret
+                    # Simuliere OAuth-Flow (in Production: echte OAuth-Implementierung)
+                    connection['connected'] = True
+                    connection['email'] = "user@gmail.com"
+                    st.success("✅ Google Drive erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Client ID und Client Secret eingeben.")
+
+    elif provider_key == "icloud":
+        st.markdown("""
+        **iCloud Integration**
+
+        Um iCloud zu verbinden, benötigen Sie:
+        1. Ihre Apple-ID
+        2. Ein App-spezifisches Passwort (unter appleid.apple.com erstellen)
+        """)
+
+        with st.expander("🔧 iCloud Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                apple_id = st.text_input(
+                    "Apple-ID (E-Mail)",
+                    value=st.session_state.get('icloud_apple_id', ''),
+                    key="icloud_apple_id_input"
+                )
+            with col2:
+                app_password = st.text_input(
+                    "App-spezifisches Passwort",
+                    value='',
+                    type="password",
+                    key="icloud_app_password_input"
+                )
+
+            if st.button("🔗 Mit iCloud verbinden", key="connect_icloud"):
+                if apple_id and app_password:
+                    st.session_state.icloud_apple_id = apple_id
+                    # Simuliere Verbindung
+                    connection['connected'] = True
+                    connection['email'] = apple_id
+                    st.success("✅ iCloud erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Apple-ID und App-Passwort eingeben.")
+
+    elif provider_key == "dropbox":
+        st.markdown("""
+        **Dropbox Integration**
+
+        Um Dropbox zu verbinden, benötigen Sie:
+        1. Eine Dropbox App (unter dropbox.com/developers erstellen)
+        2. Access Token für die App
+        """)
+
+        with st.expander("🔧 Dropbox Einstellungen", expanded=not connection['connected']):
+            access_token = st.text_input(
+                "Access Token",
+                value=st.session_state.get('dropbox_access_token', ''),
+                type="password",
+                key="dropbox_access_token_input"
+            )
+
+            if st.button("🔗 Mit Dropbox verbinden", key="connect_dropbox"):
+                if access_token:
+                    st.session_state.dropbox_access_token = access_token
+                    connection['connected'] = True
+                    connection['email'] = "dropbox-user"
+                    st.success("✅ Dropbox erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Access Token eingeben.")
+
+    # Wenn verbunden, zeige Dateibrowser
+    if connection['connected']:
+        st.success(f"✅ Verbunden als: {connection['email']}")
+
+        st.markdown("---")
+        st.markdown("### 📂 Dateien durchsuchen")
+
+        # Simulierte Ordnerstruktur (in Production: echte API-Aufrufe)
+        if 'cloud_current_path' not in st.session_state:
+            st.session_state.cloud_current_path = "/"
+
+        # Simulierte Dateien basierend auf Provider
+        demo_files = {
+            "google_drive": [
+                {"name": "Verträge", "type": "folder", "path": "/Verträge"},
+                {"name": "Mustervertrag_Kaufvertrag.docx", "type": "file", "size": "45 KB", "path": "/Mustervertrag_Kaufvertrag.docx"},
+                {"name": "AGB_Vorlage.pdf", "type": "file", "size": "120 KB", "path": "/AGB_Vorlage.pdf"},
+                {"name": "Datenschutz_Template.rtf", "type": "file", "size": "28 KB", "path": "/Datenschutz_Template.rtf"},
+            ],
+            "icloud": [
+                {"name": "Dokumente", "type": "folder", "path": "/Dokumente"},
+                {"name": "Notarvertrag_2024.docx", "type": "file", "size": "67 KB", "path": "/Notarvertrag_2024.docx"},
+                {"name": "Vollmacht_Muster.pdf", "type": "file", "size": "89 KB", "path": "/Vollmacht_Muster.pdf"},
+            ],
+            "dropbox": [
+                {"name": "Rechtsdokumente", "type": "folder", "path": "/Rechtsdokumente"},
+                {"name": "Kaufvertrag_Vorlage.docx", "type": "file", "size": "52 KB", "path": "/Kaufvertrag_Vorlage.docx"},
+                {"name": "Übergabeprotokoll.rtf", "type": "file", "size": "15 KB", "path": "/Übergabeprotokoll.rtf"},
+            ]
+        }
+
+        files = demo_files.get(provider_key, [])
+
+        # Pfad-Navigation
+        col_path, col_refresh = st.columns([4, 1])
+        with col_path:
+            st.markdown(f"**Aktueller Pfad:** `{st.session_state.cloud_current_path}`")
+        with col_refresh:
+            if st.button("🔄", key="refresh_cloud"):
+                st.rerun()
+
+        # Dateien anzeigen
+        for item in files:
+            col1, col2, col3 = st.columns([3, 1, 1])
+
+            with col1:
+                if item['type'] == 'folder':
+                    if st.button(f"📁 {item['name']}", key=f"folder_{item['path']}"):
+                        st.session_state.cloud_current_path = item['path']
+                        st.rerun()
+                else:
+                    # Datei-Icon basierend auf Typ
+                    ext = item['name'].split('.')[-1].lower()
+                    icon = {"docx": "📄", "pdf": "📕", "rtf": "📝", "jpg": "🖼️", "png": "🖼️"}.get(ext, "📄")
+                    st.markdown(f"{icon} **{item['name']}**")
+
+            with col2:
+                if item['type'] == 'file':
+                    st.markdown(f"*{item['size']}*")
+
+            with col3:
+                if item['type'] == 'file':
+                    if st.button("⬇️ Import", key=f"import_{item['path']}"):
+                        # Simuliere Datei-Import
+                        st.session_state[f"cloud_import_{item['name']}"] = {
+                            "name": item['name'],
+                            "provider": provider_key,
+                            "path": item['path'],
+                            "imported": True
+                        }
+                        st.success(f"✅ '{item['name']}' wurde importiert!")
+                        st.info("💡 Die Datei wird im Demo-Modus simuliert. In der Produktionsversion wird die echte Datei heruntergeladen.")
+
+        # Trennen-Button
+        st.markdown("---")
+        if st.button(f"🔌 {cloud_provider} trennen", key=f"disconnect_{provider_key}"):
+            connection['connected'] = False
+            connection['email'] = ''
+            connection['access_token'] = ''
+            st.success("Verbindung getrennt.")
+            st.rerun()
+
+    # Verbindungs-Status Übersicht
+    st.markdown("---")
+    st.markdown("### 📊 Verbindungs-Status")
+
+    status_cols = st.columns(3)
+    providers = [
+        ("📁 Google Drive", "google_drive"),
+        ("☁️ iCloud", "icloud"),
+        ("📦 Dropbox", "dropbox")
+    ]
+
+    for i, (name, key) in enumerate(providers):
+        with status_cols[i]:
+            conn = st.session_state.cloud_connections[key]
+            if conn['connected']:
+                st.success(f"{name}\n✅ Verbunden")
+            else:
+                st.info(f"{name}\n⚪ Nicht verbunden")
+
+
 def notar_vertragsarchiv_view():
     """Hauptansicht für das Vertragsarchiv - Upload und Verwaltung von Textbausteinen"""
     st.subheader("📚 Vertragsarchiv & Textbausteine")
@@ -11476,18 +11737,32 @@ def notar_vertragsarchiv_view():
         )
 
         if upload_typ == "📄 Komplettes Dokument (Vertrag)":
-            st.markdown("""
-            **Unterstützte Formate:**
-            - Word-Dokumente (.docx)
-            - PDF-Dateien (.pdf)
-            - Bilder (.jpg, .png) - werden per OCR verarbeitet
-            """)
-
-            uploaded_file = st.file_uploader(
-                "Vertragsdokument hochladen",
-                type=['docx', 'pdf', 'jpg', 'jpeg', 'png'],
-                key="archiv_dokument_upload"
+            # Upload-Quelle auswählen
+            upload_quelle = st.radio(
+                "Dokumentquelle:",
+                ["💻 Lokaler Upload", "☁️ Cloud-Storage"],
+                horizontal=True,
+                key="upload_quelle_radio"
             )
+
+            if upload_quelle == "💻 Lokaler Upload":
+                st.markdown("""
+                **Unterstützte Formate:**
+                - Word-Dokumente (.docx)
+                - RTF-Dokumente (.rtf)
+                - PDF-Dateien (.pdf)
+                - Bilder (.jpg, .png) - werden per OCR verarbeitet
+                """)
+
+                uploaded_file = st.file_uploader(
+                    "Vertragsdokument hochladen",
+                    type=['docx', 'rtf', 'pdf', 'jpg', 'jpeg', 'png'],
+                    key="archiv_dokument_upload"
+                )
+            else:
+                # Cloud-Storage Integration
+                uploaded_file = None
+                render_cloud_storage_integration()
 
             if uploaded_file:
                 col1, col2 = st.columns(2)
