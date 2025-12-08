@@ -1730,6 +1730,233 @@ class VerkäuferDokument:
     status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
 
 # ============================================================================
+# VERTRAGSARCHIV & TEXTBAUSTEINE
+# ============================================================================
+
+class VertragsTyp(Enum):
+    """Vertragstypen für Kategorisierung von Textbausteinen"""
+    KAUFVERTRAG = "Kaufvertrag"
+    UEBERLASSUNGSVERTRAG = "Überlassungsvertrag"
+    ERBVERTRAG = "Erbvertrag"
+    SCHENKUNGSVERTRAG = "Schenkungsvertrag"
+    MIETVERTRAG = "Mietvertrag"
+    GRUNDSTUECKSKAUFVERTRAG = "Grundstückskaufvertrag"
+    WOHNUNGSKAUFVERTRAG = "Wohnungskaufvertrag"
+    BAUTRAEGERVERTRAG = "Bauträgervertrag"
+    TEILUNGSERKLAERUNG = "Teilungserklärung"
+    VOLLMACHT = "Vollmacht"
+    SONSTIGES = "Sonstiges"
+
+class TextbausteinKategorie(Enum):
+    """Kategorien für Textbausteine (Regelungsinhalte)"""
+    VERTRAGSPARTEIEN = "Vertragsparteien"
+    KAUFGEGENSTAND = "Kaufgegenstand"
+    KAUFPREIS = "Kaufpreis & Zahlung"
+    ZAHLUNGSMODALITAETEN = "Zahlungsmodalitäten"
+    FÄLLIGKEIT = "Fälligkeit"
+    AUFLASSUNG = "Auflassung & Eigentumsübergang"
+    BESITZUEBERGANG = "Besitzübergang"
+    HAFTUNG = "Haftung & Gewährleistung"
+    MAENGEL = "Mängelhaftung"
+    RUECKTRITT = "Rücktritt & Aufhebung"
+    VERTRAGSSTRAFE = "Vertragsstrafe"
+    KOSTEN = "Kosten & Steuern"
+    BELASTUNGEN = "Belastungen & Lasten"
+    GRUNDBUCH = "Grundbuch"
+    ERSCHLIESSUNG = "Erschließung"
+    BAULAST = "Baulasten"
+    VORKAUFSRECHT = "Vorkaufsrecht"
+    VOLLMACHTEN = "Vollmachten"
+    SCHLUSSBESTIMMUNGEN = "Schlussbestimmungen"
+    SALVATORISCH = "Salvatorische Klausel"
+    SONSTIGES = "Sonstiges"
+
+class TextbausteinStatus(Enum):
+    """Status eines Textbausteins"""
+    ENTWURF = "Entwurf"  # Neu hochgeladen, nicht geprüft
+    PRUEFUNG = "In Prüfung"  # Vom Notar zur Prüfung markiert
+    FREIGEGEBEN = "Freigegeben"  # Vom Notar freigegeben
+    AKTUALISIERUNG = "Update verfügbar"  # KI hat Update gefunden
+    ABGELEHNT = "Abgelehnt"  # Vom Notar abgelehnt
+    ARCHIVIERT = "Archiviert"  # Nicht mehr verwendet
+
+@dataclass
+class Textbaustein:
+    """Ein Textbaustein (Klausel) für Verträge"""
+    baustein_id: str
+    notar_id: str  # Eigentümer/Ersteller
+
+    # Inhalt
+    titel: str  # Überschrift des Bausteins
+    text: str  # Der eigentliche Klauseltext
+    zusammenfassung: str = ""  # KI-generierte Kurzbeschreibung
+
+    # Kategorisierung
+    kategorie: str = TextbausteinKategorie.SONSTIGES.value  # Regelungsinhalt
+    vertragstypen: List[str] = field(default_factory=list)  # In welchen Vertragsarten verwendbar
+
+    # Herkunft & Kontext
+    quelle_dokument_id: Optional[str] = None  # Falls aus Vertrag extrahiert
+    position_im_dokument: int = 0  # Position im Ursprungsdokument
+    vorgaenger_baustein_id: Optional[str] = None  # Vorheriger Baustein im Ursprung
+    nachfolger_baustein_id: Optional[str] = None  # Nächster Baustein im Ursprung
+
+    # Status & Freigabe
+    status: str = TextbausteinStatus.ENTWURF.value
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von: str = ""  # User-ID des Notars
+
+    # Verknüpfungen
+    verwendet_in_vertraegen: List[str] = field(default_factory=list)  # Vertrags-IDs
+    duplikat_von: Optional[str] = None  # Falls als Duplikat erkannt
+    aehnliche_bausteine: List[str] = field(default_factory=list)  # Ähnliche Baustein-IDs
+
+    # KI-Metadaten
+    ki_generiert: bool = False  # Wurde Titel/Zusammenfassung von KI erstellt
+    ki_kategorisiert: bool = False  # Wurde Kategorie von KI vorgeschlagen
+    ki_update_vorschlag: str = ""  # Vorgeschlagenes Update von KI
+    ki_update_quelle: str = ""  # Quelle des Updates
+    ki_update_datum: Optional[datetime] = None
+
+    # Versionen
+    version: int = 1
+    vorherige_version_id: Optional[str] = None  # Für Versionsverlauf
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""  # User-ID des Erstellers (Mitarbeiter oder Notar)
+    notizen: str = ""  # Interne Notizen
+
+    # Text-Hash für Duplikaterkennung
+    text_hash: str = ""
+
+@dataclass
+class VertragsDokument:
+    """Ein hochgeladenes Vertragsdokument"""
+    dokument_id: str
+    notar_id: str
+
+    # Datei-Informationen
+    dateiname: str
+    dateityp: str  # "docx", "pdf", "image"
+    dateigroesse: int
+    datei_bytes: Optional[bytes] = None
+
+    # Extrahierter Text
+    volltext: str = ""
+    ocr_durchgefuehrt: bool = False
+
+    # Kategorisierung
+    vertragstyp: str = VertragsTyp.SONSTIGES.value
+    beschreibung: str = ""
+
+    # Zerlegung in Bausteine
+    zerlegt: bool = False  # Wurde in Bausteine aufgeteilt
+    baustein_ids: List[str] = field(default_factory=list)  # Extrahierte Bausteine
+    anzahl_erkannte_klauseln: int = 0
+
+    # Status
+    status: str = "Hochgeladen"  # Hochgeladen, In Verarbeitung, Verarbeitet, Fehler
+    fehler_meldung: str = ""
+
+    # Metadaten
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    hochgeladen_von: str = ""  # User-ID
+    verarbeitet_am: Optional[datetime] = None
+
+@dataclass
+class VertragsVorlage:
+    """Eine Vertragsvorlage aus Textbausteinen"""
+    vorlage_id: str
+    notar_id: str
+
+    # Basis-Informationen
+    name: str
+    beschreibung: str = ""
+    vertragstyp: str = VertragsTyp.KAUFVERTRAG.value
+
+    # Struktur: Liste von Baustein-IDs in Reihenfolge
+    baustein_ids: List[str] = field(default_factory=list)
+
+    # Oder: Freier Text mit Platzhaltern
+    vorlage_text: str = ""  # Falls nicht aus Bausteinen zusammengesetzt
+
+    # Platzhalter-Definitionen
+    platzhalter: Dict[str, str] = field(default_factory=dict)  # {name: beschreibung}
+
+    # Status
+    freigegeben: bool = False
+    freigegeben_am: Optional[datetime] = None
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+    version: int = 1
+
+class VertragsentwurfStatus(Enum):
+    """Status eines Vertragsentwurfs"""
+    ENTWURF = "Entwurf"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    PRUEFUNG = "Zur Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    VERSENDET = "Versendet"
+    UNTERZEICHNET = "Unterzeichnet"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class Vertragsentwurf:
+    """Ein konkreter Vertragsentwurf für ein Projekt"""
+    entwurf_id: str
+    notar_id: str
+    projekt_id: str  # Zugehöriges Immobilien-Projekt
+
+    # Basis-Informationen
+    name: str
+    vertragstyp: str = VertragsTyp.KAUFVERTRAG.value
+
+    # Inhalt
+    volltext: str = ""  # Der vollständige Vertragstext
+    baustein_ids: List[str] = field(default_factory=list)  # Verwendete Bausteine
+    vorlage_id: Optional[str] = None  # Falls aus Vorlage erstellt
+
+    # Parteien-spezifische Daten (ausgefüllte Platzhalter)
+    platzhalter_werte: Dict[str, str] = field(default_factory=dict)
+
+    # Besondere Wünsche
+    kaeufer_wuensche: List[str] = field(default_factory=list)
+    verkaeufer_wuensche: List[str] = field(default_factory=list)
+
+    # Status & Workflow
+    status: str = VertragsentwurfStatus.ENTWURF.value
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von: str = ""
+
+    # Versand
+    versendet_an: List[str] = field(default_factory=list)  # User-IDs
+    versendet_am: Optional[datetime] = None
+
+    # PDF-Version
+    pdf_data: Optional[bytes] = None
+    pdf_generiert_am: Optional[datetime] = None
+
+    # KI-Generiert
+    ki_generiert: bool = False
+    ki_prompt: str = ""  # Falls KI-generiert, der verwendete Prompt
+
+    # Versionen
+    version: int = 1
+    vorherige_version_id: Optional[str] = None
+    aenderungshistorie: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+    notizen: str = ""
+
+# ============================================================================
 # SESSION PERSISTENZ (COOKIES/LOCAL STORAGE)
 # ============================================================================
 
@@ -1931,6 +2158,14 @@ def init_session_state():
 
         # Notar-Rechtsdokumente (Datenschutz, AGB, Widerruf)
         st.session_state.notar_rechtsdokumente = {}
+
+        # ============================================================
+        # VERTRAGSARCHIV & TEXTBAUSTEINE
+        # ============================================================
+        st.session_state.textbausteine = {}  # baustein_id -> Textbaustein
+        st.session_state.vertragsdokumente = {}  # dokument_id -> VertragsDokument
+        st.session_state.vertragsvorlagen = {}  # vorlage_id -> VertragsVorlage
+        st.session_state.vertragsentwuerfe = {}  # entwurf_id -> Vertragsentwurf
 
         # Demo-Daten
         create_demo_users()
@@ -10174,7 +10409,9 @@ def notar_dashboard():
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
-        "💰 Preiseinigungen",  # NEU: Verbesserung 4
+        "💰 Preiseinigungen",
+        "📚 Vertragsarchiv",  # NEU: Textbausteine & Dokumente
+        "📝 Vertragserstellung",  # NEU: Verträge aus Bausteinen erstellen
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👥 Mitarbeiter",
@@ -10196,42 +10433,48 @@ def notar_dashboard():
         notar_projekte_view()
 
     with tabs[2]:
-        notar_preiseinigungen_view()  # NEU
+        notar_preiseinigungen_view()
 
     with tabs[3]:
-        notar_checklisten_view()
+        notar_vertragsarchiv_view()  # NEU
 
     with tabs[4]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
+        notar_vertragserstellung_view()  # NEU
 
     with tabs[5]:
-        notar_mitarbeiter_view()
+        notar_checklisten_view()
 
     with tabs[6]:
-        notar_finanzierungsnachweise()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[7]:
-        notar_dokumenten_freigaben()
+        notar_mitarbeiter_view()
 
     with tabs[8]:
-        notar_kaufvertrag_generator()
+        notar_finanzierungsnachweise()
 
     with tabs[9]:
-        notar_termine()
+        notar_dokumenten_freigaben()
 
     with tabs[10]:
-        notar_makler_empfehlung_view()
+        notar_kaufvertrag_generator()
 
     with tabs[11]:
-        notar_handwerker_view()
+        notar_termine()
 
     with tabs[12]:
-        notar_ausweis_erfassung()
+        notar_makler_empfehlung_view()
 
     with tabs[13]:
-        notar_rechtsdokumente_view()
+        notar_handwerker_view()
 
     with tabs[14]:
+        notar_ausweis_erfassung()
+
+    with tabs[15]:
+        notar_rechtsdokumente_view()
+
+    with tabs[16]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -10393,6 +10636,1314 @@ def notar_preiseinigungen_view():
         st.markdown("### 📋 Ohne aktive Preisverhandlung")
         for projekt in ohne_verhandlung:
             st.write(f"• {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
+
+# ============================================================================
+# VERTRAGSARCHIV & TEXTBAUSTEINE
+# ============================================================================
+
+def berechne_text_hash(text: str) -> str:
+    """Berechnet einen Hash für Duplikaterkennung"""
+    # Normalisiere Text: Kleinbuchstaben, entferne mehrfache Leerzeichen
+    normalized = ' '.join(text.lower().split())
+    return hashlib.md5(normalized.encode()).hexdigest()
+
+
+def finde_aehnliche_bausteine(text: str, notar_id: str, schwellenwert: float = 0.8) -> List[Tuple[str, float]]:
+    """Findet ähnliche Textbausteine basierend auf einfachem Textvergleich"""
+    aehnliche = []
+    text_hash = berechne_text_hash(text)
+    text_words = set(text.lower().split())
+
+    for baustein in st.session_state.textbausteine.values():
+        if baustein.notar_id != notar_id:
+            continue
+
+        # Exakter Match
+        if baustein.text_hash == text_hash:
+            aehnliche.append((baustein.baustein_id, 1.0))
+            continue
+
+        # Wort-basierte Ähnlichkeit (Jaccard)
+        baustein_words = set(baustein.text.lower().split())
+        if len(text_words) > 0 and len(baustein_words) > 0:
+            intersection = len(text_words & baustein_words)
+            union = len(text_words | baustein_words)
+            similarity = intersection / union if union > 0 else 0
+
+            if similarity >= schwellenwert:
+                aehnliche.append((baustein.baustein_id, similarity))
+
+    return sorted(aehnliche, key=lambda x: x[1], reverse=True)
+
+
+def extrahiere_text_aus_datei(datei_bytes: bytes, dateityp: str, dateiname: str) -> str:
+    """Extrahiert Text aus verschiedenen Dateiformaten"""
+    text = ""
+
+    if dateityp == "docx":
+        try:
+            # Versuche docx zu parsen (einfache XML-Extraktion)
+            import zipfile
+            from xml.etree import ElementTree
+
+            with zipfile.ZipFile(io.BytesIO(datei_bytes)) as docx:
+                if 'word/document.xml' in docx.namelist():
+                    with docx.open('word/document.xml') as doc:
+                        tree = ElementTree.parse(doc)
+                        root = tree.getroot()
+                        # Namespace für Word-Dokumente
+                        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+                        paragraphs = root.findall('.//w:p', ns)
+                        for p in paragraphs:
+                            texts = p.findall('.//w:t', ns)
+                            para_text = ''.join(t.text or '' for t in texts)
+                            if para_text.strip():
+                                text += para_text + "\n"
+        except Exception as e:
+            text = f"[Fehler beim Lesen der DOCX-Datei: {str(e)}]"
+
+    elif dateityp == "pdf":
+        # PDF-Text-Extraktion (vereinfacht - in Production würde man PyPDF2 oder pdfplumber verwenden)
+        try:
+            # Versuche einfache Text-Extraktion aus PDF
+            content = datei_bytes.decode('latin-1', errors='ignore')
+            # Suche nach Text-Streams
+            import re
+            text_pattern = re.compile(r'\((.*?)\)', re.DOTALL)
+            matches = text_pattern.findall(content)
+            text = ' '.join(matches[:100])  # Begrenzen
+            if len(text) < 100:
+                text = "[PDF-Text konnte nicht automatisch extrahiert werden. Bitte OCR verwenden oder Text manuell eingeben.]"
+        except Exception:
+            text = "[PDF-Verarbeitung fehlgeschlagen]"
+
+    elif dateityp in ["image", "jpg", "jpeg", "png"]:
+        text = "[Bild-Datei erkannt. OCR-Verarbeitung erforderlich für Textextraktion.]"
+
+    return text.strip()
+
+
+def ki_analysiere_textbaustein(text: str) -> Dict[str, Any]:
+    """Verwendet KI um Titel, Zusammenfassung und Kategorie für einen Textbaustein zu generieren"""
+    api_key = st.session_state.api_keys.get('openai', '')
+
+    if not api_key:
+        # Fallback: Einfache Heuristik
+        return ki_analysiere_textbaustein_fallback(text)
+
+    try:
+        import urllib.request
+        import json as json_module
+
+        prompt = f"""Analysiere den folgenden juristischen Textbaustein aus einem notariellen Vertrag und gib folgende Informationen zurück:
+
+1. TITEL: Ein kurzer, prägnanter Titel (max. 50 Zeichen) der den Regelungsinhalt beschreibt
+2. ZUSAMMENFASSUNG: Eine kurze Zusammenfassung in 1-2 Sätzen
+3. KATEGORIE: Eine der folgenden Kategorien:
+   - Vertragsparteien
+   - Kaufgegenstand
+   - Kaufpreis & Zahlung
+   - Zahlungsmodalitäten
+   - Fälligkeit
+   - Auflassung & Eigentumsübergang
+   - Besitzübergang
+   - Haftung & Gewährleistung
+   - Mängelhaftung
+   - Rücktritt & Aufhebung
+   - Vertragsstrafe
+   - Kosten & Steuern
+   - Belastungen & Lasten
+   - Grundbuch
+   - Erschließung
+   - Baulasten
+   - Vorkaufsrecht
+   - Vollmachten
+   - Schlussbestimmungen
+   - Salvatorische Klausel
+   - Sonstiges
+4. VERTRAGSTYPEN: Liste der Vertragstypen, in denen dieser Baustein typischerweise vorkommt (Kaufvertrag, Überlassungsvertrag, Erbvertrag, Schenkungsvertrag, etc.)
+
+TEXT:
+{text[:2000]}
+
+Antworte im JSON-Format:
+{{"titel": "...", "zusammenfassung": "...", "kategorie": "...", "vertragstypen": ["...", "..."]}}"""
+
+        request_data = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 500
+        }
+
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json_module.dumps(request_data).encode('utf-8'),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json_module.loads(response.read().decode('utf-8'))
+            content = result['choices'][0]['message']['content']
+
+            # Parse JSON aus Antwort
+            # Entferne mögliche Markdown-Code-Blöcke
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0]
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0]
+
+            parsed = json_module.loads(content.strip())
+            return {
+                'titel': parsed.get('titel', 'Unbenannter Baustein'),
+                'zusammenfassung': parsed.get('zusammenfassung', ''),
+                'kategorie': parsed.get('kategorie', 'Sonstiges'),
+                'vertragstypen': parsed.get('vertragstypen', []),
+                'ki_generiert': True
+            }
+
+    except Exception as e:
+        # Fallback bei Fehler
+        return ki_analysiere_textbaustein_fallback(text)
+
+
+def ki_analysiere_textbaustein_fallback(text: str) -> Dict[str, Any]:
+    """Fallback-Analyse ohne KI - basiert auf Schlüsselwörtern"""
+    text_lower = text.lower()
+
+    # Kategorie-Erkennung basierend auf Schlüsselwörtern
+    kategorie = "Sonstiges"
+    kategorie_keywords = {
+        "Vertragsparteien": ["käufer", "verkäufer", "erschienen", "handelt", "vertreten durch"],
+        "Kaufgegenstand": ["kaufgegenstand", "grundstück", "wohnung", "immobilie", "objekt"],
+        "Kaufpreis & Zahlung": ["kaufpreis", "euro", "zahlung", "betrag"],
+        "Zahlungsmodalitäten": ["ratenzahlung", "zahlung in", "teilbetrag"],
+        "Fälligkeit": ["fällig", "fälligkeit", "zahlbar bis"],
+        "Auflassung & Eigentumsübergang": ["auflassung", "eigentumsübergang", "grundbucheintrag"],
+        "Besitzübergang": ["besitzübergang", "übergabe", "besitz geht über"],
+        "Haftung & Gewährleistung": ["haftung", "gewährleistung", "haftet"],
+        "Mängelhaftung": ["mängel", "sachmangel", "rechtsmangel"],
+        "Rücktritt & Aufhebung": ["rücktritt", "aufhebung", "rücktrittsrecht"],
+        "Vertragsstrafe": ["vertragsstrafe", "konventionalstrafe"],
+        "Kosten & Steuern": ["kosten", "steuer", "grunderwerbsteuer", "notarkosten"],
+        "Belastungen & Lasten": ["belastung", "lasten", "dienstbarkeit"],
+        "Grundbuch": ["grundbuch", "eintragung", "löschung"],
+        "Erschließung": ["erschließung", "erschlossen"],
+        "Baulasten": ["baulast"],
+        "Vorkaufsrecht": ["vorkaufsrecht", "vorkauf"],
+        "Vollmachten": ["vollmacht", "bevollmächtigt"],
+        "Schlussbestimmungen": ["schlussbestimmung", "inkrafttreten"],
+        "Salvatorische Klausel": ["salvatorisch", "unwirksamkeit einer bestimmung"]
+    }
+
+    for kat, keywords in kategorie_keywords.items():
+        if any(kw in text_lower for kw in keywords):
+            kategorie = kat
+            break
+
+    # Titel aus ersten Wörtern oder Überschrift
+    lines = text.strip().split('\n')
+    first_line = lines[0].strip() if lines else ""
+    titel = first_line[:50] if first_line else "Textbaustein"
+
+    # Einfache Zusammenfassung: Erste 100 Zeichen
+    zusammenfassung = text[:150].replace('\n', ' ').strip()
+    if len(text) > 150:
+        zusammenfassung += "..."
+
+    return {
+        'titel': titel,
+        'zusammenfassung': zusammenfassung,
+        'kategorie': kategorie,
+        'vertragstypen': [VertragsTyp.KAUFVERTRAG.value],  # Standard
+        'ki_generiert': False
+    }
+
+
+def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, str]]:
+    """Zerlegt einen Vertrag in einzelne Textbausteine"""
+    bausteine = []
+
+    # Versuche nach typischen Gliederungen zu splitten
+    # Pattern: §, Artikel, Ziffer, römische Ziffern, etc.
+    import re
+
+    # Verschiedene Muster für Vertragsabschnitte
+    patterns = [
+        r'(?=§\s*\d+)',  # § 1, § 2, etc.
+        r'(?=Artikel\s+\d+)',  # Artikel 1, etc.
+        r'(?=\n[IVX]+\.\s)',  # I. II. III. etc.
+        r'(?=\n\d+\.\s+[A-ZÄÖÜ])',  # 1. Titel, 2. Titel
+    ]
+
+    # Versuche verschiedene Patterns
+    teile = None
+    for pattern in patterns:
+        teile = re.split(pattern, volltext, flags=re.MULTILINE)
+        if len(teile) > 1:
+            break
+
+    if not teile or len(teile) <= 1:
+        # Fallback: Nach doppelten Zeilenumbrüchen splitten
+        teile = re.split(r'\n\s*\n', volltext)
+
+    for i, teil in enumerate(teile):
+        teil = teil.strip()
+        if len(teil) > 50:  # Mindestlänge für einen Baustein
+            bausteine.append({
+                'text': teil,
+                'position': i
+            })
+
+    return bausteine
+
+
+def ki_suche_updates(baustein: Textbaustein) -> Dict[str, Any]:
+    """Sucht nach möglichen Updates für einen Textbaustein via KI"""
+    api_key = st.session_state.api_keys.get('openai', '')
+
+    if not api_key:
+        return {
+            'gefunden': False,
+            'fehler': 'Kein OpenAI API-Key konfiguriert'
+        }
+
+    try:
+        import urllib.request
+        import json as json_module
+
+        prompt = f"""Du bist ein Experte für deutsches Notarrecht und Vertragsrecht.
+
+Analysiere den folgenden Textbaustein aus einem notariellen Vertrag und prüfe:
+1. Ist die Formulierung noch aktuell und rechtssicher?
+2. Gibt es neuere Gesetzesänderungen oder Rechtsprechung, die eine Anpassung erfordern könnten?
+3. Gibt es bessere oder präzisere Formulierungen, die üblich sind?
+
+Kategorie des Bausteins: {baustein.kategorie}
+Vertragstypen: {', '.join(baustein.vertragstypen)}
+
+AKTUELLER TEXT:
+{baustein.text[:2000]}
+
+Wenn du Verbesserungen oder Updates empfiehlst, gib:
+1. Den konkreten Änderungsvorschlag
+2. Die Begründung für die Änderung
+3. Falls möglich, eine Quellenangabe (z.B. Gesetzesänderung, BGH-Urteil, Mustervertrag)
+
+Antworte im JSON-Format:
+{{"update_empfohlen": true/false, "vorschlag": "...", "begruendung": "...", "quelle": "..."}}
+Wenn kein Update nötig ist: {{"update_empfohlen": false, "hinweis": "Der Baustein ist aktuell."}}"""
+
+        request_data = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1000
+        }
+
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json_module.dumps(request_data).encode('utf-8'),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as response:
+            result = json_module.loads(response.read().decode('utf-8'))
+            content = result['choices'][0]['message']['content']
+
+            # Parse JSON
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0]
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0]
+
+            parsed = json_module.loads(content.strip())
+            return {
+                'gefunden': True,
+                'update_empfohlen': parsed.get('update_empfohlen', False),
+                'vorschlag': parsed.get('vorschlag', ''),
+                'begruendung': parsed.get('begruendung', ''),
+                'quelle': parsed.get('quelle', ''),
+                'hinweis': parsed.get('hinweis', '')
+            }
+
+    except Exception as e:
+        return {
+            'gefunden': False,
+            'fehler': f'Fehler bei KI-Abfrage: {str(e)}'
+        }
+
+
+def notar_vertragsarchiv_view():
+    """Hauptansicht für das Vertragsarchiv - Upload und Verwaltung von Textbausteinen"""
+    st.subheader("📚 Vertragsarchiv & Textbausteine")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sub-Tabs für verschiedene Bereiche
+    archiv_tabs = st.tabs([
+        "📤 Upload",
+        "📋 Textbausteine",
+        "📄 Hochgeladene Dokumente",
+        "✅ Freigaben",
+        "🔄 Updates suchen"
+    ])
+
+    # ============ TAB 1: Upload ============
+    with archiv_tabs[0]:
+        st.markdown("### 📤 Dokument oder Textbaustein hochladen")
+
+        upload_typ = st.radio(
+            "Was möchten Sie hochladen?",
+            ["📄 Komplettes Dokument (Vertrag)", "📝 Einzelnen Textbaustein"],
+            horizontal=True
+        )
+
+        if upload_typ == "📄 Komplettes Dokument (Vertrag)":
+            st.markdown("""
+            **Unterstützte Formate:**
+            - Word-Dokumente (.docx)
+            - PDF-Dateien (.pdf)
+            - Bilder (.jpg, .png) - werden per OCR verarbeitet
+            """)
+
+            uploaded_file = st.file_uploader(
+                "Vertragsdokument hochladen",
+                type=['docx', 'pdf', 'jpg', 'jpeg', 'png'],
+                key="archiv_dokument_upload"
+            )
+
+            if uploaded_file:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(f"**Dateiname:** {uploaded_file.name}")
+                    st.markdown(f"**Größe:** {uploaded_file.size / 1024:.1f} KB")
+
+                with col2:
+                    vertragstyp = st.selectbox(
+                        "Vertragstyp",
+                        [vt.value for vt in VertragsTyp],
+                        key="upload_vertragstyp"
+                    )
+                    beschreibung = st.text_input("Beschreibung (optional)")
+
+                # Bestimme Dateityp
+                dateityp = uploaded_file.name.split('.')[-1].lower()
+                if dateityp in ['jpg', 'jpeg', 'png']:
+                    dateityp = 'image'
+
+                if st.button("📤 Dokument verarbeiten", type="primary"):
+                    with st.spinner("Dokument wird verarbeitet..."):
+                        datei_bytes = uploaded_file.read()
+
+                        # Text extrahieren
+                        extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                        # Dokument erstellen
+                        dokument_id = str(uuid.uuid4())[:8]
+                        dokument = VertragsDokument(
+                            dokument_id=dokument_id,
+                            notar_id=notar_id,
+                            dateiname=uploaded_file.name,
+                            dateityp=dateityp,
+                            dateigroesse=uploaded_file.size,
+                            datei_bytes=datei_bytes,
+                            volltext=extrahierter_text,
+                            vertragstyp=vertragstyp,
+                            beschreibung=beschreibung,
+                            hochgeladen_von=notar_id,
+                            status="Hochgeladen"
+                        )
+
+                        st.session_state.vertragsdokumente[dokument_id] = dokument
+                        st.success(f"✅ Dokument '{uploaded_file.name}' wurde hochgeladen!")
+
+                        # Option: In Bausteine zerlegen
+                        if len(extrahierter_text) > 100:
+                            st.info("💡 Möchten Sie das Dokument in Textbausteine zerlegen?")
+                            if st.button("🔨 In Bausteine zerlegen"):
+                                st.session_state[f'zerlege_dokument_{dokument_id}'] = True
+                                st.rerun()
+
+        else:  # Einzelner Textbaustein
+            st.markdown("### 📝 Einzelnen Textbaustein eingeben")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                titel = st.text_input("Titel des Bausteins", placeholder="z.B. Kaufpreiszahlung")
+                kategorie = st.selectbox(
+                    "Kategorie (Regelungsinhalt)",
+                    [kat.value for kat in TextbausteinKategorie]
+                )
+
+            with col2:
+                vertragstypen = st.multiselect(
+                    "Verwendbar in Vertragstypen",
+                    [vt.value for vt in VertragsTyp],
+                    default=[VertragsTyp.KAUFVERTRAG.value]
+                )
+
+            baustein_text = st.text_area(
+                "Klauseltext",
+                height=200,
+                placeholder="Geben Sie hier den vollständigen Klauseltext ein..."
+            )
+
+            # Oder aus Datei laden
+            st.markdown("**Oder aus Datei laden:**")
+            baustein_datei = st.file_uploader(
+                "Textbaustein als Datei",
+                type=['txt', 'docx'],
+                key="baustein_datei_upload"
+            )
+
+            if baustein_datei:
+                if baustein_datei.name.endswith('.txt'):
+                    baustein_text = baustein_datei.read().decode('utf-8')
+                elif baustein_datei.name.endswith('.docx'):
+                    baustein_text = extrahiere_text_aus_datei(
+                        baustein_datei.read(), 'docx', baustein_datei.name
+                    )
+                st.text_area("Geladener Text:", value=baustein_text, height=150, disabled=True)
+
+            col_btn1, col_btn2 = st.columns(2)
+
+            with col_btn1:
+                ki_analyse = st.checkbox("🤖 KI-Analyse für Titel & Zusammenfassung", value=True)
+
+            with col_btn2:
+                if st.button("💾 Textbaustein speichern", type="primary", disabled=not baustein_text):
+                    with st.spinner("Baustein wird analysiert..."):
+                        # KI-Analyse wenn aktiviert
+                        if ki_analyse and baustein_text:
+                            analyse = ki_analysiere_textbaustein(baustein_text)
+                            if not titel:
+                                titel = analyse['titel']
+                            zusammenfassung = analyse['zusammenfassung']
+                            if not kategorie or kategorie == "Sonstiges":
+                                kategorie = analyse['kategorie']
+                            ki_generiert = analyse.get('ki_generiert', False)
+                        else:
+                            zusammenfassung = baustein_text[:150] + "..." if len(baustein_text) > 150 else baustein_text
+                            ki_generiert = False
+
+                        # Duplikatprüfung
+                        text_hash = berechne_text_hash(baustein_text)
+                        aehnliche = finde_aehnliche_bausteine(baustein_text, notar_id)
+
+                        baustein_id = str(uuid.uuid4())[:8]
+                        baustein = Textbaustein(
+                            baustein_id=baustein_id,
+                            notar_id=notar_id,
+                            titel=titel or "Unbenannter Baustein",
+                            text=baustein_text,
+                            zusammenfassung=zusammenfassung,
+                            kategorie=kategorie,
+                            vertragstypen=vertragstypen,
+                            status=TextbausteinStatus.ENTWURF.value,
+                            ki_generiert=ki_generiert,
+                            ki_kategorisiert=ki_generiert,
+                            erstellt_von=notar_id,
+                            text_hash=text_hash,
+                            aehnliche_bausteine=[a[0] for a in aehnliche[:3]]
+                        )
+
+                        st.session_state.textbausteine[baustein_id] = baustein
+
+                        if aehnliche:
+                            st.warning(f"⚠️ {len(aehnliche)} ähnliche Bausteine gefunden! Bitte prüfen Sie unter 'Freigaben'.")
+                        else:
+                            st.success(f"✅ Textbaustein '{titel}' wurde gespeichert!")
+
+                        st.rerun()
+
+    # ============ TAB 2: Textbausteine-Übersicht ============
+    with archiv_tabs[1]:
+        st.markdown("### 📋 Alle Textbausteine")
+
+        # Filter
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            filter_status = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in TextbausteinStatus],
+                key="filter_baustein_status"
+            )
+        with col2:
+            filter_kategorie = st.selectbox(
+                "Kategorie",
+                ["Alle"] + [k.value for k in TextbausteinKategorie],
+                key="filter_baustein_kategorie"
+            )
+        with col3:
+            filter_vertragstyp = st.selectbox(
+                "Vertragstyp",
+                ["Alle"] + [v.value for v in VertragsTyp],
+                key="filter_baustein_vertragstyp"
+            )
+
+        # Bausteine filtern
+        bausteine = [b for b in st.session_state.textbausteine.values() if b.notar_id == notar_id]
+
+        if filter_status != "Alle":
+            bausteine = [b for b in bausteine if b.status == filter_status]
+        if filter_kategorie != "Alle":
+            bausteine = [b for b in bausteine if b.kategorie == filter_kategorie]
+        if filter_vertragstyp != "Alle":
+            bausteine = [b for b in bausteine if filter_vertragstyp in b.vertragstypen]
+
+        # Statistik
+        col1, col2, col3, col4 = st.columns(4)
+        alle_bausteine = [b for b in st.session_state.textbausteine.values() if b.notar_id == notar_id]
+        with col1:
+            st.metric("Gesamt", len(alle_bausteine))
+        with col2:
+            st.metric("Freigegeben", len([b for b in alle_bausteine if b.status == TextbausteinStatus.FREIGEGEBEN.value]))
+        with col3:
+            st.metric("Entwürfe", len([b for b in alle_bausteine if b.status == TextbausteinStatus.ENTWURF.value]))
+        with col4:
+            st.metric("Updates", len([b for b in alle_bausteine if b.status == TextbausteinStatus.AKTUALISIERUNG.value]))
+
+        st.markdown("---")
+
+        if not bausteine:
+            st.info("Keine Textbausteine gefunden. Laden Sie Bausteine im Tab 'Upload' hoch.")
+        else:
+            for baustein in sorted(bausteine, key=lambda x: x.erstellt_am, reverse=True):
+                status_icon = {
+                    TextbausteinStatus.ENTWURF.value: "📝",
+                    TextbausteinStatus.PRUEFUNG.value: "🔍",
+                    TextbausteinStatus.FREIGEGEBEN.value: "✅",
+                    TextbausteinStatus.AKTUALISIERUNG.value: "🔄",
+                    TextbausteinStatus.ABGELEHNT.value: "❌",
+                    TextbausteinStatus.ARCHIVIERT.value: "📦"
+                }.get(baustein.status, "❓")
+
+                with st.expander(f"{status_icon} {baustein.titel} ({baustein.kategorie})"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Zusammenfassung:** {baustein.zusammenfassung}")
+                        st.text_area("Volltext:", value=baustein.text, height=150, disabled=True, key=f"text_{baustein.baustein_id}")
+                        st.markdown(f"**Vertragstypen:** {', '.join(baustein.vertragstypen)}")
+
+                    with col2:
+                        st.markdown(f"**Status:** {baustein.status}")
+                        st.markdown(f"**Erstellt:** {baustein.erstellt_am.strftime('%d.%m.%Y')}")
+                        if baustein.ki_generiert:
+                            st.markdown("🤖 *KI-analysiert*")
+                        if baustein.aehnliche_bausteine:
+                            st.warning(f"⚠️ {len(baustein.aehnliche_bausteine)} ähnliche Bausteine")
+
+                        # Aktionen
+                        if baustein.status == TextbausteinStatus.ENTWURF.value:
+                            if st.button("✅ Freigeben", key=f"freigeben_{baustein.baustein_id}"):
+                                baustein.status = TextbausteinStatus.FREIGEGEBEN.value
+                                baustein.freigegeben_am = datetime.now()
+                                baustein.freigegeben_von = notar_id
+                                st.success("Baustein freigegeben!")
+                                st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"loeschen_{baustein.baustein_id}"):
+                            del st.session_state.textbausteine[baustein.baustein_id]
+                            st.success("Baustein gelöscht!")
+                            st.rerun()
+
+    # ============ TAB 3: Hochgeladene Dokumente ============
+    with archiv_tabs[2]:
+        st.markdown("### 📄 Hochgeladene Vertragsdokumente")
+
+        dokumente = [d for d in st.session_state.vertragsdokumente.values() if d.notar_id == notar_id]
+
+        if not dokumente:
+            st.info("Noch keine Dokumente hochgeladen.")
+        else:
+            for dok in sorted(dokumente, key=lambda x: x.hochgeladen_am, reverse=True):
+                with st.expander(f"📄 {dok.dateiname} ({dok.vertragstyp})"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Typ:** {dok.dateityp.upper()}")
+                        st.markdown(f"**Größe:** {dok.dateigroesse / 1024:.1f} KB")
+                        st.markdown(f"**Status:** {dok.status}")
+                        if dok.beschreibung:
+                            st.markdown(f"**Beschreibung:** {dok.beschreibung}")
+
+                        if dok.volltext:
+                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True)
+
+                    with col2:
+                        st.markdown(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+                        if dok.zerlegt:
+                            st.success(f"✅ In {len(dok.baustein_ids)} Bausteine zerlegt")
+                        else:
+                            if st.button("🔨 In Bausteine zerlegen", key=f"zerlege_{dok.dokument_id}"):
+                                with st.spinner("Zerlege Dokument..."):
+                                    teile = ki_zerlege_vertrag_in_bausteine(dok.volltext)
+
+                                    for i, teil in enumerate(teile):
+                                        analyse = ki_analysiere_textbaustein(teil['text'])
+                                        baustein_id = str(uuid.uuid4())[:8]
+
+                                        baustein = Textbaustein(
+                                            baustein_id=baustein_id,
+                                            notar_id=notar_id,
+                                            titel=analyse['titel'],
+                                            text=teil['text'],
+                                            zusammenfassung=analyse['zusammenfassung'],
+                                            kategorie=analyse['kategorie'],
+                                            vertragstypen=[dok.vertragstyp],
+                                            quelle_dokument_id=dok.dokument_id,
+                                            position_im_dokument=teil['position'],
+                                            status=TextbausteinStatus.ENTWURF.value,
+                                            ki_generiert=True,
+                                            ki_kategorisiert=True,
+                                            erstellt_von=notar_id,
+                                            text_hash=berechne_text_hash(teil['text'])
+                                        )
+
+                                        # Verkette Bausteine
+                                        if dok.baustein_ids:
+                                            vorheriger_id = dok.baustein_ids[-1]
+                                            baustein.vorgaenger_baustein_id = vorheriger_id
+                                            if vorheriger_id in st.session_state.textbausteine:
+                                                st.session_state.textbausteine[vorheriger_id].nachfolger_baustein_id = baustein_id
+
+                                        st.session_state.textbausteine[baustein_id] = baustein
+                                        dok.baustein_ids.append(baustein_id)
+
+                                    dok.zerlegt = True
+                                    dok.anzahl_erkannte_klauseln = len(teile)
+                                    dok.status = "Verarbeitet"
+                                    dok.verarbeitet_am = datetime.now()
+
+                                    st.success(f"✅ {len(teile)} Bausteine extrahiert!")
+                                    st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"dok_loeschen_{dok.dokument_id}"):
+                            del st.session_state.vertragsdokumente[dok.dokument_id]
+                            st.success("Dokument gelöscht!")
+                            st.rerun()
+
+    # ============ TAB 4: Freigaben ============
+    with archiv_tabs[3]:
+        st.markdown("### ✅ Bausteine zur Freigabe")
+
+        entwuerfe = [b for b in st.session_state.textbausteine.values()
+                     if b.notar_id == notar_id and b.status == TextbausteinStatus.ENTWURF.value]
+
+        if not entwuerfe:
+            st.success("✅ Keine Bausteine zur Freigabe ausstehend.")
+        else:
+            st.warning(f"⚠️ {len(entwuerfe)} Bausteine warten auf Freigabe")
+
+            for baustein in entwuerfe:
+                with st.expander(f"📝 {baustein.titel}"):
+                    st.markdown(f"**Kategorie:** {baustein.kategorie}")
+                    st.markdown(f"**Zusammenfassung:** {baustein.zusammenfassung}")
+                    st.text_area("Text:", value=baustein.text, height=150, disabled=True, key=f"freigabe_text_{baustein.baustein_id}")
+
+                    # Ähnliche Bausteine anzeigen
+                    if baustein.aehnliche_bausteine:
+                        st.markdown("---")
+                        st.markdown("**⚠️ Ähnliche vorhandene Bausteine:**")
+                        for aehnlich_id in baustein.aehnliche_bausteine:
+                            aehnlich = st.session_state.textbausteine.get(aehnlich_id)
+                            if aehnlich:
+                                st.info(f"**{aehnlich.titel}** ({aehnlich.status})")
+                                with st.expander("Vergleichen"):
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown("**Neuer Baustein:**")
+                                        st.text(baustein.text[:500])
+                                    with col2:
+                                        st.markdown("**Vorhandener Baustein:**")
+                                        st.text(aehnlich.text[:500])
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("✅ Freigeben", key=f"approve_{baustein.baustein_id}", type="primary"):
+                            baustein.status = TextbausteinStatus.FREIGEGEBEN.value
+                            baustein.freigegeben_am = datetime.now()
+                            baustein.freigegeben_von = notar_id
+                            st.success("Freigegeben!")
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Ablehnen", key=f"reject_{baustein.baustein_id}"):
+                            baustein.status = TextbausteinStatus.ABGELEHNT.value
+                            st.warning("Abgelehnt!")
+                            st.rerun()
+                    with col3:
+                        if baustein.aehnliche_bausteine and st.button("🔗 Mit vorhandenem verknüpfen", key=f"link_{baustein.baustein_id}"):
+                            # Verknüpfe mit erstem ähnlichen Baustein
+                            baustein.duplikat_von = baustein.aehnliche_bausteine[0]
+                            baustein.status = TextbausteinStatus.ARCHIVIERT.value
+                            st.info("Als Duplikat markiert und archiviert.")
+                            st.rerun()
+
+    # ============ TAB 5: Updates suchen ============
+    with archiv_tabs[4]:
+        st.markdown("### 🔄 Updates für Textbausteine suchen")
+        st.markdown("Nutzen Sie KI, um zu prüfen, ob Ihre Textbausteine noch aktuell sind.")
+
+        api_key = st.session_state.api_keys.get('openai', '')
+        if not api_key:
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Bitte unter 'Einstellungen' hinterlegen.")
+        else:
+            freigegebene = [b for b in st.session_state.textbausteine.values()
+                           if b.notar_id == notar_id and b.status == TextbausteinStatus.FREIGEGEBEN.value]
+
+            if not freigegebene:
+                st.info("Keine freigegebenen Bausteine vorhanden.")
+            else:
+                baustein_auswahl = st.selectbox(
+                    "Baustein auswählen",
+                    options=freigegebene,
+                    format_func=lambda b: f"{b.titel} ({b.kategorie})"
+                )
+
+                if baustein_auswahl:
+                    st.text_area("Aktueller Text:", value=baustein_auswahl.text, height=150, disabled=True)
+
+                    if st.button("🔍 Nach Updates suchen", type="primary"):
+                        with st.spinner("KI analysiert den Baustein..."):
+                            ergebnis = ki_suche_updates(baustein_auswahl)
+
+                            if ergebnis.get('gefunden') and ergebnis.get('update_empfohlen'):
+                                st.warning("🔄 **Update empfohlen!**")
+                                st.markdown(f"**Vorschlag:** {ergebnis.get('vorschlag', '')}")
+                                st.markdown(f"**Begründung:** {ergebnis.get('begruendung', '')}")
+                                if ergebnis.get('quelle'):
+                                    st.markdown(f"**Quelle:** {ergebnis.get('quelle')}")
+
+                                # Update-Vorschlag speichern
+                                baustein_auswahl.ki_update_vorschlag = ergebnis.get('vorschlag', '')
+                                baustein_auswahl.ki_update_quelle = ergebnis.get('quelle', '')
+                                baustein_auswahl.ki_update_datum = datetime.now()
+                                baustein_auswahl.status = TextbausteinStatus.AKTUALISIERUNG.value
+
+                                if st.button("✅ Update übernehmen"):
+                                    baustein_auswahl.text = ergebnis.get('vorschlag', baustein_auswahl.text)
+                                    baustein_auswahl.version += 1
+                                    baustein_auswahl.aktualisiert_am = datetime.now()
+                                    baustein_auswahl.status = TextbausteinStatus.FREIGEGEBEN.value
+                                    st.success("Update übernommen!")
+                                    st.rerun()
+
+                            elif ergebnis.get('gefunden'):
+                                st.success(f"✅ {ergebnis.get('hinweis', 'Der Baustein ist aktuell.')}")
+                            else:
+                                st.error(f"❌ {ergebnis.get('fehler', 'Fehler bei der Analyse')}")
+
+
+def notar_vertragserstellung_view():
+    """Ansicht für die modulare Vertragserstellung aus Textbausteinen"""
+    st.subheader("📝 Vertragserstellung")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sub-Tabs
+    erstellung_tabs = st.tabs([
+        "🆕 Neuer Vertrag",
+        "📋 Aus Bausteinen",
+        "🤖 KI-Entwurf",
+        "📑 Vorlagen",
+        "📄 Entwürfe"
+    ])
+
+    # ============ TAB 1: Neuer Vertrag ============
+    with erstellung_tabs[0]:
+        st.markdown("### 🆕 Neuen Vertragsentwurf erstellen")
+
+        # Projekt auswählen
+        projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+        if not projekte:
+            st.warning("Keine Projekte verfügbar. Bitte erst ein Projekt anlegen.")
+            return
+
+        projekt_options = {f"{p.name} ({p.adresse or 'Keine Adresse'})": p.projekt_id for p in projekte}
+        selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()))
+        selected_projekt_id = projekt_options[selected_projekt_label]
+        projekt = st.session_state.projekte[selected_projekt_id]
+
+        col1, col2 = st.columns(2)
+        with col1:
+            entwurf_name = st.text_input("Name des Entwurfs", value=f"Kaufvertrag - {projekt.name}")
+            vertragstyp = st.selectbox("Vertragstyp", [vt.value for vt in VertragsTyp])
+
+        with col2:
+            st.markdown("**Projekt-Informationen:**")
+            st.markdown(f"Adresse: {projekt.adresse or 'Nicht angegeben'}")
+            st.markdown(f"Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
+            kaeufer = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
+            verkaeufer = [st.session_state.users.get(vid) for vid in projekt.verkaeufer_ids]
+            st.markdown(f"Käufer: {', '.join([k.name for k in kaeufer if k])}")
+            st.markdown(f"Verkäufer: {', '.join([v.name for v in verkaeufer if v])}")
+
+        st.markdown("---")
+        st.markdown("**Erstellungsmethode wählen:**")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("📋 Aus Bausteinen zusammenstellen", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'bausteine'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+        with col2:
+            if st.button("🤖 KI-Entwurf generieren", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'ki'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+        with col3:
+            if st.button("📑 Aus Vorlage erstellen", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'vorlage'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+    # ============ TAB 2: Aus Bausteinen ============
+    with erstellung_tabs[1]:
+        st.markdown("### 📋 Vertrag aus Textbausteinen zusammenstellen")
+
+        # Prüfe ob Bausteine vorhanden
+        freigegebene_bausteine = [b for b in st.session_state.textbausteine.values()
+                                   if b.notar_id == notar_id and b.status == TextbausteinStatus.FREIGEGEBEN.value]
+
+        if not freigegebene_bausteine:
+            st.warning("Keine freigegebenen Textbausteine verfügbar. Bitte erst Bausteine im Vertragsarchiv anlegen und freigeben.")
+            return
+
+        # Vertragstyp Filter
+        filter_typ = st.selectbox(
+            "Nach Vertragstyp filtern",
+            ["Alle"] + [vt.value for vt in VertragsTyp],
+            key="baustein_filter_typ"
+        )
+
+        if filter_typ != "Alle":
+            verfuegbare_bausteine = [b for b in freigegebene_bausteine if filter_typ in b.vertragstypen]
+        else:
+            verfuegbare_bausteine = freigegebene_bausteine
+
+        # Bausteine nach Kategorie gruppiert
+        st.markdown("**Verfügbare Bausteine nach Kategorie:**")
+
+        # Session State für ausgewählte Bausteine
+        if 'ausgewaehlte_bausteine' not in st.session_state:
+            st.session_state.ausgewaehlte_bausteine = []
+
+        kategorien = {}
+        for b in verfuegbare_bausteine:
+            if b.kategorie not in kategorien:
+                kategorien[b.kategorie] = []
+            kategorien[b.kategorie].append(b)
+
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            st.markdown("**Bausteine auswählen:**")
+            for kat, bausteine_liste in sorted(kategorien.items()):
+                with st.expander(f"{kat} ({len(bausteine_liste)} Bausteine)"):
+                    for baustein in bausteine_liste:
+                        is_selected = baustein.baustein_id in st.session_state.ausgewaehlte_bausteine
+                        if st.checkbox(
+                            f"{baustein.titel}",
+                            value=is_selected,
+                            key=f"select_{baustein.baustein_id}",
+                            help=baustein.zusammenfassung
+                        ):
+                            if baustein.baustein_id not in st.session_state.ausgewaehlte_bausteine:
+                                st.session_state.ausgewaehlte_bausteine.append(baustein.baustein_id)
+                        else:
+                            if baustein.baustein_id in st.session_state.ausgewaehlte_bausteine:
+                                st.session_state.ausgewaehlte_bausteine.remove(baustein.baustein_id)
+
+        with col2:
+            st.markdown("**Ausgewählte Bausteine (in Reihenfolge):**")
+
+            if not st.session_state.ausgewaehlte_bausteine:
+                st.info("Noch keine Bausteine ausgewählt")
+            else:
+                for i, bid in enumerate(st.session_state.ausgewaehlte_bausteine):
+                    baustein = st.session_state.textbausteine.get(bid)
+                    if baustein:
+                        col_a, col_b = st.columns([3, 1])
+                        with col_a:
+                            st.markdown(f"{i+1}. **{baustein.titel}**")
+                        with col_b:
+                            if st.button("🗑️", key=f"remove_{bid}"):
+                                st.session_state.ausgewaehlte_bausteine.remove(bid)
+                                st.rerun()
+
+                st.markdown("---")
+
+                # Vorschau generieren
+                if st.button("👁️ Vorschau anzeigen"):
+                    st.session_state['zeige_vorschau'] = True
+
+                if st.session_state.get('zeige_vorschau'):
+                    st.markdown("### Vertragsvorschau")
+                    volltext = ""
+                    for bid in st.session_state.ausgewaehlte_bausteine:
+                        baustein = st.session_state.textbausteine.get(bid)
+                        if baustein:
+                            volltext += f"\n\n**{baustein.titel}**\n\n{baustein.text}"
+
+                    st.text_area("Vertragsentwurf:", value=volltext, height=400)
+
+                    # Entwurf speichern
+                    projekt_id = st.session_state.get('vertrag_projekt_id')
+                    if projekt_id and st.button("💾 Als Entwurf speichern", type="primary"):
+                        entwurf_id = str(uuid.uuid4())[:8]
+                        entwurf = Vertragsentwurf(
+                            entwurf_id=entwurf_id,
+                            notar_id=notar_id,
+                            projekt_id=projekt_id,
+                            name=st.session_state.get('vertrag_name', 'Neuer Entwurf'),
+                            vertragstyp=st.session_state.get('vertrag_typ', VertragsTyp.KAUFVERTRAG.value),
+                            volltext=volltext,
+                            baustein_ids=st.session_state.ausgewaehlte_bausteine.copy(),
+                            status=VertragsentwurfStatus.ENTWURF.value,
+                            erstellt_von=notar_id
+                        )
+                        st.session_state.vertragsentwuerfe[entwurf_id] = entwurf
+                        st.session_state.ausgewaehlte_bausteine = []
+                        st.session_state['zeige_vorschau'] = False
+                        st.success(f"✅ Entwurf '{entwurf.name}' gespeichert!")
+                        st.rerun()
+
+    # ============ TAB 3: KI-Entwurf ============
+    with erstellung_tabs[2]:
+        st.markdown("### 🤖 Vertragsentwurf mit KI generieren")
+
+        api_key = st.session_state.api_keys.get('openai', '')
+        if not api_key:
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Bitte unter 'Einstellungen' hinterlegen.")
+            return
+
+        # Projekt-Daten laden
+        projekt_id = st.session_state.get('vertrag_projekt_id')
+        if not projekt_id:
+            st.info("Bitte zuerst im Tab 'Neuer Vertrag' ein Projekt und die Methode 'KI-Entwurf' wählen.")
+            return
+
+        projekt = st.session_state.projekte.get(projekt_id)
+        if not projekt:
+            st.error("Projekt nicht gefunden.")
+            return
+
+        st.markdown(f"**Projekt:** {projekt.name}")
+
+        # Zusätzliche Eingaben
+        col1, col2 = st.columns(2)
+
+        with col1:
+            kaeufer_wuensche = st.text_area(
+                "Besondere Wünsche des Käufers",
+                placeholder="z.B. Ratenzahlung gewünscht, Rücktrittsrecht bei Finanzierungsausfall...",
+                height=100
+            )
+
+        with col2:
+            verkaeufer_wuensche = st.text_area(
+                "Besondere Wünsche des Verkäufers",
+                placeholder="z.B. Übergabe erst in 3 Monaten, Inventar soll übernommen werden...",
+                height=100
+            )
+
+        zusaetzliche_infos = st.text_area(
+            "Zusätzliche Informationen zum Vertrag",
+            placeholder="Weitere Details die im Vertrag berücksichtigt werden sollen...",
+            height=100
+        )
+
+        if st.button("🤖 Vertragsentwurf generieren", type="primary"):
+            with st.spinner("KI generiert Vertragsentwurf... Dies kann einige Sekunden dauern."):
+                try:
+                    import urllib.request
+                    import json as json_module
+
+                    # Parteien-Daten sammeln
+                    kaeufer_daten = []
+                    for kid in projekt.kaeufer_ids:
+                        k = st.session_state.users.get(kid)
+                        if k:
+                            kaeufer_daten.append(k.name)
+
+                    verkaeufer_daten = []
+                    for vid in projekt.verkaeufer_ids:
+                        v = st.session_state.users.get(vid)
+                        if v:
+                            verkaeufer_daten.append(v.name)
+
+                    prompt = f"""Erstelle einen professionellen deutschen Immobilienkaufvertrag im Stil eines Notarvertrags.
+
+VERTRAGSDATEN:
+- Kaufobjekt: {projekt.name}
+- Adresse: {projekt.adresse or 'Wird noch ergänzt'}
+- Kaufpreis: {projekt.kaufpreis:,.2f} EUR
+- Käufer: {', '.join(kaeufer_daten) or 'Wird noch ergänzt'}
+- Verkäufer: {', '.join(verkaeufer_daten) or 'Wird noch ergänzt'}
+
+BESONDERE WÜNSCHE KÄUFER:
+{kaeufer_wuensche or 'Keine besonderen Wünsche'}
+
+BESONDERE WÜNSCHE VERKÄUFER:
+{verkaeufer_wuensche or 'Keine besonderen Wünsche'}
+
+ZUSÄTZLICHE INFORMATIONEN:
+{zusaetzliche_infos or 'Keine zusätzlichen Informationen'}
+
+Erstelle einen vollständigen Kaufvertrag mit folgenden Abschnitten:
+1. Präambel und Erscheinende
+2. Kaufgegenstand
+3. Kaufpreis und Zahlungsmodalitäten
+4. Lastenfreistellung
+5. Auflassung und Eigentumsübertragung
+6. Besitzübergang
+7. Gewährleistung
+8. Kosten und Steuern
+9. Vollmachten
+10. Schlussbestimmungen
+
+Der Vertrag soll rechtlich präzise, aber verständlich formuliert sein.
+Verwende Platzhalter in eckigen Klammern [PLATZHALTER] für fehlende Informationen."""
+
+                    request_data = {
+                        "model": "gpt-4o",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3,
+                        "max_tokens": 4000
+                    }
+
+                    req = urllib.request.Request(
+                        "https://api.openai.com/v1/chat/completions",
+                        data=json_module.dumps(request_data).encode('utf-8'),
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {api_key}"
+                        }
+                    )
+
+                    with urllib.request.urlopen(req, timeout=120) as response:
+                        result = json_module.loads(response.read().decode('utf-8'))
+                        generierter_text = result['choices'][0]['message']['content']
+
+                        # Entwurf erstellen
+                        entwurf_id = str(uuid.uuid4())[:8]
+                        entwurf = Vertragsentwurf(
+                            entwurf_id=entwurf_id,
+                            notar_id=notar_id,
+                            projekt_id=projekt_id,
+                            name=st.session_state.get('vertrag_name', f'KI-Entwurf {projekt.name}'),
+                            vertragstyp=st.session_state.get('vertrag_typ', VertragsTyp.KAUFVERTRAG.value),
+                            volltext=generierter_text,
+                            kaeufer_wuensche=[kaeufer_wuensche] if kaeufer_wuensche else [],
+                            verkaeufer_wuensche=[verkaeufer_wuensche] if verkaeufer_wuensche else [],
+                            status=VertragsentwurfStatus.ENTWURF.value,
+                            ki_generiert=True,
+                            ki_prompt=prompt,
+                            erstellt_von=notar_id
+                        )
+
+                        st.session_state.vertragsentwuerfe[entwurf_id] = entwurf
+
+                        st.success("✅ Vertragsentwurf wurde generiert!")
+                        st.markdown("### Generierter Entwurf:")
+                        st.text_area("Vertragstext:", value=generierter_text, height=500)
+
+                        st.info("💡 Der Entwurf wurde gespeichert und kann im Tab 'Entwürfe' bearbeitet und freigegeben werden.")
+
+                except Exception as e:
+                    st.error(f"Fehler bei der KI-Generierung: {str(e)}")
+
+    # ============ TAB 4: Vorlagen ============
+    with erstellung_tabs[3]:
+        st.markdown("### 📑 Vertragsvorlagen verwalten")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            vorlagen = [v for v in st.session_state.vertragsvorlagen.values() if v.notar_id == notar_id]
+
+            if not vorlagen:
+                st.info("Noch keine Vorlagen erstellt. Speichern Sie einen Entwurf als Vorlage.")
+            else:
+                for vorlage in vorlagen:
+                    with st.expander(f"📑 {vorlage.name} ({vorlage.vertragstyp})"):
+                        st.markdown(f"**Beschreibung:** {vorlage.beschreibung or 'Keine Beschreibung'}")
+                        st.markdown(f"**Erstellt:** {vorlage.erstellt_am.strftime('%d.%m.%Y')}")
+                        st.markdown(f"**Bausteine:** {len(vorlage.baustein_ids)}")
+                        st.markdown(f"**Status:** {'✅ Freigegeben' if vorlage.freigegeben else '📝 Entwurf'}")
+
+                        if st.button("📄 Neuen Vertrag aus Vorlage", key=f"use_vorlage_{vorlage.vorlage_id}"):
+                            st.session_state['vertrag_vorlage_id'] = vorlage.vorlage_id
+                            st.info("Bitte im Tab 'Neuer Vertrag' ein Projekt wählen und 'Aus Vorlage erstellen' klicken.")
+
+                        if st.button("🗑️ Löschen", key=f"del_vorlage_{vorlage.vorlage_id}"):
+                            del st.session_state.vertragsvorlagen[vorlage.vorlage_id]
+                            st.success("Vorlage gelöscht!")
+                            st.rerun()
+
+        with col2:
+            st.markdown("**Neue Vorlage aus Entwurf:**")
+
+            entwuerfe = [e for e in st.session_state.vertragsentwuerfe.values() if e.notar_id == notar_id]
+
+            if entwuerfe:
+                entwurf_auswahl = st.selectbox(
+                    "Entwurf auswählen",
+                    options=entwuerfe,
+                    format_func=lambda e: e.name
+                )
+
+                vorlage_name = st.text_input("Vorlagen-Name", value=f"Vorlage: {entwurf_auswahl.name if entwurf_auswahl else ''}")
+                vorlage_beschreibung = st.text_area("Beschreibung", height=100)
+
+                if st.button("💾 Als Vorlage speichern") and entwurf_auswahl:
+                    vorlage_id = str(uuid.uuid4())[:8]
+                    vorlage = VertragsVorlage(
+                        vorlage_id=vorlage_id,
+                        notar_id=notar_id,
+                        name=vorlage_name,
+                        beschreibung=vorlage_beschreibung,
+                        vertragstyp=entwurf_auswahl.vertragstyp,
+                        baustein_ids=entwurf_auswahl.baustein_ids.copy(),
+                        vorlage_text=entwurf_auswahl.volltext,
+                        freigegeben=True,
+                        freigegeben_am=datetime.now(),
+                        erstellt_von=notar_id
+                    )
+                    st.session_state.vertragsvorlagen[vorlage_id] = vorlage
+                    st.success("✅ Vorlage erstellt!")
+                    st.rerun()
+            else:
+                st.info("Keine Entwürfe verfügbar.")
+
+    # ============ TAB 5: Entwürfe ============
+    with erstellung_tabs[4]:
+        st.markdown("### 📄 Meine Vertragsentwürfe")
+
+        entwuerfe = [e for e in st.session_state.vertragsentwuerfe.values() if e.notar_id == notar_id]
+
+        if not entwuerfe:
+            st.info("Noch keine Vertragsentwürfe erstellt.")
+        else:
+            # Status-Filter
+            filter_status = st.selectbox(
+                "Status filtern",
+                ["Alle"] + [s.value for s in VertragsentwurfStatus]
+            )
+
+            if filter_status != "Alle":
+                entwuerfe = [e for e in entwuerfe if e.status == filter_status]
+
+            for entwurf in sorted(entwuerfe, key=lambda x: x.erstellt_am, reverse=True):
+                projekt = st.session_state.projekte.get(entwurf.projekt_id)
+                projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+                status_icon = {
+                    VertragsentwurfStatus.ENTWURF.value: "📝",
+                    VertragsentwurfStatus.IN_BEARBEITUNG.value: "✏️",
+                    VertragsentwurfStatus.PRUEFUNG.value: "🔍",
+                    VertragsentwurfStatus.FREIGEGEBEN.value: "✅",
+                    VertragsentwurfStatus.VERSENDET.value: "📨",
+                    VertragsentwurfStatus.UNTERZEICHNET.value: "✍️",
+                    VertragsentwurfStatus.ARCHIVIERT.value: "📦"
+                }.get(entwurf.status, "❓")
+
+                with st.expander(f"{status_icon} {entwurf.name} - {projekt_name}"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Vertragstyp:** {entwurf.vertragstyp}")
+                        st.markdown(f"**Erstellt:** {entwurf.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                        if entwurf.ki_generiert:
+                            st.markdown("🤖 *KI-generiert*")
+
+                        # Bearbeitbarer Text
+                        neuer_text = st.text_area(
+                            "Vertragstext:",
+                            value=entwurf.volltext,
+                            height=300,
+                            key=f"edit_{entwurf.entwurf_id}"
+                        )
+
+                        if neuer_text != entwurf.volltext:
+                            if st.button("💾 Änderungen speichern", key=f"save_{entwurf.entwurf_id}"):
+                                entwurf.volltext = neuer_text
+                                entwurf.aktualisiert_am = datetime.now()
+                                entwurf.version += 1
+                                st.success("Änderungen gespeichert!")
+                                st.rerun()
+
+                    with col2:
+                        st.markdown(f"**Status:** {entwurf.status}")
+                        st.markdown(f"**Version:** {entwurf.version}")
+
+                        # Status-Aktionen
+                        if entwurf.status == VertragsentwurfStatus.ENTWURF.value:
+                            if st.button("✅ Freigeben", key=f"approve_entwurf_{entwurf.entwurf_id}", type="primary"):
+                                entwurf.status = VertragsentwurfStatus.FREIGEGEBEN.value
+                                entwurf.freigegeben_am = datetime.now()
+                                entwurf.freigegeben_von = notar_id
+                                st.success("Entwurf freigegeben!")
+                                st.rerun()
+
+                        if entwurf.status == VertragsentwurfStatus.FREIGEGEBEN.value:
+                            st.markdown("**An Beteiligte versenden:**")
+
+                            if projekt:
+                                empfaenger = []
+                                for kid in projekt.kaeufer_ids:
+                                    k = st.session_state.users.get(kid)
+                                    if k:
+                                        empfaenger.append((kid, f"Käufer: {k.name}"))
+                                for vid in projekt.verkaeufer_ids:
+                                    v = st.session_state.users.get(vid)
+                                    if v:
+                                        empfaenger.append((vid, f"Verkäufer: {v.name}"))
+                                if projekt.makler_id:
+                                    m = st.session_state.users.get(projekt.makler_id)
+                                    if m:
+                                        empfaenger.append((projekt.makler_id, f"Makler: {m.name}"))
+
+                                for user_id, label in empfaenger:
+                                    if st.button(f"📨 {label}", key=f"send_{entwurf.entwurf_id}_{user_id}"):
+                                        create_notification(
+                                            user_id=user_id,
+                                            titel="📜 Neuer Vertragsentwurf",
+                                            nachricht=f"Ein neuer Vertragsentwurf '{entwurf.name}' steht für Sie bereit."
+                                        )
+                                        entwurf.versendet_an.append(user_id)
+                                        entwurf.versendet_am = datetime.now()
+                                        entwurf.status = VertragsentwurfStatus.VERSENDET.value
+                                        st.success(f"An {label} gesendet!")
+                                        st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"del_entwurf_{entwurf.entwurf_id}"):
+                            del st.session_state.vertragsentwuerfe[entwurf.entwurf_id]
+                            st.success("Entwurf gelöscht!")
+                            st.rerun()
 
 
 def notar_checklisten_view():
