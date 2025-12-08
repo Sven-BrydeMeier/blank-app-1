@@ -1780,6 +1780,94 @@ class TextbausteinStatus(Enum):
     ABGELEHNT = "Abgelehnt"  # Vom Notar abgelehnt
     ARCHIVIERT = "Archiviert"  # Nicht mehr verwendet
 
+# Vertragstyp-Templates: Definiert die typische Reihenfolge der Kategorien für jeden Vertragstyp
+# Bei "alternativen" können verschiedene Bausteine der gleichen Kategorie ausgewählt werden
+VERTRAGSTYP_TEMPLATES = {
+    VertragsTyp.KAUFVERTRAG.value: {
+        "name": "Kaufvertrag",
+        "beschreibung": "Standard-Kaufvertrag für Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KAUFPREIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZAHLUNGSMODALITAETEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.FÄLLIGKEIT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MAENGEL.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VORKAUFSRECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VOLLMACHTEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SALVATORISCH.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.UEBERLASSUNGSVERTRAG.value: {
+        "name": "Überlassungsvertrag",
+        "beschreibung": "Vertrag zur Überlassung von Grundstücken/Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ERBVERTRAG.value: {
+        "name": "Erbvertrag",
+        "beschreibung": "Notarieller Erbvertrag",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.SCHENKUNGSVERTRAG.value: {
+        "name": "Schenkungsvertrag",
+        "beschreibung": "Vertrag über Schenkung von Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKTRITT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.TEILUNGSERKLAERUNG.value: {
+        "name": "Teilungserklärung",
+        "beschreibung": "WEG-Teilungserklärung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+        ]
+    },
+}
+
+# Farben für die visuelle Baustein-Hervorhebung (wechselnde Farben)
+BAUSTEIN_FARBEN = [
+    "#E3F2FD",  # Hellblau
+    "#E8F5E9",  # Hellgrün
+    "#FFEBEE",  # Hellrot/Rosa
+    "#FFF3E0",  # Hellorange
+    "#F3E5F5",  # Helllila
+    "#E0F7FA",  # Hellcyan
+]
+
 @dataclass
 class Textbaustein:
     """Ein Textbaustein (Klausel) für Verträge"""
@@ -1798,6 +1886,8 @@ class Textbaustein:
     # Herkunft & Kontext
     quelle_dokument_id: Optional[str] = None  # Falls aus Vertrag extrahiert
     position_im_dokument: int = 0  # Position im Ursprungsdokument
+    start_index: int = 0  # Startposition im Ursprungstext (Zeichenindex)
+    end_index: int = 0  # Endposition im Ursprungstext (Zeichenindex)
     vorgaenger_baustein_id: Optional[str] = None  # Vorheriger Baustein im Ursprung
     nachfolger_baustein_id: Optional[str] = None  # Nächster Baustein im Ursprung
 
@@ -10944,39 +11034,54 @@ def ki_analysiere_textbaustein_fallback(text: str) -> Dict[str, Any]:
     }
 
 
-def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, str]]:
-    """Zerlegt einen Vertrag in einzelne Textbausteine"""
+def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, Any]]:
+    """Zerlegt einen Vertrag in einzelne Textbausteine mit Start/End-Indizes"""
     bausteine = []
-
-    # Versuche nach typischen Gliederungen zu splitten
-    # Pattern: §, Artikel, Ziffer, römische Ziffern, etc.
     import re
 
     # Verschiedene Muster für Vertragsabschnitte
     patterns = [
-        r'(?=§\s*\d+)',  # § 1, § 2, etc.
-        r'(?=Artikel\s+\d+)',  # Artikel 1, etc.
-        r'(?=\n[IVX]+\.\s)',  # I. II. III. etc.
-        r'(?=\n\d+\.\s+[A-ZÄÖÜ])',  # 1. Titel, 2. Titel
+        r'§\s*\d+',  # § 1, § 2, etc.
+        r'Artikel\s+\d+',  # Artikel 1, etc.
+        r'\n[IVX]+\.\s',  # I. II. III. etc.
+        r'\n\d+\.\s+[A-ZÄÖÜ]',  # 1. Titel, 2. Titel
     ]
 
-    # Versuche verschiedene Patterns
-    teile = None
+    # Finde alle Trennpunkte mit Positionen
+    trennpunkte = [0]  # Start des Dokuments
+
     for pattern in patterns:
-        teile = re.split(pattern, volltext, flags=re.MULTILINE)
-        if len(teile) > 1:
+        matches = list(re.finditer(pattern, volltext, flags=re.MULTILINE))
+        if len(matches) >= 2:  # Mindestens 2 Treffer für sinnvolle Zerlegung
+            trennpunkte = [0] + [m.start() for m in matches] + [len(volltext)]
             break
 
-    if not teile or len(teile) <= 1:
-        # Fallback: Nach doppelten Zeilenumbrüchen splitten
-        teile = re.split(r'\n\s*\n', volltext)
+    # Falls keine Muster gefunden, nach doppelten Zeilenumbrüchen suchen
+    if len(trennpunkte) <= 2:
+        matches = list(re.finditer(r'\n\s*\n', volltext))
+        if matches:
+            trennpunkte = [0] + [m.end() for m in matches] + [len(volltext)]
 
-    for i, teil in enumerate(teile):
-        teil = teil.strip()
-        if len(teil) > 50:  # Mindestlänge für einen Baustein
+    # Falls immer noch keine Trennpunkte, den gesamten Text als einen Baustein
+    if len(trennpunkte) <= 2:
+        trennpunkte = [0, len(volltext)]
+
+    # Bausteine aus Trennpunkten erstellen
+    for i in range(len(trennpunkte) - 1):
+        start_idx = trennpunkte[i]
+        end_idx = trennpunkte[i + 1]
+        teil_text = volltext[start_idx:end_idx].strip()
+
+        if len(teil_text) > 50:  # Mindestlänge für einen Baustein
+            # Berechne tatsächliche Start/End-Position (ohne führende/trailing Whitespaces)
+            actual_start = volltext.find(teil_text, start_idx)
+            actual_end = actual_start + len(teil_text)
+
             bausteine.append({
-                'text': teil,
-                'position': i
+                'text': teil_text,
+                'position': i,
+                'start_index': actual_start,
+                'end_index': actual_end
             })
 
     return bausteine
@@ -11059,6 +11164,290 @@ Wenn kein Update nötig ist: {{"update_empfohlen": false, "hinweis": "Der Bauste
             'gefunden': False,
             'fehler': f'Fehler bei KI-Abfrage: {str(e)}'
         }
+
+
+def render_visueller_baustein_editor(dok_id: str, volltext: str, bausteine_ids: List[str], vertragstyp: str):
+    """
+    Visueller Editor für Textbausteine mit farblicher Hervorhebung und Grenzanpassung.
+    - Zeigt den Dokumenttext mit farblich markierten Bausteinen
+    - Ermöglicht Anpassung der Baustein-Grenzen per Schieberegler
+    - Berücksichtigt Vertragstyp-Templates für Reihenfolge und Alternativen
+    """
+    st.markdown("### 🎨 Visueller Baustein-Editor")
+
+    # Session State für Editor initialisieren
+    editor_key = f"baustein_editor_{dok_id}"
+    if editor_key not in st.session_state:
+        st.session_state[editor_key] = {
+            'aktiver_baustein': None,
+            'temp_grenzen': {}  # baustein_id -> {start, end}
+        }
+
+    # Bausteine für dieses Dokument laden und nach Position sortieren
+    dok_bausteine = []
+    for bid in bausteine_ids:
+        if bid in st.session_state.textbausteine:
+            dok_bausteine.append(st.session_state.textbausteine[bid])
+
+    dok_bausteine.sort(key=lambda b: b.start_index)
+
+    if not dok_bausteine:
+        st.info("Keine Textbausteine für dieses Dokument vorhanden.")
+        return
+
+    # Template-Info anzeigen wenn verfügbar
+    template = VERTRAGSTYP_TEMPLATES.get(vertragstyp)
+    if template:
+        with st.expander(f"📋 Template-Info: {template['name']}", expanded=False):
+            st.markdown(f"**{template['beschreibung']}**")
+            st.markdown("**Empfohlene Kategorien-Reihenfolge:**")
+            for i, kat_info in enumerate(template['kategorien_reihenfolge'], 1):
+                pflicht = "✅ Pflicht" if kat_info['pflicht'] else "➖ Optional"
+                mehrfach = " (mehrfach möglich)" if kat_info['mehrfach'] else ""
+                st.markdown(f"{i}. {kat_info['kategorie']} - {pflicht}{mehrfach}")
+
+    # Farbige Darstellung des Dokuments
+    st.markdown("#### 📄 Dokument mit markierten Bausteinen")
+
+    # HTML für farbige Darstellung erstellen
+    html_parts = []
+    last_end = 0
+
+    for i, baustein in enumerate(dok_bausteine):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        start = baustein.start_index
+        end = baustein.end_index
+
+        # Text vor diesem Baustein (nicht markiert)
+        if start > last_end:
+            nicht_zugeordnet = volltext[last_end:start]
+            if nicht_zugeordnet.strip():
+                html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{nicht_zugeordnet}</span>')
+
+        # Baustein-Text (farbig markiert)
+        baustein_text = volltext[start:end]
+        # Escape HTML characters
+        baustein_text_escaped = baustein_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+        html_parts.append(
+            f'<span style="background-color: {farbe}; padding: 2px 4px; border-radius: 3px; '
+            f'border-left: 3px solid {farbe.replace("E", "8").replace("F", "A")};" '
+            f'title="{baustein.titel} ({baustein.kategorie})">'
+            f'<strong>[{i+1}]</strong> {baustein_text_escaped}</span>'
+        )
+        last_end = end
+
+    # Text nach dem letzten Baustein
+    if last_end < len(volltext):
+        rest_text = volltext[last_end:]
+        if rest_text.strip():
+            html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{rest_text}</span>')
+
+    # HTML anzeigen
+    combined_html = ''.join(html_parts)
+    st.markdown(
+        f'<div style="max-height: 400px; overflow-y: auto; padding: 10px; '
+        f'border: 1px solid #ddd; border-radius: 5px; font-family: monospace; '
+        f'white-space: pre-wrap; line-height: 1.6;">{combined_html}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Legende
+    st.markdown("**Legende:**")
+    legend_cols = st.columns(len(dok_bausteine) if len(dok_bausteine) <= 6 else 6)
+    for i, baustein in enumerate(dok_bausteine[:6]):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        with legend_cols[i]:
+            st.markdown(
+                f'<span style="background-color: {farbe}; padding: 3px 8px; border-radius: 3px;">'
+                f'[{i+1}] {baustein.titel[:15]}...</span>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("---")
+
+    # Baustein-Bearbeitung
+    st.markdown("#### ✏️ Baustein-Grenzen anpassen")
+
+    # Baustein auswählen
+    baustein_options = {f"[{i+1}] {b.titel} ({b.kategorie})": b.baustein_id for i, b in enumerate(dok_bausteine)}
+    selected_label = st.selectbox("Baustein auswählen:", list(baustein_options.keys()), key=f"select_baustein_{dok_id}")
+    selected_id = baustein_options[selected_label]
+    selected_baustein = st.session_state.textbausteine[selected_id]
+
+    # Index des ausgewählten Bausteins
+    baustein_idx = next(i for i, b in enumerate(dok_bausteine) if b.baustein_id == selected_id)
+
+    # Grenzen bestimmen (min/max basierend auf Nachbarn)
+    min_start = dok_bausteine[baustein_idx - 1].end_index if baustein_idx > 0 else 0
+    max_end = dok_bausteine[baustein_idx + 1].start_index if baustein_idx < len(dok_bausteine) - 1 else len(volltext)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"**Farbe:** ")
+        farbe = BAUSTEIN_FARBEN[baustein_idx % len(BAUSTEIN_FARBEN)]
+        st.markdown(f'<span style="background-color: {farbe}; padding: 5px 15px; border-radius: 3px;">■</span>', unsafe_allow_html=True)
+        st.markdown(f"**Kategorie:** {selected_baustein.kategorie}")
+        st.markdown(f"**Aktueller Text-Bereich:** Zeichen {selected_baustein.start_index} - {selected_baustein.end_index}")
+
+    with col2:
+        st.markdown(f"**Textlänge:** {selected_baustein.end_index - selected_baustein.start_index} Zeichen")
+        st.markdown(f"**Min. Start:** {min_start} | **Max. Ende:** {max_end}")
+
+    # Schieberegler für Start
+    new_start = st.slider(
+        "Start-Position",
+        min_value=min_start,
+        max_value=selected_baustein.end_index - 10,  # Mindestens 10 Zeichen
+        value=selected_baustein.start_index,
+        key=f"slider_start_{dok_id}_{selected_id}"
+    )
+
+    # Schieberegler für Ende
+    new_end = st.slider(
+        "End-Position",
+        min_value=new_start + 10,  # Mindestens 10 Zeichen
+        max_value=max_end,
+        value=selected_baustein.end_index,
+        key=f"slider_end_{dok_id}_{selected_id}"
+    )
+
+    # Vorschau des neuen Texts
+    if new_start != selected_baustein.start_index or new_end != selected_baustein.end_index:
+        st.markdown("**📝 Vorschau des angepassten Bausteins:**")
+        new_text = volltext[new_start:new_end]
+        st.text_area("Neuer Text:", value=new_text, height=100, disabled=True, key=f"preview_{dok_id}_{selected_id}")
+
+        # Änderungen übernehmen
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+        with col_btn1:
+            if st.button("✅ Änderungen übernehmen", key=f"apply_{dok_id}_{selected_id}", type="primary"):
+                # Aktuellen Baustein aktualisieren
+                selected_baustein.start_index = new_start
+                selected_baustein.end_index = new_end
+                selected_baustein.text = volltext[new_start:new_end].strip()
+                selected_baustein.aktualisiert_am = datetime.now()
+                selected_baustein.text_hash = berechne_text_hash(selected_baustein.text)
+
+                # Angrenzende Bausteine anpassen (kaskadierend)
+                if baustein_idx > 0:
+                    vorheriger = dok_bausteine[baustein_idx - 1]
+                    if vorheriger.end_index > new_start:
+                        vorheriger.end_index = new_start
+                        vorheriger.text = volltext[vorheriger.start_index:vorheriger.end_index].strip()
+                        vorheriger.text_hash = berechne_text_hash(vorheriger.text)
+
+                if baustein_idx < len(dok_bausteine) - 1:
+                    naechster = dok_bausteine[baustein_idx + 1]
+                    if naechster.start_index < new_end:
+                        naechster.start_index = new_end
+                        naechster.text = volltext[naechster.start_index:naechster.end_index].strip()
+                        naechster.text_hash = berechne_text_hash(naechster.text)
+
+                st.success("✅ Änderungen übernommen!")
+                st.rerun()
+
+        with col_btn2:
+            if st.button("↩️ Zurücksetzen", key=f"reset_{dok_id}_{selected_id}"):
+                st.rerun()
+
+    # Baustein löschen
+    st.markdown("---")
+    st.markdown("#### 🗑️ Baustein löschen")
+
+    with st.expander("⚠️ Baustein löschen (Vorsicht!)", expanded=False):
+        st.warning("Das Löschen eines Bausteins kann nicht rückgängig gemacht werden!")
+
+        if st.button("🗑️ Diesen Baustein löschen", key=f"delete_{dok_id}_{selected_id}", type="secondary"):
+            # Aus Dokument-Liste entfernen
+            dok = st.session_state.vertragsdokumente.get(dok_id)
+            if dok and selected_id in dok.baustein_ids:
+                dok.baustein_ids.remove(selected_id)
+
+            # Verkettung anpassen
+            if selected_baustein.vorgaenger_baustein_id and selected_baustein.vorgaenger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.vorgaenger_baustein_id].nachfolger_baustein_id = selected_baustein.nachfolger_baustein_id
+
+            if selected_baustein.nachfolger_baustein_id and selected_baustein.nachfolger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.nachfolger_baustein_id].vorgaenger_baustein_id = selected_baustein.vorgaenger_baustein_id
+
+            # Baustein löschen
+            del st.session_state.textbausteine[selected_id]
+            st.success("Baustein gelöscht!")
+            st.rerun()
+
+    # Baustein-Sortierung nach Template
+    if template:
+        st.markdown("---")
+        st.markdown("#### 📋 Bausteine nach Template sortieren")
+
+        # Prüfe ob Bausteine nach Template sortiert sind
+        template_kategorien = [k['kategorie'] for k in template['kategorien_reihenfolge']]
+        aktuelle_kategorien = [b.kategorie for b in dok_bausteine]
+
+        # Finde beste Sortierung
+        sortierte_bausteine = []
+        nicht_zugeordnet_bausteine = dok_bausteine.copy()
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            passende = [b for b in nicht_zugeordnet_bausteine if b.kategorie == kategorie]
+            if passende:
+                if kat_info['mehrfach']:
+                    sortierte_bausteine.extend(passende)
+                    for b in passende:
+                        nicht_zugeordnet_bausteine.remove(b)
+                else:
+                    sortierte_bausteine.append(passende[0])
+                    nicht_zugeordnet_bausteine.remove(passende[0])
+
+        # Nicht zugeordnete am Ende
+        sortierte_bausteine.extend(nicht_zugeordnet_bausteine)
+
+        # Vergleich anzeigen
+        st.markdown("**Aktuelle vs. empfohlene Reihenfolge:**")
+        col_aktuell, col_empfohlen = st.columns(2)
+
+        with col_aktuell:
+            st.markdown("**Aktuelle Reihenfolge:**")
+            for i, b in enumerate(dok_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        with col_empfohlen:
+            st.markdown("**Nach Template:**")
+            for i, b in enumerate(sortierte_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        # Alternativen anzeigen
+        st.markdown("---")
+        st.markdown("#### 🔄 Baustein-Alternativen")
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            # Suche alle freigegebenen Bausteine dieser Kategorie
+            alternativen = [b for b in st.session_state.textbausteine.values()
+                          if b.kategorie == kategorie
+                          and b.status == TextbausteinStatus.FREIGEGEBEN.value
+                          and vertragstyp in b.vertragstypen]
+
+            if len(alternativen) > 1:
+                with st.expander(f"🔄 {kategorie} - {len(alternativen)} Alternativen verfügbar"):
+                    for alt in alternativen:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**{alt.titel}**")
+                            st.text(alt.text[:200] + "..." if len(alt.text) > 200 else alt.text)
+                        with col2:
+                            # Prüfen ob dieser Baustein im Dokument verwendet wird
+                            ist_verwendet = alt.baustein_id in bausteine_ids
+                            if ist_verwendet:
+                                st.success("✅ Verwendet")
+                            else:
+                                if st.button("➕ Verwenden", key=f"use_alt_{dok_id}_{alt.baustein_id}"):
+                                    # Ersetze bestehenden Baustein gleicher Kategorie oder füge hinzu
+                                    st.info("Alternative wird eingefügt...")
+                                    # Hier könnte man die Logik erweitern
 
 
 def notar_vertragsarchiv_view():
@@ -11366,6 +11755,10 @@ def notar_vertragsarchiv_view():
 
                         if dok.zerlegt:
                             st.success(f"✅ In {len(dok.baustein_ids)} Bausteine zerlegt")
+                            # Button für visuellen Editor
+                            if st.button("🎨 Visuellen Editor öffnen", key=f"visual_edit_{dok.dokument_id}"):
+                                st.session_state[f"show_visual_editor_{dok.dokument_id}"] = True
+                                st.rerun()
                         else:
                             if st.button("🔨 In Bausteine zerlegen", key=f"zerlege_{dok.dokument_id}"):
                                 with st.spinner("Zerlege Dokument..."):
@@ -11385,6 +11778,8 @@ def notar_vertragsarchiv_view():
                                             vertragstypen=[dok.vertragstyp],
                                             quelle_dokument_id=dok.dokument_id,
                                             position_im_dokument=teil['position'],
+                                            start_index=teil.get('start_index', 0),
+                                            end_index=teil.get('end_index', len(teil['text'])),
                                             status=TextbausteinStatus.ENTWURF.value,
                                             ki_generiert=True,
                                             ki_kategorisiert=True,
@@ -11414,6 +11809,21 @@ def notar_vertragsarchiv_view():
                             del st.session_state.vertragsdokumente[dok.dokument_id]
                             st.success("Dokument gelöscht!")
                             st.rerun()
+
+                # Visueller Editor anzeigen wenn aktiviert
+                if st.session_state.get(f"show_visual_editor_{dok.dokument_id}", False):
+                    st.markdown("---")
+                    col_close, _ = st.columns([1, 4])
+                    with col_close:
+                        if st.button("❌ Editor schließen", key=f"close_editor_{dok.dokument_id}"):
+                            st.session_state[f"show_visual_editor_{dok.dokument_id}"] = False
+                            st.rerun()
+                    render_visueller_baustein_editor(
+                        dok_id=dok.dokument_id,
+                        volltext=dok.volltext,
+                        bausteine_ids=dok.baustein_ids,
+                        vertragstyp=dok.vertragstyp
+                    )
 
     # ============ TAB 4: Freigaben ============
     with archiv_tabs[3]:

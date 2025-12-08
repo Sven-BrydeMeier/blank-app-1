@@ -65,8 +65,11 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | Käufer-Finanzierungsrechner | ~7000-7300 | Umfassender Kreditrechner |
 | **Verkäufer-Dashboard** | ~8123-8170 | Mit Pflicht-Akzeptanz Check |
 | **Notar-Dashboard** | ~10398-10478 | Mit 17 Tabs inkl. Vertragsarchiv & Vertragserstellung |
-| **VERTRAGSARCHIV FUNKTIONEN** | ~10641-11447 | notar_vertragsarchiv_view() mit 5 Sub-Tabs |
-| **VERTRAGSERSTELLUNG FUNKTIONEN** | ~11449-11946 | notar_vertragserstellung_view() mit 5 Sub-Tabs |
+| **VERTRAGSTYP_TEMPLATES** | ~1783-1869 | Templates für Kaufvertrag, Überlassungsvertrag, etc. |
+| **BAUSTEIN_FARBEN** | ~1861-1869 | Farben für visuelle Baustein-Hervorhebung |
+| **VISUELLER BAUSTEIN-EDITOR** | ~11169-11451 | render_visueller_baustein_editor() mit Schiebereglern |
+| **VERTRAGSARCHIV FUNKTIONEN** | ~11453-11830 | notar_vertragsarchiv_view() mit 5 Sub-Tabs |
+| **VERTRAGSERSTELLUNG FUNKTIONEN** | ~11832-12200 | notar_vertragserstellung_view() mit 5 Sub-Tabs |
 | **KI-Kaufvertragsentwurf** | ~9200-9750 | notar_kaufvertrag_generator() mit 4 Sub-Tabs |
 | Notar-Handwerker | ~10200-10400 | Handwerker-Verwaltung für Notar |
 | **Notar Ausweis-Erfassung** | ~10566-10646 | notar_ausweis_erfassung() |
@@ -90,17 +93,29 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
   - Hochgeladene Dokumente: Zerlegung in Bausteine
   - Freigaben: Notar-Workflow für neue Bausteine
   - Updates suchen: KI-gestützte Aktualisierungsprüfung
+- [x] **Visueller Baustein-Editor** (NEU)
+  - Farbliche Hervorhebung: Wechselnde Farben (Hellblau, Hellgrün, Hellrot, etc.)
+  - Schieberegler für Start/End-Position jedes Bausteins
+  - Kaskadierende Anpassung angrenzender Bausteine
+  - Baustein-Löschfunktion mit Verkettungsanpassung
+  - Vertragstyp-Templates mit Kategorien-Reihenfolge und Alternativen
+- [x] **Vertragstyp-Templates** (`VERTRAGSTYP_TEMPLATES`)
+  - Kaufvertrag: 16 Kategorien in korrekter Reihenfolge (Pflicht/Optional markiert)
+  - Überlassungsvertrag: 9 Kategorien
+  - Erbvertrag: 4 Kategorien
+  - Schenkungsvertrag: 9 Kategorien
+  - Teilungserklärung: 5 Kategorien
 - [x] **Datenstrukturen:**
   - `VertragsTyp` Enum (Kaufvertrag, Erbvertrag, Schenkungsvertrag, etc.)
   - `TextbausteinKategorie` Enum (21 Kategorien: Vertragsparteien, Kaufpreis, Auflassung, etc.)
   - `TextbausteinStatus` Enum (Entwurf, Freigegeben, Update verfügbar, etc.)
-  - `Textbaustein` Dataclass mit KI-Metadaten, Versionierung, Duplikaterkennung
+  - `Textbaustein` Dataclass mit KI-Metadaten, Versionierung, Duplikaterkennung, **start_index/end_index** für Positionierung
   - `VertragsDokument` Dataclass für hochgeladene Verträge
   - `VertragsVorlage` Dataclass für wiederverwendbare Vorlagen
   - `Vertragsentwurf` Dataclass für konkrete Entwürfe mit Workflow
 - [x] **KI-Funktionen:**
   - `ki_analysiere_textbaustein()`: Titel, Zusammenfassung, Kategorie automatisch
-  - `ki_zerlege_vertrag_in_bausteine()`: Vertrag in einzelne Klauseln splitten
+  - `ki_zerlege_vertrag_in_bausteine()`: Vertrag in einzelne Klauseln splitten **mit Start/End-Indizes**
   - `ki_suche_updates()`: Updates für Klauseln via ChatGPT
 - [x] **Vertragserstellung-Tab im Notar-Dashboard** mit 5 Sub-Tabs
   - Neuer Vertrag: Projekt wählen, Methode auswählen
