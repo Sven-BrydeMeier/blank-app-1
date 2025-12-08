@@ -4533,16 +4533,38 @@ def render_document_requests_view(user_id: str, user_role: str):
         selected_projekt_id = projekt_options[selected_projekt_label]
         selected_projekt = st.session_state.projekte[selected_projekt_id]
 
-        # Empfänger auswählen
+        # Empfänger auswählen - alle Projektbeteiligten
         empfaenger_options = {}
+
+        # Käufer
         for kid in selected_projekt.kaeufer_ids:
             k = st.session_state.users.get(kid)
             if k:
-                empfaenger_options[f"Käufer: {k.name}"] = kid
+                empfaenger_options[f"🏠 Käufer: {k.name}"] = kid
+
+        # Verkäufer
         for vid in selected_projekt.verkaeufer_ids:
             v = st.session_state.users.get(vid)
             if v:
-                empfaenger_options[f"Verkäufer: {v.name}"] = vid
+                empfaenger_options[f"🏡 Verkäufer: {v.name}"] = vid
+
+        # Makler
+        if selected_projekt.makler_id:
+            m = st.session_state.users.get(selected_projekt.makler_id)
+            if m and selected_projekt.makler_id != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"👔 Makler: {m.name}"] = selected_projekt.makler_id
+
+        # Finanzierer
+        for fid in selected_projekt.finanzierer_ids:
+            f = st.session_state.users.get(fid)
+            if f and fid != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"🏦 Finanzierer: {f.name}"] = fid
+
+        # Notar (falls Anfrage nicht vom Notar selbst kommt)
+        if selected_projekt.notar_id and selected_projekt.notar_id != user_id:
+            n = st.session_state.users.get(selected_projekt.notar_id)
+            if n:
+                empfaenger_options[f"⚖️ Notar: {n.name}"] = selected_projekt.notar_id
 
         if not empfaenger_options:
             st.warning("Keine Empfänger in diesem Projekt verfügbar.")
@@ -10513,6 +10535,9 @@ def notar_projekte_view():
         st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
+    # Verfügbare Mitarbeiter für diesen Notar
+    mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values() if m.notar_id == notar_id and m.aktiv]
+
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
             col1, col2 = st.columns(2)
@@ -10535,6 +10560,61 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+                # Makler anzeigen
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    if makler:
+                        st.write(f"👔 Makler: {makler.name}")
+
+                # Finanzierer anzeigen
+                for fid in projekt.finanzierer_ids:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        st.write(f"🏦 Finanzierer: {finanzierer.name}")
+
+            # Mitarbeiter-Zuweisung
+            st.markdown("---")
+            st.markdown("**👥 Zugewiesene Mitarbeiter:**")
+
+            # Zeige aktuell zugewiesene Mitarbeiter
+            zugewiesene_ma = [m for m in mitarbeiter if projekt.projekt_id in m.projekt_ids]
+            if zugewiesene_ma:
+                for ma in zugewiesene_ma:
+                    col_ma1, col_ma2 = st.columns([3, 1])
+                    with col_ma1:
+                        st.write(f"👤 {ma.name} ({ma.rolle})")
+                    with col_ma2:
+                        if st.button("❌", key=f"remove_ma_{projekt.projekt_id}_{ma.mitarbeiter_id}", help="Zuweisung entfernen"):
+                            ma.projekt_ids.remove(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"{ma.name} wurde vom Projekt entfernt.")
+                            st.rerun()
+            else:
+                st.info("Noch keine Mitarbeiter zugewiesen.")
+
+            # Neue Zuweisung
+            if mitarbeiter:
+                nicht_zugewiesene = [m for m in mitarbeiter if projekt.projekt_id not in m.projekt_ids]
+                if nicht_zugewiesene:
+                    col_select, col_btn = st.columns([3, 1])
+                    with col_select:
+                        ma_options = {f"{m.name} ({m.rolle})": m.mitarbeiter_id for m in nicht_zugewiesene}
+                        selected_ma_label = st.selectbox(
+                            "Mitarbeiter hinzufügen:",
+                            list(ma_options.keys()),
+                            key=f"select_ma_{projekt.projekt_id}"
+                        )
+                    with col_btn:
+                        if st.button("➕ Zuweisen", key=f"assign_ma_{projekt.projekt_id}"):
+                            ma_id = ma_options[selected_ma_label]
+                            ma = st.session_state.notar_mitarbeiter[ma_id]
+                            ma.projekt_ids.append(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma_id] = ma
+                            st.success(f"{ma.name} wurde dem Projekt zugewiesen.")
+                            st.rerun()
+            else:
+                st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
 
 def notar_preiseinigungen_view():
     """VERBESSERUNG 4: Übersicht aller Preiseinigungen für Beurkundungsvorbereitung"""
