@@ -12023,7 +12023,7 @@ def notar_vertragsarchiv_view():
                             st.markdown(f"**Beschreibung:** {dok.beschreibung}")
 
                         if dok.volltext:
-                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True)
+                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True, key=f"volltext_preview_{dok.dokument_id}")
 
                     with col2:
                         st.markdown(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
