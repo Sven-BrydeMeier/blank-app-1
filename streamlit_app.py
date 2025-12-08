@@ -1780,6 +1780,94 @@ class TextbausteinStatus(Enum):
     ABGELEHNT = "Abgelehnt"  # Vom Notar abgelehnt
     ARCHIVIERT = "Archiviert"  # Nicht mehr verwendet
 
+# Vertragstyp-Templates: Definiert die typische Reihenfolge der Kategorien für jeden Vertragstyp
+# Bei "alternativen" können verschiedene Bausteine der gleichen Kategorie ausgewählt werden
+VERTRAGSTYP_TEMPLATES = {
+    VertragsTyp.KAUFVERTRAG.value: {
+        "name": "Kaufvertrag",
+        "beschreibung": "Standard-Kaufvertrag für Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KAUFPREIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZAHLUNGSMODALITAETEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.FÄLLIGKEIT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MAENGEL.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VORKAUFSRECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VOLLMACHTEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SALVATORISCH.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.UEBERLASSUNGSVERTRAG.value: {
+        "name": "Überlassungsvertrag",
+        "beschreibung": "Vertrag zur Überlassung von Grundstücken/Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ERBVERTRAG.value: {
+        "name": "Erbvertrag",
+        "beschreibung": "Notarieller Erbvertrag",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.SCHENKUNGSVERTRAG.value: {
+        "name": "Schenkungsvertrag",
+        "beschreibung": "Vertrag über Schenkung von Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKTRITT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.TEILUNGSERKLAERUNG.value: {
+        "name": "Teilungserklärung",
+        "beschreibung": "WEG-Teilungserklärung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+        ]
+    },
+}
+
+# Farben für die visuelle Baustein-Hervorhebung (wechselnde Farben)
+BAUSTEIN_FARBEN = [
+    "#E3F2FD",  # Hellblau
+    "#E8F5E9",  # Hellgrün
+    "#FFEBEE",  # Hellrot/Rosa
+    "#FFF3E0",  # Hellorange
+    "#F3E5F5",  # Helllila
+    "#E0F7FA",  # Hellcyan
+]
+
 @dataclass
 class Textbaustein:
     """Ein Textbaustein (Klausel) für Verträge"""
@@ -1798,6 +1886,8 @@ class Textbaustein:
     # Herkunft & Kontext
     quelle_dokument_id: Optional[str] = None  # Falls aus Vertrag extrahiert
     position_im_dokument: int = 0  # Position im Ursprungsdokument
+    start_index: int = 0  # Startposition im Ursprungstext (Zeichenindex)
+    end_index: int = 0  # Endposition im Ursprungstext (Zeichenindex)
     vorgaenger_baustein_id: Optional[str] = None  # Vorheriger Baustein im Ursprung
     nachfolger_baustein_id: Optional[str] = None  # Nächster Baustein im Ursprung
 
@@ -4533,16 +4623,38 @@ def render_document_requests_view(user_id: str, user_role: str):
         selected_projekt_id = projekt_options[selected_projekt_label]
         selected_projekt = st.session_state.projekte[selected_projekt_id]
 
-        # Empfänger auswählen
+        # Empfänger auswählen - alle Projektbeteiligten
         empfaenger_options = {}
+
+        # Käufer
         for kid in selected_projekt.kaeufer_ids:
             k = st.session_state.users.get(kid)
             if k:
-                empfaenger_options[f"Käufer: {k.name}"] = kid
+                empfaenger_options[f"🏠 Käufer: {k.name}"] = kid
+
+        # Verkäufer
         for vid in selected_projekt.verkaeufer_ids:
             v = st.session_state.users.get(vid)
             if v:
-                empfaenger_options[f"Verkäufer: {v.name}"] = vid
+                empfaenger_options[f"🏡 Verkäufer: {v.name}"] = vid
+
+        # Makler
+        if selected_projekt.makler_id:
+            m = st.session_state.users.get(selected_projekt.makler_id)
+            if m and selected_projekt.makler_id != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"👔 Makler: {m.name}"] = selected_projekt.makler_id
+
+        # Finanzierer
+        for fid in selected_projekt.finanzierer_ids:
+            f = st.session_state.users.get(fid)
+            if f and fid != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"🏦 Finanzierer: {f.name}"] = fid
+
+        # Notar (falls Anfrage nicht vom Notar selbst kommt)
+        if selected_projekt.notar_id and selected_projekt.notar_id != user_id:
+            n = st.session_state.users.get(selected_projekt.notar_id)
+            if n:
+                empfaenger_options[f"⚖️ Notar: {n.name}"] = selected_projekt.notar_id
 
         if not empfaenger_options:
             st.warning("Keine Empfänger in diesem Projekt verfügbar.")
@@ -10513,6 +10625,9 @@ def notar_projekte_view():
         st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
+    # Verfügbare Mitarbeiter für diesen Notar
+    mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values() if m.notar_id == notar_id and m.aktiv]
+
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
             col1, col2 = st.columns(2)
@@ -10535,6 +10650,61 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+                # Makler anzeigen
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    if makler:
+                        st.write(f"👔 Makler: {makler.name}")
+
+                # Finanzierer anzeigen
+                for fid in projekt.finanzierer_ids:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        st.write(f"🏦 Finanzierer: {finanzierer.name}")
+
+            # Mitarbeiter-Zuweisung
+            st.markdown("---")
+            st.markdown("**👥 Zugewiesene Mitarbeiter:**")
+
+            # Zeige aktuell zugewiesene Mitarbeiter
+            zugewiesene_ma = [m for m in mitarbeiter if projekt.projekt_id in m.projekt_ids]
+            if zugewiesene_ma:
+                for ma in zugewiesene_ma:
+                    col_ma1, col_ma2 = st.columns([3, 1])
+                    with col_ma1:
+                        st.write(f"👤 {ma.name} ({ma.rolle})")
+                    with col_ma2:
+                        if st.button("❌", key=f"remove_ma_{projekt.projekt_id}_{ma.mitarbeiter_id}", help="Zuweisung entfernen"):
+                            ma.projekt_ids.remove(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"{ma.name} wurde vom Projekt entfernt.")
+                            st.rerun()
+            else:
+                st.info("Noch keine Mitarbeiter zugewiesen.")
+
+            # Neue Zuweisung
+            if mitarbeiter:
+                nicht_zugewiesene = [m for m in mitarbeiter if projekt.projekt_id not in m.projekt_ids]
+                if nicht_zugewiesene:
+                    col_select, col_btn = st.columns([3, 1])
+                    with col_select:
+                        ma_options = {f"{m.name} ({m.rolle})": m.mitarbeiter_id for m in nicht_zugewiesene}
+                        selected_ma_label = st.selectbox(
+                            "Mitarbeiter hinzufügen:",
+                            list(ma_options.keys()),
+                            key=f"select_ma_{projekt.projekt_id}"
+                        )
+                    with col_btn:
+                        if st.button("➕ Zuweisen", key=f"assign_ma_{projekt.projekt_id}"):
+                            ma_id = ma_options[selected_ma_label]
+                            ma = st.session_state.notar_mitarbeiter[ma_id]
+                            ma.projekt_ids.append(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma_id] = ma
+                            st.success(f"{ma.name} wurde dem Projekt zugewiesen.")
+                            st.rerun()
+            else:
+                st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
 
 def notar_preiseinigungen_view():
     """VERBESSERUNG 4: Übersicht aller Preiseinigungen für Beurkundungsvorbereitung"""
@@ -10703,6 +10873,33 @@ def extrahiere_text_aus_datei(datei_bytes: bytes, dateityp: str, dateiname: str)
         except Exception as e:
             text = f"[Fehler beim Lesen der DOCX-Datei: {str(e)}]"
 
+    elif dateityp == "rtf":
+        try:
+            # RTF-Text-Extraktion
+            import re as re_rtf
+            content = datei_bytes.decode('latin-1', errors='ignore')
+
+            # Entferne RTF-Steuerzeichen und extrahiere Text
+            # Entferne RTF-Header und Control-Words
+            content = re_rtf.sub(r'\\[a-z]+\d*\s?', '', content)
+            # Entferne geschweifte Klammern
+            content = re_rtf.sub(r'[{}]', '', content)
+            # Entferne Hex-Codes wie \'xx
+            content = re_rtf.sub(r"\\'[0-9a-fA-F]{2}", '', content)
+            # Ersetze RTF-Zeilenumbrüche
+            content = content.replace('\\par', '\n')
+            content = content.replace('\\line', '\n')
+            # Bereinige mehrfache Leerzeichen
+            content = re_rtf.sub(r' +', ' ', content)
+            content = re_rtf.sub(r'\n+', '\n', content)
+
+            text = content.strip()
+
+            if len(text) < 50:
+                text = "[RTF-Text konnte nicht vollständig extrahiert werden. Bitte prüfen Sie das Dokument.]"
+        except Exception as e:
+            text = f"[Fehler beim Lesen der RTF-Datei: {str(e)}]"
+
     elif dateityp == "pdf":
         # PDF-Text-Extraktion (vereinfacht - in Production würde man PyPDF2 oder pdfplumber verwenden)
         try:
@@ -10864,39 +11061,54 @@ def ki_analysiere_textbaustein_fallback(text: str) -> Dict[str, Any]:
     }
 
 
-def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, str]]:
-    """Zerlegt einen Vertrag in einzelne Textbausteine"""
+def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, Any]]:
+    """Zerlegt einen Vertrag in einzelne Textbausteine mit Start/End-Indizes"""
     bausteine = []
-
-    # Versuche nach typischen Gliederungen zu splitten
-    # Pattern: §, Artikel, Ziffer, römische Ziffern, etc.
     import re
 
     # Verschiedene Muster für Vertragsabschnitte
     patterns = [
-        r'(?=§\s*\d+)',  # § 1, § 2, etc.
-        r'(?=Artikel\s+\d+)',  # Artikel 1, etc.
-        r'(?=\n[IVX]+\.\s)',  # I. II. III. etc.
-        r'(?=\n\d+\.\s+[A-ZÄÖÜ])',  # 1. Titel, 2. Titel
+        r'§\s*\d+',  # § 1, § 2, etc.
+        r'Artikel\s+\d+',  # Artikel 1, etc.
+        r'\n[IVX]+\.\s',  # I. II. III. etc.
+        r'\n\d+\.\s+[A-ZÄÖÜ]',  # 1. Titel, 2. Titel
     ]
 
-    # Versuche verschiedene Patterns
-    teile = None
+    # Finde alle Trennpunkte mit Positionen
+    trennpunkte = [0]  # Start des Dokuments
+
     for pattern in patterns:
-        teile = re.split(pattern, volltext, flags=re.MULTILINE)
-        if len(teile) > 1:
+        matches = list(re.finditer(pattern, volltext, flags=re.MULTILINE))
+        if len(matches) >= 2:  # Mindestens 2 Treffer für sinnvolle Zerlegung
+            trennpunkte = [0] + [m.start() for m in matches] + [len(volltext)]
             break
 
-    if not teile or len(teile) <= 1:
-        # Fallback: Nach doppelten Zeilenumbrüchen splitten
-        teile = re.split(r'\n\s*\n', volltext)
+    # Falls keine Muster gefunden, nach doppelten Zeilenumbrüchen suchen
+    if len(trennpunkte) <= 2:
+        matches = list(re.finditer(r'\n\s*\n', volltext))
+        if matches:
+            trennpunkte = [0] + [m.end() for m in matches] + [len(volltext)]
 
-    for i, teil in enumerate(teile):
-        teil = teil.strip()
-        if len(teil) > 50:  # Mindestlänge für einen Baustein
+    # Falls immer noch keine Trennpunkte, den gesamten Text als einen Baustein
+    if len(trennpunkte) <= 2:
+        trennpunkte = [0, len(volltext)]
+
+    # Bausteine aus Trennpunkten erstellen
+    for i in range(len(trennpunkte) - 1):
+        start_idx = trennpunkte[i]
+        end_idx = trennpunkte[i + 1]
+        teil_text = volltext[start_idx:end_idx].strip()
+
+        if len(teil_text) > 50:  # Mindestlänge für einen Baustein
+            # Berechne tatsächliche Start/End-Position (ohne führende/trailing Whitespaces)
+            actual_start = volltext.find(teil_text, start_idx)
+            actual_end = actual_start + len(teil_text)
+
             bausteine.append({
-                'text': teil,
-                'position': i
+                'text': teil_text,
+                'position': i,
+                'start_index': actual_start,
+                'end_index': actual_end
             })
 
     return bausteine
@@ -10981,6 +11193,524 @@ Wenn kein Update nötig ist: {{"update_empfohlen": false, "hinweis": "Der Bauste
         }
 
 
+def render_visueller_baustein_editor(dok_id: str, volltext: str, bausteine_ids: List[str], vertragstyp: str):
+    """
+    Visueller Editor für Textbausteine mit farblicher Hervorhebung und Grenzanpassung.
+    - Zeigt den Dokumenttext mit farblich markierten Bausteinen
+    - Ermöglicht Anpassung der Baustein-Grenzen per Schieberegler
+    - Berücksichtigt Vertragstyp-Templates für Reihenfolge und Alternativen
+    """
+    st.markdown("### 🎨 Visueller Baustein-Editor")
+
+    # Session State für Editor initialisieren
+    editor_key = f"baustein_editor_{dok_id}"
+    if editor_key not in st.session_state:
+        st.session_state[editor_key] = {
+            'aktiver_baustein': None,
+            'temp_grenzen': {}  # baustein_id -> {start, end}
+        }
+
+    # Bausteine für dieses Dokument laden und nach Position sortieren
+    dok_bausteine = []
+    for bid in bausteine_ids:
+        if bid in st.session_state.textbausteine:
+            dok_bausteine.append(st.session_state.textbausteine[bid])
+
+    dok_bausteine.sort(key=lambda b: b.start_index)
+
+    if not dok_bausteine:
+        st.info("Keine Textbausteine für dieses Dokument vorhanden.")
+        return
+
+    # Template-Info anzeigen wenn verfügbar
+    template = VERTRAGSTYP_TEMPLATES.get(vertragstyp)
+    if template:
+        with st.expander(f"📋 Template-Info: {template['name']}", expanded=False):
+            st.markdown(f"**{template['beschreibung']}**")
+            st.markdown("**Empfohlene Kategorien-Reihenfolge:**")
+            for i, kat_info in enumerate(template['kategorien_reihenfolge'], 1):
+                pflicht = "✅ Pflicht" if kat_info['pflicht'] else "➖ Optional"
+                mehrfach = " (mehrfach möglich)" if kat_info['mehrfach'] else ""
+                st.markdown(f"{i}. {kat_info['kategorie']} - {pflicht}{mehrfach}")
+
+    # Farbige Darstellung des Dokuments
+    st.markdown("#### 📄 Dokument mit markierten Bausteinen")
+
+    # HTML für farbige Darstellung erstellen
+    html_parts = []
+    last_end = 0
+
+    for i, baustein in enumerate(dok_bausteine):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        start = baustein.start_index
+        end = baustein.end_index
+
+        # Text vor diesem Baustein (nicht markiert)
+        if start > last_end:
+            nicht_zugeordnet = volltext[last_end:start]
+            if nicht_zugeordnet.strip():
+                html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{nicht_zugeordnet}</span>')
+
+        # Baustein-Text (farbig markiert)
+        baustein_text = volltext[start:end]
+        # Escape HTML characters
+        baustein_text_escaped = baustein_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+        html_parts.append(
+            f'<span style="background-color: {farbe}; padding: 2px 4px; border-radius: 3px; '
+            f'border-left: 3px solid {farbe.replace("E", "8").replace("F", "A")};" '
+            f'title="{baustein.titel} ({baustein.kategorie})">'
+            f'<strong>[{i+1}]</strong> {baustein_text_escaped}</span>'
+        )
+        last_end = end
+
+    # Text nach dem letzten Baustein
+    if last_end < len(volltext):
+        rest_text = volltext[last_end:]
+        if rest_text.strip():
+            html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{rest_text}</span>')
+
+    # HTML anzeigen
+    combined_html = ''.join(html_parts)
+    st.markdown(
+        f'<div style="max-height: 400px; overflow-y: auto; padding: 10px; '
+        f'border: 1px solid #ddd; border-radius: 5px; font-family: monospace; '
+        f'white-space: pre-wrap; line-height: 1.6;">{combined_html}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Legende
+    st.markdown("**Legende:**")
+    legend_cols = st.columns(len(dok_bausteine) if len(dok_bausteine) <= 6 else 6)
+    for i, baustein in enumerate(dok_bausteine[:6]):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        with legend_cols[i]:
+            st.markdown(
+                f'<span style="background-color: {farbe}; padding: 3px 8px; border-radius: 3px;">'
+                f'[{i+1}] {baustein.titel[:15]}...</span>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("---")
+
+    # Baustein-Bearbeitung
+    st.markdown("#### ✏️ Baustein-Grenzen anpassen")
+
+    # Baustein auswählen
+    baustein_options = {f"[{i+1}] {b.titel} ({b.kategorie})": b.baustein_id for i, b in enumerate(dok_bausteine)}
+    selected_label = st.selectbox("Baustein auswählen:", list(baustein_options.keys()), key=f"select_baustein_{dok_id}")
+    selected_id = baustein_options[selected_label]
+    selected_baustein = st.session_state.textbausteine[selected_id]
+
+    # Index des ausgewählten Bausteins
+    baustein_idx = next(i for i, b in enumerate(dok_bausteine) if b.baustein_id == selected_id)
+
+    # Grenzen bestimmen (min/max basierend auf Nachbarn)
+    min_start = dok_bausteine[baustein_idx - 1].end_index if baustein_idx > 0 else 0
+    max_end = dok_bausteine[baustein_idx + 1].start_index if baustein_idx < len(dok_bausteine) - 1 else len(volltext)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"**Farbe:** ")
+        farbe = BAUSTEIN_FARBEN[baustein_idx % len(BAUSTEIN_FARBEN)]
+        st.markdown(f'<span style="background-color: {farbe}; padding: 5px 15px; border-radius: 3px;">■</span>', unsafe_allow_html=True)
+        st.markdown(f"**Kategorie:** {selected_baustein.kategorie}")
+        st.markdown(f"**Aktueller Text-Bereich:** Zeichen {selected_baustein.start_index} - {selected_baustein.end_index}")
+
+    with col2:
+        st.markdown(f"**Textlänge:** {selected_baustein.end_index - selected_baustein.start_index} Zeichen")
+        st.markdown(f"**Min. Start:** {min_start} | **Max. Ende:** {max_end}")
+
+    # Schieberegler für Start
+    new_start = st.slider(
+        "Start-Position",
+        min_value=min_start,
+        max_value=selected_baustein.end_index - 10,  # Mindestens 10 Zeichen
+        value=selected_baustein.start_index,
+        key=f"slider_start_{dok_id}_{selected_id}"
+    )
+
+    # Schieberegler für Ende
+    new_end = st.slider(
+        "End-Position",
+        min_value=new_start + 10,  # Mindestens 10 Zeichen
+        max_value=max_end,
+        value=selected_baustein.end_index,
+        key=f"slider_end_{dok_id}_{selected_id}"
+    )
+
+    # Vorschau des neuen Texts
+    if new_start != selected_baustein.start_index or new_end != selected_baustein.end_index:
+        st.markdown("**📝 Vorschau des angepassten Bausteins:**")
+        new_text = volltext[new_start:new_end]
+        st.text_area("Neuer Text:", value=new_text, height=100, disabled=True, key=f"preview_{dok_id}_{selected_id}")
+
+        # Änderungen übernehmen
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+        with col_btn1:
+            if st.button("✅ Änderungen übernehmen", key=f"apply_{dok_id}_{selected_id}", type="primary"):
+                # Aktuellen Baustein aktualisieren
+                selected_baustein.start_index = new_start
+                selected_baustein.end_index = new_end
+                selected_baustein.text = volltext[new_start:new_end].strip()
+                selected_baustein.aktualisiert_am = datetime.now()
+                selected_baustein.text_hash = berechne_text_hash(selected_baustein.text)
+
+                # Angrenzende Bausteine anpassen (kaskadierend)
+                if baustein_idx > 0:
+                    vorheriger = dok_bausteine[baustein_idx - 1]
+                    if vorheriger.end_index > new_start:
+                        vorheriger.end_index = new_start
+                        vorheriger.text = volltext[vorheriger.start_index:vorheriger.end_index].strip()
+                        vorheriger.text_hash = berechne_text_hash(vorheriger.text)
+
+                if baustein_idx < len(dok_bausteine) - 1:
+                    naechster = dok_bausteine[baustein_idx + 1]
+                    if naechster.start_index < new_end:
+                        naechster.start_index = new_end
+                        naechster.text = volltext[naechster.start_index:naechster.end_index].strip()
+                        naechster.text_hash = berechne_text_hash(naechster.text)
+
+                st.success("✅ Änderungen übernommen!")
+                st.rerun()
+
+        with col_btn2:
+            if st.button("↩️ Zurücksetzen", key=f"reset_{dok_id}_{selected_id}"):
+                st.rerun()
+
+    # Baustein löschen
+    st.markdown("---")
+    st.markdown("#### 🗑️ Baustein löschen")
+
+    with st.expander("⚠️ Baustein löschen (Vorsicht!)", expanded=False):
+        st.warning("Das Löschen eines Bausteins kann nicht rückgängig gemacht werden!")
+
+        if st.button("🗑️ Diesen Baustein löschen", key=f"delete_{dok_id}_{selected_id}", type="secondary"):
+            # Aus Dokument-Liste entfernen
+            dok = st.session_state.vertragsdokumente.get(dok_id)
+            if dok and selected_id in dok.baustein_ids:
+                dok.baustein_ids.remove(selected_id)
+
+            # Verkettung anpassen
+            if selected_baustein.vorgaenger_baustein_id and selected_baustein.vorgaenger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.vorgaenger_baustein_id].nachfolger_baustein_id = selected_baustein.nachfolger_baustein_id
+
+            if selected_baustein.nachfolger_baustein_id and selected_baustein.nachfolger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.nachfolger_baustein_id].vorgaenger_baustein_id = selected_baustein.vorgaenger_baustein_id
+
+            # Baustein löschen
+            del st.session_state.textbausteine[selected_id]
+            st.success("Baustein gelöscht!")
+            st.rerun()
+
+    # Baustein-Sortierung nach Template
+    if template:
+        st.markdown("---")
+        st.markdown("#### 📋 Bausteine nach Template sortieren")
+
+        # Prüfe ob Bausteine nach Template sortiert sind
+        template_kategorien = [k['kategorie'] for k in template['kategorien_reihenfolge']]
+        aktuelle_kategorien = [b.kategorie for b in dok_bausteine]
+
+        # Finde beste Sortierung
+        sortierte_bausteine = []
+        nicht_zugeordnet_bausteine = dok_bausteine.copy()
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            passende = [b for b in nicht_zugeordnet_bausteine if b.kategorie == kategorie]
+            if passende:
+                if kat_info['mehrfach']:
+                    sortierte_bausteine.extend(passende)
+                    for b in passende:
+                        nicht_zugeordnet_bausteine.remove(b)
+                else:
+                    sortierte_bausteine.append(passende[0])
+                    nicht_zugeordnet_bausteine.remove(passende[0])
+
+        # Nicht zugeordnete am Ende
+        sortierte_bausteine.extend(nicht_zugeordnet_bausteine)
+
+        # Vergleich anzeigen
+        st.markdown("**Aktuelle vs. empfohlene Reihenfolge:**")
+        col_aktuell, col_empfohlen = st.columns(2)
+
+        with col_aktuell:
+            st.markdown("**Aktuelle Reihenfolge:**")
+            for i, b in enumerate(dok_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        with col_empfohlen:
+            st.markdown("**Nach Template:**")
+            for i, b in enumerate(sortierte_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        # Alternativen anzeigen
+        st.markdown("---")
+        st.markdown("#### 🔄 Baustein-Alternativen")
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            # Suche alle freigegebenen Bausteine dieser Kategorie
+            alternativen = [b for b in st.session_state.textbausteine.values()
+                          if b.kategorie == kategorie
+                          and b.status == TextbausteinStatus.FREIGEGEBEN.value
+                          and vertragstyp in b.vertragstypen]
+
+            if len(alternativen) > 1:
+                with st.expander(f"🔄 {kategorie} - {len(alternativen)} Alternativen verfügbar"):
+                    for alt in alternativen:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**{alt.titel}**")
+                            st.text(alt.text[:200] + "..." if len(alt.text) > 200 else alt.text)
+                        with col2:
+                            # Prüfen ob dieser Baustein im Dokument verwendet wird
+                            ist_verwendet = alt.baustein_id in bausteine_ids
+                            if ist_verwendet:
+                                st.success("✅ Verwendet")
+                            else:
+                                if st.button("➕ Verwenden", key=f"use_alt_{dok_id}_{alt.baustein_id}"):
+                                    # Ersetze bestehenden Baustein gleicher Kategorie oder füge hinzu
+                                    st.info("Alternative wird eingefügt...")
+                                    # Hier könnte man die Logik erweitern
+
+
+def render_cloud_storage_integration():
+    """
+    Rendert die Cloud-Storage-Integration für Dokument-Import.
+    Unterstützt Google Drive, iCloud und Dropbox.
+    """
+    st.markdown("### ☁️ Cloud-Storage verbinden")
+
+    # Session State für Cloud-Verbindungen
+    if 'cloud_connections' not in st.session_state:
+        st.session_state.cloud_connections = {
+            'google_drive': {'connected': False, 'email': '', 'access_token': ''},
+            'icloud': {'connected': False, 'email': '', 'access_token': ''},
+            'dropbox': {'connected': False, 'email': '', 'access_token': ''}
+        }
+
+    # Cloud-Provider auswählen
+    cloud_provider = st.selectbox(
+        "Cloud-Anbieter auswählen:",
+        ["📁 Google Drive", "☁️ iCloud", "📦 Dropbox"],
+        key="cloud_provider_select"
+    )
+
+    provider_key = {
+        "📁 Google Drive": "google_drive",
+        "☁️ iCloud": "icloud",
+        "📦 Dropbox": "dropbox"
+    }[cloud_provider]
+
+    connection = st.session_state.cloud_connections[provider_key]
+
+    # Provider-spezifische Einstellungen
+    if provider_key == "google_drive":
+        st.markdown("""
+        **Google Drive Integration**
+
+        Um Google Drive zu verbinden, benötigen Sie:
+        1. Eine Google Cloud Console App mit aktivierter Drive API
+        2. OAuth 2.0 Client-ID und Client-Secret
+        """)
+
+        with st.expander("🔧 Google Drive Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                client_id = st.text_input(
+                    "Client ID",
+                    value=st.session_state.get('gdrive_client_id', ''),
+                    type="password",
+                    key="gdrive_client_id_input"
+                )
+            with col2:
+                client_secret = st.text_input(
+                    "Client Secret",
+                    value=st.session_state.get('gdrive_client_secret', ''),
+                    type="password",
+                    key="gdrive_client_secret_input"
+                )
+
+            if st.button("🔗 Mit Google Drive verbinden", key="connect_gdrive"):
+                if client_id and client_secret:
+                    st.session_state.gdrive_client_id = client_id
+                    st.session_state.gdrive_client_secret = client_secret
+                    # Simuliere OAuth-Flow (in Production: echte OAuth-Implementierung)
+                    connection['connected'] = True
+                    connection['email'] = "user@gmail.com"
+                    st.success("✅ Google Drive erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Client ID und Client Secret eingeben.")
+
+    elif provider_key == "icloud":
+        st.markdown("""
+        **iCloud Integration**
+
+        Um iCloud zu verbinden, benötigen Sie:
+        1. Ihre Apple-ID
+        2. Ein App-spezifisches Passwort (unter appleid.apple.com erstellen)
+        """)
+
+        with st.expander("🔧 iCloud Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                apple_id = st.text_input(
+                    "Apple-ID (E-Mail)",
+                    value=st.session_state.get('icloud_apple_id', ''),
+                    key="icloud_apple_id_input"
+                )
+            with col2:
+                app_password = st.text_input(
+                    "App-spezifisches Passwort",
+                    value='',
+                    type="password",
+                    key="icloud_app_password_input"
+                )
+
+            if st.button("🔗 Mit iCloud verbinden", key="connect_icloud"):
+                if apple_id and app_password:
+                    st.session_state.icloud_apple_id = apple_id
+                    # Simuliere Verbindung
+                    connection['connected'] = True
+                    connection['email'] = apple_id
+                    st.success("✅ iCloud erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Apple-ID und App-Passwort eingeben.")
+
+    elif provider_key == "dropbox":
+        st.markdown("""
+        **Dropbox Integration**
+
+        Um Dropbox zu verbinden, benötigen Sie:
+        1. Eine Dropbox App (unter dropbox.com/developers erstellen)
+        2. Access Token für die App
+        """)
+
+        with st.expander("🔧 Dropbox Einstellungen", expanded=not connection['connected']):
+            access_token = st.text_input(
+                "Access Token",
+                value=st.session_state.get('dropbox_access_token', ''),
+                type="password",
+                key="dropbox_access_token_input"
+            )
+
+            if st.button("🔗 Mit Dropbox verbinden", key="connect_dropbox"):
+                if access_token:
+                    st.session_state.dropbox_access_token = access_token
+                    connection['connected'] = True
+                    connection['email'] = "dropbox-user"
+                    st.success("✅ Dropbox erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Access Token eingeben.")
+
+    # Wenn verbunden, zeige Dateibrowser
+    if connection['connected']:
+        st.success(f"✅ Verbunden als: {connection['email']}")
+
+        st.markdown("---")
+        st.markdown("### 📂 Dateien durchsuchen")
+
+        # Simulierte Ordnerstruktur (in Production: echte API-Aufrufe)
+        if 'cloud_current_path' not in st.session_state:
+            st.session_state.cloud_current_path = "/"
+
+        # Simulierte Dateien basierend auf Provider
+        demo_files = {
+            "google_drive": [
+                {"name": "Verträge", "type": "folder", "path": "/Verträge"},
+                {"name": "Mustervertrag_Kaufvertrag.docx", "type": "file", "size": "45 KB", "path": "/Mustervertrag_Kaufvertrag.docx"},
+                {"name": "AGB_Vorlage.pdf", "type": "file", "size": "120 KB", "path": "/AGB_Vorlage.pdf"},
+                {"name": "Datenschutz_Template.rtf", "type": "file", "size": "28 KB", "path": "/Datenschutz_Template.rtf"},
+            ],
+            "icloud": [
+                {"name": "Dokumente", "type": "folder", "path": "/Dokumente"},
+                {"name": "Notarvertrag_2024.docx", "type": "file", "size": "67 KB", "path": "/Notarvertrag_2024.docx"},
+                {"name": "Vollmacht_Muster.pdf", "type": "file", "size": "89 KB", "path": "/Vollmacht_Muster.pdf"},
+            ],
+            "dropbox": [
+                {"name": "Rechtsdokumente", "type": "folder", "path": "/Rechtsdokumente"},
+                {"name": "Kaufvertrag_Vorlage.docx", "type": "file", "size": "52 KB", "path": "/Kaufvertrag_Vorlage.docx"},
+                {"name": "Übergabeprotokoll.rtf", "type": "file", "size": "15 KB", "path": "/Übergabeprotokoll.rtf"},
+            ]
+        }
+
+        files = demo_files.get(provider_key, [])
+
+        # Pfad-Navigation
+        col_path, col_refresh = st.columns([4, 1])
+        with col_path:
+            st.markdown(f"**Aktueller Pfad:** `{st.session_state.cloud_current_path}`")
+        with col_refresh:
+            if st.button("🔄", key="refresh_cloud"):
+                st.rerun()
+
+        # Dateien anzeigen
+        for item in files:
+            col1, col2, col3 = st.columns([3, 1, 1])
+
+            with col1:
+                if item['type'] == 'folder':
+                    if st.button(f"📁 {item['name']}", key=f"folder_{item['path']}"):
+                        st.session_state.cloud_current_path = item['path']
+                        st.rerun()
+                else:
+                    # Datei-Icon basierend auf Typ
+                    ext = item['name'].split('.')[-1].lower()
+                    icon = {"docx": "📄", "pdf": "📕", "rtf": "📝", "jpg": "🖼️", "png": "🖼️"}.get(ext, "📄")
+                    st.markdown(f"{icon} **{item['name']}**")
+
+            with col2:
+                if item['type'] == 'file':
+                    st.markdown(f"*{item['size']}*")
+
+            with col3:
+                if item['type'] == 'file':
+                    if st.button("⬇️ Import", key=f"import_{item['path']}"):
+                        # Simuliere Datei-Import
+                        st.session_state[f"cloud_import_{item['name']}"] = {
+                            "name": item['name'],
+                            "provider": provider_key,
+                            "path": item['path'],
+                            "imported": True
+                        }
+                        st.success(f"✅ '{item['name']}' wurde importiert!")
+                        st.info("💡 Die Datei wird im Demo-Modus simuliert. In der Produktionsversion wird die echte Datei heruntergeladen.")
+
+        # Trennen-Button
+        st.markdown("---")
+        if st.button(f"🔌 {cloud_provider} trennen", key=f"disconnect_{provider_key}"):
+            connection['connected'] = False
+            connection['email'] = ''
+            connection['access_token'] = ''
+            st.success("Verbindung getrennt.")
+            st.rerun()
+
+    # Verbindungs-Status Übersicht
+    st.markdown("---")
+    st.markdown("### 📊 Verbindungs-Status")
+
+    status_cols = st.columns(3)
+    providers = [
+        ("📁 Google Drive", "google_drive"),
+        ("☁️ iCloud", "icloud"),
+        ("📦 Dropbox", "dropbox")
+    ]
+
+    for i, (name, key) in enumerate(providers):
+        with status_cols[i]:
+            conn = st.session_state.cloud_connections[key]
+            if conn['connected']:
+                st.success(f"{name}\n✅ Verbunden")
+            else:
+                st.info(f"{name}\n⚪ Nicht verbunden")
+
+
 def notar_vertragsarchiv_view():
     """Hauptansicht für das Vertragsarchiv - Upload und Verwaltung von Textbausteinen"""
     st.subheader("📚 Vertragsarchiv & Textbausteine")
@@ -11007,18 +11737,32 @@ def notar_vertragsarchiv_view():
         )
 
         if upload_typ == "📄 Komplettes Dokument (Vertrag)":
-            st.markdown("""
-            **Unterstützte Formate:**
-            - Word-Dokumente (.docx)
-            - PDF-Dateien (.pdf)
-            - Bilder (.jpg, .png) - werden per OCR verarbeitet
-            """)
-
-            uploaded_file = st.file_uploader(
-                "Vertragsdokument hochladen",
-                type=['docx', 'pdf', 'jpg', 'jpeg', 'png'],
-                key="archiv_dokument_upload"
+            # Upload-Quelle auswählen
+            upload_quelle = st.radio(
+                "Dokumentquelle:",
+                ["💻 Lokaler Upload", "☁️ Cloud-Storage"],
+                horizontal=True,
+                key="upload_quelle_radio"
             )
+
+            if upload_quelle == "💻 Lokaler Upload":
+                st.markdown("""
+                **Unterstützte Formate:**
+                - Word-Dokumente (.docx)
+                - RTF-Dokumente (.rtf)
+                - PDF-Dateien (.pdf)
+                - Bilder (.jpg, .png) - werden per OCR verarbeitet
+                """)
+
+                uploaded_file = st.file_uploader(
+                    "Vertragsdokument hochladen",
+                    type=['docx', 'rtf', 'pdf', 'jpg', 'jpeg', 'png'],
+                    key="archiv_dokument_upload"
+                )
+            else:
+                # Cloud-Storage Integration
+                uploaded_file = None
+                render_cloud_storage_integration()
 
             if uploaded_file:
                 col1, col2 = st.columns(2)
@@ -11286,6 +12030,10 @@ def notar_vertragsarchiv_view():
 
                         if dok.zerlegt:
                             st.success(f"✅ In {len(dok.baustein_ids)} Bausteine zerlegt")
+                            # Button für visuellen Editor
+                            if st.button("🎨 Visuellen Editor öffnen", key=f"visual_edit_{dok.dokument_id}"):
+                                st.session_state[f"show_visual_editor_{dok.dokument_id}"] = True
+                                st.rerun()
                         else:
                             if st.button("🔨 In Bausteine zerlegen", key=f"zerlege_{dok.dokument_id}"):
                                 with st.spinner("Zerlege Dokument..."):
@@ -11305,6 +12053,8 @@ def notar_vertragsarchiv_view():
                                             vertragstypen=[dok.vertragstyp],
                                             quelle_dokument_id=dok.dokument_id,
                                             position_im_dokument=teil['position'],
+                                            start_index=teil.get('start_index', 0),
+                                            end_index=teil.get('end_index', len(teil['text'])),
                                             status=TextbausteinStatus.ENTWURF.value,
                                             ki_generiert=True,
                                             ki_kategorisiert=True,
@@ -11334,6 +12084,21 @@ def notar_vertragsarchiv_view():
                             del st.session_state.vertragsdokumente[dok.dokument_id]
                             st.success("Dokument gelöscht!")
                             st.rerun()
+
+                # Visueller Editor anzeigen wenn aktiviert
+                if st.session_state.get(f"show_visual_editor_{dok.dokument_id}", False):
+                    st.markdown("---")
+                    col_close, _ = st.columns([1, 4])
+                    with col_close:
+                        if st.button("❌ Editor schließen", key=f"close_editor_{dok.dokument_id}"):
+                            st.session_state[f"show_visual_editor_{dok.dokument_id}"] = False
+                            st.rerun()
+                    render_visueller_baustein_editor(
+                        dok_id=dok.dokument_id,
+                        volltext=dok.volltext,
+                        bausteine_ids=dok.baustein_ids,
+                        vertragstyp=dok.vertragstyp
+                    )
 
     # ============ TAB 4: Freigaben ============
     with archiv_tabs[3]:
