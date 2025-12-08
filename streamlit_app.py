@@ -11784,14 +11784,79 @@ def notar_vertragsarchiv_view():
                 if dateityp in ['jpg', 'jpeg', 'png']:
                     dateityp = 'image'
 
-                if st.button("📤 Dokument verarbeiten", type="primary"):
-                    with st.spinner("Dokument wird verarbeitet..."):
-                        datei_bytes = uploaded_file.read()
+                # Duplikaterkennung - prüfe ob Dokument bereits existiert
+                datei_bytes_temp = uploaded_file.read()
+                uploaded_file.seek(0)  # Reset für späteren Zugriff
 
-                        # Text extrahieren
+                # Berechne Hash des Dateiinhalts
+                import hashlib
+                datei_hash = hashlib.md5(datei_bytes_temp).hexdigest()
+
+                # Suche nach Duplikaten (gleicher Hash oder gleicher Dateiname)
+                duplikat_gefunden = None
+                duplikat_typ = None  # 'inhalt' oder 'name'
+
+                for dok_id, dok in st.session_state.vertragsdokumente.items():
+                    if dok.notar_id == notar_id:
+                        # Prüfe auf identischen Inhalt (Hash)
+                        if hasattr(dok, 'datei_bytes') and dok.datei_bytes:
+                            vorhandener_hash = hashlib.md5(dok.datei_bytes).hexdigest()
+                            if vorhandener_hash == datei_hash:
+                                duplikat_gefunden = dok
+                                duplikat_typ = 'inhalt'
+                                break
+                        # Prüfe auf gleichen Dateinamen
+                        if dok.dateiname == uploaded_file.name:
+                            duplikat_gefunden = dok
+                            duplikat_typ = 'name'
+                            break
+
+                # Wenn Duplikat gefunden, zeige Optionen
+                if duplikat_gefunden:
+                    st.warning(f"⚠️ **Duplikat erkannt!**")
+
+                    if duplikat_typ == 'inhalt':
+                        st.markdown(f"Ein Dokument mit **identischem Inhalt** existiert bereits:")
+                    else:
+                        st.markdown(f"Ein Dokument mit **gleichem Dateinamen** existiert bereits:")
+
+                    st.markdown(f"- **Dateiname:** {duplikat_gefunden.dateiname}")
+                    st.markdown(f"- **Hochgeladen am:** {duplikat_gefunden.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+                    st.markdown(f"- **Vertragstyp:** {duplikat_gefunden.vertragstyp}")
+
+                    # Session State für Duplikat-Entscheidung
+                    duplikat_key = f"duplikat_aktion_{datei_hash[:8]}"
+
+                    col_replace, col_copy, col_cancel = st.columns(3)
+
+                    with col_replace:
+                        if st.button("🔄 Ersetzen", key=f"replace_{datei_hash[:8]}", type="primary"):
+                            st.session_state[duplikat_key] = 'ersetzen'
+                            st.session_state[f"duplikat_id_{datei_hash[:8]}"] = duplikat_gefunden.dokument_id
+                            st.rerun()
+
+                    with col_copy:
+                        if st.button("📋 Kopie erstellen", key=f"copy_{datei_hash[:8]}"):
+                            st.session_state[duplikat_key] = 'kopie'
+                            st.rerun()
+
+                    with col_cancel:
+                        if st.button("❌ Abbrechen", key=f"cancel_{datei_hash[:8]}"):
+                            st.session_state[duplikat_key] = 'abbrechen'
+                            st.rerun()
+
+                    # Verarbeite Entscheidung
+                    aktion = st.session_state.get(duplikat_key)
+
+                    if aktion == 'ersetzen':
+                        # Lösche altes Dokument und lade neues hoch
+                        altes_dok_id = st.session_state.get(f"duplikat_id_{datei_hash[:8]}")
+                        if altes_dok_id and altes_dok_id in st.session_state.vertragsdokumente:
+                            del st.session_state.vertragsdokumente[altes_dok_id]
+
+                        datei_bytes = datei_bytes_temp
                         extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
 
-                        # Dokument erstellen
                         dokument_id = str(uuid.uuid4())[:8]
                         dokument = VertragsDokument(
                             dokument_id=dokument_id,
@@ -11808,14 +11873,83 @@ def notar_vertragsarchiv_view():
                         )
 
                         st.session_state.vertragsdokumente[dokument_id] = dokument
-                        st.success(f"✅ Dokument '{uploaded_file.name}' wurde hochgeladen!")
+                        # Aufräumen
+                        del st.session_state[duplikat_key]
+                        if f"duplikat_id_{datei_hash[:8]}" in st.session_state:
+                            del st.session_state[f"duplikat_id_{datei_hash[:8]}"]
+                        st.success(f"✅ Dokument '{uploaded_file.name}' wurde ersetzt!")
+                        st.rerun()
 
-                        # Option: In Bausteine zerlegen
-                        if len(extrahierter_text) > 100:
-                            st.info("💡 Möchten Sie das Dokument in Textbausteine zerlegen?")
-                            if st.button("🔨 In Bausteine zerlegen"):
-                                st.session_state[f'zerlege_dokument_{dokument_id}'] = True
-                                st.rerun()
+                    elif aktion == 'kopie':
+                        datei_bytes = datei_bytes_temp
+                        extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                        # Füge Kopie-Suffix zum Dateinamen hinzu
+                        name_parts = uploaded_file.name.rsplit('.', 1)
+                        if len(name_parts) == 2:
+                            neuer_name = f"{name_parts[0]}_Kopie.{name_parts[1]}"
+                        else:
+                            neuer_name = f"{uploaded_file.name}_Kopie"
+
+                        dokument_id = str(uuid.uuid4())[:8]
+                        dokument = VertragsDokument(
+                            dokument_id=dokument_id,
+                            notar_id=notar_id,
+                            dateiname=neuer_name,
+                            dateityp=dateityp,
+                            dateigroesse=uploaded_file.size,
+                            datei_bytes=datei_bytes,
+                            volltext=extrahierter_text,
+                            vertragstyp=vertragstyp,
+                            beschreibung=beschreibung,
+                            hochgeladen_von=notar_id,
+                            status="Hochgeladen"
+                        )
+
+                        st.session_state.vertragsdokumente[dokument_id] = dokument
+                        del st.session_state[duplikat_key]
+                        st.success(f"✅ Kopie '{neuer_name}' wurde erstellt!")
+                        st.rerun()
+
+                    elif aktion == 'abbrechen':
+                        del st.session_state[duplikat_key]
+                        st.info("Upload abgebrochen.")
+                        st.rerun()
+
+                else:
+                    # Kein Duplikat - normaler Upload
+                    if st.button("📤 Dokument verarbeiten", type="primary", key="upload_doc_btn"):
+                        with st.spinner("Dokument wird verarbeitet..."):
+                            datei_bytes = datei_bytes_temp
+
+                            # Text extrahieren
+                            extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                            # Dokument erstellen
+                            dokument_id = str(uuid.uuid4())[:8]
+                            dokument = VertragsDokument(
+                                dokument_id=dokument_id,
+                                notar_id=notar_id,
+                                dateiname=uploaded_file.name,
+                                dateityp=dateityp,
+                                dateigroesse=uploaded_file.size,
+                                datei_bytes=datei_bytes,
+                                volltext=extrahierter_text,
+                                vertragstyp=vertragstyp,
+                                beschreibung=beschreibung,
+                                hochgeladen_von=notar_id,
+                                status="Hochgeladen"
+                            )
+
+                            st.session_state.vertragsdokumente[dokument_id] = dokument
+                            st.success(f"✅ Dokument '{uploaded_file.name}' wurde hochgeladen!")
+
+                            # Option: In Bausteine zerlegen
+                            if len(extrahierter_text) > 100:
+                                st.info("💡 Möchten Sie das Dokument in Textbausteine zerlegen?")
+                                if st.button("🔨 In Bausteine zerlegen", key="zerlege_nach_upload"):
+                                    st.session_state[f'zerlege_dokument_{dokument_id}'] = True
+                                    st.rerun()
 
         else:  # Einzelner Textbaustein
             st.markdown("### 📝 Einzelnen Textbaustein eingeben")
@@ -12023,7 +12157,7 @@ def notar_vertragsarchiv_view():
                             st.markdown(f"**Beschreibung:** {dok.beschreibung}")
 
                         if dok.volltext:
-                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True)
+                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True, key=f"volltext_preview_{dok.dokument_id}")
 
                     with col2:
                         st.markdown(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
