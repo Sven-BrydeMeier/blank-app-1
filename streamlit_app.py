@@ -1525,6 +1525,27 @@ class FinanzierungsAnfrage:
     erstellt_am: datetime = field(default_factory=datetime.now)
     dokumente_freigegeben: bool = False
     notizen: str = ""
+    # NEU: Verknüpfung mit Finanzierungsmodell
+    modell_id: Optional[str] = None  # Referenz auf Finanzierungsmodell
+    # NEU: Ausgewählte Finanzierer für die Anfrage
+    finanzierer_ids: List[str] = field(default_factory=list)
+    an_alle_finanzierer: bool = False
+    anfrage_status: str = "Entwurf"  # Entwurf, Gesendet, Beantwortet
+
+
+@dataclass
+class FinanzierungsanfrageAnFinanzierer:
+    """Einzelne Anfrage an einen bestimmten Finanzierer"""
+    anfrage_einzeln_id: str
+    hauptanfrage_id: str  # Referenz auf FinanzierungsAnfrage
+    modell_id: str  # Referenz auf Finanzierungsmodell
+    finanzierer_id: str
+    kaeufer_id: str
+    projekt_id: str
+    gesendet_am: datetime = field(default_factory=datetime.now)
+    status: str = "Gesendet"  # Gesendet, Gelesen, Angebot_erstellt, Abgelehnt
+    finanzierer_notizen: str = ""
+    angebot_id: Optional[str] = None  # Referenz auf erhaltenes Angebot
 
 class FinanzierungsmodellStatus(Enum):
     """Status eines Finanzierungsmodells"""
@@ -5175,22 +5196,35 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
     ocr_text = ""
     vertrauenswuerdigkeit = 0.0
     personal_daten = PersonalDaten()
+    ocr_debug_info = []  # Sammle Debug-Infos
 
     # 1. Versuche Claude Vision API (Anthropic)
-    result = ocr_personalausweis_with_claude(image_data)
-    if result[0] is not None and result[2] > 0.5:
-        personal_daten, ocr_text, vertrauenswuerdigkeit = result
-        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
-        personal_daten.ocr_durchgefuehrt_am = datetime.now()
-        return personal_daten, ocr_text, vertrauenswuerdigkeit
+    try:
+        result = ocr_personalausweis_with_claude(image_data)
+        if result[0] is not None and result[2] > 0.5:
+            personal_daten, ocr_text, vertrauenswuerdigkeit = result
+            personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+            personal_daten.ocr_durchgefuehrt_am = datetime.now()
+            ocr_text = f"[OCR via Claude Vision API]\n\n{ocr_text}"
+            return personal_daten, ocr_text, vertrauenswuerdigkeit
+        else:
+            ocr_debug_info.append(f"Claude: {result[1] if result[1] else 'Niedrige Vertrauenswürdigkeit'}")
+    except Exception as e:
+        ocr_debug_info.append(f"Claude Fehler: {str(e)}")
 
     # 2. Versuche OpenAI Vision API (GPT-4 Vision)
-    result = ocr_personalausweis_with_openai(image_data)
-    if result[0] is not None and result[2] > 0.5:
-        personal_daten, ocr_text, vertrauenswuerdigkeit = result
-        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
-        personal_daten.ocr_durchgefuehrt_am = datetime.now()
-        return personal_daten, ocr_text, vertrauenswuerdigkeit
+    try:
+        result = ocr_personalausweis_with_openai(image_data)
+        if result[0] is not None and result[2] > 0.5:
+            personal_daten, ocr_text, vertrauenswuerdigkeit = result
+            personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+            personal_daten.ocr_durchgefuehrt_am = datetime.now()
+            ocr_text = f"[OCR via OpenAI Vision API]\n\n{ocr_text}"
+            return personal_daten, ocr_text, vertrauenswuerdigkeit
+        else:
+            ocr_debug_info.append(f"OpenAI: {result[1] if result[1] else 'Niedrige Vertrauenswürdigkeit'}")
+    except Exception as e:
+        ocr_debug_info.append(f"OpenAI Fehler: {str(e)}")
 
     # 3. Versuche pytesseract als lokaler Fallback
     try:
@@ -5214,31 +5248,45 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
         personal_daten = parse_ausweis_ocr_text(ocr_text)
 
     except ImportError:
+        ocr_debug_info.append("Tesseract: Nicht installiert")
         # 4. Letzter Fallback: Simulation mit Demo-Daten
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
         vertrauenswuerdigkeit = 0.85
-        ocr_text = """⚠️ DEMO-MODUS
 
-Keine OCR-API konfiguriert. Um echte Ausweiserkennung zu aktivieren,
-fügen Sie einen der folgenden API-Keys in Streamlit Secrets hinzu:
+        # Debug-Info hinzufügen
+        debug_section = ""
+        if ocr_debug_info:
+            debug_section = "\n\n📋 **API-Versuche:**\n" + "\n".join(f"• {info}" for info in ocr_debug_info) + "\n"
 
-• ANTHROPIC_API_KEY - für Claude Vision (empfohlen)
-• OPENAI_API_KEY - für GPT-4 Vision
+        ocr_text = f"""⚠️ DEMO-MODUS
+
+Keine funktionierende OCR-API verfügbar. Die folgenden Methoden wurden versucht:
+{debug_section}
+Um echte Ausweiserkennung zu aktivieren, prüfen Sie:
+
+1. Ist ein gültiger API-Key in Streamlit Secrets konfiguriert?
+   • ANTHROPIC_API_KEY - für Claude Vision (empfohlen)
+   • OPENAI_API_KEY - für GPT-4 Vision
+
+2. Ist der API-Key noch gültig und hat ausreichend Credits?
+
+3. Bildformat: JPG/PNG werden unterstützt, PDF muss konvertiert werden.
 
 Anleitung: Settings → Secrets → secrets.toml bearbeiten
-
-Beispiel:
-ANTHROPIC_API_KEY = "sk-ant-api..."
-oder
-OPENAI_API_KEY = "sk-..."
 
 Die folgenden Demo-Daten wurden generiert:
 
 """ + ocr_text
 
     except Exception as e:
+        ocr_debug_info.append(f"Tesseract Fehler: {str(e)}")
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
-        ocr_text = f"⚠️ OCR-Fehler: {str(e)}\n\n{ocr_text}"
+
+        debug_section = ""
+        if ocr_debug_info:
+            debug_section = "\n\n📋 **API-Versuche:**\n" + "\n".join(f"• {info}" for info in ocr_debug_info)
+
+        ocr_text = f"⚠️ OCR-Fehler: {str(e)}{debug_section}\n\n{ocr_text}"
         vertrauenswuerdigkeit = 0.85
 
     personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
@@ -10692,6 +10740,99 @@ def kaeufer_finanzierung_anfragen(projekte):
         st.session_state.finanzierungsanfragen = {}
     if 'finanzierer_einladungen' not in st.session_state:
         st.session_state.finanzierer_einladungen = {}
+    if 'finanzierungsanfragen_an_finanzierer' not in st.session_state:
+        st.session_state.finanzierungsanfragen_an_finanzierer = {}
+
+    # ===== GESENDETE ANFRAGEN ANZEIGEN =====
+    user_anfragen = [a for a in st.session_state.finanzierungsanfragen.values()
+                     if a.kaeufer_id == user_id and a.anfrage_status == "Gesendet"]
+
+    if user_anfragen:
+        st.markdown("#### 📤 Ihre gesendeten Finanzierungsanfragen")
+
+        for anfrage in user_anfragen:
+            projekt = st.session_state.projekte.get(anfrage.projekt_id)
+            modell = st.session_state.finanzierungsmodelle.get(anfrage.modell_id) if anfrage.modell_id else None
+
+            projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+            with st.expander(f"📨 Anfrage für {projekt_name} | {anfrage.finanzierungsbetrag:,.2f} € | {anfrage.erstellt_am.strftime('%d.%m.%Y')}", expanded=False):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Finanzierungsdetails:**")
+                    st.write(f"Kaufpreis: {anfrage.kaufpreis:,.2f} €")
+                    st.write(f"Eigenkapital: {anfrage.eigenkapital:,.2f} €")
+                    st.write(f"Finanzierungsbedarf: {anfrage.finanzierungsbetrag:,.2f} €")
+                    if modell:
+                        st.write(f"Wunsch-Zinssatz: {modell.zinssatz:.2f}%")
+                        st.write(f"Wunsch-Tilgung: {modell.tilgungssatz:.2f}%")
+                        st.write(f"Monatliche Rate (Basis): {modell.monatliche_rate:,.2f} €")
+
+                with col2:
+                    st.markdown("**Status bei Finanzierern:**")
+
+                    # Finde einzelne Anfragen
+                    einzelanfragen = [ea for ea in st.session_state.finanzierungsanfragen_an_finanzierer.values()
+                                      if ea.hauptanfrage_id == anfrage.anfrage_id]
+
+                    if einzelanfragen:
+                        for ea in einzelanfragen:
+                            fin_user = st.session_state.users.get(ea.finanzierer_id)
+                            fin_name = fin_user.name if fin_user else "Finanzierer"
+
+                            if ea.status == "Gesendet":
+                                st.write(f"⏳ {fin_name}: Gesendet")
+                            elif ea.status == "Gelesen":
+                                st.write(f"👁️ {fin_name}: Gelesen")
+                            elif ea.status == "Angebot_erstellt":
+                                st.write(f"✅ {fin_name}: Angebot erhalten!")
+                            elif ea.status == "Abgelehnt":
+                                st.write(f"❌ {fin_name}: Abgelehnt")
+                            else:
+                                st.write(f"📋 {fin_name}: {ea.status}")
+                    else:
+                        st.info("Anfrage wurde an Finanzierer gesendet.")
+
+                if anfrage.notizen:
+                    st.markdown(f"**Notizen:** {anfrage.notizen}")
+
+        st.markdown("---")
+
+    # ===== MODELLE ZUR ANFRAGE BEREIT =====
+    angeforderte_modelle = [m for m in st.session_state.finanzierungsmodelle.values()
+                           if m.kaeufer_id == user_id and m.status == FinanzierungsmodellStatus.ANGEFORDERT.value]
+
+    # Filtere Modelle, für die noch keine Anfrage gesendet wurde
+    bereits_gesendet_modelle = [a.modell_id for a in st.session_state.finanzierungsanfragen.values()
+                                if a.kaeufer_id == user_id and a.anfrage_status == "Gesendet"]
+    noch_nicht_gesendet = [m for m in angeforderte_modelle if m.modell_id not in bereits_gesendet_modelle]
+
+    if noch_nicht_gesendet:
+        st.markdown("#### 💡 Modelle bereit zur Anfrage")
+        st.info("Diese Modelle wurden zur Anfrage markiert. Klicken Sie auf 'Anfrage senden', um Angebote einzuholen.")
+
+        for modell in noch_nicht_gesendet:
+            with st.expander(f"📋 {modell.name} | {modell.darlehensbetrag:,.2f} € | {modell.monatliche_rate:,.2f} €/Monat"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write(f"**Zinssatz:** {modell.zinssatz:.2f}%")
+                    st.write(f"**Tilgung:** {modell.tilgungssatz:.2f}%")
+                    st.write(f"**Sollzinsbindung:** {modell.sollzinsbindung} Jahre")
+
+                with col2:
+                    st.write(f"**Gesamtzinsen:** {modell.gesamtzinsen:,.2f} €")
+                    st.write(f"**Restschuld:** {modell.restschuld_nach_zinsbindung:,.2f} €")
+
+                if st.button("📨 Anfrage jetzt senden", key=f"send_from_overview_{modell.modell_id}", type="primary"):
+                    st.session_state[f'show_fin_dialog_{modell.modell_id}'] = True
+                    st.rerun()
+
+                if st.session_state.get(f'show_fin_dialog_{modell.modell_id}', False):
+                    _render_finanzierer_auswahl_dialog(modell, f"overview_{modell.modell_id}")
+
+        st.markdown("---")
 
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €", expanded=True):
@@ -11711,6 +11852,232 @@ def _finanzierung_neue_berechnung():
                 st.success(f"✅ Modell '{modell_name}' wurde gespeichert!")
                 st.info("Sie finden das Modell im Tab '💾 Gespeicherte Modelle'.")
 
+                # Option: Direkt Angebot anfordern
+                st.markdown("---")
+                st.markdown("**💡 Möchten Sie direkt ein Angebot bei Finanzierern anfordern?**")
+                if st.button("📨 Ja, Angebot jetzt anfordern", key=f"direct_anfrage_{modell_id}"):
+                    st.session_state[f'show_fin_dialog_{modell_id}'] = True
+                    st.rerun()
+
+        # Dialog für direkte Anfrage nach Speichern anzeigen
+        if 'finanzierungsmodelle' in st.session_state:
+            for mid in list(st.session_state.finanzierungsmodelle.keys()):
+                if st.session_state.get(f'show_fin_dialog_{mid}', False):
+                    modell = st.session_state.finanzierungsmodelle.get(mid)
+                    if modell:
+                        _render_finanzierer_auswahl_dialog(modell, f"neue_berechnung_{mid}")
+
+
+def _modell_an_finanzierer_senden(modell_id: str, finanzierer_ids: List[str], an_alle: bool = False):
+    """
+    Überträgt ein Finanzierungsmodell in den Bereich 'Finanzierung anfragen' und sendet es an Finanzierer.
+
+    Args:
+        modell_id: ID des Finanzierungsmodells
+        finanzierer_ids: Liste der ausgewählten Finanzierer-IDs
+        an_alle: Wenn True, an alle verfügbaren Finanzierer senden
+    """
+    import uuid
+
+    if modell_id not in st.session_state.finanzierungsmodelle:
+        return None
+
+    modell = st.session_state.finanzierungsmodelle[modell_id]
+    user_id = st.session_state.current_user.user_id
+
+    # Initialisiere Session State falls nötig
+    if 'finanzierungsanfragen' not in st.session_state:
+        st.session_state.finanzierungsanfragen = {}
+    if 'finanzierungsanfragen_an_finanzierer' not in st.session_state:
+        st.session_state.finanzierungsanfragen_an_finanzierer = {}
+
+    # Erstelle Hauptanfrage
+    anfrage_id = f"fa_{modell_id}_{uuid.uuid4().hex[:6]}"
+
+    anfrage = FinanzierungsAnfrage(
+        anfrage_id=anfrage_id,
+        projekt_id=modell.projekt_id,
+        kaeufer_id=user_id,
+        kaufpreis=modell.kaufpreis,
+        eigenkapital=modell.eigenkapital,
+        finanzierungsbetrag=modell.finanzierungsbedarf,
+        wunsch_zinssatz=modell.zinssatz,
+        wunsch_tilgung=modell.tilgungssatz,
+        wunsch_laufzeit=modell.sollzinsbindung,
+        sondertilgung_gewuenscht=modell.sondertilgung_prozent > 0,
+        dokumente_freigegeben=True,
+        notizen=modell.notizen,
+        modell_id=modell_id,
+        finanzierer_ids=finanzierer_ids if not an_alle else [],
+        an_alle_finanzierer=an_alle,
+        anfrage_status="Gesendet"
+    )
+
+    st.session_state.finanzierungsanfragen[anfrage_id] = anfrage
+
+    # Update Modell-Status
+    modell.status = FinanzierungsmodellStatus.ANGEFORDERT.value
+    modell.geaendert_am = datetime.now()
+
+    # Ermittle Finanzierer für das Projekt
+    projekt = st.session_state.projekte.get(modell.projekt_id)
+
+    # Sammle alle Finanzierer (aus Projekt und eingeladene)
+    alle_finanzierer = []
+    if projekt and projekt.finanzierer_ids:
+        alle_finanzierer.extend(projekt.finanzierer_ids)
+
+    # Eingeladene Finanzierer hinzufügen
+    if 'finanzierer_einladungen' in st.session_state:
+        for einl in st.session_state.finanzierer_einladungen.values():
+            if einl.projekt_id == modell.projekt_id and einl.finanzierer_user_id:
+                if einl.finanzierer_user_id not in alle_finanzierer:
+                    alle_finanzierer.append(einl.finanzierer_user_id)
+
+    # Bestimme Empfänger
+    if an_alle:
+        empfaenger = alle_finanzierer
+    else:
+        empfaenger = finanzierer_ids
+
+    # Erstelle einzelne Anfragen an Finanzierer
+    for fin_id in empfaenger:
+        einzeln_id = f"faf_{anfrage_id}_{fin_id[:8]}"
+        einzelanfrage = FinanzierungsanfrageAnFinanzierer(
+            anfrage_einzeln_id=einzeln_id,
+            hauptanfrage_id=anfrage_id,
+            modell_id=modell_id,
+            finanzierer_id=fin_id,
+            kaeufer_id=user_id,
+            projekt_id=modell.projekt_id
+        )
+        st.session_state.finanzierungsanfragen_an_finanzierer[einzeln_id] = einzelanfrage
+
+        # Benachrichtigung an Finanzierer
+        fin_user = st.session_state.users.get(fin_id)
+        fin_name = fin_user.name if fin_user else "Finanzierer"
+        projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+        create_notification(
+            fin_id,
+            "Neue Finanzierungsanfrage",
+            f"Ein Käufer hat Ihnen eine detaillierte Finanzierungsanfrage für '{projekt_name}' gesendet. Darlehensbetrag: {modell.darlehensbetrag:,.2f} €",
+            NotificationType.INFO.value
+        )
+
+    return anfrage_id
+
+
+def _render_finanzierer_auswahl_dialog(modell: 'Finanzierungsmodell', dialog_key: str):
+    """Rendert einen Dialog zur Auswahl der Finanzierer für eine Anfrage"""
+
+    user_id = st.session_state.current_user.user_id
+    projekt = st.session_state.projekte.get(modell.projekt_id) if modell.projekt_id else None
+
+    st.markdown("---")
+    st.markdown("#### 📨 Angebot bei Finanzierern anfordern")
+
+    st.info(f"""
+    **Modell:** {modell.name}
+    **Darlehensbetrag:** {modell.darlehensbetrag:,.2f} €
+    **Monatliche Rate:** {modell.monatliche_rate:,.2f} €
+    """)
+
+    # Sammle verfügbare Finanzierer
+    verfuegbare_finanzierer = []
+
+    # Finanzierer aus dem Projekt
+    if projekt and projekt.finanzierer_ids:
+        for fin_id in projekt.finanzierer_ids:
+            fin_user = st.session_state.users.get(fin_id)
+            if fin_user:
+                verfuegbare_finanzierer.append({
+                    'id': fin_id,
+                    'name': fin_user.name,
+                    'firma': getattr(fin_user, 'firma', 'Finanzierer'),
+                    'quelle': 'Projekt'
+                })
+
+    # Eingeladene Finanzierer
+    if 'finanzierer_einladungen' in st.session_state:
+        for einl in st.session_state.finanzierer_einladungen.values():
+            if modell.projekt_id and einl.projekt_id == modell.projekt_id:
+                if einl.finanzierer_user_id:
+                    # Bereits registriert
+                    fin_user = st.session_state.users.get(einl.finanzierer_user_id)
+                    if fin_user and einl.finanzierer_user_id not in [f['id'] for f in verfuegbare_finanzierer]:
+                        verfuegbare_finanzierer.append({
+                            'id': einl.finanzierer_user_id,
+                            'name': fin_user.name,
+                            'firma': einl.firmenname or 'Finanzierer',
+                            'quelle': 'Einladung'
+                        })
+                else:
+                    # Noch nicht registriert
+                    verfuegbare_finanzierer.append({
+                        'id': f"pending_{einl.einladung_id}",
+                        'name': einl.finanzierer_name or einl.finanzierer_email,
+                        'firma': einl.firmenname or 'Ausstehend',
+                        'quelle': 'Einladung (ausstehend)'
+                    })
+
+    if not verfuegbare_finanzierer:
+        st.warning("""
+        ⚠️ **Keine Finanzierer verfügbar**
+
+        Laden Sie zuerst Finanzierer ein oder wechseln Sie zum Tab "🏦 Finanzierung anfragen"
+        um einen Finanzierer zum Projekt hinzuzufügen.
+        """)
+        return
+
+    # Auswahl-Option
+    auswahl_modus = st.radio(
+        "Anfrage senden an:",
+        ["Ausgewählte Finanzierer", "Alle Finanzierer"],
+        key=f"fin_auswahl_modus_{dialog_key}"
+    )
+
+    ausgewaehlte_ids = []
+
+    if auswahl_modus == "Ausgewählte Finanzierer":
+        st.markdown("**Finanzierer auswählen:**")
+        for fin in verfuegbare_finanzierer:
+            if not fin['id'].startswith('pending_'):
+                selected = st.checkbox(
+                    f"{fin['name']} ({fin['firma']})",
+                    key=f"fin_select_{dialog_key}_{fin['id']}"
+                )
+                if selected:
+                    ausgewaehlte_ids.append(fin['id'])
+    else:
+        st.success(f"Anfrage wird an **{len([f for f in verfuegbare_finanzierer if not f['id'].startswith('pending_')])} Finanzierer** gesendet.")
+        ausgewaehlte_ids = [f['id'] for f in verfuegbare_finanzierer if not f['id'].startswith('pending_')]
+
+    # Senden-Button
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📨 Anfrage jetzt senden", type="primary", key=f"send_anfrage_{dialog_key}"):
+            if auswahl_modus == "Alle Finanzierer":
+                anfrage_id = _modell_an_finanzierer_senden(modell.modell_id, [], an_alle=True)
+            else:
+                if not ausgewaehlte_ids:
+                    st.error("Bitte wählen Sie mindestens einen Finanzierer aus.")
+                    return
+                anfrage_id = _modell_an_finanzierer_senden(modell.modell_id, ausgewaehlte_ids, an_alle=False)
+
+            if anfrage_id:
+                st.success(f"✅ Finanzierungsanfrage wurde an {len(ausgewaehlte_ids) if auswahl_modus != 'Alle Finanzierer' else 'alle'} Finanzierer gesendet!")
+                st.info("Sie können den Status unter '🏦 Finanzierung anfragen' verfolgen.")
+                # Dialog schließen
+                del st.session_state[f'show_fin_dialog_{modell.modell_id}']
+                st.rerun()
+
+    with col2:
+        if st.button("❌ Abbrechen", key=f"cancel_anfrage_{dialog_key}"):
+            if f'show_fin_dialog_{modell.modell_id}' in st.session_state:
+                del st.session_state[f'show_fin_dialog_{modell.modell_id}']
+            st.rerun()
+
 
 def _finanzierung_gespeicherte_modelle():
     """Gespeicherte Finanzierungsmodelle anzeigen und verwalten"""
@@ -11830,16 +12197,19 @@ def _finanzierung_gespeicherte_modelle():
                     st.rerun()
 
             with col_a4:
-                if st.button("📤 Anfrage senden", key=f"anfrage_{modell.modell_id}"):
-                    modell.status = FinanzierungsmodellStatus.ANGEFORDERT.value
-                    st.success("Modell für Finanzierungsanfrage markiert!")
-                    st.info("Gehen Sie zum Tab 'Finanzierungsanfragen' um eine Anfrage zu senden.")
+                if st.button("📨 Angebot anfordern", key=f"anfrage_{modell.modell_id}", type="primary"):
+                    st.session_state[f'show_fin_dialog_{modell.modell_id}'] = True
+                    st.rerun()
 
             with col_a5:
                 if st.button("🗑️ Löschen", key=f"del_{modell.modell_id}"):
                     del st.session_state.finanzierungsmodelle[modell.modell_id]
                     st.success("Modell wurde gelöscht!")
                     st.rerun()
+
+            # Dialog für Finanzierer-Auswahl anzeigen
+            if st.session_state.get(f'show_fin_dialog_{modell.modell_id}', False):
+                _render_finanzierer_auswahl_dialog(modell, f"gespeichert_{modell.modell_id}")
 
             # Editor anzeigen wenn aktiviert
             if st.session_state.get(f'editing_modell_{modell.modell_id}', False):
@@ -12028,6 +12398,33 @@ def _finanzierung_modelle_vergleichen():
                 f"{abs(diff_restschuld):,.2f} €",
                 delta=f"{diff_restschuld:+,.2f} € ({m2.name[:15]})"
             )
+
+    # ===== ANGEBOT ANFORDERN =====
+    st.markdown("---")
+    st.markdown("### 📨 Angebot bei Finanzierern anfordern")
+
+    st.info("Wählen Sie ein Modell aus, für das Sie ein konkretes Angebot von Finanzierern erhalten möchten.")
+
+    # Modell für Anfrage auswählen
+    anfrage_modell_id = st.selectbox(
+        "Modell für Finanzierungsanfrage:",
+        ausgewaehlte_ids,
+        format_func=lambda x: modell_namen[x],
+        key="vergleich_anfrage_modell"
+    )
+
+    if anfrage_modell_id:
+        modell = user_modelle[anfrage_modell_id]
+
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            if st.button("📨 Angebot für dieses Modell anfordern", type="primary", key="vergleich_anfrage_btn"):
+                st.session_state[f'show_fin_dialog_{anfrage_modell_id}'] = True
+                st.rerun()
+
+        # Dialog anzeigen
+        if st.session_state.get(f'show_fin_dialog_{anfrage_modell_id}', False):
+            _render_finanzierer_auswahl_dialog(modell, f"vergleich_{anfrage_modell_id}")
 
 
 def _finanzierung_angebot_importieren():
