@@ -4158,7 +4158,9 @@ def berechne_gesamtkosten_kaeufer(
         'grundschulden': grundschuld_kosten,
         'grundschuld_gesamt': grundschuld_gesamt,
         'gesamt': gesamt,
+        'nebenkosten_gesamt': gesamt,  # Alias für UI
         'finanzierungsbedarf': kaufpreis + gesamt,
+        'gesamtkosten': kaufpreis + gesamt,  # Alias für UI
     }
 
 
