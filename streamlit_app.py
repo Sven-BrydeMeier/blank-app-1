@@ -7824,6 +7824,7 @@ def makler_dashboard():
     tabs = st.tabs([
         "📋 Timeline",
         "📁 Projekte",
+        "📊 Marktanalyse",
         "👤 Profil",
         "💼 Bankenmappe",
         "⚖️ Rechtliche Dokumente",
@@ -7840,24 +7841,27 @@ def makler_dashboard():
         makler_projekte_view()
 
     with tabs[2]:
-        makler_profil_view()
+        makler_marktanalyse_view()
 
     with tabs[3]:
-        render_bank_folder_view()
+        makler_profil_view()
 
     with tabs[4]:
-        makler_rechtliche_dokumente()
+        render_bank_folder_view()
 
     with tabs[5]:
-        makler_teilnehmer_status()
+        makler_rechtliche_dokumente()
 
     with tabs[6]:
-        makler_einladungen()
+        makler_teilnehmer_status()
 
     with tabs[7]:
-        makler_kommentare()
+        makler_einladungen()
 
     with tabs[8]:
+        makler_kommentare()
+
+    with tabs[9]:
         makler_ausweis_erfassung()
 
 def makler_timeline_view():
@@ -7879,6 +7883,247 @@ def makler_timeline_view():
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name} - Status: {projekt.status}", expanded=True):
             render_timeline(projekt.projekt_id, UserRole.MAKLER.value)
+
+
+def makler_marktanalyse_view():
+    """Marktanalyse und Vergleichsobjekte für die Preisfindung"""
+    st.subheader("📊 Marktanalyse & Vergleichsobjekte")
+
+    st.info("""
+    Hier können Sie Vergleichsobjekte erfassen und analysieren, um eine fundierte Preisfindung
+    für Ihre Immobilien zu unterstützen. Die Daten werden auch dem Verkäufer zur Verfügung gestellt.
+    """)
+
+    makler_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not projekte:
+        st.warning("Sie haben noch keine Projekte angelegt.")
+        return
+
+    # Projekt auswählen
+    projekt_namen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+    ausgewaehltes_id = st.selectbox(
+        "Projekt auswählen",
+        list(projekt_namen.keys()),
+        format_func=lambda x: projekt_namen[x],
+        key="marktanalyse_projekt_select"
+    )
+
+    projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), None)
+    if not projekt:
+        return
+
+    # Expose-Daten holen oder erstellen
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+    else:
+        st.warning("Für dieses Projekt sind noch keine Exposé-Daten vorhanden. Bitte erstellen Sie zuerst ein Exposé unter 'Projekte'.")
+        return
+
+    # Projektinfo anzeigen
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Kaufpreis", f"{expose.kaufpreis:,.0f} €" if expose.kaufpreis else "Nicht angegeben")
+    with col2:
+        st.metric("Wohnfläche", f"{expose.wohnflaeche} m²" if expose.wohnflaeche else "N/A")
+    with col3:
+        if expose.kaufpreis and expose.wohnflaeche and expose.wohnflaeche > 0:
+            qm_preis = expose.kaufpreis / expose.wohnflaeche
+            st.metric("Preis/m²", f"{qm_preis:,.0f} €")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    st.markdown("---")
+
+    # ===== VERGLEICHSOBJEKTE VERWALTEN =====
+    st.markdown("### 🏘️ Vergleichsobjekte")
+
+    # Bestehende Vergleichsobjekte anzeigen
+    if expose.vergleichsobjekte:
+        st.markdown(f"**{len(expose.vergleichsobjekte)} Vergleichsobjekt(e) erfasst:**")
+
+        for i, vgl in enumerate(expose.vergleichsobjekte):
+            with st.container():
+                col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+                with col1:
+                    titel = vgl.get('titel', 'Vergleichsobjekt')
+                    url = vgl.get('url', '#')
+                    if url and url != '#':
+                        st.markdown(f"**[{titel}]({url})**")
+                    else:
+                        st.markdown(f"**{titel}**")
+                with col2:
+                    st.write(f"💰 {vgl.get('preis', 0):,.0f} €")
+                with col3:
+                    st.write(f"📐 {vgl.get('flaeche', 0):.0f} m²")
+                with col4:
+                    st.write(f"🚪 {vgl.get('zimmer', 0)} Zimmer")
+                with col5:
+                    if st.button("🗑️", key=f"del_markt_vgl_{expose.expose_id}_{i}"):
+                        expose.vergleichsobjekte.pop(i)
+                        st.session_state.expose_data[expose.expose_id] = expose
+                        st.rerun()
+
+                if vgl.get('notiz'):
+                    st.caption(f"📝 {vgl.get('notiz')}")
+
+                # Quadratmeterpreis anzeigen
+                if vgl.get('preis', 0) > 0 and vgl.get('flaeche', 0) > 0:
+                    vgl_qm = vgl.get('preis') / vgl.get('flaeche')
+                    st.caption(f"→ {vgl_qm:,.0f} €/m²")
+
+                st.markdown("---")
+    else:
+        st.info("Noch keine Vergleichsobjekte erfasst. Fügen Sie unten welche hinzu.")
+
+    # Neues Vergleichsobjekt hinzufügen
+    st.markdown("### ➕ Neues Vergleichsobjekt hinzufügen")
+
+    with st.form(f"neues_vergleichsobjekt_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            vgl_titel = st.text_input(
+                "Titel / Bezeichnung",
+                placeholder="z.B. 3-Zi-Wohnung Südstadt",
+                key=f"markt_vgl_titel_{projekt.projekt_id}"
+            )
+            vgl_url = st.text_input(
+                "URL zum Inserat (optional)",
+                placeholder="https://www.immobilienscout24.de/...",
+                key=f"markt_vgl_url_{projekt.projekt_id}"
+            )
+            vgl_quelle = st.selectbox(
+                "Quelle",
+                ["ImmobilienScout24", "Immowelt", "eBay Kleinanzeigen", "Eigene Datenbank", "Sonstige"],
+                key=f"markt_vgl_quelle_{projekt.projekt_id}"
+            )
+
+        with col2:
+            vgl_preis = st.number_input(
+                "Angebotspreis (€)",
+                min_value=0.0,
+                step=5000.0,
+                key=f"markt_vgl_preis_{projekt.projekt_id}"
+            )
+            col2a, col2b = st.columns(2)
+            with col2a:
+                vgl_flaeche = st.number_input(
+                    "Wohnfläche (m²)",
+                    min_value=0.0,
+                    step=1.0,
+                    key=f"markt_vgl_flaeche_{projekt.projekt_id}"
+                )
+            with col2b:
+                vgl_zimmer = st.number_input(
+                    "Zimmer",
+                    min_value=0.0,
+                    step=0.5,
+                    key=f"markt_vgl_zimmer_{projekt.projekt_id}"
+                )
+
+        vgl_notiz = st.text_area(
+            "Notizen (optional)",
+            placeholder="z.B. Ähnliche Lage, bessere Ausstattung, renovierungsbedürftig...",
+            height=80,
+            key=f"markt_vgl_notiz_{projekt.projekt_id}"
+        )
+
+        submitted = st.form_submit_button("✅ Vergleichsobjekt hinzufügen", type="primary")
+
+        if submitted:
+            if vgl_titel or vgl_url:
+                neues_vgl = {
+                    'titel': vgl_titel if vgl_titel else "Vergleichsobjekt",
+                    'url': vgl_url,
+                    'quelle': vgl_quelle,
+                    'preis': vgl_preis,
+                    'flaeche': vgl_flaeche,
+                    'zimmer': vgl_zimmer,
+                    'notiz': vgl_notiz,
+                    'hinzugefuegt_am': datetime.now().isoformat(),
+                    'hinzugefuegt_von': makler_id
+                }
+                if not expose.vergleichsobjekte:
+                    expose.vergleichsobjekte = []
+                expose.vergleichsobjekte.append(neues_vgl)
+                st.session_state.expose_data[expose.expose_id] = expose
+                st.success("✅ Vergleichsobjekt hinzugefügt!")
+                st.rerun()
+            else:
+                st.warning("Bitte geben Sie mindestens einen Titel oder eine URL ein.")
+
+    # ===== MARKTANALYSE-ZUSAMMENFASSUNG =====
+    if expose.vergleichsobjekte and len(expose.vergleichsobjekte) >= 1:
+        st.markdown("---")
+        st.markdown("### 📈 Marktanalyse-Zusammenfassung")
+
+        preise = [v.get('preis', 0) for v in expose.vergleichsobjekte if v.get('preis', 0) > 0]
+        flaechen = [v.get('flaeche', 0) for v in expose.vergleichsobjekte if v.get('flaeche', 0) > 0]
+        qm_preise = [v.get('preis') / v.get('flaeche') for v in expose.vergleichsobjekte
+                     if v.get('preis', 0) > 0 and v.get('flaeche', 0) > 0]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if preise:
+                st.metric("Ø Preis", f"{sum(preise)/len(preise):,.0f} €")
+                st.caption(f"Min: {min(preise):,.0f} € | Max: {max(preise):,.0f} €")
+            else:
+                st.metric("Ø Preis", "N/A")
+
+        with col2:
+            if flaechen:
+                st.metric("Ø Fläche", f"{sum(flaechen)/len(flaechen):.0f} m²")
+            else:
+                st.metric("Ø Fläche", "N/A")
+
+        with col3:
+            if qm_preise:
+                avg_qm = sum(qm_preise) / len(qm_preise)
+                st.metric("Ø Preis/m²", f"{avg_qm:,.0f} €")
+                st.caption(f"Min: {min(qm_preise):,.0f} € | Max: {max(qm_preise):,.0f} €")
+            else:
+                st.metric("Ø Preis/m²", "N/A")
+
+        with col4:
+            st.metric("Anzahl Objekte", len(expose.vergleichsobjekte))
+
+        # Vergleich mit eigenem Objekt
+        if expose.kaufpreis > 0 and expose.wohnflaeche > 0 and qm_preise:
+            st.markdown("---")
+            st.markdown("#### 🎯 Vergleich mit Ihrem Objekt")
+
+            eigener_qm_preis = expose.kaufpreis / expose.wohnflaeche
+            avg_qm = sum(qm_preise) / len(qm_preise)
+            differenz = eigener_qm_preis - avg_qm
+            differenz_prozent = (differenz / avg_qm) * 100 if avg_qm > 0 else 0
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Ihr Preis/m²", f"{eigener_qm_preis:,.0f} €")
+
+            with col2:
+                st.metric("Markt Ø/m²", f"{avg_qm:,.0f} €")
+
+            with col3:
+                if differenz > 0:
+                    st.metric("Differenz", f"+{differenz:,.0f} €/m²", delta=f"+{differenz_prozent:.1f}%")
+                    st.caption("Über Marktdurchschnitt")
+                else:
+                    st.metric("Differenz", f"{differenz:,.0f} €/m²", delta=f"{differenz_prozent:.1f}%")
+                    st.caption("Unter Marktdurchschnitt")
+
+            # Empfehlung
+            if abs(differenz_prozent) <= 5:
+                st.success("✅ **Einschätzung:** Der Preis liegt im marktüblichen Bereich.")
+            elif differenz_prozent > 5:
+                st.warning(f"⚠️ **Einschätzung:** Der Preis liegt {differenz_prozent:.1f}% über dem Marktdurchschnitt. Prüfen Sie besondere Ausstattungsmerkmale oder Lagefaktoren.")
+            else:
+                st.info(f"💡 **Einschätzung:** Der Preis liegt {abs(differenz_prozent):.1f}% unter dem Marktdurchschnitt. Ggf. Spielraum für Preisanpassung.")
+
 
 def makler_projekte_view():
     """Projekt-Verwaltung für Makler"""
@@ -11020,7 +11265,7 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -11029,26 +11274,29 @@ def verkaeufer_dashboard():
         verkaeufer_projekte_view()
 
     with tabs[2]:
-        verkaeufer_makler_finden()
+        verkaeufer_preisfindung_view()
 
     with tabs[3]:
+        verkaeufer_makler_finden()
+
+    with tabs[4]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[4]:
+    with tabs[5]:
         verkaeufer_dokumente_view()
 
-    with tabs[5]:
+    with tabs[6]:
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[6]:
+    with tabs[7]:
         verkaeufer_nachrichten()
 
-    with tabs[7]:
+    with tabs[8]:
         verkaeufer_eigene_kosten_view()
 
-    with tabs[8]:
+    with tabs[9]:
         # Termin-Übersicht für Verkäufer
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -11059,6 +11307,218 @@ def verkaeufer_dashboard():
                     render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
         else:
             st.info("Noch keine Projekte vorhanden.")
+
+
+def verkaeufer_preisfindung_view():
+    """Preisfindung und Marktanalyse für Verkäufer - zeigt vom Makler erfasste Vergleichsobjekte"""
+    st.subheader("📈 Preisfindung & Marktanalyse")
+
+    st.info("""
+    Hier sehen Sie die vom Makler erfassten Vergleichsobjekte und eine Marktanalyse
+    zur Unterstützung der Preisfindung für Ihre Immobilie.
+    """)
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.warning("Sie sind noch keinem Projekt als Verkäufer zugeordnet.")
+        return
+
+    # Projekt auswählen wenn mehrere
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="vk_preisfindung_projekt_select"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    else:
+        projekt = projekte[0]
+
+    st.markdown(f"### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+
+    # Makler-Info
+    if projekt.makler_id:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            st.caption(f"👤 Betreuender Makler: {makler.name}")
+
+    # Expose-Daten holen
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+    else:
+        st.warning("Für dieses Projekt sind noch keine Exposé-Daten vorhanden.")
+        st.info("💡 Sobald der Makler ein Exposé erstellt hat, werden hier die Marktdaten angezeigt.")
+        return
+
+    # Objektdaten anzeigen
+    st.markdown("---")
+    st.markdown("#### 🏘️ Ihre Immobilie")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Kaufpreis", f"{expose.kaufpreis:,.0f} €" if expose.kaufpreis else "Noch offen")
+    with col2:
+        st.metric("Wohnfläche", f"{expose.wohnflaeche} m²" if expose.wohnflaeche else "N/A")
+    with col3:
+        st.metric("Zimmer", expose.anzahl_zimmer if expose.anzahl_zimmer else "N/A")
+    with col4:
+        if expose.kaufpreis and expose.wohnflaeche and expose.wohnflaeche > 0:
+            qm_preis = expose.kaufpreis / expose.wohnflaeche
+            st.metric("Preis/m²", f"{qm_preis:,.0f} €")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    # Vergleichsobjekte anzeigen
+    st.markdown("---")
+    st.markdown("#### 📊 Vergleichsobjekte aus dem Markt")
+
+    if not expose.vergleichsobjekte:
+        st.info("""
+        📭 **Noch keine Vergleichsobjekte erfasst.**
+
+        Der Makler hat noch keine Vergleichsobjekte zur Marktanalyse hinzugefügt.
+        Diese helfen bei der Einschätzung des marktgerechten Preises für Ihre Immobilie.
+        """)
+        return
+
+    st.success(f"✅ **{len(expose.vergleichsobjekte)} Vergleichsobjekt(e)** vom Makler erfasst")
+
+    # Vergleichsobjekte als Tabelle/Liste anzeigen
+    for i, vgl in enumerate(expose.vergleichsobjekte):
+        with st.container():
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+
+            with col1:
+                titel = vgl.get('titel', 'Vergleichsobjekt')
+                url = vgl.get('url', '')
+                if url:
+                    st.markdown(f"**[{titel}]({url})**")
+                else:
+                    st.markdown(f"**{titel}**")
+                if vgl.get('quelle'):
+                    st.caption(f"Quelle: {vgl.get('quelle')}")
+
+            with col2:
+                preis = vgl.get('preis', 0)
+                st.write(f"💰 **{preis:,.0f} €**")
+
+            with col3:
+                flaeche = vgl.get('flaeche', 0)
+                zimmer = vgl.get('zimmer', 0)
+                st.write(f"📐 {flaeche:.0f} m² | 🚪 {zimmer} Zi.")
+
+            with col4:
+                if preis > 0 and flaeche > 0:
+                    qm = preis / flaeche
+                    st.write(f"**{qm:,.0f} €/m²**")
+
+            if vgl.get('notiz'):
+                st.caption(f"📝 {vgl.get('notiz')}")
+
+            st.markdown("---")
+
+    # Marktanalyse-Zusammenfassung
+    st.markdown("#### 📈 Marktanalyse-Zusammenfassung")
+
+    preise = [v.get('preis', 0) for v in expose.vergleichsobjekte if v.get('preis', 0) > 0]
+    flaechen = [v.get('flaeche', 0) for v in expose.vergleichsobjekte if v.get('flaeche', 0) > 0]
+    qm_preise = [v.get('preis') / v.get('flaeche') for v in expose.vergleichsobjekte
+                 if v.get('preis', 0) > 0 and v.get('flaeche', 0) > 0]
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if preise:
+            st.metric("Ø Angebotspreis", f"{sum(preise)/len(preise):,.0f} €")
+            st.caption(f"Spanne: {min(preise):,.0f} - {max(preise):,.0f} €")
+        else:
+            st.metric("Ø Angebotspreis", "N/A")
+
+    with col2:
+        if flaechen:
+            st.metric("Ø Wohnfläche", f"{sum(flaechen)/len(flaechen):.0f} m²")
+        else:
+            st.metric("Ø Wohnfläche", "N/A")
+
+    with col3:
+        if qm_preise:
+            avg_qm = sum(qm_preise) / len(qm_preise)
+            st.metric("Ø Marktpreis/m²", f"{avg_qm:,.0f} €")
+            st.caption(f"Spanne: {min(qm_preise):,.0f} - {max(qm_preise):,.0f} €")
+        else:
+            st.metric("Ø Marktpreis/m²", "N/A")
+
+    with col4:
+        st.metric("Vergleichsobjekte", len(expose.vergleichsobjekte))
+
+    # Vergleich mit eigenem Objekt
+    if expose.kaufpreis > 0 and expose.wohnflaeche > 0 and qm_preise:
+        st.markdown("---")
+        st.markdown("#### 🎯 Positionierung Ihrer Immobilie")
+
+        eigener_qm_preis = expose.kaufpreis / expose.wohnflaeche
+        avg_qm = sum(qm_preise) / len(qm_preise)
+        differenz = eigener_qm_preis - avg_qm
+        differenz_prozent = (differenz / avg_qm) * 100 if avg_qm > 0 else 0
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Ihr Preis/m²", f"{eigener_qm_preis:,.0f} €")
+
+        with col2:
+            st.metric("Marktdurchschnitt/m²", f"{avg_qm:,.0f} €")
+
+        with col3:
+            if differenz > 0:
+                st.metric("Positionierung", f"+{differenz:,.0f} €/m²", delta=f"+{differenz_prozent:.1f}%")
+            else:
+                st.metric("Positionierung", f"{differenz:,.0f} €/m²", delta=f"{differenz_prozent:.1f}%")
+
+        # Einschätzung
+        st.markdown("---")
+        st.markdown("#### 💡 Einschätzung")
+
+        if abs(differenz_prozent) <= 5:
+            st.success("""
+            ✅ **Marktgerechter Preis**
+
+            Der Angebotspreis Ihrer Immobilie liegt im marktüblichen Bereich (±5% vom Durchschnitt).
+            Dies erhöht die Chancen auf eine erfolgreiche Vermarktung.
+            """)
+        elif differenz_prozent > 5:
+            st.warning(f"""
+            ⚠️ **Preis über Marktdurchschnitt** (+{differenz_prozent:.1f}%)
+
+            Der Angebotspreis liegt über dem Marktdurchschnitt der Vergleichsobjekte.
+            Dies kann gerechtfertigt sein durch:
+            - Bessere Ausstattung
+            - Bevorzugte Lage
+            - Neuerer Bauzustand / Renovierung
+            - Besondere Merkmale (Balkon, Garten, etc.)
+
+            Besprechen Sie die Preisgestaltung mit Ihrem Makler.
+            """)
+        else:
+            st.info(f"""
+            💰 **Preis unter Marktdurchschnitt** ({differenz_prozent:.1f}%)
+
+            Der Angebotspreis liegt unter dem Marktdurchschnitt.
+            Dies kann zu schnellerem Verkauf führen, aber möglicherweise besteht
+            Spielraum für eine Preisanpassung nach oben.
+
+            Besprechen Sie dies mit Ihrem Makler.
+            """)
+
+    else:
+        st.info("💡 Sobald ein Kaufpreis festgelegt ist, wird hier ein Vergleich mit dem Markt angezeigt.")
+
 
 def verkaeufer_eigene_kosten_view():
     """Kostenberechnung für Verkäufer - Löschungskosten für Grundbuchrechte"""
