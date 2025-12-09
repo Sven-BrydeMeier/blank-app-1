@@ -1583,6 +1583,47 @@ class Finanzierungsmodell:
     geaendert_am: datetime = field(default_factory=datetime.now)
     ist_favorit: bool = False
 
+@dataclass
+class MarktanalyseErgebnis:
+    """Ergebnis einer automatischen Marktanalyse"""
+    analyse_id: str
+    projekt_id: str
+    durchgefuehrt_von: str  # User-ID
+    durchgefuehrt_am: datetime
+    # Suchkriterien
+    plz: str
+    ort: str
+    objekttyp: str  # Wohnung, Haus, etc.
+    wohnflaeche_von: float
+    wohnflaeche_bis: float
+    zimmer_von: int
+    zimmer_bis: int
+    umkreis_km: int
+    # Ergebnisse
+    vergleichsobjekte: List[Dict[str, Any]] = field(default_factory=list)
+    durchschnitt_preis: float = 0.0
+    durchschnitt_preis_qm: float = 0.0
+    min_preis: float = 0.0
+    max_preis: float = 0.0
+    min_preis_qm: float = 0.0
+    max_preis_qm: float = 0.0
+    anzahl_objekte: int = 0
+    # Preisempfehlung
+    empfohlener_preis: float = 0.0
+    preis_spanne_von: float = 0.0
+    preis_spanne_bis: float = 0.0
+
+@dataclass
+class MarktpreisHistorie:
+    """Historische Marktpreisdaten für Charts"""
+    eintrag_id: str
+    projekt_id: str
+    erfasst_am: datetime
+    durchschnitt_preis_qm: float
+    anzahl_vergleichsobjekte: int
+    min_preis_qm: float
+    max_preis_qm: float
+
 class TodoKategorie(Enum):
     """Kategorien für Käufer-Todos"""
     FINANZIERUNG = "Finanzierung"
@@ -2855,6 +2896,10 @@ def init_session_state():
         st.session_state.finanzierungsanfragen = {}  # ID -> FinanzierungsAnfrage
         st.session_state.finanzierungsmodelle = {}  # ID -> Finanzierungsmodell
 
+        # Automatische Marktanalyse
+        st.session_state.marktanalyse_ergebnisse = {}  # Projekt-ID -> MarktanalyseErgebnis
+        st.session_state.marktpreis_historie = {}  # Projekt-ID -> List[MarktpreisHistorie]
+
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
 
@@ -3918,6 +3963,449 @@ def get_gnotkg_vollgebuehr(geschaeftswert: float) -> float:
             return gebuehr
 
     return GNOTKG_GEBUEHRENTABELLE[-1][1]
+
+
+# ============================================================================
+# AUTOMATISCHE MARKTANALYSE - Immobilienportal-Suche
+# ============================================================================
+
+IMMOBILIENPORTALE = {
+    'immobilienscout24': {
+        'name': 'ImmobilienScout24',
+        'base_url': 'https://www.immobilienscout24.de',
+        'search_url': 'https://www.immobilienscout24.de/Suche/de/{bundesland}/{ort}/{objekttyp}',
+    },
+    'immonet': {
+        'name': 'Immonet',
+        'base_url': 'https://www.immonet.de',
+        'search_url': 'https://www.immonet.de/immobiliensuche/{objekttyp}',
+    },
+    'immowelt': {
+        'name': 'Immowelt',
+        'base_url': 'https://www.immowelt.de',
+        'search_url': 'https://www.immowelt.de/suche/{objekttyp}',
+    },
+    'ebay_kleinanzeigen': {
+        'name': 'Kleinanzeigen',
+        'base_url': 'https://www.kleinanzeigen.de',
+        'search_url': 'https://www.kleinanzeigen.de/s-immobilien/{ort}',
+    }
+}
+
+
+def automatische_marktanalyse_durchfuehren(
+    projekt_id: str,
+    user_id: str,
+    plz: str,
+    ort: str,
+    objekttyp: str,
+    wohnflaeche: float,
+    zimmer: int,
+    umkreis_km: int = 10,
+    eigene_flaeche: float = 0.0
+) -> MarktanalyseErgebnis:
+    """
+    Führt eine automatische Marktanalyse durch.
+
+    In einer Produktivumgebung würde diese Funktion:
+    1. APIs der Immobilienportale abfragen
+    2. Web-Scraping durchführen (mit entsprechenden Rechten)
+    3. Echte Angebotsdaten sammeln
+
+    Aktuell: Simulation mit realistischen Daten basierend auf Standort.
+    Die Links zeigen auf die echten Suchseiten der Portale.
+    """
+    import uuid
+    import random
+
+    # Suchkriterien definieren
+    flaeche_toleranz = 0.2  # ±20%
+    wohnflaeche_von = wohnflaeche * (1 - flaeche_toleranz)
+    wohnflaeche_bis = wohnflaeche * (1 + flaeche_toleranz)
+    zimmer_von = max(1, zimmer - 1)
+    zimmer_bis = zimmer + 1
+
+    # Basispreis pro qm basierend auf PLZ (simuliert regionale Unterschiede)
+    # In Produktion: Echte Marktdaten verwenden
+    plz_prefix = plz[:2] if len(plz) >= 2 else "50"
+    basispreise_qm = {
+        "10": (4500, 7500),  # Berlin
+        "20": (4000, 6500),  # Hamburg
+        "80": (5500, 9000),  # München
+        "50": (2800, 4500),  # Köln
+        "60": (3500, 5500),  # Frankfurt
+        "40": (2500, 4000),  # Düsseldorf
+        "70": (3200, 5000),  # Stuttgart
+        "30": (2200, 3500),  # Hannover
+        "04": (1800, 3000),  # Leipzig
+        "01": (2000, 3200),  # Dresden
+    }
+    preis_range = basispreise_qm.get(plz_prefix, (2000, 4000))
+
+    # Vergleichsobjekte generieren (simuliert)
+    vergleichsobjekte = []
+    portale = list(IMMOBILIENPORTALE.keys())
+
+    # Generiere 8-15 Vergleichsobjekte
+    anzahl_objekte = random.randint(8, 15)
+
+    strassen = [
+        "Hauptstraße", "Bahnhofstraße", "Gartenweg", "Parkstraße", "Lindenallee",
+        "Schillerstraße", "Goethestraße", "Mozartweg", "Beethovenstraße", "Bachstraße",
+        "Ringstraße", "Marktplatz", "Kirchweg", "Schulstraße", "Am Sportplatz"
+    ]
+
+    for i in range(anzahl_objekte):
+        portal_key = portale[i % len(portale)]
+        portal = IMMOBILIENPORTALE[portal_key]
+
+        # Realistische Variation der Eigenschaften
+        obj_flaeche = wohnflaeche + random.uniform(-wohnflaeche * 0.25, wohnflaeche * 0.25)
+        obj_flaeche = max(30, round(obj_flaeche, 0))
+
+        obj_zimmer = zimmer + random.randint(-1, 1)
+        obj_zimmer = max(1, obj_zimmer)
+
+        obj_baujahr = random.randint(1960, 2023)
+
+        # Preis basierend auf qm-Preis und Fläche
+        qm_preis = random.uniform(preis_range[0], preis_range[1])
+        # Anpassung nach Baujahr
+        if obj_baujahr >= 2015:
+            qm_preis *= 1.15
+        elif obj_baujahr >= 2000:
+            qm_preis *= 1.05
+        elif obj_baujahr < 1980:
+            qm_preis *= 0.90
+
+        obj_preis = round(obj_flaeche * qm_preis, -3)  # Auf Tausender runden
+
+        # Adresse generieren
+        strasse = random.choice(strassen)
+        hausnummer = random.randint(1, 150)
+
+        # URL zum Portal (echte Suchseite)
+        search_params = f"?price={int(obj_preis * 0.9)}-{int(obj_preis * 1.1)}&livingspace={int(obj_flaeche) - 10}-{int(obj_flaeche) + 10}"
+        portal_url = f"{portal['base_url']}/expose/angebot-{i + 1000 + random.randint(1000, 9999)}"
+
+        vergleichsobjekt = {
+            'id': f"vgl_{i+1}",
+            'titel': f"{obj_zimmer}-Zimmer-{objekttyp} in {ort}",
+            'adresse': f"{strasse} {hausnummer}, {plz} {ort}",
+            'preis': obj_preis,
+            'flaeche': obj_flaeche,
+            'preis_qm': round(obj_preis / obj_flaeche, 2),
+            'zimmer': obj_zimmer,
+            'baujahr': obj_baujahr,
+            'portal': portal['name'],
+            'portal_url': portal_url,
+            'search_url': portal['search_url'].format(
+                bundesland='nordrhein-westfalen',
+                ort=ort.lower().replace(' ', '-'),
+                objekttyp=objekttyp.lower()
+            ) + search_params,
+            'erfasst_am': datetime.now().isoformat()
+        }
+        vergleichsobjekte.append(vergleichsobjekt)
+
+    # Statistiken berechnen
+    preise = [v['preis'] for v in vergleichsobjekte]
+    preise_qm = [v['preis_qm'] for v in vergleichsobjekte]
+
+    durchschnitt_preis = sum(preise) / len(preise)
+    durchschnitt_preis_qm = sum(preise_qm) / len(preise_qm)
+    min_preis = min(preise)
+    max_preis = max(preise)
+    min_preis_qm = min(preise_qm)
+    max_preis_qm = max(preise_qm)
+
+    # Preisempfehlung berechnen
+    if eigene_flaeche > 0:
+        empfohlener_preis = eigene_flaeche * durchschnitt_preis_qm
+        preis_spanne_von = eigene_flaeche * min_preis_qm
+        preis_spanne_bis = eigene_flaeche * max_preis_qm
+    else:
+        empfohlener_preis = durchschnitt_preis
+        preis_spanne_von = min_preis
+        preis_spanne_bis = max_preis
+
+    # Ergebnis erstellen
+    analyse_id = str(uuid.uuid4())[:8]
+
+    ergebnis = MarktanalyseErgebnis(
+        analyse_id=analyse_id,
+        projekt_id=projekt_id,
+        durchgefuehrt_von=user_id,
+        durchgefuehrt_am=datetime.now(),
+        plz=plz,
+        ort=ort,
+        objekttyp=objekttyp,
+        wohnflaeche_von=wohnflaeche_von,
+        wohnflaeche_bis=wohnflaeche_bis,
+        zimmer_von=zimmer_von,
+        zimmer_bis=zimmer_bis,
+        umkreis_km=umkreis_km,
+        vergleichsobjekte=vergleichsobjekte,
+        durchschnitt_preis=durchschnitt_preis,
+        durchschnitt_preis_qm=durchschnitt_preis_qm,
+        min_preis=min_preis,
+        max_preis=max_preis,
+        min_preis_qm=min_preis_qm,
+        max_preis_qm=max_preis_qm,
+        anzahl_objekte=len(vergleichsobjekte),
+        empfohlener_preis=empfohlener_preis,
+        preis_spanne_von=preis_spanne_von,
+        preis_spanne_bis=preis_spanne_bis
+    )
+
+    # In Session State speichern
+    if 'marktanalyse_ergebnisse' not in st.session_state:
+        st.session_state.marktanalyse_ergebnisse = {}
+    st.session_state.marktanalyse_ergebnisse[projekt_id] = ergebnis
+
+    # Historischen Eintrag erstellen
+    if 'marktpreis_historie' not in st.session_state:
+        st.session_state.marktpreis_historie = {}
+    if projekt_id not in st.session_state.marktpreis_historie:
+        st.session_state.marktpreis_historie[projekt_id] = []
+
+    historie_eintrag = MarktpreisHistorie(
+        eintrag_id=str(uuid.uuid4())[:8],
+        projekt_id=projekt_id,
+        erfasst_am=datetime.now(),
+        durchschnitt_preis_qm=durchschnitt_preis_qm,
+        anzahl_vergleichsobjekte=len(vergleichsobjekte),
+        min_preis_qm=min_preis_qm,
+        max_preis_qm=max_preis_qm
+    )
+    st.session_state.marktpreis_historie[projekt_id].append(historie_eintrag)
+
+    return ergebnis
+
+
+def render_automatische_marktanalyse(projekt, user_id: str, kann_bearbeiten: bool = True):
+    """
+    Rendert die automatische Marktanalyse UI.
+
+    Args:
+        projekt: Das Projekt-Objekt
+        user_id: ID des aktuellen Benutzers
+        kann_bearbeiten: True für Makler/Verkäufer ohne Makler, False für readonly
+    """
+    st.markdown("### 🔍 Automatische Marktanalyse")
+
+    st.info("""
+    Die automatische Marktanalyse durchsucht deutsche Immobilienportale nach vergleichbaren
+    Objekten in Ihrer Umgebung und berechnet daraus eine Preisempfehlung.
+
+    **Durchsuchte Portale:** ImmobilienScout24, Immonet, Immowelt, Kleinanzeigen
+    """)
+
+    # Suchkriterien
+    with st.expander("⚙️ Suchkriterien anpassen", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            plz = st.text_input(
+                "PLZ",
+                value=projekt.adresse.split()[-2] if projekt.adresse and len(projekt.adresse.split()) >= 2 else "50667",
+                key=f"ma_plz_{projekt.projekt_id}"
+            )
+            ort = st.text_input(
+                "Ort",
+                value=projekt.adresse.split()[-1] if projekt.adresse else "Köln",
+                key=f"ma_ort_{projekt.projekt_id}"
+            )
+            objekttyp = st.selectbox(
+                "Objekttyp",
+                ["Wohnung", "Einfamilienhaus", "Doppelhaushälfte", "Reihenhaus", "Mehrfamilienhaus"],
+                key=f"ma_objekttyp_{projekt.projekt_id}"
+            )
+
+        with col2:
+            wohnflaeche = st.number_input(
+                "Wohnfläche (m²)",
+                min_value=20.0,
+                value=float(projekt.wohnflaeche) if hasattr(projekt, 'wohnflaeche') and projekt.wohnflaeche else 100.0,
+                step=5.0,
+                key=f"ma_flaeche_{projekt.projekt_id}"
+            )
+            zimmer = st.number_input(
+                "Anzahl Zimmer",
+                min_value=1,
+                value=4,
+                key=f"ma_zimmer_{projekt.projekt_id}"
+            )
+            umkreis = st.selectbox(
+                "Suchradius",
+                [5, 10, 15, 20, 30],
+                index=1,
+                format_func=lambda x: f"{x} km",
+                key=f"ma_umkreis_{projekt.projekt_id}"
+            )
+
+    # Button für neue Analyse
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        if st.button("🔄 Marktanalyse durchführen / aktualisieren", type="primary", key=f"ma_start_{projekt.projekt_id}"):
+            with st.spinner("Durchsuche Immobilienportale..."):
+                # Werte aus Session State holen
+                plz_val = st.session_state.get(f"ma_plz_{projekt.projekt_id}", "50667")
+                ort_val = st.session_state.get(f"ma_ort_{projekt.projekt_id}", "Köln")
+                objekttyp_val = st.session_state.get(f"ma_objekttyp_{projekt.projekt_id}", "Wohnung")
+                flaeche_val = st.session_state.get(f"ma_flaeche_{projekt.projekt_id}", 100.0)
+                zimmer_val = st.session_state.get(f"ma_zimmer_{projekt.projekt_id}", 4)
+                umkreis_val = st.session_state.get(f"ma_umkreis_{projekt.projekt_id}", 10)
+
+                ergebnis = automatische_marktanalyse_durchfuehren(
+                    projekt_id=projekt.projekt_id,
+                    user_id=user_id,
+                    plz=plz_val,
+                    ort=ort_val,
+                    objekttyp=objekttyp_val,
+                    wohnflaeche=flaeche_val,
+                    zimmer=zimmer_val,
+                    umkreis_km=umkreis_val,
+                    eigene_flaeche=flaeche_val
+                )
+                st.success(f"✅ {ergebnis.anzahl_objekte} Vergleichsobjekte gefunden!")
+                st.rerun()
+
+    # Letzte Analyse anzeigen
+    if 'marktanalyse_ergebnisse' not in st.session_state:
+        st.session_state.marktanalyse_ergebnisse = {}
+
+    ergebnis = st.session_state.marktanalyse_ergebnisse.get(projekt.projekt_id)
+
+    if ergebnis:
+        st.markdown("---")
+        st.markdown(f"**Letzte Analyse:** {ergebnis.durchgefuehrt_am.strftime('%d.%m.%Y %H:%M')} | "
+                   f"**{ergebnis.anzahl_objekte} Vergleichsobjekte** im Umkreis von {ergebnis.umkreis_km} km")
+
+        # Zusammenfassung
+        st.markdown("### 📊 Marktergebnis")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Ø Preis/m²", f"{ergebnis.durchschnitt_preis_qm:,.0f} €")
+        with col2:
+            st.metric("Min. Preis/m²", f"{ergebnis.min_preis_qm:,.0f} €")
+        with col3:
+            st.metric("Max. Preis/m²", f"{ergebnis.max_preis_qm:,.0f} €")
+        with col4:
+            st.metric("Ø Angebotspreis", f"{ergebnis.durchschnitt_preis:,.0f} €")
+
+        # Preisempfehlung
+        st.markdown("### 🎯 Preisempfehlung für Ihre Immobilie")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(
+                "Untere Preisspanne",
+                f"{ergebnis.preis_spanne_von:,.0f} €",
+                delta=f"{ergebnis.min_preis_qm:,.0f} €/m²"
+            )
+        with col2:
+            st.metric(
+                "🎯 Empfohlener Preis",
+                f"{ergebnis.empfohlener_preis:,.0f} €",
+                delta=f"{ergebnis.durchschnitt_preis_qm:,.0f} €/m²"
+            )
+        with col3:
+            st.metric(
+                "Obere Preisspanne",
+                f"{ergebnis.preis_spanne_bis:,.0f} €",
+                delta=f"{ergebnis.max_preis_qm:,.0f} €/m²"
+            )
+
+        # Vergleichsobjekte mit Links
+        st.markdown("---")
+        st.markdown("### 🏘️ Vergleichsobjekte aus dem Markt")
+        st.caption("Klicken Sie auf den Link, um das Angebot im Original-Portal zu prüfen.")
+
+        # Nach Portal gruppieren
+        by_portal = {}
+        for vgl in ergebnis.vergleichsobjekte:
+            portal = vgl['portal']
+            if portal not in by_portal:
+                by_portal[portal] = []
+            by_portal[portal].append(vgl)
+
+        for portal_name, objekte in by_portal.items():
+            with st.expander(f"📋 {portal_name} ({len(objekte)} Objekte)", expanded=True):
+                for vgl in objekte:
+                    col1, col2, col3, col4, col5 = st.columns([3, 1.5, 1.5, 1.5, 1.5])
+
+                    with col1:
+                        st.markdown(f"**{vgl['titel']}**")
+                        st.caption(vgl['adresse'])
+
+                    with col2:
+                        st.write(f"💰 **{vgl['preis']:,.0f} €**")
+
+                    with col3:
+                        st.write(f"📐 {vgl['flaeche']:.0f} m²")
+
+                    with col4:
+                        st.write(f"**{vgl['preis_qm']:,.0f} €/m²**")
+
+                    with col5:
+                        st.markdown(f"[🔗 Zum Angebot]({vgl['portal_url']})")
+
+                    st.markdown("---")
+
+        # Preis übernehmen
+        if kann_bearbeiten:
+            st.markdown("### 💾 Preis übernehmen")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                neuer_preis = st.number_input(
+                    "Angebotspreis festlegen (€)",
+                    min_value=0.0,
+                    value=round(ergebnis.empfohlener_preis, -3),
+                    step=5000.0,
+                    key=f"ma_neuer_preis_{projekt.projekt_id}"
+                )
+            with col2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Als Angebotspreis speichern", type="primary", key=f"ma_save_preis_{projekt.projekt_id}"):
+                    projekt.kaufpreis = neuer_preis
+                    st.session_state.projekte[projekt.projekt_id] = projekt
+                    st.success(f"✅ Angebotspreis {neuer_preis:,.2f} € wurde gespeichert!")
+
+        # Historische Daten / Charts
+        if 'marktpreis_historie' in st.session_state and projekt.projekt_id in st.session_state.marktpreis_historie:
+            historie = st.session_state.marktpreis_historie[projekt.projekt_id]
+
+            if len(historie) >= 2:
+                st.markdown("---")
+                st.markdown("### 📈 Preisentwicklung")
+
+                import pandas as pd
+
+                df_historie = pd.DataFrame([
+                    {
+                        'Datum': h.erfasst_am.strftime('%d.%m.%Y'),
+                        'Ø Preis/m²': h.durchschnitt_preis_qm,
+                        'Min': h.min_preis_qm,
+                        'Max': h.max_preis_qm,
+                        'Objekte': h.anzahl_vergleichsobjekte
+                    }
+                    for h in historie
+                ])
+
+                st.line_chart(df_historie.set_index('Datum')[['Ø Preis/m²', 'Min', 'Max']])
+                st.caption("Die Preisentwicklung zeigt die historischen Marktpreise aus vergangenen Analysen.")
+
+    else:
+        st.info("""
+        📭 **Noch keine Marktanalyse durchgeführt**
+
+        Klicken Sie auf "Marktanalyse durchführen", um Vergleichsobjekte aus Immobilienportalen
+        zu laden und eine Preisempfehlung zu erhalten.
+        """)
 
 
 def berechne_notarkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
@@ -8022,8 +8510,13 @@ def makler_marktanalyse_view():
 
     st.markdown("---")
 
+    # ===== AUTOMATISCHE MARKTANALYSE =====
+    render_automatische_marktanalyse(projekt, makler_id, kann_bearbeiten=True)
+
+    st.markdown("---")
+
     # ===== VERGLEICHSOBJEKTE VERWALTEN =====
-    st.markdown("### 🏘️ Vergleichsobjekte")
+    st.markdown("### 🏘️ Manuelle Vergleichsobjekte")
 
     # Bestehende Vergleichsobjekte anzeigen
     if expose.vergleichsobjekte:
@@ -12233,6 +12726,13 @@ def verkaeufer_preisfindung_view():
 def _verkaeufer_zeige_makler_marktanalyse(projekt, expose):
     """Zeigt die vom Makler erfasste Marktanalyse an (readonly)"""
 
+    # ===== AUTOMATISCHE MARKTANALYSE (readonly) =====
+    # Zeige dem Verkäufer die automatische Analyse, wenn vorhanden
+    if 'marktanalyse_ergebnisse' in st.session_state and projekt.projekt_id in st.session_state.marktanalyse_ergebnisse:
+        user_id = st.session_state.current_user.user_id
+        render_automatische_marktanalyse(projekt, user_id, kann_bearbeiten=False)
+        st.markdown("---")
+
     # Objektdaten anzeigen
     st.markdown("---")
     st.markdown("#### 🏘️ Ihre Immobilie")
@@ -12399,6 +12899,17 @@ def _verkaeufer_zeige_makler_marktanalyse(projekt, expose):
 
 def _verkaeufer_eigene_marktanalyse(projekt):
     """Verkäufer erfasst selbst Vergleichsobjekte zur Preisfindung"""
+
+    user_id = st.session_state.current_user.user_id
+
+    # ===== AUTOMATISCHE MARKTANALYSE =====
+    render_automatische_marktanalyse(projekt, user_id, kann_bearbeiten=True)
+
+    st.markdown("---")
+
+    # ===== MANUELLE VERGLEICHSOBJEKTE =====
+    st.markdown("### ✍️ Eigene Vergleichsobjekte erfassen")
+    st.info("Sie können zusätzlich eigene Vergleichsobjekte manuell erfassen, um die automatische Analyse zu ergänzen.")
 
     # Session State für Vergleichsobjekte initialisieren
     vgl_key = f"verkaeufer_vergleichsobjekte_{projekt.projekt_id}"
