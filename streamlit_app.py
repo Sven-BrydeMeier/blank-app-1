@@ -4128,7 +4128,12 @@ def berechne_gesamtkosten_kaeufer(
     grundschuld_gesamt = 0.0
     if grundschulden:
         for gs in grundschulden:
-            gs_kosten = berechne_grundschuldkosten(gs.get('betrag', 0))
+            # Handle both float and dict types
+            if isinstance(gs, dict):
+                betrag = gs.get('betrag', 0)
+            else:
+                betrag = float(gs) if gs else 0  # It's already a float
+            gs_kosten = berechne_grundschuldkosten(betrag)
             grundschuld_kosten.append(gs_kosten)
             grundschuld_gesamt += gs_kosten['gesamt']
 
