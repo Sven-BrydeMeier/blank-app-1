@@ -3413,6 +3413,371 @@ def create_benutzerdefinierte_kategorie(
     return kategorie
 
 
+# ============================================================================
+# KOSTENBERECHNUNG (Notar, Grundbuch, Makler)
+# ============================================================================
+
+# GNotKG Gebührentabelle (vereinfacht) - Stand 2024
+# Vollgebühr (1,0) nach Geschäftswert
+GNOTKG_GEBUEHRENTABELLE = [
+    (500, 35.00),
+    (1000, 53.00),
+    (1500, 71.00),
+    (2000, 89.00),
+    (3000, 108.00),
+    (4000, 127.00),
+    (5000, 146.00),
+    (6000, 165.00),
+    (7000, 184.00),
+    (8000, 203.00),
+    (9000, 222.00),
+    (10000, 241.00),
+    (13000, 267.00),
+    (16000, 293.00),
+    (19000, 319.00),
+    (22000, 345.00),
+    (25000, 371.00),
+    (30000, 406.00),
+    (35000, 441.00),
+    (40000, 476.00),
+    (45000, 511.00),
+    (50000, 546.00),
+    (65000, 601.00),
+    (80000, 656.00),
+    (95000, 711.00),
+    (110000, 766.00),
+    (125000, 821.00),
+    (140000, 876.00),
+    (155000, 931.00),
+    (170000, 986.00),
+    (185000, 1041.00),
+    (200000, 1096.00),
+    (230000, 1178.00),
+    (260000, 1260.00),
+    (290000, 1342.00),
+    (320000, 1424.00),
+    (350000, 1506.00),
+    (380000, 1588.00),
+    (410000, 1670.00),
+    (440000, 1752.00),
+    (470000, 1834.00),
+    (500000, 1916.00),
+    (550000, 2031.00),
+    (600000, 2146.00),
+    (650000, 2261.00),
+    (700000, 2376.00),
+    (750000, 2491.00),
+    (800000, 2606.00),
+    (850000, 2721.00),
+    (900000, 2836.00),
+    (950000, 2951.00),
+    (1000000, 3066.00),
+    (1500000, 4066.00),
+    (2000000, 5066.00),
+    (2500000, 6066.00),
+    (3000000, 7066.00),
+    (3500000, 8066.00),
+    (4000000, 9066.00),
+    (4500000, 10066.00),
+    (5000000, 11066.00),
+]
+
+
+def get_gnotkg_vollgebuehr(geschaeftswert: float) -> float:
+    """
+    Ermittelt die Vollgebühr (1,0) nach GNotKG basierend auf dem Geschäftswert.
+    """
+    if geschaeftswert <= 0:
+        return 0.0
+
+    # Für Werte über 5 Mio: Basis 11066 + 1000 pro weitere 500.000
+    if geschaeftswert > 5000000:
+        ueberschuss = geschaeftswert - 5000000
+        zusatz_schritte = int(ueberschuss / 500000) + (1 if ueberschuss % 500000 > 0 else 0)
+        return 11066.00 + (zusatz_schritte * 1000.00)
+
+    # Aus Tabelle ermitteln
+    for grenze, gebuehr in GNOTKG_GEBUEHRENTABELLE:
+        if geschaeftswert <= grenze:
+            return gebuehr
+
+    return GNOTKG_GEBUEHRENTABELLE[-1][1]
+
+
+def berechne_notarkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
+    """
+    Berechnet die Notarkosten für einen Immobilienkaufvertrag.
+
+    Beinhaltet:
+    - 2,0 Gebühr für Beurkundung (KV10111)
+    - 0,5 Gebühr für Vollzugstätigkeit (KV22110)
+    - 0,5 Gebühr für Betreuung (KV22200)
+    - Auslagen pauschal (ca. 20-50€)
+    - 19% MwSt auf alles außer Gerichtsgebühren
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(kaufpreis)
+
+    beurkundung = vollgebuehr * 2.0  # 2,0 Gebühr
+    vollzug = vollgebuehr * 0.5  # 0,5 Gebühr
+    betreuung = vollgebuehr * 0.5  # 0,5 Gebühr
+    auslagen = 50.00  # Pauschale für Auslagen
+
+    netto = beurkundung + vollzug + betreuung + auslagen
+    mwst = netto * 0.19
+    brutto = netto + mwst
+
+    return {
+        'vollgebuehr': vollgebuehr,
+        'beurkundung': beurkundung,
+        'vollzug': vollzug,
+        'betreuung': betreuung,
+        'auslagen': auslagen,
+        'netto': netto,
+        'mwst': mwst,
+        'brutto': brutto,
+        'erklaerung': {
+            'beurkundung': '2,0-fache Gebühr für Beurkundung des Kaufvertrags',
+            'vollzug': '0,5-fache Gebühr für Vollzugstätigkeiten',
+            'betreuung': '0,5-fache Gebühr für Betreuungstätigkeiten',
+        }
+    }
+
+
+def berechne_grundbuchkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
+    """
+    Berechnet die Grundbuchkosten für eine Eigentumsumschreibung.
+
+    Beinhaltet:
+    - 1,0 Gebühr für Eigentumsumschreibung (KV14110)
+    - 0,5 Gebühr für Auflassungsvormerkung (KV14150)
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(kaufpreis)
+
+    eigentumsumschreibung = vollgebuehr * 1.0  # 1,0 Gebühr
+    auflassungsvormerkung = vollgebuehr * 0.5  # 0,5 Gebühr
+
+    gesamt = eigentumsumschreibung + auflassungsvormerkung
+
+    return {
+        'vollgebuehr': vollgebuehr,
+        'eigentumsumschreibung': eigentumsumschreibung,
+        'auflassungsvormerkung': auflassungsvormerkung,
+        'gesamt': gesamt,
+        'erklaerung': {
+            'eigentumsumschreibung': '1,0-fache Gebühr für Eigentumsumschreibung',
+            'auflassungsvormerkung': '0,5-fache Gebühr für Eintragung der Auflassungsvormerkung',
+        }
+    }
+
+
+def berechne_grundschuldkosten(grundschuldbetrag: float, anzahl: int = 1) -> Dict[str, Any]:
+    """
+    Berechnet die Kosten für Grundschuldbestellung(en).
+
+    Notar:
+    - 1,0 Gebühr für Grundschuldbestellung (KV21200)
+    - 0,5 Gebühr für Vollzug (KV22110)
+
+    Grundbuch:
+    - 1,0 Gebühr für Eintragung der Grundschuld (KV14120)
+
+    Args:
+        grundschuldbetrag: Betrag der Grundschuld
+        anzahl: Anzahl der Grundschulden (bei gleicher Höhe)
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(grundschuldbetrag)
+
+    # Notarkosten
+    notar_beurkundung = vollgebuehr * 1.0 * anzahl
+    notar_vollzug = vollgebuehr * 0.5 * anzahl
+    notar_auslagen = 30.00 * anzahl
+    notar_netto = notar_beurkundung + notar_vollzug + notar_auslagen
+    notar_mwst = notar_netto * 0.19
+    notar_brutto = notar_netto + notar_mwst
+
+    # Grundbuchkosten
+    grundbuch_eintragung = vollgebuehr * 1.0 * anzahl
+
+    return {
+        'grundschuldbetrag': grundschuldbetrag,
+        'anzahl': anzahl,
+        'vollgebuehr': vollgebuehr,
+        'notar': {
+            'beurkundung': notar_beurkundung,
+            'vollzug': notar_vollzug,
+            'auslagen': notar_auslagen,
+            'netto': notar_netto,
+            'mwst': notar_mwst,
+            'brutto': notar_brutto,
+        },
+        'grundbuch': {
+            'eintragung': grundbuch_eintragung,
+        },
+        'gesamt': notar_brutto + grundbuch_eintragung,
+        'erklaerung': {
+            'notar_beurkundung': '1,0-fache Gebühr für Grundschuldbestellung',
+            'notar_vollzug': '0,5-fache Gebühr für Vollzugstätigkeiten',
+            'grundbuch': '1,0-fache Gebühr für Eintragung der Grundschuld',
+        }
+    }
+
+
+def berechne_loeschungskosten(betrag: float, anzahl: int = 1) -> Dict[str, Any]:
+    """
+    Berechnet die Kosten für die Löschung von Grundpfandrechten (für Verkäufer).
+
+    Notar:
+    - 0,5 Gebühr für Löschungsbewilligung (KV21201)
+
+    Grundbuch:
+    - 0,5 Gebühr für Löschung (KV14143)
+
+    Args:
+        betrag: Nominalbetrag des zu löschenden Rechts
+        anzahl: Anzahl der Rechte
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(betrag)
+
+    # Notarkosten
+    notar_loeschung = vollgebuehr * 0.5 * anzahl
+    notar_auslagen = 20.00 * anzahl
+    notar_netto = notar_loeschung + notar_auslagen
+    notar_mwst = notar_netto * 0.19
+    notar_brutto = notar_netto + notar_mwst
+
+    # Grundbuchkosten
+    grundbuch_loeschung = vollgebuehr * 0.5 * anzahl
+
+    return {
+        'betrag': betrag,
+        'anzahl': anzahl,
+        'vollgebuehr': vollgebuehr,
+        'notar': {
+            'loeschung': notar_loeschung,
+            'auslagen': notar_auslagen,
+            'netto': notar_netto,
+            'mwst': notar_mwst,
+            'brutto': notar_brutto,
+        },
+        'grundbuch': {
+            'loeschung': grundbuch_loeschung,
+        },
+        'gesamt': notar_brutto + grundbuch_loeschung,
+        'erklaerung': {
+            'notar': '0,5-fache Gebühr für Löschungsbewilligung',
+            'grundbuch': '0,5-fache Gebühr für Löschung im Grundbuch',
+        }
+    }
+
+
+def berechne_maklerkosten(kaufpreis: float, provision_prozent: float, inkl_mwst: bool = True) -> Dict[str, Any]:
+    """
+    Berechnet die Maklerkosten.
+
+    Args:
+        kaufpreis: Kaufpreis der Immobilie
+        provision_prozent: Provision in Prozent (z.B. 3.57 für 3,57%)
+        inkl_mwst: True wenn provision_prozent bereits MwSt enthält
+
+    Returns:
+        Dict mit Kostenpositionen
+    """
+    if inkl_mwst:
+        brutto = kaufpreis * (provision_prozent / 100)
+        netto = brutto / 1.19
+        mwst = brutto - netto
+    else:
+        netto = kaufpreis * (provision_prozent / 100)
+        mwst = netto * 0.19
+        brutto = netto + mwst
+
+    return {
+        'kaufpreis': kaufpreis,
+        'provision_prozent': provision_prozent,
+        'netto': netto,
+        'mwst': mwst,
+        'brutto': brutto,
+    }
+
+
+def berechne_gesamtkosten_kaeufer(
+    kaufpreis: float,
+    makler_provision_prozent: float = 0.0,
+    grundschulden: List[Dict[str, float]] = None,
+    grunderwerbsteuer_prozent: float = 6.5
+) -> Dict[str, Any]:
+    """
+    Berechnet alle Kaufnebenkosten für den Käufer.
+
+    Args:
+        kaufpreis: Kaufpreis der Immobilie
+        makler_provision_prozent: Maklerprovision in % (inkl. MwSt)
+        grundschulden: Liste von {"betrag": float} Dictionaries
+        grunderwerbsteuer_prozent: GrESt-Satz des Bundeslandes (Standard: 6.5% für NRW)
+
+    Returns:
+        Dict mit allen Kostenpositionen und Gesamtsumme
+    """
+    # Notarkosten Kaufvertrag
+    notar_kv = berechne_notarkosten_kaufvertrag(kaufpreis)
+
+    # Grundbuchkosten Kaufvertrag
+    grundbuch_kv = berechne_grundbuchkosten_kaufvertrag(kaufpreis)
+
+    # Maklerkosten
+    makler = None
+    if makler_provision_prozent > 0:
+        makler = berechne_maklerkosten(kaufpreis, makler_provision_prozent)
+
+    # Grunderwerbsteuer
+    grunderwerbsteuer = kaufpreis * (grunderwerbsteuer_prozent / 100)
+
+    # Grundschuldkosten
+    grundschuld_kosten = []
+    grundschuld_gesamt = 0.0
+    if grundschulden:
+        for gs in grundschulden:
+            gs_kosten = berechne_grundschuldkosten(gs.get('betrag', 0))
+            grundschuld_kosten.append(gs_kosten)
+            grundschuld_gesamt += gs_kosten['gesamt']
+
+    # Gesamtsumme
+    gesamt = (
+        notar_kv['brutto'] +
+        grundbuch_kv['gesamt'] +
+        grunderwerbsteuer +
+        grundschuld_gesamt +
+        (makler['brutto'] if makler else 0)
+    )
+
+    return {
+        'kaufpreis': kaufpreis,
+        'notar_kaufvertrag': notar_kv,
+        'grundbuch_kaufvertrag': grundbuch_kv,
+        'makler': makler,
+        'grunderwerbsteuer': {
+            'prozent': grunderwerbsteuer_prozent,
+            'betrag': grunderwerbsteuer,
+        },
+        'grundschulden': grundschuld_kosten,
+        'grundschuld_gesamt': grundschuld_gesamt,
+        'gesamt': gesamt,
+        'finanzierungsbedarf': kaufpreis + gesamt,
+    }
+
+
 def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     """Simuliert OCR und KI-Klassifizierung"""
     # In Produktion: echte OCR mit pytesseract oder Cloud-Service
@@ -9109,7 +9474,8 @@ def kaeufer_finanzierung_view():
         "📊 Angebote",
         "📁 Dokumente",
         "📤 Meine Unterlagen",
-        "🧮 Kreditrechner"
+        "🧮 Kreditrechner",
+        "💶 Kaufnebenkosten"
     ])
 
     with tabs[0]:
@@ -9126,6 +9492,9 @@ def kaeufer_finanzierung_view():
 
     with tabs[4]:
         kaeufer_finanzierungsrechner()
+
+    with tabs[5]:
+        kaeufer_kaufnebenkosten_view(projekte)
 
 
 def kaeufer_finanzierung_anfragen(projekte):
@@ -9962,6 +10331,269 @@ def kaeufer_finanzierungsrechner():
                 )
 
 
+def kaeufer_kaufnebenkosten_view(projekte):
+    """Kaufnebenkosten-Rechner für Käufer - Notar, Grundbuch, Makler, Grunderwerbsteuer"""
+    st.markdown("### 💶 Kaufnebenkosten berechnen")
+
+    st.info("""
+    Berechnen Sie hier alle Kaufnebenkosten für Ihre Immobilie.
+    Die Berechnung erfolgt nach aktuellen GNotKG-Sätzen (Stand 2024).
+    Bei Finanzierungsbedarf werden auch die Kosten für die Grundschuldbestellung berechnet.
+    """)
+
+    # Grunderwerbsteuer-Sätze nach Bundesland
+    GRUNDERWERBSTEUER_SAETZE = {
+        "Baden-Württemberg": 5.0,
+        "Bayern": 3.5,
+        "Berlin": 6.0,
+        "Brandenburg": 6.5,
+        "Bremen": 5.0,
+        "Hamburg": 5.5,
+        "Hessen": 6.0,
+        "Mecklenburg-Vorpommern": 6.0,
+        "Niedersachsen": 5.0,
+        "Nordrhein-Westfalen": 6.5,
+        "Rheinland-Pfalz": 5.0,
+        "Saarland": 6.5,
+        "Sachsen": 5.5,
+        "Sachsen-Anhalt": 5.0,
+        "Schleswig-Holstein": 6.5,
+        "Thüringen": 5.0,
+    }
+
+    # Projekt auswählen wenn mehrere vorhanden
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: p.name for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="kosten_projekt_auswahl"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    elif projekte:
+        projekt = projekte[0]
+    else:
+        st.warning("Kein Projekt vorhanden.")
+        return
+
+    st.markdown(f"#### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### 💵 Grunddaten")
+
+        # Kaufpreis
+        kaufpreis = st.number_input(
+            "Kaufpreis (€)",
+            min_value=0.0,
+            value=float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 300000.0,
+            step=5000.0,
+            key=f"kosten_kaufpreis_{projekt.projekt_id}"
+        )
+
+        # Bundesland für Grunderwerbsteuer
+        bundesland = st.selectbox(
+            "Bundesland der Immobilie",
+            list(GRUNDERWERBSTEUER_SAETZE.keys()),
+            index=list(GRUNDERWERBSTEUER_SAETZE.keys()).index("Nordrhein-Westfalen"),
+            key=f"kosten_bundesland_{projekt.projekt_id}"
+        )
+        grunderwerbsteuer_prozent = GRUNDERWERBSTEUER_SAETZE[bundesland]
+        st.caption(f"Grunderwerbsteuersatz: {grunderwerbsteuer_prozent}%")
+
+        # Maklergebühren
+        st.markdown("##### 🏢 Maklergebühren")
+
+        # Prüfe ob Makler dem Projekt zugeordnet ist
+        makler_provision = 3.57  # Standard
+        if projekt.makler_id:
+            makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
+            if makler_profil and makler_profil.provision_prozent:
+                makler_provision = makler_profil.provision_prozent
+                st.caption(f"Provision des zugeordneten Maklers: {makler_provision}%")
+
+        makler_provision_input = st.number_input(
+            "Maklerprovision Käuferanteil (%)",
+            min_value=0.0,
+            max_value=7.14,
+            value=makler_provision,
+            step=0.01,
+            key=f"kosten_makler_{projekt.projekt_id}",
+            help="Üblich sind 3,57% (inkl. MwSt.) oder 50% der Gesamtprovision"
+        )
+
+        makler_inkl_mwst = st.checkbox(
+            "Provision inkl. MwSt.",
+            value=True,
+            key=f"kosten_makler_mwst_{projekt.projekt_id}"
+        )
+
+    with col2:
+        st.markdown("##### 🏦 Finanzierung")
+
+        benoetigt_finanzierung = st.checkbox(
+            "Finanzierung benötigt (Grundschuld)",
+            value=True,
+            key=f"kosten_finanzierung_{projekt.projekt_id}"
+        )
+
+        grundschulden = []
+        if benoetigt_finanzierung:
+            anzahl_grundschulden = st.number_input(
+                "Anzahl Grundschulden",
+                min_value=1,
+                max_value=5,
+                value=1,
+                key=f"kosten_anzahl_gs_{projekt.projekt_id}",
+                help="Meist 1, bei mehreren Banken ggf. mehr"
+            )
+
+            for i in range(int(anzahl_grundschulden)):
+                gs_betrag = st.number_input(
+                    f"Grundschuldbetrag {i+1} (€)",
+                    min_value=0.0,
+                    value=float(kaufpreis) if i == 0 else 0.0,
+                    step=5000.0,
+                    key=f"kosten_gs_{projekt.projekt_id}_{i}"
+                )
+                if gs_betrag > 0:
+                    grundschulden.append(gs_betrag)
+
+    # Berechnung durchführen
+    st.markdown("---")
+    st.markdown("### 📊 Kostenübersicht")
+
+    # Einzelne Berechnungen
+    notar = berechne_notarkosten_kaufvertrag(kaufpreis)
+    grundbuch = berechne_grundbuchkosten_kaufvertrag(kaufpreis)
+    makler = berechne_maklerkosten(kaufpreis, makler_provision_input, makler_inkl_mwst)
+    grunderwerbsteuer = kaufpreis * (grunderwerbsteuer_prozent / 100)
+
+    # Grundschuldkosten wenn Finanzierung
+    grundschuld_kosten = None
+    if grundschulden:
+        gs_gesamt = sum(grundschulden)
+        grundschuld_kosten = berechne_grundschuldkosten(gs_gesamt, len(grundschulden))
+
+    # Übersicht in Columns
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("##### 📜 Notarkosten")
+        st.metric("Gesamt", f"{notar['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Beurkundung (2,0): {notar['beurkundung']:,.2f} €")
+            st.write(f"Vollzug (0,5): {notar['vollzug']:,.2f} €")
+            st.write(f"Betreuung (0,5): {notar['betreuung']:,.2f} €")
+            st.write(f"Auslagen: {notar['auslagen']:,.2f} €")
+            st.write(f"MwSt. (19%): {notar['mwst']:,.2f} €")
+
+    with col2:
+        st.markdown("##### 📖 Grundbuchkosten")
+        st.metric("Gesamt", f"{grundbuch['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Eigentumsumschreibung (1,0): {grundbuch['eigentumsumschreibung']:,.2f} €")
+            st.write(f"Auflassungsvormerkung (0,5): {grundbuch['auflassungsvormerkung']:,.2f} €")
+
+    with col3:
+        st.markdown("##### 🏢 Maklerkosten")
+        st.metric("Gesamt", f"{makler['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Provision: {makler['provision_prozent']:.2f}%")
+            if makler_inkl_mwst:
+                st.write(f"Netto: {makler['netto']:,.2f} €")
+                st.write(f"MwSt.: {makler['mwst']:,.2f} €")
+
+    # Grunderwerbsteuer und Grundschuld in zweiter Reihe
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("##### 🏛️ Grunderwerbsteuer")
+        st.metric("Gesamt", f"{grunderwerbsteuer:,.2f} €")
+        st.caption(f"{grunderwerbsteuer_prozent}% in {bundesland}")
+
+    with col2:
+        if grundschuld_kosten:
+            st.markdown("##### 🏦 Grundschuldkosten")
+            gs_total = grundschuld_kosten['notar_gesamt'] + grundschuld_kosten['grundbuch_gesamt']
+            st.metric("Gesamt", f"{gs_total:,.2f} €")
+            with st.expander("Details"):
+                st.write(f"**Notar:**")
+                st.write(f"  Beurkundung (1,0): {grundschuld_kosten['notar_beurkundung']:,.2f} €")
+                st.write(f"  Vollzug (0,5): {grundschuld_kosten['notar_vollzug']:,.2f} €")
+                st.write(f"  MwSt.: {grundschuld_kosten['notar_mwst']:,.2f} €")
+                st.write(f"**Grundbuch:**")
+                st.write(f"  Eintragung (1,0): {grundschuld_kosten['grundbuch_eintragung']:,.2f} €")
+
+    # Gesamtsumme
+    st.markdown("---")
+    st.markdown("### 💰 Gesamtkosten")
+
+    # Berechne Gesamtkosten
+    gesamtkosten = berechne_gesamtkosten_kaeufer(
+        kaufpreis=kaufpreis,
+        makler_provision_prozent=makler_provision_input,
+        grundschulden=grundschulden if grundschulden else [],
+        grunderwerbsteuer_prozent=grunderwerbsteuer_prozent
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Kaufpreis",
+            f"{kaufpreis:,.2f} €"
+        )
+
+    with col2:
+        st.metric(
+            "Nebenkosten",
+            f"{gesamtkosten['nebenkosten_gesamt']:,.2f} €",
+            delta=f"{(gesamtkosten['nebenkosten_gesamt']/kaufpreis*100):.1f}% vom Kaufpreis"
+        )
+
+    with col3:
+        st.metric(
+            "Gesamtinvestition",
+            f"{gesamtkosten['gesamtkosten']:,.2f} €"
+        )
+
+    # Detailaufstellung
+    with st.expander("📋 Detaillierte Aufstellung", expanded=True):
+        aufstellung = [
+            ("Kaufpreis", kaufpreis),
+            ("Notarkosten (Kaufvertrag)", notar['gesamt']),
+            ("Grundbuchkosten (Kaufvertrag)", grundbuch['gesamt']),
+            ("Maklerkosten", makler['gesamt']),
+            ("Grunderwerbsteuer", grunderwerbsteuer),
+        ]
+
+        if grundschuld_kosten:
+            aufstellung.append(("Notar Grundschuldbestellung", grundschuld_kosten['notar_gesamt']))
+            aufstellung.append(("Grundbuch Grundschuldbestellung", grundschuld_kosten['grundbuch_gesamt']))
+
+        for bezeichnung, betrag in aufstellung:
+            col1, col2 = st.columns([3, 1])
+            col1.write(bezeichnung)
+            col2.write(f"{betrag:,.2f} €")
+
+        st.markdown("---")
+        col1, col2 = st.columns([3, 1])
+        col1.markdown("**Gesamt zu zahlen**")
+        col2.markdown(f"**{gesamtkosten['gesamtkosten']:,.2f} €**")
+
+    # Info-Box
+    st.info("""
+    **Hinweis:** Diese Berechnung dient nur zur Orientierung. Die tatsächlichen Kosten können
+    abweichen und werden vom Notar verbindlich berechnet. Weitere mögliche Kosten wie
+    Schätzgebühren der Bank, Bereitstellungszinsen oder Umzugskosten sind nicht enthalten.
+    """)
+
+
 def kaeufer_nachrichten():
     """Nachrichten für Käufer"""
     st.subheader("💬 Nachrichten")
@@ -10030,7 +10662,7 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -10056,6 +10688,9 @@ def verkaeufer_dashboard():
         verkaeufer_nachrichten()
 
     with tabs[7]:
+        verkaeufer_eigene_kosten_view()
+
+    with tabs[8]:
         # Termin-Übersicht für Verkäufer
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -10066,6 +10701,185 @@ def verkaeufer_dashboard():
                     render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
         else:
             st.info("Noch keine Projekte vorhanden.")
+
+def verkaeufer_eigene_kosten_view():
+    """Kostenberechnung für Verkäufer - Löschungskosten für Grundbuchrechte"""
+    st.subheader("💶 Eigene Kosten")
+
+    st.info("""
+    Als Verkäufer müssen Sie ggf. bestehende Rechte im Grundbuch löschen lassen,
+    bevor die Immobilie lastenfrei übertragen werden kann.
+    Hier können Sie die voraussichtlichen Kosten für Löschungen berechnen.
+    """)
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.warning("Sie haben noch keine Projekte als Verkäufer.")
+        return
+
+    # Projekt auswählen wenn mehrere vorhanden
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: p.name for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="vk_kosten_projekt_auswahl"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    else:
+        projekt = projekte[0]
+
+    st.markdown(f"#### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+    if projekt.kaufpreis > 0:
+        st.caption(f"💰 Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
+    st.markdown("---")
+    st.markdown("### 🗑️ Zu löschende Grundbuchrechte")
+
+    st.markdown("""
+    Geben Sie hier alle Rechte ein, die im Grundbuch gelöscht werden müssen
+    (z.B. bestehende Grundschulden, Hypotheken, Wohnrechte, etc.):
+    """)
+
+    # Anzahl zu löschender Rechte
+    anzahl_rechte = st.number_input(
+        "Anzahl zu löschender Rechte",
+        min_value=0,
+        max_value=10,
+        value=1,
+        key=f"vk_anzahl_rechte_{projekt.projekt_id}"
+    )
+
+    loeschungen = []
+    gesamt_loeschungskosten = 0.0
+
+    if anzahl_rechte > 0:
+        for i in range(int(anzahl_rechte)):
+            with st.expander(f"📋 Recht {i+1}", expanded=True):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    recht_typ = st.selectbox(
+                        "Art des Rechts",
+                        ["Grundschuld", "Hypothek", "Wohnrecht", "Nießbrauch", "Sonstiges"],
+                        key=f"vk_recht_typ_{projekt.projekt_id}_{i}"
+                    )
+
+                with col2:
+                    recht_betrag = st.number_input(
+                        "Betrag / Wert (€)",
+                        min_value=0.0,
+                        value=0.0,
+                        step=1000.0,
+                        key=f"vk_recht_betrag_{projekt.projekt_id}_{i}",
+                        help="Bei Grundschulden/Hypotheken: Nominalbetrag; Bei Wohnrechten: Jahreswert x Faktor"
+                    )
+
+                recht_glaeubiger = st.text_input(
+                    "Gläubiger / Rechtsinhaber (optional)",
+                    key=f"vk_recht_glaeubiger_{projekt.projekt_id}_{i}",
+                    placeholder="z.B. Sparkasse Köln-Bonn"
+                )
+
+                if recht_betrag > 0:
+                    # Berechne Löschungskosten
+                    kosten = berechne_loeschungskosten(recht_betrag, 1)
+                    loeschungen.append({
+                        'typ': recht_typ,
+                        'betrag': recht_betrag,
+                        'glaeubiger': recht_glaeubiger,
+                        'notar': kosten['notar_gesamt'],
+                        'grundbuch': kosten['grundbuch_gesamt'],
+                        'gesamt': kosten['gesamt']
+                    })
+                    gesamt_loeschungskosten += kosten['gesamt']
+
+    # Ergebnisanzeige
+    if loeschungen:
+        st.markdown("---")
+        st.markdown("### 📊 Kostenübersicht")
+
+        # Tabelle der Löschungen
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+        col1.markdown("**Recht**")
+        col2.markdown("**Betrag**")
+        col3.markdown("**Notar**")
+        col4.markdown("**Grundbuch**")
+
+        for loesch in loeschungen:
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+            glaeubiger_info = f" ({loesch['glaeubiger']})" if loesch['glaeubiger'] else ""
+            col1.write(f"{loesch['typ']}{glaeubiger_info}")
+            col2.write(f"{loesch['betrag']:,.2f} €")
+            col3.write(f"{loesch['notar']:,.2f} €")
+            col4.write(f"{loesch['grundbuch']:,.2f} €")
+
+        st.markdown("---")
+
+        # Summen
+        notar_summe = sum(l['notar'] for l in loeschungen)
+        grundbuch_summe = sum(l['grundbuch'] for l in loeschungen)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Notarkosten gesamt", f"{notar_summe:,.2f} €")
+            st.caption("0,5 Gebühr für Löschungsbewilligung + MwSt.")
+
+        with col2:
+            st.metric("Grundbuchkosten gesamt", f"{grundbuch_summe:,.2f} €")
+            st.caption("0,5 Gebühr für Löschung")
+
+        with col3:
+            st.metric("Gesamtkosten Löschung", f"{gesamt_loeschungskosten:,.2f} €", delta_color="inverse")
+
+        # Details anzeigen
+        with st.expander("📋 Berechnungsdetails"):
+            st.markdown("""
+            **Kostenberechnung nach GNotKG:**
+
+            - **Notar Löschungsbewilligung:** 0,5 Gebühr nach Nennbetrag + MwSt. (19%)
+            - **Grundbuch Löschung:** 0,5 Gebühr nach Nennbetrag
+
+            *Die Löschungsbewilligung wird vom Gläubiger (z.B. Bank) erteilt,
+            die Löschung im Grundbuch erfolgt nach Vorlage beim Grundbuchamt.*
+            """)
+
+        # Zusätzliche Hinweise
+        st.warning("""
+        **Wichtige Hinweise:**
+        - Die Löschungsbewilligung muss vom Gläubiger (z.B. Bank) erteilt werden
+        - Bei Grundschulden: Ablösung des Darlehens erforderlich
+        - Die Kosten werden meist mit dem Kaufpreis verrechnet (Tilgung aus dem Kaufpreis)
+        - Der Notar kann die Löschung nur beantragen, wenn alle Unterlagen vorliegen
+        """)
+
+    else:
+        st.success("✅ Keine Rechte zur Löschung angegeben - keine zusätzlichen Kosten als Verkäufer.")
+
+    # Maklerkosten-Info wenn Makler zugeordnet
+    if projekt.makler_id:
+        st.markdown("---")
+        st.markdown("### 🏢 Maklerkosten")
+
+        makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
+        if makler_profil and makler_profil.provision_prozent:
+            # Verkäuferanteil = Gesamtprovision - Käuferanteil (typisch 50/50)
+            verkaeufer_provision = makler_profil.provision_prozent  # Annahme: gleicher Satz für Verkäufer
+            makler_kosten = berechne_maklerkosten(projekt.kaufpreis, verkaeufer_provision, True)
+
+            st.metric(
+                "Ihre Maklerprovision",
+                f"{makler_kosten['gesamt']:,.2f} €",
+                delta=f"{verkaeufer_provision:.2f}% inkl. MwSt."
+            )
+            st.caption("Die Maklerprovision wird mit dem Kaufpreis verrechnet.")
+
 
 def verkaeufer_makler_finden():
     """Makler-Suche für Verkäufer - zeigt vom Notar empfohlene Makler"""
