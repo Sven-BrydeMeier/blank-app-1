@@ -4377,24 +4377,113 @@ def render_automatische_marktanalyse(projekt, user_id: str, kann_bearbeiten: boo
 
         # Preis übernehmen
         if kann_bearbeiten:
-            st.markdown("### 💾 Preis übernehmen")
+            st.markdown("### 💰 Angebotspreis festlegen")
 
-            col1, col2 = st.columns(2)
+            st.info("""
+            Übernehmen Sie einen Preis aus der Marktanalyse oder geben Sie einen eigenen Preis ein.
+            Der Preis wird als Angebotspreis für das Projekt gespeichert.
+            """)
+
+            # Schnellauswahl-Buttons
+            st.markdown("**Schnellauswahl aus Marktanalyse:**")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                if st.button(
+                    f"📉 Untere Spanne\n{ergebnis.preis_spanne_von:,.0f} €",
+                    key=f"ma_preis_min_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.preis_spanne_von
+
+            with col2:
+                if st.button(
+                    f"📊 Durchschnitt\n{ergebnis.empfohlener_preis:,.0f} €",
+                    key=f"ma_preis_avg_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.empfohlener_preis
+
+            with col3:
+                if st.button(
+                    f"📈 Obere Spanne\n{ergebnis.preis_spanne_bis:,.0f} €",
+                    key=f"ma_preis_max_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.preis_spanne_bis
+
+            with col4:
+                if st.button(
+                    "🔄 Zurücksetzen",
+                    key=f"ma_preis_reset_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    if f'ma_selected_price_{projekt.projekt_id}' in st.session_state:
+                        del st.session_state[f'ma_selected_price_{projekt.projekt_id}']
+
+            st.markdown("---")
+
+            # Aktueller Preis und manuelle Eingabe
+            default_preis = st.session_state.get(
+                f'ma_selected_price_{projekt.projekt_id}',
+                round(ergebnis.empfohlener_preis, -3)
+            )
+
+            col1, col2 = st.columns([2, 1])
             with col1:
                 neuer_preis = st.number_input(
-                    "Angebotspreis festlegen (€)",
+                    "Angebotspreis (€)",
                     min_value=0.0,
-                    value=round(ergebnis.empfohlener_preis, -3),
+                    value=float(default_preis),
                     step=5000.0,
-                    key=f"ma_neuer_preis_{projekt.projekt_id}"
+                    key=f"ma_neuer_preis_{projekt.projekt_id}",
+                    help="Geben Sie den gewünschten Angebotspreis ein oder verwenden Sie die Schnellauswahl oben."
                 )
+
+                # Berechne Quadratmeterpreis
+                eigene_flaeche = st.session_state.get(f"ma_flaeche_{projekt.projekt_id}", 100.0)
+                if eigene_flaeche > 0:
+                    neuer_qm_preis = neuer_preis / eigene_flaeche
+                    vergleich_zu_markt = ((neuer_qm_preis / ergebnis.durchschnitt_preis_qm) - 1) * 100 if ergebnis.durchschnitt_preis_qm > 0 else 0
+
+                    if abs(vergleich_zu_markt) <= 5:
+                        st.success(f"✅ **{neuer_qm_preis:,.0f} €/m²** - Im Marktdurchschnitt (±5%)")
+                    elif vergleich_zu_markt > 5:
+                        st.warning(f"⚠️ **{neuer_qm_preis:,.0f} €/m²** - {vergleich_zu_markt:+.1f}% über Marktdurchschnitt")
+                    else:
+                        st.info(f"💡 **{neuer_qm_preis:,.0f} €/m²** - {vergleich_zu_markt:+.1f}% unter Marktdurchschnitt")
+
             with col2:
                 st.write("")
                 st.write("")
-                if st.button("💾 Als Angebotspreis speichern", type="primary", key=f"ma_save_preis_{projekt.projekt_id}"):
+                if st.button("💾 Als Angebotspreis speichern", type="primary", key=f"ma_save_preis_{projekt.projekt_id}", use_container_width=True):
+                    # Projekt-Preis aktualisieren
                     projekt.kaufpreis = neuer_preis
                     st.session_state.projekte[projekt.projekt_id] = projekt
-                    st.success(f"✅ Angebotspreis {neuer_preis:,.2f} € wurde gespeichert!")
+
+                    # Auch Expose-Daten aktualisieren falls vorhanden
+                    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+                        expose = st.session_state.expose_data[projekt.expose_data_id]
+                        expose.kaufpreis = neuer_preis
+                        st.session_state.expose_data[projekt.expose_data_id] = expose
+
+                    # Benachrichtigung an Verkäufer
+                    if projekt.verkaeufer_ids:
+                        for vk_id in projekt.verkaeufer_ids:
+                            create_notification(
+                                vk_id,
+                                "Angebotspreis festgelegt",
+                                f"Der Angebotspreis für '{projekt.name}' wurde auf {neuer_preis:,.2f} € festgelegt.",
+                                NotificationType.INFO.value
+                            )
+
+                    st.success(f"✅ Angebotspreis **{neuer_preis:,.2f} €** wurde gespeichert!")
+                    st.balloons()
+
+            # Aktueller Preis anzeigen
+            if projekt.kaufpreis and projekt.kaufpreis > 0:
+                st.markdown("---")
+                st.markdown(f"**Aktueller Angebotspreis:** {projekt.kaufpreis:,.2f} €")
 
         # Historische Daten / Charts
         if 'marktpreis_historie' in st.session_state and projekt.projekt_id in st.session_state.marktpreis_historie:
@@ -4427,6 +4516,210 @@ def render_automatische_marktanalyse(projekt, user_id: str, kann_bearbeiten: boo
         Klicken Sie auf "Marktanalyse durchführen", um Vergleichsobjekte aus Immobilienportalen
         zu laden und eine Preisempfehlung zu erhalten.
         """)
+
+
+def render_preisfindung_mit_marktanalyse(projekt, user_id: str):
+    """
+    Rendert eine kompakte Preisfindungs-Ansicht mit optionaler Marktanalyse.
+    Kann im Projektbereich verwendet werden.
+    """
+    st.markdown("#### 💰 Angebotspreis festlegen")
+
+    # Aktueller Preis anzeigen
+    expose = None
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+
+    aktueller_preis = projekt.kaufpreis if projekt.kaufpreis > 0 else (expose.kaufpreis if expose and expose.kaufpreis else 0)
+    wohnflaeche = expose.wohnflaeche if expose and expose.wohnflaeche else 0
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Aktueller Preis", f"{aktueller_preis:,.0f} €" if aktueller_preis > 0 else "Nicht festgelegt")
+    with col2:
+        st.metric("Wohnfläche", f"{wohnflaeche:.0f} m²" if wohnflaeche > 0 else "N/A")
+    with col3:
+        if aktueller_preis > 0 and wohnflaeche > 0:
+            st.metric("Preis/m²", f"{aktueller_preis/wohnflaeche:,.0f} €/m²")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    st.markdown("---")
+
+    # Wahl: Manueller Preis oder Marktanalyse
+    preis_methode = st.radio(
+        "Wie möchten Sie den Preis festlegen?",
+        ["📝 Manuell eingeben", "🔍 Mit Marktanalyse"],
+        key=f"preis_methode_{projekt.projekt_id}",
+        horizontal=True
+    )
+
+    if preis_methode == "📝 Manuell eingeben":
+        # Manuelle Preiseingabe
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            neuer_preis = st.number_input(
+                "Angebotspreis (€)",
+                min_value=0.0,
+                value=float(aktueller_preis) if aktueller_preis > 0 else 100000.0,
+                step=5000.0,
+                key=f"manueller_preis_{projekt.projekt_id}"
+            )
+
+            if wohnflaeche > 0:
+                st.caption(f"→ Entspricht **{neuer_preis/wohnflaeche:,.0f} €/m²**")
+
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("💾 Preis speichern", type="primary", key=f"save_manuell_{projekt.projekt_id}", use_container_width=True):
+                projekt.kaufpreis = neuer_preis
+                st.session_state.projekte[projekt.projekt_id] = projekt
+
+                # Expose aktualisieren
+                if expose:
+                    expose.kaufpreis = neuer_preis
+                    st.session_state.expose_data[projekt.expose_data_id] = expose
+
+                # Benachrichtigung an Verkäufer
+                if projekt.verkaeufer_ids:
+                    for vk_id in projekt.verkaeufer_ids:
+                        create_notification(
+                            vk_id,
+                            "Angebotspreis aktualisiert",
+                            f"Der Angebotspreis für '{projekt.name}' wurde auf {neuer_preis:,.2f} € aktualisiert.",
+                            NotificationType.INFO.value
+                        )
+
+                st.success(f"✅ Preis **{neuer_preis:,.2f} €** gespeichert!")
+
+    else:
+        # Marktanalyse nutzen
+        st.markdown("**🔍 Marktanalyse zur Preisfindung**")
+
+        # Prüfen ob bereits eine Analyse existiert
+        ergebnis = st.session_state.marktanalyse_ergebnisse.get(projekt.projekt_id) if 'marktanalyse_ergebnisse' in st.session_state else None
+
+        if ergebnis:
+            st.success(f"✅ Marktanalyse vom {ergebnis.durchgefuehrt_am.strftime('%d.%m.%Y %H:%M')} vorhanden")
+
+            # Schnellauswahl
+            st.markdown("**Preis aus Marktanalyse übernehmen:**")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button(
+                    f"📉 Konservativ\n{ergebnis.preis_spanne_von:,.0f} €",
+                    key=f"pf_preis_min_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.preis_spanne_von)
+                    st.rerun()
+
+            with col2:
+                if st.button(
+                    f"📊 Durchschnitt\n{ergebnis.empfohlener_preis:,.0f} €",
+                    key=f"pf_preis_avg_{projekt.projekt_id}",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.empfohlener_preis)
+                    st.rerun()
+
+            with col3:
+                if st.button(
+                    f"📈 Optimistisch\n{ergebnis.preis_spanne_bis:,.0f} €",
+                    key=f"pf_preis_max_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.preis_spanne_bis)
+                    st.rerun()
+
+            # Manuelle Anpassung basierend auf Analyse
+            st.markdown("---")
+            st.markdown("**Oder manuell anpassen:**")
+
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                angepasster_preis = st.number_input(
+                    "Angepasster Preis (€)",
+                    min_value=0.0,
+                    value=float(ergebnis.empfohlener_preis),
+                    step=5000.0,
+                    key=f"pf_angepasst_{projekt.projekt_id}"
+                )
+
+                # Vergleich zum Markt
+                if wohnflaeche > 0 and ergebnis.durchschnitt_preis_qm > 0:
+                    eigener_qm = angepasster_preis / wohnflaeche
+                    diff = ((eigener_qm / ergebnis.durchschnitt_preis_qm) - 1) * 100
+                    if abs(diff) <= 5:
+                        st.success(f"✅ {eigener_qm:,.0f} €/m² - Im Marktdurchschnitt")
+                    elif diff > 5:
+                        st.warning(f"⚠️ {eigener_qm:,.0f} €/m² - {diff:+.1f}% über Markt")
+                    else:
+                        st.info(f"💡 {eigener_qm:,.0f} €/m² - {diff:+.1f}% unter Markt")
+
+            with col2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Speichern", key=f"pf_save_{projekt.projekt_id}", use_container_width=True, type="primary"):
+                    _speichere_preis_aus_analyse(projekt, expose, angepasster_preis)
+                    st.rerun()
+
+            # Link zur vollständigen Analyse
+            st.markdown("---")
+            st.info("💡 Die vollständige Marktanalyse mit allen Vergleichsobjekten finden Sie im Tab **📊 Marktanalyse**")
+
+        else:
+            st.warning("Noch keine Marktanalyse durchgeführt.")
+
+            if st.button("🔍 Marktanalyse starten", type="primary", key=f"start_ma_{projekt.projekt_id}"):
+                with st.spinner("Analysiere Markt..."):
+                    # Werte aus Expose oder Defaults
+                    plz = projekt.adresse.split()[-2] if projekt.adresse and len(projekt.adresse.split()) >= 2 else "50667"
+                    ort = projekt.adresse.split()[-1] if projekt.adresse else "Köln"
+                    objekttyp = expose.objektart if expose and expose.objektart else "Wohnung"
+                    flaeche = expose.wohnflaeche if expose and expose.wohnflaeche else 100.0
+                    zimmer = expose.anzahl_zimmer if expose and expose.anzahl_zimmer else 3
+
+                    ergebnis = automatische_marktanalyse_durchfuehren(
+                        projekt_id=projekt.projekt_id,
+                        user_id=user_id,
+                        plz=plz,
+                        ort=ort,
+                        objekttyp=objekttyp,
+                        wohnflaeche=flaeche,
+                        zimmer=zimmer,
+                        umkreis_km=10,
+                        eigene_flaeche=flaeche
+                    )
+
+                    st.success(f"✅ {ergebnis.anzahl_objekte} Vergleichsobjekte gefunden!")
+                    st.rerun()
+
+
+def _speichere_preis_aus_analyse(projekt, expose, preis: float):
+    """Hilfsfunktion zum Speichern des Preises aus der Marktanalyse"""
+    projekt.kaufpreis = preis
+    st.session_state.projekte[projekt.projekt_id] = projekt
+
+    if expose:
+        expose.kaufpreis = preis
+        st.session_state.expose_data[projekt.expose_data_id] = expose
+
+    # Benachrichtigung an Verkäufer
+    if projekt.verkaeufer_ids:
+        for vk_id in projekt.verkaeufer_ids:
+            create_notification(
+                vk_id,
+                "Angebotspreis festgelegt",
+                f"Der Angebotspreis für '{projekt.name}' wurde auf {preis:,.2f} € festgelegt (basierend auf Marktanalyse).",
+                NotificationType.INFO.value
+            )
+
+    st.success(f"✅ Preis **{preis:,.2f} €** gespeichert!")
 
 
 def berechne_notarkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
@@ -8925,6 +9218,12 @@ def makler_projekte_view():
 
             with st.expander("📝 Exposé bearbeiten" if expose_exists else "📝 Exposé-Daten eingeben", expanded=not expose_exists):
                 render_expose_editor(projekt)
+
+            st.markdown("---")
+
+            # ===== PREISFINDUNG MIT MARKTANALYSE =====
+            with st.expander("📊 Preisfindung mit Marktanalyse", expanded=False):
+                render_preisfindung_mit_marktanalyse(projekt, st.session_state.current_user.user_id)
 
             st.markdown("---")
 
