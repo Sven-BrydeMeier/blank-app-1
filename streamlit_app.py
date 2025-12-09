@@ -76,6 +76,364 @@ def safe_track_interaktion(
 
 
 # ============================================================================
+# DATENBANK-KONFIGURATION FUNKTIONEN
+# ============================================================================
+
+def test_database_connection(db_url: str) -> dict:
+    """
+    Testet die Datenbankverbindung mit der gegebenen URL.
+
+    Args:
+        db_url: SQLAlchemy-kompatible Datenbank-URL
+
+    Returns:
+        Dictionary mit 'success', 'error' (bei Fehler), 'server_info'
+    """
+    try:
+        from sqlalchemy import create_engine, text
+        import os
+
+        # Für SQLite: Verzeichnis erstellen falls nötig
+        if db_url.startswith('sqlite:///'):
+            db_path = db_url.replace('sqlite:///', '')
+            db_dir = os.path.dirname(db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+
+        # Engine erstellen mit Timeout
+        engine = create_engine(db_url, pool_pre_ping=True, pool_timeout=5)
+
+        # Verbindung testen
+        with engine.connect() as conn:
+            if db_url.startswith('sqlite'):
+                result = conn.execute(text("SELECT sqlite_version()"))
+                version = result.scalar()
+                server_info = f"SQLite {version}"
+            elif 'postgresql' in db_url:
+                result = conn.execute(text("SELECT version()"))
+                version = result.scalar()
+                server_info = version.split(',')[0] if version else "PostgreSQL"
+            elif 'mysql' in db_url:
+                result = conn.execute(text("SELECT VERSION()"))
+                version = result.scalar()
+                server_info = f"MySQL {version}"
+            else:
+                server_info = "Verbunden"
+
+        engine.dispose()
+        return {'success': True, 'server_info': server_info}
+
+    except ImportError as e:
+        return {'success': False, 'error': f"Fehlende Pakete: {e}. Installieren Sie sqlalchemy und ggf. psycopg2-binary oder pymysql."}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def save_database_config(config: dict) -> bool:
+    """
+    Speichert die Datenbank-Konfiguration in .streamlit/secrets.toml
+
+    Args:
+        config: Dictionary mit Datenbank-Konfiguration
+
+    Returns:
+        True bei Erfolg
+    """
+    import os
+
+    secrets_dir = ".streamlit"
+    secrets_file = os.path.join(secrets_dir, "secrets.toml")
+
+    # Verzeichnis erstellen falls nötig
+    if not os.path.exists(secrets_dir):
+        os.makedirs(secrets_dir)
+
+    # Bestehende Secrets laden falls vorhanden
+    existing_content = ""
+    if os.path.exists(secrets_file):
+        with open(secrets_file, 'r') as f:
+            existing_content = f.read()
+
+    # [database] Sektion erstellen
+    db_type = config.get('db_type', 'sqlite')
+
+    if db_type == 'sqlite':
+        db_url = f"sqlite:///{config.get('sqlite_path', 'data/immobilien_plattform.db')}"
+    elif db_type == 'postgresql':
+        db_url = f"postgresql://{config.get('username', '')}:{config.get('password', '')}@{config.get('host', 'localhost')}:{config.get('port', 5432)}/{config.get('database', 'immobilien_plattform')}"
+    else:
+        db_url = f"mysql+pymysql://{config.get('username', '')}:{config.get('password', '')}@{config.get('host', 'localhost')}:{config.get('port', 3306)}/{config.get('database', 'immobilien_plattform')}"
+
+    db_section = f'''
+[database]
+type = "{db_type}"
+url = "{db_url}"
+auto_load = {str(config.get('auto_load', False)).lower()}
+'''
+
+    # Alte [database] Sektion entfernen falls vorhanden
+    import re
+    existing_content = re.sub(r'\[database\].*?(?=\n\[|\Z)', '', existing_content, flags=re.DOTALL)
+    existing_content = existing_content.strip()
+
+    # Neue Sektion anhängen
+    new_content = existing_content + "\n" + db_section if existing_content else db_section.strip()
+
+    with open(secrets_file, 'w') as f:
+        f.write(new_content)
+
+    return True
+
+
+def initialize_database_tables(db_url: str) -> dict:
+    """
+    Erstellt alle Datenbanktabellen basierend auf den SQLAlchemy-Modellen.
+
+    Args:
+        db_url: SQLAlchemy-kompatible Datenbank-URL
+
+    Returns:
+        Dictionary mit 'success', 'tables_created', 'error'
+    """
+    try:
+        from sqlalchemy import create_engine, inspect
+        import os
+
+        # Für SQLite: Verzeichnis erstellen falls nötig
+        if db_url.startswith('sqlite:///'):
+            db_path = db_url.replace('sqlite:///', '')
+            db_dir = os.path.dirname(db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+
+        engine = create_engine(db_url)
+
+        # Prüfe welche Tabellen bereits existieren
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+
+        # Importiere das Base-Model und erstelle Tabellen
+        if DATABASE_AVAILABLE:
+            from database import Base
+            Base.metadata.create_all(engine)
+
+            # Neue Tabellen zählen
+            new_tables = set(inspector.get_table_names())
+            created_count = len(new_tables - existing_tables)
+            total_count = len(new_tables)
+
+            engine.dispose()
+            return {
+                'success': True,
+                'tables_created': created_count,
+                'total_tables': total_count
+            }
+        else:
+            return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def migrate_session_to_database(items: list) -> dict:
+    """
+    Migriert ausgewählte Daten vom Session State in die Datenbank.
+
+    Args:
+        items: Liste der zu migrierenden Datentypen
+
+    Returns:
+        Dictionary mit 'success', 'migrated_count', 'error'
+    """
+    if not DATABASE_AVAILABLE:
+        return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    db_url = st.session_state.get('db_connection_url')
+    if not db_url:
+        return {'success': False, 'error': 'Keine Datenbankverbindung konfiguriert'}
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from database import Base, Nutzer, Projekt, Dokument, Akte, Preisvorschlag, Benachrichtigung
+
+        engine = create_engine(db_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        migrated_count = 0
+
+        # Nutzer migrieren
+        if "Nutzer" in items:
+            for user_id, user in st.session_state.get('users', {}).items():
+                existing = session.query(Nutzer).filter_by(user_id=user_id).first()
+                if not existing:
+                    db_nutzer = Nutzer(
+                        user_id=user.user_id,
+                        email=user.email,
+                        password_hash=user.password_hash,
+                        name=user.name,
+                        rolle=user.rolle,
+                        telefon=getattr(user, 'telefon', ''),
+                        adresse=getattr(user, 'adresse', ''),
+                        onboarding_complete=getattr(user, 'onboarding_complete', False)
+                    )
+                    session.add(db_nutzer)
+                    migrated_count += 1
+
+        # Projekte migrieren
+        if "Projekte" in items:
+            for projekt_id, projekt in st.session_state.get('projekte', {}).items():
+                existing = session.query(Projekt).filter_by(projekt_id=projekt_id).first()
+                if not existing:
+                    db_projekt = Projekt(
+                        projekt_id=projekt.projekt_id,
+                        name=projekt.name,
+                        beschreibung=getattr(projekt, 'beschreibung', ''),
+                        adresse=getattr(projekt, 'adresse', ''),
+                        kaufpreis=getattr(projekt, 'kaufpreis', 0),
+                        status=getattr(projekt, 'status', 'aktiv'),
+                        makler_id=getattr(projekt, 'makler_id', None),
+                        notar_id=getattr(projekt, 'notar_id', None)
+                    )
+                    session.add(db_projekt)
+                    migrated_count += 1
+
+        # Akten migrieren
+        if "Akten" in items:
+            for akte_id, akte in st.session_state.get('akten', {}).items():
+                existing = session.query(Akte).filter_by(akte_id=akte_id).first()
+                if not existing:
+                    db_akte = Akte(
+                        akte_id=akte.akte_id,
+                        notar_id=akte.notar_id,
+                        aktenzeichen=akte.aktenzeichen,
+                        aktennummer=akte.aktennummer,
+                        aktenjahr=akte.aktenjahr,
+                        hauptbereich=akte.hauptbereich,
+                        untertyp=akte.untertyp,
+                        betreff=getattr(akte, 'betreff', ''),
+                        status=getattr(akte, 'status', 'offen')
+                    )
+                    session.add(db_akte)
+                    migrated_count += 1
+
+        session.commit()
+        session.close()
+        engine.dispose()
+
+        return {'success': True, 'migrated_count': migrated_count}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def load_database_to_session() -> dict:
+    """
+    Lädt Daten aus der Datenbank in den Session State.
+
+    Returns:
+        Dictionary mit 'success', 'loaded_count', 'error'
+    """
+    if not DATABASE_AVAILABLE:
+        return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    db_url = st.session_state.get('db_connection_url')
+    if not db_url:
+        return {'success': False, 'error': 'Keine Datenbankverbindung konfiguriert'}
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from database import Nutzer, Projekt, Akte
+
+        engine = create_engine(db_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        loaded_count = 0
+
+        # Nutzer laden
+        db_users = session.query(Nutzer).all()
+        for db_user in db_users:
+            # In Session State User-Objekt konvertieren
+            user = User(
+                user_id=db_user.user_id,
+                email=db_user.email,
+                password_hash=db_user.password_hash,
+                name=db_user.name,
+                rolle=db_user.rolle,
+                telefon=db_user.telefon or '',
+                adresse=db_user.adresse or '',
+                onboarding_complete=db_user.onboarding_complete or False
+            )
+            st.session_state.users[db_user.user_id] = user
+            loaded_count += 1
+
+        # Projekte laden
+        db_projekte = session.query(Projekt).all()
+        for db_projekt in db_projekte:
+            projekt = ProjektData(
+                projekt_id=db_projekt.projekt_id,
+                name=db_projekt.name,
+                beschreibung=db_projekt.beschreibung or '',
+                adresse=db_projekt.adresse or '',
+                kaufpreis=float(db_projekt.kaufpreis) if db_projekt.kaufpreis else 0,
+                status=db_projekt.status or 'aktiv',
+                makler_id=db_projekt.makler_id,
+                notar_id=db_projekt.notar_id
+            )
+            st.session_state.projekte[db_projekt.projekt_id] = projekt
+            loaded_count += 1
+
+        session.close()
+        engine.dispose()
+
+        return {'success': True, 'loaded_count': loaded_count}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def load_database_config_on_startup():
+    """
+    Lädt die Datenbank-Konfiguration aus secrets.toml beim Start.
+    Wird in der main() Funktion aufgerufen.
+    """
+    import os
+
+    try:
+        # Prüfe ob secrets.toml existiert
+        if hasattr(st, 'secrets') and 'database' in st.secrets:
+            db_config = st.secrets['database']
+            db_url = db_config.get('url', '')
+            db_type = db_config.get('type', 'sqlite')
+            auto_load = db_config.get('auto_load', False)
+
+            if db_url:
+                # Konfiguration in Session State speichern
+                st.session_state.db_config = {
+                    'db_type': db_type,
+                    'auto_load': auto_load
+                }
+                st.session_state.db_connection_url = db_url
+
+                # Verbindung testen
+                result = test_database_connection(db_url)
+                if result['success']:
+                    st.session_state.database_connected = True
+
+                    # Auto-Load wenn aktiviert
+                    if auto_load:
+                        load_database_to_session()
+                else:
+                    st.session_state.database_connected = False
+
+    except Exception as e:
+        print(f"Fehler beim Laden der Datenbank-Konfiguration: {e}")
+
+
+# ============================================================================
 # RESPONSIVE DESIGN SYSTEM
 # ============================================================================
 
@@ -10410,9 +10768,9 @@ def kaeufer_kaufnebenkosten_view(projekte):
 
         # Prüfe ob Makler dem Projekt zugeordnet ist
         makler_provision = 3.57  # Standard
-        if projekt.makler_id:
+        if projekt.makler_id and 'makler_profile' in st.session_state:
             makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
-            if makler_profil and makler_profil.provision_prozent:
+            if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
                 makler_provision = makler_profil.provision_prozent
                 st.caption(f"Provision des zugeordneten Maklers: {makler_provision}%")
 
@@ -10863,12 +11221,12 @@ def verkaeufer_eigene_kosten_view():
         st.success("✅ Keine Rechte zur Löschung angegeben - keine zusätzlichen Kosten als Verkäufer.")
 
     # Maklerkosten-Info wenn Makler zugeordnet
-    if projekt.makler_id:
+    if projekt.makler_id and 'makler_profile' in st.session_state:
         st.markdown("---")
         st.markdown("### 🏢 Maklerkosten")
 
         makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
-        if makler_profil and makler_profil.provision_prozent:
+        if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
             # Verkäuferanteil = Gesamtprovision - Käuferanteil (typisch 50/50)
             verkaeufer_provision = makler_profil.provision_prozent  # Annahme: gleicher Satz für Verkäufer
             makler_kosten = berechne_maklerkosten(projekt.kaufpreis, verkaeufer_provision, True)
@@ -16580,12 +16938,168 @@ def notar_einstellungen_view():
             st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
             st.markdown("- ⚠️ API-Keys für OCR erforderlich")
 
-    # Datenbank-Status
+    # Datenbank-Konfiguration
     st.markdown("---")
-    st.markdown("### 🗄️ Datenbank-Status")
+    st.markdown("### 🗄️ Datenbank-Konfiguration")
 
-    if DATABASE_AVAILABLE:
-        db_status = st.session_state.get('database_status', {})
+    st.info("""
+    Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
+    Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
+    """)
+
+    # Datenbank-Konfiguration initialisieren
+    if 'db_config' not in st.session_state:
+        st.session_state.db_config = {
+            'db_type': 'sqlite',
+            'host': 'localhost',
+            'port': 5432,
+            'database': 'immobilien_plattform',
+            'username': '',
+            'password': '',
+            'sqlite_path': 'data/immobilien_plattform.db'
+        }
+
+    # Tabs für Konfiguration und Status
+    db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
+
+    with db_tabs[0]:
+        st.markdown("#### Datenbank-Verbindung einrichten")
+
+        # Datenbanktyp auswählen
+        db_type = st.selectbox(
+            "Datenbank-Typ",
+            ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
+            index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
+                  (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
+            key="db_type_select",
+            help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
+        )
+
+        db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
+        st.session_state.db_config['db_type'] = db_type_key
+
+        if db_type_key == 'sqlite':
+            # SQLite Konfiguration
+            st.markdown("##### 📁 SQLite-Datei")
+
+            sqlite_path = st.text_input(
+                "Datenbankpfad",
+                value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
+                key="sqlite_path_input",
+                help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
+            )
+            st.session_state.db_config['sqlite_path'] = sqlite_path
+
+            st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
+
+            # Verbindungs-URL generieren
+            db_url = f"sqlite:///{sqlite_path}"
+
+        else:
+            # PostgreSQL / MySQL Konfiguration
+            col1, col2 = st.columns(2)
+
+            with col1:
+                host = st.text_input(
+                    "Host",
+                    value=st.session_state.db_config.get('host', 'localhost'),
+                    key="db_host_input",
+                    placeholder="localhost oder IP-Adresse"
+                )
+                st.session_state.db_config['host'] = host
+
+                database = st.text_input(
+                    "Datenbankname",
+                    value=st.session_state.db_config.get('database', 'immobilien_plattform'),
+                    key="db_name_input"
+                )
+                st.session_state.db_config['database'] = database
+
+            with col2:
+                port = st.number_input(
+                    "Port",
+                    value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
+                    min_value=1,
+                    max_value=65535,
+                    key="db_port_input"
+                )
+                st.session_state.db_config['port'] = port
+
+                username = st.text_input(
+                    "Benutzername",
+                    value=st.session_state.db_config.get('username', ''),
+                    key="db_user_input"
+                )
+                st.session_state.db_config['username'] = username
+
+            password = st.text_input(
+                "Passwort",
+                value=st.session_state.db_config.get('password', ''),
+                type="password",
+                key="db_pass_input"
+            )
+            st.session_state.db_config['password'] = password
+
+            # Verbindungs-URL generieren
+            if db_type_key == 'postgresql':
+                db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+            else:
+                db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+
+        # Verbindungs-URL anzeigen (maskiert)
+        st.markdown("##### 🔗 Verbindungs-URL")
+        if db_type_key == 'sqlite':
+            st.code(db_url)
+        else:
+            masked_url = db_url.replace(password, '***') if password else db_url
+            st.code(masked_url)
+
+        # Aktionen
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
+                with st.spinner("Teste Verbindung..."):
+                    try:
+                        # Teste die Verbindung
+                        test_result = test_database_connection(db_url)
+                        if test_result['success']:
+                            st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
+                            st.session_state.db_connection_url = db_url
+                            st.session_state.database_connected = True
+                        else:
+                            st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
+                            st.session_state.database_connected = False
+                    except Exception as e:
+                        st.error(f"❌ Fehler: {str(e)}")
+                        st.session_state.database_connected = False
+
+        with col2:
+            if st.button("💾 Konfiguration speichern", key="save_db_config"):
+                try:
+                    save_database_config(st.session_state.db_config)
+                    st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
+                except Exception as e:
+                    st.error(f"❌ Fehler beim Speichern: {e}")
+
+        with col3:
+            if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
+                if st.session_state.get('database_connected'):
+                    with st.spinner("Erstelle Datenbanktabellen..."):
+                        try:
+                            result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
+                            if result['success']:
+                                st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                        except Exception as e:
+                            st.error(f"❌ Fehler: {e}")
+                else:
+                    st.warning("⚠️ Bitte zuerst Verbindung testen!")
+
+    with db_tabs[1]:
+        st.markdown("#### 📊 Verbindungsstatus")
+
         db_connected = st.session_state.get('database_connected', False)
 
         col1, col2, col3 = st.columns(3)
@@ -16593,66 +17107,137 @@ def notar_einstellungen_view():
         with col1:
             if db_connected:
                 st.success("🟢 **Verbunden**")
-                st.caption(f"PostgreSQL {db_status.get('server_version', 'N/A')}")
+                st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
             else:
                 st.error("🔴 **Nicht verbunden**")
-                if db_status and 'error' in db_status:
-                    st.caption(f"Fehler: {db_status['error'][:50]}...")
 
         with col2:
-            if db_connected and db_status:
-                st.metric("Aktive Verbindungen", db_status.get('active_connections', 0))
-            else:
-                st.metric("Aktive Verbindungen", "-")
+            # Session State Statistiken
+            session_users = len(st.session_state.get('users', {}))
+            session_projekte = len(st.session_state.get('projekte', {}))
+            st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
 
         with col3:
-            if db_connected and db_status:
-                db_size = db_status.get('database_size', 'N/A')
-                st.metric("Datenbankgröße", db_size)
+            if db_connected:
+                st.metric("Datenbank", "Bereit")
             else:
-                st.metric("Datenbankgröße", "-")
+                st.metric("Datenbank", "Offline")
 
-        # Verbindung testen / erneut verbinden
-        if st.button("🔄 Verbindung testen", key="test_db_connection"):
-            try:
-                new_status = check_database_connection()
-                if new_status.get('connected'):
-                    st.session_state.database_connected = True
-                    st.session_state.database_status = new_status
-                    st.success("✅ Datenbankverbindung erfolgreich!")
+        st.markdown("---")
+        st.markdown("#### 🔄 Datenmigration")
+
+        st.info("""
+        **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
+        Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+        """)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Von Session State → Datenbank:**")
+            migrate_items = st.multiselect(
+                "Zu migrierende Daten",
+                ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
+                default=["Nutzer", "Projekte"],
+                key="migrate_selection"
+            )
+
+            if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
+                if db_connected and migrate_items:
+                    with st.spinner("Exportiere Daten..."):
+                        result = migrate_session_to_database(migrate_items)
+                        if result['success']:
+                            st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
+                        else:
+                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
                 else:
-                    st.session_state.database_connected = False
-                    st.error("❌ Verbindung fehlgeschlagen")
-            except Exception as e:
-                st.session_state.database_connected = False
-                st.session_state.database_status = {'error': str(e)}
-                st.error(f"❌ Fehler: {e}")
+                    st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
 
-        # Hinweise zur Konfiguration
-        with st.expander("ℹ️ Datenbank-Konfiguration"):
-            st.markdown("""
-            **Datenbank-URL konfigurieren:**
+        with col2:
+            st.markdown("**Von Datenbank → Session State:**")
+            st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
 
-            1. Erstellen Sie `.streamlit/secrets.toml`
-            2. Fügen Sie hinzu:
-            ```toml
-            [database]
-            url = "postgresql://user:password@host:5432/dbname"
-            ```
+            if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
+                if db_connected:
+                    with st.spinner("Importiere Daten..."):
+                        result = load_database_to_session()
+                        if result['success']:
+                            st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
 
-            **Oder über Streamlit Cloud:**
-            - Settings → Secrets → `[database]` Abschnitt hinzufügen
+            auto_load = st.checkbox(
+                "Automatisch beim Start laden",
+                value=st.session_state.get('db_auto_load', False),
+                key="db_auto_load_checkbox",
+                help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
+            )
+            st.session_state.db_auto_load = auto_load
 
-            **Unterstützte Features:**
-            - 🔐 Nutzer-Authentifizierung
-            - 📊 Interaktions-Tracking
-            - 📈 ML-Trainingsdaten (Preisverhandlungen)
-            - 📄 Dokumente mit OCR-Ergebnissen
-            - 🏠 Immobilien-Marktdaten
-            """)
-    else:
-        st.warning("⚠️ Datenbank-Modul nicht verfügbar")
-        st.caption("Installieren Sie die erforderlichen Pakete: `pip install sqlalchemy psycopg2-binary`")
+    with db_tabs[2]:
+        st.markdown("#### 📋 Datenbankschema")
+
+        st.markdown("""
+        Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
+
+        | Tabelle | Beschreibung |
+        |---------|-------------|
+        | `nutzer` | Benutzerkonten mit Rollen |
+        | `makler_profil` | Makler-Profilinformationen |
+        | `notar_profil` | Notar-Profilinformationen |
+        | `notar_mitarbeiter` | Notar-Mitarbeiter |
+        | `immobilie` | Immobilien-Stammdaten |
+        | `projekt` | Transaktionsprojekte |
+        | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
+        | `preisvorschlag` | Preisverhandlungen |
+        | `preis_historie` | Preisentwicklung |
+        | `markt_daten` | Marktdaten für ML |
+        | `dokument` | Dokumente mit OCR |
+        | `interaktion` | Benutzeraktivitäten |
+        | `benachrichtigung` | Systembenachrichtigungen |
+        | `textbaustein` | Vertragsbausteine |
+        | `vertragsdokument` | Generierte Verträge |
+        | `akte` | Aktenmanagement |
+        | `akten_dokument` | Dokumente in Akten |
+        | `akten_nachricht` | Kommunikation in Akten |
+        | `api_key` | API-Schlüssel |
+        """)
+
+        if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
+            st.code('''
+-- Beispiel: Nutzer-Tabelle
+CREATE TABLE nutzer (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    rolle VARCHAR(50) NOT NULL,
+    telefon VARCHAR(50),
+    adresse TEXT,
+    profilbild_url TEXT,
+    onboarding_complete BOOLEAN DEFAULT FALSE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_login TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Beispiel: Projekt-Tabelle
+CREATE TABLE projekt (
+    id SERIAL PRIMARY KEY,
+    projekt_id VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    beschreibung TEXT,
+    adresse TEXT,
+    kaufpreis DECIMAL(15,2),
+    status VARCHAR(50),
+    makler_id VARCHAR(50) REFERENCES nutzer(user_id),
+    notar_id VARCHAR(50) REFERENCES nutzer(user_id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+            ''', language='sql')
 
 
 # ============================================================================
