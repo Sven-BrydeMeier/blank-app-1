@@ -10768,9 +10768,9 @@ def kaeufer_kaufnebenkosten_view(projekte):
 
         # Prüfe ob Makler dem Projekt zugeordnet ist
         makler_provision = 3.57  # Standard
-        if projekt.makler_id:
+        if projekt.makler_id and 'makler_profile' in st.session_state:
             makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
-            if makler_profil and makler_profil.provision_prozent:
+            if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
                 makler_provision = makler_profil.provision_prozent
                 st.caption(f"Provision des zugeordneten Maklers: {makler_provision}%")
 
@@ -11221,12 +11221,12 @@ def verkaeufer_eigene_kosten_view():
         st.success("✅ Keine Rechte zur Löschung angegeben - keine zusätzlichen Kosten als Verkäufer.")
 
     # Maklerkosten-Info wenn Makler zugeordnet
-    if projekt.makler_id:
+    if projekt.makler_id and 'makler_profile' in st.session_state:
         st.markdown("---")
         st.markdown("### 🏢 Maklerkosten")
 
         makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
-        if makler_profil and makler_profil.provision_prozent:
+        if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
             # Verkäuferanteil = Gesamtprovision - Käuferanteil (typisch 50/50)
             verkaeufer_provision = makler_profil.provision_prozent  # Annahme: gleicher Satz für Verkäufer
             makler_kosten = berechne_maklerkosten(projekt.kaufpreis, verkaeufer_provision, True)
