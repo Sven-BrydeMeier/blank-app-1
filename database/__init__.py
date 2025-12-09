@@ -34,6 +34,13 @@ from .models import (
     DokumentTyp,
     PreisvorschlagStatus,
     InteraktionsTyp,
+    # Aktenmanagement Enums
+    AktenHauptbereich,
+    AktenTypErbrecht,
+    AktenTypGesellschaftsrecht,
+    AktenTypZivilrecht,
+    AktenStatus,
+    APIKeyTyp,
     # Nutzer & Auth
     Nutzer,
     MaklerProfil,
@@ -55,6 +62,14 @@ from .models import (
     # Verträge
     Textbaustein,
     VertragsDokument,
+    # Aktenmanagement
+    Akte,
+    BenutzerdefiniertAktenKategorie,
+    AktenDokument,
+    AktenNachricht,
+    AktenTextbaustein,
+    # API-Keys
+    APIKey,
 )
 
 # Verbindungsfunktionen exportieren
@@ -104,7 +119,7 @@ from .services import (
     mark_benachrichtigung_gelesen,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     # Base
     "Base",
@@ -115,6 +130,13 @@ __all__ = [
     "DokumentTyp",
     "PreisvorschlagStatus",
     "InteraktionsTyp",
+    # Aktenmanagement Enums
+    "AktenHauptbereich",
+    "AktenTypErbrecht",
+    "AktenTypGesellschaftsrecht",
+    "AktenTypZivilrecht",
+    "AktenStatus",
+    "APIKeyTyp",
     # Models
     "Nutzer",
     "MaklerProfil",
@@ -131,6 +153,14 @@ __all__ = [
     "Benachrichtigung",
     "Textbaustein",
     "VertragsDokument",
+    # Aktenmanagement Models
+    "Akte",
+    "BenutzerdefiniertAktenKategorie",
+    "AktenDokument",
+    "AktenNachricht",
+    "AktenTextbaustein",
+    # API-Keys
+    "APIKey",
     # Connection functions
     "get_engine",
     "get_session",
