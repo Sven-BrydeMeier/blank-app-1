@@ -8,6 +8,8 @@ Dieses Modul definiert alle Datenbankmodelle für:
 - Dokumente & OCR
 - Analytics & Interaktionen
 - Marktdaten
+- Aktenmanagement (Notar)
+- API-Key Verwaltung
 """
 
 from datetime import datetime
@@ -101,7 +103,69 @@ class InteraktionsTyp(enum.Enum):
     NACHRICHT_GESENDET = "nachricht_gesendet"
     PROJEKT_ERSTELLT = "projekt_erstellt"
     PROJEKT_AKTUALISIERT = "projekt_aktualisiert"
+    AKTE_ERSTELLT = "akte_erstellt"
+    AKTE_AKTUALISIERT = "akte_aktualisiert"
     ERROR = "error"
+
+
+# ==================== AKTENMANAGEMENT ENUMS ====================
+
+class AktenHauptbereich(enum.Enum):
+    """Hauptbereiche für Notarakten"""
+    ERBRECHT = "erbrecht"
+    GESELLSCHAFTSRECHT = "gesellschaftsrecht"
+    ZIVILRECHT = "zivilrecht"
+    SONSTIGE = "sonstige"
+
+
+class AktenTypErbrecht(enum.Enum):
+    """Untertypen für Erbrecht"""
+    TESTAMENT_GEMEINSCHAFTLICH = "testament_gemeinschaftlich"
+    TESTAMENT_EINZEL = "testament_einzel"
+    ERBVERTRAG = "erbvertrag"
+    ERBAUSSCHLAGUNG = "erbausschlagung"
+    ERBSCHEIN = "erbschein"
+
+
+class AktenTypGesellschaftsrecht(enum.Enum):
+    """Untertypen für Gesellschaftsrecht"""
+    GRUENDUNG = "gruendung"
+    LIQUIDATION = "liquidation"
+    VERKAUF_ANTEILE = "verkauf_anteile"
+    ABTRETUNG_ANTEILE = "abtretung_anteile"
+
+
+class AktenTypZivilrecht(enum.Enum):
+    """Untertypen für Zivilrecht"""
+    IMMOBILIENKAUFVERTRAG = "immobilienkaufvertrag"
+    UEBERLASSUNGSVERTRAG = "ueberlassungsvertrag"
+    EHEVERTRAG = "ehevertrag"
+    SCHEIDUNGSFOLGENVEREINBARUNG = "scheidungsfolgenvereinbarung"
+    VORSORGEVERTRAG = "vorsorgevertrag"
+    SORGERECHTSVERFUEGUNG = "sorgerechtsverfuegung"
+
+
+class AktenStatus(enum.Enum):
+    """Status einer Akte"""
+    NEU = "neu"
+    IN_BEARBEITUNG = "in_bearbeitung"
+    WARTET_AUF_UNTERLAGEN = "wartet_auf_unterlagen"
+    BEURKUNDUNG_VORBEREITET = "beurkundung_vorbereitet"
+    BEURKUNDET = "beurkundet"
+    VOLLZUG = "vollzug"
+    ABGESCHLOSSEN = "abgeschlossen"
+    STORNIERT = "storniert"
+
+
+class APIKeyTyp(enum.Enum):
+    """Typen von API-Keys"""
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE_DRIVE = "google_drive"
+    DROPBOX = "dropbox"
+    ICLOUD = "icloud"
+    AWS_S3 = "aws_s3"
+    AZURE_BLOB = "azure_blob"
 
 
 # ==================== NUTZER & AUTHENTIFIZIERUNG ====================
@@ -219,6 +283,9 @@ class NotarProfil(Base):
     amtsgericht = Column(String(100))
     notarkammer = Column(String(100))
 
+    # Notar-Kürzel für Aktenzeichen (z.B. "SQ" für Notar Meier)
+    kuerzel = Column(String(10), index=True)
+
     # Kontakt Kanzlei
     kanzlei_strasse = Column(String(200))
     kanzlei_hausnummer = Column(String(20))
@@ -233,13 +300,13 @@ class NotarProfil(Base):
     # Statistiken
     anzahl_beurkundungen = Column(Integer, default=0)
 
+    # Akten-Zähler pro Jahr
+    letzte_aktennummer = Column(Integer, default=0)
+    akten_jahr = Column(Integer)  # Jahr für Akten-Nummerierung
+
     # Einstellungen
     rechtsdokumente_pflichtig = Column(Boolean, default=True)
     demo_modus = Column(Boolean, default=True)
-
-    # API Keys (verschlüsselt speichern!)
-    openai_api_key_encrypted = Column(Text)
-    anthropic_api_key_encrypted = Column(Text)
 
     # Timestamps
     erstellt_am = Column(DateTime, default=datetime.utcnow)
@@ -248,6 +315,9 @@ class NotarProfil(Base):
     # Beziehungen
     nutzer = relationship("Nutzer", back_populates="notar_profil")
     mitarbeiter = relationship("NotarMitarbeiter", back_populates="notar")
+    api_keys = relationship("APIKey", back_populates="notar")
+    akten = relationship("Akte", back_populates="notar")
+    benutzerdefinierte_kategorien = relationship("BenutzerdefiniertAktenKategorie", back_populates="notar")
 
 
 class NotarMitarbeiter(Base):
@@ -258,7 +328,10 @@ class NotarMitarbeiter(Base):
     notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), nullable=False)
     nutzer_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"), nullable=False)
 
-    position = Column(String(100))
+    # Mitarbeiter-Kürzel für Aktenzeichen (z.B. "Go" für Frau Goeser)
+    kuerzel = Column(String(10), index=True)
+
+    position = Column(String(100))  # z.B. "Reno", "ReNo-Fachangestellte"
     berechtigungen = Column(JSONB)  # {"projekte": true, "dokumente": true, ...}
 
     ist_aktiv = Column(Boolean, default=True)
@@ -266,6 +339,7 @@ class NotarMitarbeiter(Base):
     erstellt_am = Column(DateTime, default=datetime.utcnow)
 
     notar = relationship("NotarProfil", back_populates="mitarbeiter")
+    betreute_akten = relationship("Akte", back_populates="sachbearbeiter")
 
 
 # ==================== IMMOBILIEN & PROJEKTE ====================
@@ -812,3 +886,277 @@ class VertragsDokument(Base):
     # Timestamps
     hochgeladen_am = Column(DateTime, default=datetime.utcnow)
     verarbeitet_am = Column(DateTime)
+
+    # Akte-Verknüpfung
+    akte_id = Column(UUID(as_uuid=True), ForeignKey("akten.id"), index=True)
+    akte = relationship("Akte", back_populates="vertragsdokumente")
+
+
+# ==================== AKTENMANAGEMENT ====================
+
+class Akte(Base):
+    """
+    Notarielle Akte (Case File)
+
+    Aktenzeichen-Format: "Nachname1 ./. Nachname2 NNN/JJ Notar-MA"
+    Beispiel: "Krug ./. Müller 333/24 SQ-Go"
+    """
+    __tablename__ = "akten"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Notar und Sachbearbeiter
+    notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), nullable=False, index=True)
+    sachbearbeiter_id = Column(UUID(as_uuid=True), ForeignKey("notar_mitarbeiter.id"), index=True)
+
+    # Aktenzeichen-Komponenten
+    aktennummer = Column(Integer, nullable=False)  # Fortlaufende Nummer
+    aktenjahr = Column(Integer, nullable=False)  # Jahr (2-stellig: 24, 25, ...)
+    verkaeufer_nachname = Column(String(100))  # Für Aktenbezeichnung
+    kaeufer_nachname = Column(String(100))  # Für Aktenbezeichnung
+    notar_kuerzel = Column(String(10))  # z.B. "SQ"
+    mitarbeiter_kuerzel = Column(String(10))  # z.B. "Go"
+
+    # Vollständiges Aktenzeichen (generiert)
+    # Format: "Krug ./. Müller 333/24 SQ-Go"
+    aktenzeichen = Column(String(100), unique=True, nullable=False, index=True)
+
+    # Kurzbezeichnung für Kommunikation
+    # Format: "Krug ./. Müller 333/24"
+    kurzbezeichnung = Column(String(80), index=True)
+
+    # Kategorisierung
+    hauptbereich = Column(Enum(AktenHauptbereich), nullable=False, index=True)
+    untertyp = Column(String(100), index=True)  # Flexibel für verschiedene Untertypen
+    benutzerdefinierte_kategorie_id = Column(UUID(as_uuid=True), ForeignKey("benutzerdefinierte_akten_kategorien.id"))
+
+    # Verknüpfung mit Projekt (falls Immobilientransaktion)
+    projekt_id = Column(UUID(as_uuid=True), ForeignKey("projekte.id"), index=True)
+
+    # Parteien (können mehrere sein)
+    parteien = Column(JSONB)  # [{"rolle": "Verkäufer", "name": "...", "kontakt": "..."}]
+
+    # Status
+    status = Column(Enum(AktenStatus), default=AktenStatus.NEU, index=True)
+
+    # Beschreibung und Notizen
+    betreff = Column(String(500))
+    interne_notizen = Column(Text)
+
+    # Termine
+    beurkundungstermin = Column(DateTime)
+    naechste_wiedervorlage = Column(Date, index=True)
+
+    # Finanzen
+    geschaeftswert = Column(Numeric(14, 2))
+    gebuehren = Column(Numeric(10, 2))
+    gebuehren_bezahlt = Column(Boolean, default=False)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow, index=True)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    abgeschlossen_am = Column(DateTime)
+
+    # Beziehungen
+    notar = relationship("NotarProfil", back_populates="akten")
+    sachbearbeiter = relationship("NotarMitarbeiter", back_populates="betreute_akten")
+    projekt = relationship("Projekt", backref="akte")
+    benutzerdefinierte_kategorie = relationship("BenutzerdefiniertAktenKategorie")
+    dokumente = relationship("AktenDokument", back_populates="akte")
+    nachrichten = relationship("AktenNachricht", back_populates="akte")
+    vertragsdokumente = relationship("VertragsDokument", back_populates="akte")
+    textbausteine = relationship("AktenTextbaustein", back_populates="akte")
+
+    __table_args__ = (
+        UniqueConstraint('notar_id', 'aktennummer', 'aktenjahr', name='uq_akte_nummer_jahr'),
+        Index('idx_akte_notar_status', 'notar_id', 'status'),
+        Index('idx_akte_sachbearbeiter', 'sachbearbeiter_id', 'status'),
+        Index('idx_akte_suche', 'verkaeufer_nachname', 'kaeufer_nachname'),
+        Index('idx_akte_wiedervorlage', 'naechste_wiedervorlage', 'status'),
+    )
+
+    def generiere_aktenzeichen(self) -> str:
+        """Generiert das vollständige Aktenzeichen"""
+        basis = f"{self.verkaeufer_nachname or 'N.N.'} ./. {self.kaeufer_nachname or 'N.N.'} {self.aktennummer}/{self.aktenjahr:02d}"
+        if self.notar_kuerzel and self.mitarbeiter_kuerzel:
+            return f"{basis} {self.notar_kuerzel}-{self.mitarbeiter_kuerzel}"
+        elif self.notar_kuerzel:
+            return f"{basis} {self.notar_kuerzel}"
+        return basis
+
+    def generiere_kurzbezeichnung(self) -> str:
+        """Generiert die Kurzbezeichnung für Kommunikation"""
+        return f"{self.verkaeufer_nachname or 'N.N.'} ./. {self.kaeufer_nachname or 'N.N.'} {self.aktennummer}/{self.aktenjahr:02d}"
+
+
+class BenutzerdefiniertAktenKategorie(Base):
+    """Benutzerdefinierte Akten-Kategorien (müssen vom Notar freigegeben werden)"""
+    __tablename__ = "benutzerdefinierte_akten_kategorien"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), nullable=False, index=True)
+
+    # Kategorie-Daten
+    hauptbereich = Column(Enum(AktenHauptbereich), nullable=False)
+    name = Column(String(100), nullable=False)
+    beschreibung = Column(Text)
+
+    # Freigabe durch Notar
+    erstellt_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"), nullable=False)
+    freigegeben = Column(Boolean, default=False)
+    freigegeben_am = Column(DateTime)
+    freigegeben_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"))
+
+    # Status
+    ist_aktiv = Column(Boolean, default=True)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    notar = relationship("NotarProfil", back_populates="benutzerdefinierte_kategorien")
+
+    __table_args__ = (
+        UniqueConstraint('notar_id', 'hauptbereich', 'name', name='uq_kategorie_name'),
+    )
+
+
+class AktenDokument(Base):
+    """Dokumente, die einer Akte zugeordnet sind"""
+    __tablename__ = "akten_dokumente"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    akte_id = Column(UUID(as_uuid=True), ForeignKey("akten.id"), nullable=False, index=True)
+    dokument_id = Column(UUID(as_uuid=True), ForeignKey("dokumente.id"), index=True)
+
+    # Oder direkte Speicherung
+    dateiname = Column(String(255))
+    dateityp = Column(String(50))
+    dateigroesse = Column(Integer)
+    datei_bytes = Column(LargeBinary)
+
+    # Kategorisierung in der Akte
+    kategorie = Column(String(100))  # z.B. "Personalausweise", "Grundbuchauszug"
+    beschreibung = Column(Text)
+
+    # Status
+    ist_vollstaendig = Column(Boolean, default=False)
+    geprueft_am = Column(DateTime)
+    geprueft_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"))
+
+    # Timestamps
+    hochgeladen_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    akte = relationship("Akte", back_populates="dokumente")
+
+
+class AktenNachricht(Base):
+    """Nachrichten/Kommunikation zu einer Akte"""
+    __tablename__ = "akten_nachrichten"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    akte_id = Column(UUID(as_uuid=True), ForeignKey("akten.id"), nullable=False, index=True)
+
+    # Absender/Empfänger
+    absender_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"), nullable=False)
+    empfaenger_ids = Column(ARRAY(UUID(as_uuid=True)))
+
+    # Inhalt
+    betreff = Column(String(255))  # Automatisch mit Aktenzeichen präfixiert
+    nachricht = Column(Text, nullable=False)
+
+    # Typ
+    nachrichtentyp = Column(String(50))  # "intern", "extern", "notiz"
+    kanal = Column(String(50))  # "email", "portal", "telefon", "fax"
+
+    # Anhänge
+    anhaenge = Column(JSONB)  # [{"dokument_id": "...", "dateiname": "..."}]
+
+    # Status
+    gelesen = Column(Boolean, default=False)
+    gelesen_am = Column(DateTime)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Beziehungen
+    akte = relationship("Akte", back_populates="nachrichten")
+
+    __table_args__ = (
+        Index('idx_nachricht_akte_zeit', 'akte_id', 'erstellt_am'),
+    )
+
+
+class AktenTextbaustein(Base):
+    """Textbausteine, die einer Akte zugeordnet sind (mit Indizes)"""
+    __tablename__ = "akten_textbausteine"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    akte_id = Column(UUID(as_uuid=True), ForeignKey("akten.id"), nullable=False, index=True)
+    textbaustein_id = Column(UUID(as_uuid=True), ForeignKey("textbausteine.id"), index=True)
+
+    # Oder direkte Speicherung des Textes
+    titel = Column(String(200))
+    text = Column(Text)
+
+    # Position im Dokument (für visuellen Editor)
+    position = Column(Integer)  # Reihenfolge
+    start_index = Column(Integer)  # Zeichen-Start im Gesamttext
+    end_index = Column(Integer)  # Zeichen-Ende im Gesamttext
+
+    # Kategorisierung
+    kategorie = Column(String(100))
+
+    # Anpassungen
+    angepasst = Column(Boolean, default=False)  # Vom Original abweichend?
+    original_text = Column(Text)  # Falls angepasst, Original speichern
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Beziehungen
+    akte = relationship("Akte", back_populates="textbausteine")
+
+
+# ==================== API-KEY VERWALTUNG ====================
+
+class APIKey(Base):
+    """API-Keys für verschiedene Dienste (verschlüsselt gespeichert)"""
+    __tablename__ = "api_keys"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), nullable=False, index=True)
+
+    # Key-Daten
+    key_typ = Column(Enum(APIKeyTyp), nullable=False)
+    key_name = Column(String(100))  # Beschreibender Name
+    key_encrypted = Column(Text, nullable=False)  # Verschlüsselter API-Key
+
+    # OAuth-Daten (für Google Drive, Dropbox, etc.)
+    refresh_token_encrypted = Column(Text)
+    access_token_encrypted = Column(Text)
+    token_expires_at = Column(DateTime)
+    oauth_scope = Column(String(500))
+
+    # Zusätzliche Konfiguration
+    config = Column(JSONB)  # z.B. {"folder_id": "...", "region": "eu-central-1"}
+
+    # Status
+    ist_aktiv = Column(Boolean, default=True)
+    letzter_test = Column(DateTime)
+    test_erfolgreich = Column(Boolean)
+    fehler_nachricht = Column(Text)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Beziehungen
+    notar = relationship("NotarProfil", back_populates="api_keys")
+
+    __table_args__ = (
+        UniqueConstraint('notar_id', 'key_typ', 'key_name', name='uq_api_key'),
+        Index('idx_api_key_notar_typ', 'notar_id', 'key_typ'),
+    )

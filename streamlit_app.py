@@ -1838,6 +1838,174 @@ class TextbausteinStatus(Enum):
     ABGELEHNT = "Abgelehnt"  # Vom Notar abgelehnt
     ARCHIVIERT = "Archiviert"  # Nicht mehr verwendet
 
+
+# ============================================================================
+# AKTENMANAGEMENT
+# ============================================================================
+
+class AktenHauptbereich(Enum):
+    """Hauptbereiche für Notarakten"""
+    ERBRECHT = "Erbrecht"
+    GESELLSCHAFTSRECHT = "Gesellschaftsrecht"
+    ZIVILRECHT = "Zivilrecht"
+    SONSTIGE = "Sonstige"
+
+
+class AktenTypErbrecht(Enum):
+    """Untertypen für Erbrecht"""
+    TESTAMENT_GEMEINSCHAFTLICH = "Gemeinschaftliches Testament (Eheleute)"
+    TESTAMENT_EINZEL = "Einzeltestament"
+    ERBVERTRAG = "Erbvertrag"
+    ERBAUSSCHLAGUNG = "Erbausschlagung"
+    ERBSCHEIN = "Erbschein"
+
+
+class AktenTypGesellschaftsrecht(Enum):
+    """Untertypen für Gesellschaftsrecht"""
+    GRUENDUNG = "Gründung einer Gesellschaft"
+    LIQUIDATION = "Liquidation einer Gesellschaft"
+    VERKAUF_ANTEILE = "Verkauf von Gesellschaftsanteilen"
+    ABTRETUNG_ANTEILE = "Abtretung von Gesellschaftsanteilen"
+
+
+class AktenTypZivilrecht(Enum):
+    """Untertypen für Zivilrecht"""
+    IMMOBILIENKAUFVERTRAG = "Notarieller Immobilienkaufvertrag"
+    UEBERLASSUNGSVERTRAG = "Überlassungsvertrag"
+    EHEVERTRAG = "Ehevertrag"
+    SCHEIDUNGSFOLGENVEREINBARUNG = "Scheidungsfolgenvereinbarung"
+    VORSORGEVERTRAG = "Vorsorgevertrag (Betreuungs- & Patientenverfügung)"
+    SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
+
+
+class AktenStatus(Enum):
+    """Status einer Akte"""
+    NEU = "Neu angelegt"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    WARTET_AUF_UNTERLAGEN = "Wartet auf Unterlagen"
+    BEURKUNDUNG_VORBEREITET = "Beurkundung vorbereitet"
+    BEURKUNDET = "Beurkundet"
+    VOLLZUG = "Im Vollzug"
+    ABGESCHLOSSEN = "Abgeschlossen"
+    STORNIERT = "Storniert"
+
+
+# Mapping von Hauptbereich zu Untertypen
+AKTEN_UNTERTYPEN = {
+    AktenHauptbereich.ERBRECHT.value: [e.value for e in AktenTypErbrecht],
+    AktenHauptbereich.GESELLSCHAFTSRECHT.value: [e.value for e in AktenTypGesellschaftsrecht],
+    AktenHauptbereich.ZIVILRECHT.value: [e.value for e in AktenTypZivilrecht],
+    AktenHauptbereich.SONSTIGE.value: ["Sonstiges"],
+}
+
+
+@dataclass
+class Akte:
+    """Notarielle Akte"""
+    akte_id: str
+    notar_id: str  # Notar, dem die Akte gehört
+    sachbearbeiter_id: Optional[str] = None  # Mitarbeiter-ID
+
+    # Aktenzeichen-Komponenten
+    aktennummer: int = 0
+    aktenjahr: int = 24  # 2-stellig
+    verkaeufer_nachname: str = ""
+    kaeufer_nachname: str = ""
+    notar_kuerzel: str = ""
+    mitarbeiter_kuerzel: str = ""
+
+    # Generierte Bezeichnungen
+    aktenzeichen: str = ""  # z.B. "Krug ./. Müller 333/24 SQ-Go"
+    kurzbezeichnung: str = ""  # z.B. "Krug ./. Müller 333/24"
+
+    # Kategorisierung
+    hauptbereich: str = ""  # Erbrecht, Gesellschaftsrecht, Zivilrecht
+    untertyp: str = ""  # Spezifischer Typ
+    benutzerdefinierte_kategorie: str = ""  # Falls benutzerdefiniert
+
+    # Verknüpfung mit Projekt (falls Immobilientransaktion)
+    projekt_id: Optional[str] = None
+
+    # Parteien
+    parteien: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Status
+    status: str = AktenStatus.NEU.value
+
+    # Beschreibung
+    betreff: str = ""
+    interne_notizen: str = ""
+
+    # Termine
+    beurkundungstermin: Optional[datetime] = None
+    naechste_wiedervorlage: Optional[date] = None
+
+    # Finanzen
+    geschaeftswert: float = 0.0
+    gebuehren: float = 0.0
+    gebuehren_bezahlt: bool = False
+
+    # Dokumente und Nachrichten (IDs)
+    dokument_ids: List[str] = field(default_factory=list)
+    nachricht_ids: List[str] = field(default_factory=list)
+    textbaustein_ids: List[str] = field(default_factory=list)
+
+    # Timestamps
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    abgeschlossen_am: Optional[datetime] = None
+
+    def generiere_aktenzeichen(self) -> str:
+        """Generiert das vollständige Aktenzeichen"""
+        vk = self.verkaeufer_nachname or "N.N."
+        kf = self.kaeufer_nachname or "N.N."
+        basis = f"{vk} ./. {kf} {self.aktennummer}/{self.aktenjahr:02d}"
+        if self.notar_kuerzel and self.mitarbeiter_kuerzel:
+            return f"{basis} {self.notar_kuerzel}-{self.mitarbeiter_kuerzel}"
+        elif self.notar_kuerzel:
+            return f"{basis} {self.notar_kuerzel}"
+        return basis
+
+    def generiere_kurzbezeichnung(self) -> str:
+        """Generiert die Kurzbezeichnung für Kommunikation"""
+        vk = self.verkaeufer_nachname or "N.N."
+        kf = self.kaeufer_nachname or "N.N."
+        return f"{vk} ./. {kf} {self.aktennummer}/{self.aktenjahr:02d}"
+
+
+@dataclass
+class BenutzerdefiniertKategorie:
+    """Benutzerdefinierte Akten-Kategorie"""
+    kategorie_id: str
+    notar_id: str
+    hauptbereich: str
+    name: str
+    beschreibung: str = ""
+    erstellt_von_id: str = ""
+    freigegeben: bool = False
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von_id: Optional[str] = None
+    ist_aktiv: bool = True
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class AktenNachricht:
+    """Nachricht zu einer Akte"""
+    nachricht_id: str
+    akte_id: str
+    absender_id: str
+    empfaenger_ids: List[str] = field(default_factory=list)
+    betreff: str = ""  # Wird automatisch mit Aktenzeichen präfixiert
+    nachricht: str = ""
+    nachrichtentyp: str = "intern"  # intern, extern, notiz
+    kanal: str = "portal"  # email, portal, telefon, fax
+    anhaenge: List[Dict[str, Any]] = field(default_factory=list)
+    gelesen: bool = False
+    gelesen_am: Optional[datetime] = None
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
 # Vertragstyp-Templates: Definiert die typische Reihenfolge der Kategorien für jeden Vertragstyp
 # Bei "alternativen" können verschiedene Bausteine der gleichen Kategorie ausgewählt werden
 VERTRAGSTYP_TEMPLATES = {
@@ -2314,6 +2482,16 @@ def init_session_state():
         st.session_state.vertragsdokumente = {}  # dokument_id -> VertragsDokument
         st.session_state.vertragsvorlagen = {}  # vorlage_id -> VertragsVorlage
         st.session_state.vertragsentwuerfe = {}  # entwurf_id -> Vertragsentwurf
+
+        # ============================================================
+        # AKTENMANAGEMENT
+        # ============================================================
+        st.session_state.akten = {}  # akte_id -> Akte
+        st.session_state.akten_nachrichten = {}  # nachricht_id -> AktenNachricht
+        st.session_state.benutzerdefinierte_kategorien = {}  # kategorie_id -> BenutzerdefiniertKategorie
+        st.session_state.notar_kuerzel = {}  # notar_id -> kuerzel (z.B. "SQ")
+        st.session_state.mitarbeiter_kuerzel = {}  # mitarbeiter_id -> kuerzel (z.B. "Go")
+        st.session_state.letzte_aktennummer = {}  # notar_id -> {jahr: nummer}
 
         # Datenbank-Status
         st.session_state.database_connected = False
@@ -2974,6 +3152,266 @@ def get_letztes_offenes_angebot(projekt_id: str) -> Optional[Preisangebot]:
         if angebot.status == PreisangebotStatus.OFFEN.value:
             return angebot
     return None
+
+
+# ============================================================================
+# AKTENMANAGEMENT FUNKTIONEN
+# ============================================================================
+
+def get_naechste_aktennummer(notar_id: str) -> Tuple[int, int]:
+    """
+    Ermittelt die nächste Aktennummer für einen Notar.
+    Gibt (aktennummer, aktenjahr) zurück.
+    """
+    aktuelles_jahr = datetime.now().year % 100  # 2-stellig: 24, 25, etc.
+
+    if notar_id not in st.session_state.letzte_aktennummer:
+        st.session_state.letzte_aktennummer[notar_id] = {}
+
+    notar_nummern = st.session_state.letzte_aktennummer[notar_id]
+
+    if aktuelles_jahr not in notar_nummern:
+        notar_nummern[aktuelles_jahr] = 0
+
+    notar_nummern[aktuelles_jahr] += 1
+    return notar_nummern[aktuelles_jahr], aktuelles_jahr
+
+
+def create_akte(
+    notar_id: str,
+    hauptbereich: str,
+    untertyp: str,
+    verkaeufer_nachname: str = "",
+    kaeufer_nachname: str = "",
+    sachbearbeiter_id: Optional[str] = None,
+    projekt_id: Optional[str] = None,
+    betreff: str = "",
+    geschaeftswert: float = 0.0
+) -> Akte:
+    """
+    Erstellt eine neue Akte mit automatischem Aktenzeichen.
+
+    Args:
+        notar_id: ID des Notars
+        hauptbereich: Erbrecht, Gesellschaftsrecht, Zivilrecht, Sonstige
+        untertyp: Spezifischer Typ innerhalb des Hauptbereichs
+        verkaeufer_nachname: Nachname der ersten Partei (Verkäufer/Erblasser etc.)
+        kaeufer_nachname: Nachname der zweiten Partei (Käufer/Erbe etc.)
+        sachbearbeiter_id: ID des zuständigen Mitarbeiters
+        projekt_id: Verknüpfung mit Makler-Projekt (falls vorhanden)
+        betreff: Kurzbeschreibung des Falls
+        geschaeftswert: Geschäftswert für Gebührenberechnung
+
+    Returns:
+        Die erstellte Akte
+    """
+    akte_id = str(uuid.uuid4())[:8]
+
+    # Nächste Aktennummer holen
+    aktennummer, aktenjahr = get_naechste_aktennummer(notar_id)
+
+    # Kürzel ermitteln
+    notar_kuerzel = st.session_state.notar_kuerzel.get(notar_id, "")
+    mitarbeiter_kuerzel = ""
+    if sachbearbeiter_id:
+        mitarbeiter_kuerzel = st.session_state.mitarbeiter_kuerzel.get(sachbearbeiter_id, "")
+
+    # Akte erstellen
+    akte = Akte(
+        akte_id=akte_id,
+        notar_id=notar_id,
+        sachbearbeiter_id=sachbearbeiter_id,
+        aktennummer=aktennummer,
+        aktenjahr=aktenjahr,
+        verkaeufer_nachname=verkaeufer_nachname,
+        kaeufer_nachname=kaeufer_nachname,
+        notar_kuerzel=notar_kuerzel,
+        mitarbeiter_kuerzel=mitarbeiter_kuerzel,
+        hauptbereich=hauptbereich,
+        untertyp=untertyp,
+        projekt_id=projekt_id,
+        betreff=betreff,
+        geschaeftswert=geschaeftswert
+    )
+
+    # Aktenzeichen generieren
+    akte.aktenzeichen = akte.generiere_aktenzeichen()
+    akte.kurzbezeichnung = akte.generiere_kurzbezeichnung()
+
+    # In Session State speichern
+    st.session_state.akten[akte_id] = akte
+
+    # Tracking
+    safe_track_interaktion(
+        interaktions_typ='akte_erstellt',
+        details={
+            'akte_id': akte_id,
+            'aktenzeichen': akte.aktenzeichen,
+            'hauptbereich': hauptbereich,
+            'untertyp': untertyp
+        },
+        projekt_id=projekt_id
+    )
+
+    return akte
+
+
+def get_akten_fuer_notar(notar_id: str, status_filter: Optional[str] = None) -> List[Akte]:
+    """Holt alle Akten für einen Notar, optional nach Status gefiltert."""
+    akten = [a for a in st.session_state.akten.values() if a.notar_id == notar_id]
+
+    if status_filter:
+        akten = [a for a in akten if a.status == status_filter]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def get_akten_fuer_sachbearbeiter(sachbearbeiter_id: str, status_filter: Optional[str] = None) -> List[Akte]:
+    """Holt alle Akten für einen Sachbearbeiter, optional nach Status gefiltert."""
+    akten = [a for a in st.session_state.akten.values() if a.sachbearbeiter_id == sachbearbeiter_id]
+
+    if status_filter:
+        akten = [a for a in akten if a.status == status_filter]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def suche_akten(
+    notar_id: str,
+    suchbegriff: str = "",
+    sachbearbeiter_id: Optional[str] = None,
+    hauptbereich: Optional[str] = None,
+    status: Optional[str] = None
+) -> List[Akte]:
+    """
+    Sucht Akten nach verschiedenen Kriterien.
+
+    Args:
+        notar_id: ID des Notars
+        suchbegriff: Suche in Aktenzeichen, Namen, Betreff
+        sachbearbeiter_id: Filter nach Sachbearbeiter
+        hauptbereich: Filter nach Hauptbereich
+        status: Filter nach Status
+
+    Returns:
+        Liste der gefundenen Akten
+    """
+    akten = [a for a in st.session_state.akten.values() if a.notar_id == notar_id]
+
+    # Suchbegriff anwenden
+    if suchbegriff:
+        suchbegriff_lower = suchbegriff.lower()
+        akten = [a for a in akten if (
+            suchbegriff_lower in a.aktenzeichen.lower() or
+            suchbegriff_lower in a.verkaeufer_nachname.lower() or
+            suchbegriff_lower in a.kaeufer_nachname.lower() or
+            suchbegriff_lower in a.betreff.lower() or
+            suchbegriff_lower in a.kurzbezeichnung.lower()
+        )]
+
+    # Sachbearbeiter-Filter
+    if sachbearbeiter_id:
+        akten = [a for a in akten if a.sachbearbeiter_id == sachbearbeiter_id]
+
+    # Hauptbereich-Filter
+    if hauptbereich:
+        akten = [a for a in akten if a.hauptbereich == hauptbereich]
+
+    # Status-Filter
+    if status:
+        akten = [a for a in akten if a.status == status]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def get_akte_fuer_projekt(projekt_id: str) -> Optional[Akte]:
+    """Holt die Akte, die mit einem Projekt verknüpft ist."""
+    for akte in st.session_state.akten.values():
+        if akte.projekt_id == projekt_id:
+            return akte
+    return None
+
+
+def create_akte_nachricht(
+    akte_id: str,
+    absender_id: str,
+    nachricht: str,
+    empfaenger_ids: List[str] = None,
+    betreff: str = "",
+    nachrichtentyp: str = "intern",
+    kanal: str = "portal"
+) -> AktenNachricht:
+    """Erstellt eine neue Nachricht zu einer Akte mit automatischem Aktenzeichen-Präfix."""
+    nachricht_id = str(uuid.uuid4())[:8]
+
+    # Akte holen für Aktenzeichen
+    akte = st.session_state.akten.get(akte_id)
+    if akte and betreff and not betreff.startswith(akte.kurzbezeichnung):
+        betreff = f"[{akte.kurzbezeichnung}] {betreff}"
+
+    msg = AktenNachricht(
+        nachricht_id=nachricht_id,
+        akte_id=akte_id,
+        absender_id=absender_id,
+        empfaenger_ids=empfaenger_ids or [],
+        betreff=betreff,
+        nachricht=nachricht,
+        nachrichtentyp=nachrichtentyp,
+        kanal=kanal
+    )
+
+    st.session_state.akten_nachrichten[nachricht_id] = msg
+
+    # Nachricht zur Akte hinzufügen
+    if akte:
+        akte.nachricht_ids.append(nachricht_id)
+
+    return msg
+
+
+def get_verfuegbare_untertypen(hauptbereich: str, notar_id: str) -> List[str]:
+    """
+    Holt alle verfügbaren Untertypen für einen Hauptbereich.
+    Inkludiert Standard-Typen und freigegebene benutzerdefinierte Kategorien.
+    """
+    # Standard-Typen
+    untertypen = AKTEN_UNTERTYPEN.get(hauptbereich, []).copy()
+
+    # Benutzerdefinierte Kategorien hinzufügen (nur freigegebene)
+    for kategorie in st.session_state.benutzerdefinierte_kategorien.values():
+        if (kategorie.notar_id == notar_id and
+            kategorie.hauptbereich == hauptbereich and
+            kategorie.freigegeben and
+            kategorie.ist_aktiv):
+            if kategorie.name not in untertypen:
+                untertypen.append(kategorie.name)
+
+    return untertypen
+
+
+def create_benutzerdefinierte_kategorie(
+    notar_id: str,
+    hauptbereich: str,
+    name: str,
+    beschreibung: str,
+    erstellt_von_id: str
+) -> BenutzerdefiniertKategorie:
+    """Erstellt eine neue benutzerdefinierte Kategorie (muss vom Notar freigegeben werden)."""
+    kategorie_id = str(uuid.uuid4())[:8]
+
+    kategorie = BenutzerdefiniertKategorie(
+        kategorie_id=kategorie_id,
+        notar_id=notar_id,
+        hauptbereich=hauptbereich,
+        name=name,
+        beschreibung=beschreibung,
+        erstellt_von_id=erstellt_von_id,
+        freigegeben=False
+    )
+
+    st.session_state.benutzerdefinierte_kategorien[kategorie_id] = kategorie
+    return kategorie
+
 
 def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     """Simuliert OCR und KI-Klassifizierung"""
@@ -10638,9 +11076,10 @@ def notar_dashboard():
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
+        "📁 Aktenmanagement",  # NEU: Aktenführung
         "💰 Preiseinigungen",
-        "📚 Vertragsarchiv",  # NEU: Textbausteine & Dokumente
-        "📝 Vertragserstellung",  # NEU: Verträge aus Bausteinen erstellen
+        "📚 Vertragsarchiv",  # Textbausteine & Dokumente
+        "📝 Vertragserstellung",  # Verträge aus Bausteinen erstellen
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👥 Mitarbeiter",
@@ -10662,48 +11101,51 @@ def notar_dashboard():
         notar_projekte_view()
 
     with tabs[2]:
-        notar_preiseinigungen_view()
+        notar_aktenmanagement_view()  # NEU: Aktenführung
 
     with tabs[3]:
-        notar_vertragsarchiv_view()  # NEU
+        notar_preiseinigungen_view()
 
     with tabs[4]:
-        notar_vertragserstellung_view()  # NEU
+        notar_vertragsarchiv_view()
 
     with tabs[5]:
-        notar_checklisten_view()
+        notar_vertragserstellung_view()
 
     with tabs[6]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
+        notar_checklisten_view()
 
     with tabs[7]:
-        notar_mitarbeiter_view()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[8]:
-        notar_finanzierungsnachweise()
+        notar_mitarbeiter_view()
 
     with tabs[9]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[10]:
-        notar_kaufvertrag_generator()
+        notar_dokumenten_freigaben()
 
     with tabs[11]:
-        notar_termine()
+        notar_kaufvertrag_generator()
 
     with tabs[12]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[13]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[14]:
-        notar_ausweis_erfassung()
+        notar_handwerker_view()
 
     with tabs[15]:
-        notar_rechtsdokumente_view()
+        notar_ausweis_erfassung()
 
     with tabs[16]:
+        notar_rechtsdokumente_view()
+
+    with tabs[17]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -10822,6 +11264,367 @@ def notar_projekte_view():
                             st.rerun()
             else:
                 st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
+
+
+def notar_aktenmanagement_view():
+    """Aktenmanagement für Notar - Akten anlegen, suchen und verwalten"""
+    st.subheader("📁 Aktenmanagement")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Notar-Kürzel setzen falls nicht vorhanden
+    if notar_id not in st.session_state.notar_kuerzel:
+        st.warning("⚠️ Bitte legen Sie zuerst Ihr Notar-Kürzel fest.")
+        with st.form("notar_kuerzel_form"):
+            kuerzel = st.text_input(
+                "Ihr Kürzel (z.B. SQ für Notar Meier)",
+                max_chars=5,
+                help="Dieses Kürzel erscheint im Aktenzeichen"
+            )
+            if st.form_submit_button("💾 Speichern"):
+                if kuerzel:
+                    st.session_state.notar_kuerzel[notar_id] = kuerzel.upper()
+                    st.success(f"Kürzel '{kuerzel.upper()}' gespeichert!")
+                    st.rerun()
+                else:
+                    st.error("Bitte geben Sie ein Kürzel ein.")
+        return
+
+    # Sub-Tabs für Aktenmanagement
+    sub_tabs = st.tabs([
+        "📋 Aktenübersicht",
+        "➕ Neue Akte",
+        "🔍 Aktensuche",
+        "📂 Kategorien verwalten"
+    ])
+
+    # --- Aktenübersicht ---
+    with sub_tabs[0]:
+        st.markdown("### 📋 Ihre Akten")
+
+        # Filter
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            status_filter = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in AktenStatus],
+                key="akten_status_filter"
+            )
+        with col2:
+            bereich_filter = st.selectbox(
+                "Rechtsbereich",
+                ["Alle"] + [b.value for b in AktenHauptbereich],
+                key="akten_bereich_filter"
+            )
+        with col3:
+            # Sachbearbeiter-Filter
+            mitarbeiter_options = {"Alle": None}
+            for ma in st.session_state.notar_mitarbeiter.values():
+                if ma.notar_id == notar_id and ma.aktiv:
+                    mitarbeiter_options[ma.name] = ma.mitarbeiter_id
+            ma_filter = st.selectbox("Sachbearbeiter", list(mitarbeiter_options.keys()), key="akten_ma_filter")
+
+        # Akten laden
+        akten = get_akten_fuer_notar(notar_id)
+
+        # Filter anwenden
+        if status_filter != "Alle":
+            akten = [a for a in akten if a.status == status_filter]
+        if bereich_filter != "Alle":
+            akten = [a for a in akten if a.hauptbereich == bereich_filter]
+        if mitarbeiter_options[ma_filter]:
+            akten = [a for a in akten if a.sachbearbeiter_id == mitarbeiter_options[ma_filter]]
+
+        # Statistiken
+        st.markdown("---")
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        alle_akten = get_akten_fuer_notar(notar_id)
+        with stat_col1:
+            st.metric("Gesamt", len(alle_akten))
+        with stat_col2:
+            offene = len([a for a in alle_akten if a.status not in [AktenStatus.ABGESCHLOSSEN.value, AktenStatus.STORNIERT.value]])
+            st.metric("Offen", offene)
+        with stat_col3:
+            beurkundet = len([a for a in alle_akten if a.status == AktenStatus.BEURKUNDET.value])
+            st.metric("Beurkundet", beurkundet)
+        with stat_col4:
+            wiedervorlage = len([a for a in alle_akten if a.naechste_wiedervorlage and a.naechste_wiedervorlage <= date.today()])
+            st.metric("Wiedervorlage heute", wiedervorlage, delta=wiedervorlage if wiedervorlage > 0 else None, delta_color="inverse")
+
+        st.markdown("---")
+
+        if not akten:
+            st.info("Keine Akten gefunden. Legen Sie eine neue Akte an.")
+        else:
+            for akte in akten:
+                with st.expander(f"📁 {akte.aktenzeichen} - {akte.untertyp}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.markdown(f"**Aktenzeichen:** `{akte.aktenzeichen}`")
+                        st.markdown(f"**Kurzbezeichnung:** {akte.kurzbezeichnung}")
+                        st.markdown(f"**Bereich:** {akte.hauptbereich} → {akte.untertyp}")
+                        st.markdown(f"**Betreff:** {akte.betreff or '-'}")
+
+                        # Sachbearbeiter anzeigen
+                        if akte.sachbearbeiter_id:
+                            ma = st.session_state.notar_mitarbeiter.get(akte.sachbearbeiter_id)
+                            if ma:
+                                st.markdown(f"**Sachbearbeiter:** {ma.name} ({akte.mitarbeiter_kuerzel})")
+
+                        # Projekt-Verknüpfung
+                        if akte.projekt_id:
+                            projekt = st.session_state.projekte.get(akte.projekt_id)
+                            if projekt:
+                                st.markdown(f"**Verknüpftes Projekt:** {projekt.name}")
+
+                    with col2:
+                        status_colors = {
+                            AktenStatus.NEU.value: "🟡",
+                            AktenStatus.IN_BEARBEITUNG.value: "🔵",
+                            AktenStatus.WARTET_AUF_UNTERLAGEN.value: "🟠",
+                            AktenStatus.BEURKUNDUNG_VORBEREITET.value: "🟢",
+                            AktenStatus.BEURKUNDET.value: "✅",
+                            AktenStatus.VOLLZUG.value: "⏳",
+                            AktenStatus.ABGESCHLOSSEN.value: "✔️",
+                            AktenStatus.STORNIERT.value: "❌"
+                        }
+                        st.markdown(f"**Status:** {status_colors.get(akte.status, '⚪')} {akte.status}")
+                        st.markdown(f"**Erstellt:** {akte.erstellt_am.strftime('%d.%m.%Y')}")
+
+                        if akte.geschaeftswert > 0:
+                            st.markdown(f"**Geschäftswert:** {akte.geschaeftswert:,.2f} €")
+
+                        if akte.beurkundungstermin:
+                            st.markdown(f"**Beurkundung:** {akte.beurkundungstermin.strftime('%d.%m.%Y %H:%M')}")
+
+                        if akte.naechste_wiedervorlage:
+                            wv_date = akte.naechste_wiedervorlage
+                            if wv_date <= date.today():
+                                st.markdown(f"**Wiedervorlage:** ⚠️ {wv_date.strftime('%d.%m.%Y')}")
+                            else:
+                                st.markdown(f"**Wiedervorlage:** {wv_date.strftime('%d.%m.%Y')}")
+
+                    # Aktionen
+                    st.markdown("---")
+                    action_col1, action_col2, action_col3 = st.columns(3)
+                    with action_col1:
+                        neuer_status = st.selectbox(
+                            "Status ändern",
+                            [s.value for s in AktenStatus],
+                            index=[s.value for s in AktenStatus].index(akte.status),
+                            key=f"status_{akte.akte_id}"
+                        )
+                    with action_col2:
+                        if st.button("💾 Status speichern", key=f"save_status_{akte.akte_id}"):
+                            akte.status = neuer_status
+                            akte.aktualisiert_am = datetime.now()
+                            st.success("Status aktualisiert!")
+                            st.rerun()
+                    with action_col3:
+                        if st.button("📋 Aktenzeichen kopieren", key=f"copy_az_{akte.akte_id}"):
+                            st.code(akte.aktenzeichen)
+                            st.info("Aktenzeichen zum Kopieren angezeigt")
+
+    # --- Neue Akte anlegen ---
+    with sub_tabs[1]:
+        st.markdown("### ➕ Neue Akte anlegen")
+
+        with st.form("neue_akte_form"):
+            st.markdown("#### Rechtsbereich auswählen")
+            hauptbereich = st.selectbox(
+                "Hauptbereich",
+                [b.value for b in AktenHauptbereich],
+                key="neue_akte_hauptbereich"
+            )
+
+            # Untertypen basierend auf Hauptbereich
+            untertypen = get_verfuegbare_untertypen(hauptbereich, notar_id)
+            untertyp = st.selectbox(
+                "Typ / Kategorie",
+                untertypen,
+                key="neue_akte_untertyp"
+            )
+
+            st.markdown("---")
+            st.markdown("#### Parteien")
+            col1, col2 = st.columns(2)
+            with col1:
+                verkaeufer_nachname = st.text_input(
+                    "Nachname Partei 1 (Verkäufer/Erblasser/etc.)",
+                    placeholder="z.B. Krug"
+                )
+            with col2:
+                kaeufer_nachname = st.text_input(
+                    "Nachname Partei 2 (Käufer/Erbe/etc.)",
+                    placeholder="z.B. Müller"
+                )
+
+            st.markdown("---")
+            st.markdown("#### Details")
+
+            betreff = st.text_input(
+                "Betreff / Kurzbeschreibung",
+                placeholder="z.B. Grundstückskauf Musterstraße 1"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                geschaeftswert = st.number_input(
+                    "Geschäftswert (€)",
+                    min_value=0.0,
+                    step=1000.0
+                )
+            with col2:
+                # Sachbearbeiter zuweisen
+                mitarbeiter_options = {"-- Keiner --": None}
+                for ma in st.session_state.notar_mitarbeiter.values():
+                    if ma.notar_id == notar_id and ma.aktiv:
+                        mitarbeiter_options[f"{ma.name} ({st.session_state.mitarbeiter_kuerzel.get(ma.mitarbeiter_id, '?')})"] = ma.mitarbeiter_id
+                sachbearbeiter = st.selectbox("Sachbearbeiter zuweisen", list(mitarbeiter_options.keys()))
+
+            # Optional: Mit Projekt verknüpfen
+            st.markdown("---")
+            projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+            projekt_options = {"-- Kein Projekt --": None}
+            for p in projekte:
+                # Nur Projekte ohne Akte anzeigen
+                if not get_akte_fuer_projekt(p.projekt_id):
+                    projekt_options[f"{p.name} ({p.adresse})"] = p.projekt_id
+
+            verknuepftes_projekt = st.selectbox(
+                "Mit Projekt verknüpfen (optional)",
+                list(projekt_options.keys()),
+                help="Verknüpft diese Akte mit einem Makler-Projekt"
+            )
+
+            submitted = st.form_submit_button("📁 Akte anlegen", type="primary")
+
+            if submitted:
+                if not verkaeufer_nachname or not kaeufer_nachname:
+                    st.error("Bitte geben Sie beide Partei-Nachnamen ein.")
+                else:
+                    # Akte erstellen
+                    neue_akte = create_akte(
+                        notar_id=notar_id,
+                        hauptbereich=hauptbereich,
+                        untertyp=untertyp,
+                        verkaeufer_nachname=verkaeufer_nachname,
+                        kaeufer_nachname=kaeufer_nachname,
+                        sachbearbeiter_id=mitarbeiter_options[sachbearbeiter],
+                        projekt_id=projekt_options[verknuepftes_projekt],
+                        betreff=betreff,
+                        geschaeftswert=geschaeftswert
+                    )
+
+                    st.success(f"✅ Akte angelegt: **{neue_akte.aktenzeichen}**")
+                    st.balloons()
+
+                    # Aktenzeichen anzeigen
+                    st.markdown("---")
+                    st.markdown("### Ihr neues Aktenzeichen:")
+                    st.code(neue_akte.aktenzeichen, language=None)
+                    st.caption(f"Kurzbezeichnung für Kommunikation: `{neue_akte.kurzbezeichnung}`")
+
+    # --- Aktensuche ---
+    with sub_tabs[2]:
+        st.markdown("### 🔍 Aktensuche")
+
+        suchbegriff = st.text_input(
+            "Suche",
+            placeholder="Aktenzeichen, Name, Betreff...",
+            key="akten_suche_input"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            such_bereich = st.selectbox(
+                "Rechtsbereich",
+                ["Alle"] + [b.value for b in AktenHauptbereich],
+                key="such_bereich"
+            )
+        with col2:
+            such_status = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in AktenStatus],
+                key="such_status"
+            )
+
+        if st.button("🔍 Suchen", type="primary"):
+            ergebnisse = suche_akten(
+                notar_id=notar_id,
+                suchbegriff=suchbegriff,
+                hauptbereich=such_bereich if such_bereich != "Alle" else None,
+                status=such_status if such_status != "Alle" else None
+            )
+
+            st.markdown(f"**{len(ergebnisse)} Ergebnis(se) gefunden:**")
+
+            for akte in ergebnisse:
+                st.markdown(f"""
+                📁 **{akte.aktenzeichen}**
+                - Bereich: {akte.hauptbereich} → {akte.untertyp}
+                - Status: {akte.status}
+                - Betreff: {akte.betreff or '-'}
+                """)
+
+    # --- Kategorien verwalten ---
+    with sub_tabs[3]:
+        st.markdown("### 📂 Benutzerdefinierte Kategorien")
+
+        st.info("""
+        Hier können Sie neue Kategorien für Akten erstellen.
+        Mitarbeiter können ebenfalls Kategorien vorschlagen, diese müssen jedoch von Ihnen freigegeben werden.
+        """)
+
+        # Bestehende Kategorien anzeigen
+        kategorien = [k for k in st.session_state.benutzerdefinierte_kategorien.values() if k.notar_id == notar_id]
+
+        if kategorien:
+            st.markdown("#### Bestehende Kategorien")
+            for kat in kategorien:
+                with st.expander(f"{'✅' if kat.freigegeben else '⏳'} {kat.name} ({kat.hauptbereich})"):
+                    st.markdown(f"**Beschreibung:** {kat.beschreibung or '-'}")
+                    st.markdown(f"**Status:** {'Freigegeben' if kat.freigegeben else 'Wartet auf Freigabe'}")
+
+                    if not kat.freigegeben:
+                        if st.button("✅ Freigeben", key=f"approve_kat_{kat.kategorie_id}"):
+                            kat.freigegeben = True
+                            kat.freigegeben_am = datetime.now()
+                            kat.freigegeben_von_id = notar_id
+                            st.success(f"Kategorie '{kat.name}' freigegeben!")
+                            st.rerun()
+
+        # Neue Kategorie erstellen
+        st.markdown("---")
+        st.markdown("#### Neue Kategorie erstellen")
+
+        with st.form("neue_kategorie_form"):
+            kat_hauptbereich = st.selectbox(
+                "Hauptbereich",
+                [b.value for b in AktenHauptbereich],
+                key="neue_kat_hauptbereich"
+            )
+            kat_name = st.text_input("Name der Kategorie")
+            kat_beschreibung = st.text_area("Beschreibung (optional)")
+
+            if st.form_submit_button("➕ Kategorie erstellen"):
+                if kat_name:
+                    neue_kat = create_benutzerdefinierte_kategorie(
+                        notar_id=notar_id,
+                        hauptbereich=kat_hauptbereich,
+                        name=kat_name,
+                        beschreibung=kat_beschreibung,
+                        erstellt_von_id=notar_id
+                    )
+                    # Als Notar direkt freigeben
+                    neue_kat.freigegeben = True
+                    neue_kat.freigegeben_am = datetime.now()
+                    neue_kat.freigegeben_von_id = notar_id
+                    st.success(f"Kategorie '{kat_name}' erstellt und freigegeben!")
+                    st.rerun()
+                else:
+                    st.error("Bitte geben Sie einen Namen ein.")
+
 
 def notar_preiseinigungen_view():
     """VERBESSERUNG 4: Übersicht aller Preiseinigungen für Beurkundungsvorbereitung"""
