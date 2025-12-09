@@ -10682,19 +10682,65 @@ def kaeufer_finanzierungsrechner():
     und sehen Sie den kompletten Tilgungsverlauf mit monatlicher Zins- und Tilgungsaufstellung.
     """)
 
+    # Prüfen ob Finanzierungsbedarf aus Kostenberechnung übernommen wurde
+    has_berechnung = 'berechneter_finanzierungsbedarf' in st.session_state
+
+    if has_berechnung:
+        st.success(f"""
+        **📋 Aus Kaufnebenkosten-Berechnung übernommen:**
+        - Kaufpreis: {st.session_state.get('berechneter_kaufpreis', 0):,.2f} €
+        - Nebenkosten: {st.session_state.get('berechnete_nebenkosten', 0):,.2f} €
+        - **Finanzierungsbedarf: {st.session_state['berechneter_finanzierungsbedarf']:,.2f} €**
+        """)
+
+        # Default-Wert aus Berechnung, falls nicht manuell überschrieben
+        default_betrag = st.session_state['berechneter_finanzierungsbedarf']
+    else:
+        st.warning("""
+        💡 **Tipp:** Berechnen Sie zuerst Ihre Kaufnebenkosten im Tab "💰 Kaufnebenkosten",
+        um den genauen Finanzierungsbedarf automatisch zu übernehmen.
+        """)
+        default_betrag = 300000.0
+
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("#### 💵 Finanzierungsdaten")
 
-        finanzierungsbetrag = st.number_input(
-            "Zu finanzierender Betrag (€)",
-            min_value=10000.0,
-            max_value=10000000.0,
-            value=300000.0,
-            step=5000.0,
-            key="rechner_betrag"
+        # Option für manuelle Eingabe
+        betrag_quelle = st.radio(
+            "Finanzierungsbetrag:",
+            ["Aus Berechnung übernehmen", "Manuell eingeben"] if has_berechnung else ["Manuell eingeben"],
+            horizontal=True,
+            key="betrag_quelle"
         )
+
+        if betrag_quelle == "Aus Berechnung übernehmen" and has_berechnung:
+            finanzierungsbetrag = st.session_state['berechneter_finanzierungsbedarf']
+            st.metric("Zu finanzierender Betrag", f"{finanzierungsbetrag:,.2f} €")
+
+            # Optional: Anpassung des Betrags
+            with st.expander("➕ Zusätzliche Kosten hinzufügen"):
+                zusatz = st.number_input(
+                    "Zusätzliche Kosten (z.B. Renovierung, Umzug) (€)",
+                    min_value=0.0,
+                    max_value=1000000.0,
+                    value=0.0,
+                    step=1000.0,
+                    key="zusatz_kosten"
+                )
+                if zusatz > 0:
+                    finanzierungsbetrag += zusatz
+                    st.info(f"Angepasster Finanzierungsbedarf: **{finanzierungsbetrag:,.2f} €**")
+        else:
+            finanzierungsbetrag = st.number_input(
+                "Zu finanzierender Betrag (€)",
+                min_value=10000.0,
+                max_value=10000000.0,
+                value=default_betrag,
+                step=5000.0,
+                key="rechner_betrag_manuell"
+            )
 
         eigenkapital = st.number_input(
             "Eigenkapital (€)",
@@ -11216,6 +11262,20 @@ def kaeufer_kaufnebenkosten_view(projekte):
         col1, col2 = st.columns([3, 1])
         col1.markdown("**Gesamt zu zahlen**")
         col2.markdown(f"**{gesamtkosten['gesamtkosten']:,.2f} €**")
+
+    # Finanzierungsbedarf in Session State speichern für Kreditrechner
+    st.session_state['berechneter_finanzierungsbedarf'] = gesamtkosten['gesamtkosten']
+    st.session_state['berechneter_kaufpreis'] = kaufpreis
+    st.session_state['berechnete_nebenkosten'] = gesamtkosten['nebenkosten_gesamt']
+
+    # Hinweis zur Übernahme in Kreditrechner
+    st.markdown("---")
+    st.success(f"""
+    ✅ **Finanzierungsbedarf: {gesamtkosten['gesamtkosten']:,.2f} €**
+
+    Dieser Betrag wurde automatisch für den Kreditrechner übernommen.
+    Wechseln Sie zum Tab **'🧮 Kreditrechner'** um Ihre Finanzierung zu berechnen.
+    """)
 
     # Info-Box
     st.info("""
