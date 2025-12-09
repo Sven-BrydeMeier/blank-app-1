@@ -17,6 +17,64 @@ import re
 import base64
 import uuid
 
+# Datenbank-Integration
+try:
+    from database import (
+        init_database,
+        check_database_connection,
+        health_check as db_health_check,
+        track_interaktion,
+        get_interaktionen_stats,
+        InteraktionsTyp as DBInteraktionsTyp,
+    )
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+
+
+def safe_track_interaktion(
+    interaktions_typ: str,
+    details: dict = None,
+    nutzer_id: str = None,
+    projekt_id: str = None,
+    immobilien_id: str = None
+):
+    """
+    Sicher Interaktionen tracken - nur wenn DB verfügbar und verbunden.
+
+    Args:
+        interaktions_typ: Typ der Interaktion (z.B. 'login', 'dokument_upload')
+        details: Zusätzliche Details als Dictionary
+        nutzer_id: ID des Nutzers (falls nicht aus session_state)
+        projekt_id: ID des Projekts (optional)
+        immobilien_id: ID der Immobilie (optional)
+    """
+    if not DATABASE_AVAILABLE:
+        return None
+
+    if not st.session_state.get('database_connected', False):
+        return None
+
+    try:
+        # Nutzer-ID aus Session State holen falls nicht übergeben
+        if nutzer_id is None and st.session_state.get('current_user'):
+            user = st.session_state.current_user
+            nutzer_id = getattr(user, 'user_id', None)
+
+        # Interaktion tracken
+        return track_interaktion(
+            nutzer_id=nutzer_id,
+            projekt_id=projekt_id,
+            immobilien_id=immobilien_id,
+            interaktions_typ=interaktions_typ,
+            details=details or {}
+        )
+    except Exception as e:
+        # Fehler beim Tracking sollten die App nicht crashen
+        print(f"Tracking-Fehler: {e}")
+        return None
+
+
 # ============================================================================
 # RESPONSIVE DESIGN SYSTEM
 # ============================================================================
@@ -2257,6 +2315,22 @@ def init_session_state():
         st.session_state.vertragsvorlagen = {}  # vorlage_id -> VertragsVorlage
         st.session_state.vertragsentwuerfe = {}  # entwurf_id -> Vertragsentwurf
 
+        # Datenbank-Status
+        st.session_state.database_connected = False
+        st.session_state.database_status = None
+
+        # Datenbank initialisieren (falls verfügbar)
+        if DATABASE_AVAILABLE:
+            try:
+                db_status = check_database_connection()
+                if db_status.get('connected'):
+                    st.session_state.database_connected = True
+                    st.session_state.database_status = db_status
+                    # Tabellen erstellen falls nicht vorhanden
+                    init_database(drop_existing=False)
+            except Exception as e:
+                st.session_state.database_status = {'error': str(e)}
+
         # Demo-Daten
         create_demo_users()
         create_demo_projekt()
@@ -2737,6 +2811,19 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
 
     st.session_state.preisangebote[angebot_id] = angebot
 
+    # Preisverhandlung tracken (für ML-Training)
+    safe_track_interaktion(
+        interaktions_typ='preisvorschlag',
+        details={
+            'angebot_id': angebot_id,
+            'betrag': betrag,
+            'von_rolle': von_rolle,
+            'status': 'offen'
+        },
+        nutzer_id=von_user_id,
+        projekt_id=projekt_id
+    )
+
     # Benachrichtigungen an Gegenseite
     projekt = st.session_state.projekte.get(projekt_id)
     if projekt:
@@ -2787,6 +2874,18 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
     angebot.status = neuer_status
     angebot.beantwortet_am = datetime.now()
     angebot.antwort_nachricht = antwort_nachricht
+
+    # Antwort auf Preisangebot tracken
+    safe_track_interaktion(
+        interaktions_typ='preisvorschlag_antwort',
+        details={
+            'angebot_id': angebot_id,
+            'neuer_status': neuer_status,
+            'ursprungs_betrag': angebot.betrag,
+            'gegenangebot_betrag': gegenangebot_betrag
+        },
+        projekt_id=angebot.projekt_id
+    )
 
     projekt = st.session_state.projekte.get(angebot.projekt_id)
     von_user = st.session_state.users.get(angebot.von_user_id)
@@ -6471,6 +6570,13 @@ def login_page():
                     st.session_state.valid_tokens[email] = token
                     save_session_to_browser(email, token)
 
+                # Login-Event tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={'rolle': user.role, 'remember_me': remember_me},
+                    nutzer_id=user.user_id
+                )
+
                 create_notification(
                     user.user_id,
                     "Willkommen zurück!",
@@ -6490,6 +6596,17 @@ def login_page():
                         st.session_state.valid_tokens = {}
                     st.session_state.valid_tokens[email] = token
                     save_session_to_browser(email, token)
+
+                # Mitarbeiter-Login tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={
+                        'rolle': 'notar_mitarbeiter',
+                        'mitarbeiter_rolle': mitarbeiter.rolle,
+                        'remember_me': remember_me
+                    },
+                    nutzer_id=mitarbeiter.mitarbeiter_id
+                )
 
                 st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
                 st.rerun()
@@ -11944,6 +12061,17 @@ def notar_vertragsarchiv_view():
                             st.session_state.vertragsdokumente[dokument_id] = dokument
                             st.success(f"✅ Dokument '{uploaded_file.name}' wurde hochgeladen!")
 
+                            # Dokument-Upload tracken
+                            safe_track_interaktion(
+                                interaktions_typ='dokument_upload',
+                                details={
+                                    'dokument_id': dokument_id,
+                                    'dateityp': dateityp,
+                                    'vertragstyp': vertragstyp,
+                                    'dateigroesse': uploaded_file.size
+                                }
+                            )
+
                             # Option: In Bausteine zerlegen
                             if len(extrahierter_text) > 100:
                                 st.info("💡 Möchten Sie das Dokument in Textbausteine zerlegen?")
@@ -14834,6 +14962,80 @@ def notar_einstellungen_view():
             st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
             st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
             st.markdown("- ⚠️ API-Keys für OCR erforderlich")
+
+    # Datenbank-Status
+    st.markdown("---")
+    st.markdown("### 🗄️ Datenbank-Status")
+
+    if DATABASE_AVAILABLE:
+        db_status = st.session_state.get('database_status', {})
+        db_connected = st.session_state.get('database_connected', False)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if db_connected:
+                st.success("🟢 **Verbunden**")
+                st.caption(f"PostgreSQL {db_status.get('server_version', 'N/A')}")
+            else:
+                st.error("🔴 **Nicht verbunden**")
+                if db_status and 'error' in db_status:
+                    st.caption(f"Fehler: {db_status['error'][:50]}...")
+
+        with col2:
+            if db_connected and db_status:
+                st.metric("Aktive Verbindungen", db_status.get('active_connections', 0))
+            else:
+                st.metric("Aktive Verbindungen", "-")
+
+        with col3:
+            if db_connected and db_status:
+                db_size = db_status.get('database_size', 'N/A')
+                st.metric("Datenbankgröße", db_size)
+            else:
+                st.metric("Datenbankgröße", "-")
+
+        # Verbindung testen / erneut verbinden
+        if st.button("🔄 Verbindung testen", key="test_db_connection"):
+            try:
+                new_status = check_database_connection()
+                if new_status.get('connected'):
+                    st.session_state.database_connected = True
+                    st.session_state.database_status = new_status
+                    st.success("✅ Datenbankverbindung erfolgreich!")
+                else:
+                    st.session_state.database_connected = False
+                    st.error("❌ Verbindung fehlgeschlagen")
+            except Exception as e:
+                st.session_state.database_connected = False
+                st.session_state.database_status = {'error': str(e)}
+                st.error(f"❌ Fehler: {e}")
+
+        # Hinweise zur Konfiguration
+        with st.expander("ℹ️ Datenbank-Konfiguration"):
+            st.markdown("""
+            **Datenbank-URL konfigurieren:**
+
+            1. Erstellen Sie `.streamlit/secrets.toml`
+            2. Fügen Sie hinzu:
+            ```toml
+            [database]
+            url = "postgresql://user:password@host:5432/dbname"
+            ```
+
+            **Oder über Streamlit Cloud:**
+            - Settings → Secrets → `[database]` Abschnitt hinzufügen
+
+            **Unterstützte Features:**
+            - 🔐 Nutzer-Authentifizierung
+            - 📊 Interaktions-Tracking
+            - 📈 ML-Trainingsdaten (Preisverhandlungen)
+            - 📄 Dokumente mit OCR-Ergebnissen
+            - 🏠 Immobilien-Marktdaten
+            """)
+    else:
+        st.warning("⚠️ Datenbank-Modul nicht verfügbar")
+        st.caption("Installieren Sie die erforderlichen Pakete: `pip install sqlalchemy psycopg2-binary`")
 
 
 # ============================================================================
