@@ -1526,6 +1526,63 @@ class FinanzierungsAnfrage:
     dokumente_freigegeben: bool = False
     notizen: str = ""
 
+class FinanzierungsmodellStatus(Enum):
+    """Status eines Finanzierungsmodells"""
+    ENTWURF = "Entwurf"
+    FAVORIT = "Favorit"
+    ANGEFORDERT = "Bei Finanzierer angefordert"
+    ANGEBOT_ERHALTEN = "Angebot erhalten"
+    ABGELEHNT = "Abgelehnt"
+    ANGENOMMEN = "Angenommen"
+
+class FinanzierungsmodellQuelle(Enum):
+    """Quelle eines Finanzierungsmodells"""
+    EIGENE_BERECHNUNG = "Eigene Berechnung"
+    FINANZIERER_ANGEBOT = "Finanzierer-Angebot"
+    IMPORT_PDF = "Import aus PDF"
+    IMPORT_CSV = "Import aus CSV"
+    IMPORT_EXCEL = "Import aus Excel"
+
+@dataclass
+class Finanzierungsmodell:
+    """Gespeichertes Finanzierungsmodell für Vergleich und Anfragen"""
+    modell_id: str
+    projekt_id: str
+    kaeufer_id: str
+    name: str
+    # Basisdaten
+    kaufpreis: float
+    nebenkosten: float
+    finanzierungsbedarf: float
+    eigenkapital: float
+    darlehensbetrag: float
+    # Konditionen
+    zinssatz: float
+    tilgungssatz: float
+    monatliche_rate: float
+    sollzinsbindung: int  # Jahre
+    # Optionale Konditionen
+    sondertilgung_prozent: float = 0.0
+    bereitstellungszinsen: float = 0.0
+    effektivzins: float = 0.0
+    # Berechnungsergebnisse
+    restschuld_nach_zinsbindung: float = 0.0
+    gesamtlaufzeit_jahre: float = 0.0
+    gesamtzinsen: float = 0.0
+    gesamtkosten: float = 0.0
+    # Tilgungsplan (als JSON-String gespeichert)
+    tilgungsplan_json: str = ""
+    # Metadaten
+    status: str = FinanzierungsmodellStatus.ENTWURF.value
+    quelle: str = FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
+    finanzierer_id: Optional[str] = None
+    finanzierer_name: str = ""
+    angebot_pdf_data: Optional[bytes] = None
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    geaendert_am: datetime = field(default_factory=datetime.now)
+    ist_favorit: bool = False
+
 class TodoKategorie(Enum):
     """Kategorien für Käufer-Todos"""
     FINANZIERUNG = "Finanzierung"
@@ -2796,6 +2853,7 @@ def init_session_state():
         # Finanzierungs-Erweiterung
         st.session_state.finanzierer_einladungen = {}  # ID -> FinanziererEinladung
         st.session_state.finanzierungsanfragen = {}  # ID -> FinanzierungsAnfrage
+        st.session_state.finanzierungsmodelle = {}  # ID -> Finanzierungsmodell
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
@@ -10673,10 +10731,44 @@ def kaeufer_wirtschaftsdaten_upload():
 
 
 def kaeufer_finanzierungsrechner():
-    """Umfassender Finanzierungsrechner für Käufer"""
+    """Umfassender Finanzierungsrechner für Käufer mit Modellverwaltung"""
     import pandas as pd
+    import json
+    import uuid
 
     st.markdown("### 🧮 Kreditrechner")
+
+    # Initialisiere finanzierungsmodelle falls nicht vorhanden
+    if 'finanzierungsmodelle' not in st.session_state:
+        st.session_state.finanzierungsmodelle = {}
+
+    # Tabs für verschiedene Funktionen
+    rechner_tabs = st.tabs([
+        "📊 Neue Berechnung",
+        "💾 Gespeicherte Modelle",
+        "⚖️ Modelle vergleichen",
+        "📥 Angebot importieren"
+    ])
+
+    with rechner_tabs[0]:
+        _finanzierung_neue_berechnung()
+
+    with rechner_tabs[1]:
+        _finanzierung_gespeicherte_modelle()
+
+    with rechner_tabs[2]:
+        _finanzierung_modelle_vergleichen()
+
+    with rechner_tabs[3]:
+        _finanzierung_angebot_importieren()
+
+
+def _finanzierung_neue_berechnung():
+    """Neue Finanzierungsberechnung erstellen"""
+    import pandas as pd
+    import json
+    import uuid
+
     st.info("""
     Berechnen Sie hier Ihre persönliche Finanzierung. Geben Sie Ihre Wunschkonditionen ein
     und sehen Sie den kompletten Tilgungsverlauf mit monatlicher Zins- und Tilgungsaufstellung.
@@ -11007,6 +11099,591 @@ def kaeufer_finanzierungsrechner():
                     height=400
                 )
 
+            # --- SPEICHERN ALS MODELL ---
+            st.markdown("---")
+            st.markdown("### 💾 Berechnung speichern")
+
+            # Berechnungsergebnisse für Speicherung sammeln
+            kaufpreis_wert = st.session_state.get('berechneter_kaufpreis', 0)
+            nebenkosten_wert = st.session_state.get('berechnete_nebenkosten', 0)
+
+            col_save1, col_save2 = st.columns([2, 1])
+
+            with col_save1:
+                modell_name = st.text_input(
+                    "Name für dieses Finanzierungsmodell",
+                    value=f"Modell {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                    key="modell_name_input"
+                )
+                modell_notizen = st.text_area(
+                    "Notizen (optional)",
+                    placeholder="z.B. Bank XY, Sonderkonditionen...",
+                    key="modell_notizen_input"
+                )
+
+            with col_save2:
+                st.markdown("**Zusammenfassung:**")
+                st.write(f"Darlehensbetrag: {darlehensbetrag:,.2f} €")
+                st.write(f"Zinssatz: {zinssatz}%")
+                st.write(f"Tilgung: {tilgungssatz:.2f}%")
+                st.write(f"Rate: {monatliche_rate:,.2f} €")
+
+            if st.button("💾 Als Modell speichern", type="primary", key="speichere_modell"):
+                # Neues Modell erstellen
+                modell_id = str(uuid.uuid4())[:8]
+
+                # Restschuld nach Zinsbindung berechnen
+                restschuld_bindung = 0.0
+                if sollzinsbindung * 12 <= len(tilgungsplan):
+                    restschuld_bindung = tilgungsplan[sollzinsbindung * 12 - 1]['Restschuld']
+                elif tilgungsplan:
+                    restschuld_bindung = tilgungsplan[-1]['Restschuld']
+
+                neues_modell = Finanzierungsmodell(
+                    modell_id=modell_id,
+                    projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                    kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                    name=modell_name,
+                    kaufpreis=kaufpreis_wert,
+                    nebenkosten=nebenkosten_wert,
+                    finanzierungsbedarf=finanzierungsbetrag,
+                    eigenkapital=eigenkapital,
+                    darlehensbetrag=darlehensbetrag,
+                    zinssatz=zinssatz,
+                    tilgungssatz=tilgungssatz,
+                    monatliche_rate=monatliche_rate,
+                    sollzinsbindung=sollzinsbindung,
+                    sondertilgung_prozent=sondertilgung_betrag / darlehensbetrag * 100 if darlehensbetrag > 0 else 0,
+                    restschuld_nach_zinsbindung=restschuld_bindung,
+                    gesamtlaufzeit_jahre=laufzeit_effektiv / 12,
+                    gesamtzinsen=gesamt_zinsen,
+                    gesamtkosten=gesamtkosten,
+                    tilgungsplan_json=json.dumps(tilgungsplan),
+                    notizen=modell_notizen,
+                    quelle=FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
+                )
+
+                st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+                st.success(f"✅ Modell '{modell_name}' wurde gespeichert!")
+                st.info("Sie finden das Modell im Tab '💾 Gespeicherte Modelle'.")
+
+
+def _finanzierung_gespeicherte_modelle():
+    """Gespeicherte Finanzierungsmodelle anzeigen und verwalten"""
+    import json
+
+    st.markdown("#### 💾 Ihre gespeicherten Finanzierungsmodelle")
+
+    # Filter nach aktuellem User
+    user_id = st.session_state.current_user.user_id if st.session_state.current_user else ''
+    user_modelle = {k: v for k, v in st.session_state.finanzierungsmodelle.items()
+                    if v.kaeufer_id == user_id}
+
+    if not user_modelle:
+        st.info("""
+        Sie haben noch keine Finanzierungsmodelle gespeichert.
+
+        Erstellen Sie eine neue Berechnung im Tab "📊 Neue Berechnung" und speichern Sie diese.
+        """)
+        return
+
+    st.success(f"**{len(user_modelle)} Modelle** gespeichert")
+
+    # Sortierung
+    sortierung = st.selectbox(
+        "Sortieren nach:",
+        ["Neueste zuerst", "Älteste zuerst", "Niedrigste Rate", "Höchste Rate", "Favoriten"],
+        key="modelle_sortierung"
+    )
+
+    modelle_liste = list(user_modelle.values())
+
+    if sortierung == "Neueste zuerst":
+        modelle_liste.sort(key=lambda x: x.erstellt_am, reverse=True)
+    elif sortierung == "Älteste zuerst":
+        modelle_liste.sort(key=lambda x: x.erstellt_am)
+    elif sortierung == "Niedrigste Rate":
+        modelle_liste.sort(key=lambda x: x.monatliche_rate)
+    elif sortierung == "Höchste Rate":
+        modelle_liste.sort(key=lambda x: x.monatliche_rate, reverse=True)
+    elif sortierung == "Favoriten":
+        modelle_liste.sort(key=lambda x: (not x.ist_favorit, x.erstellt_am), reverse=True)
+
+    # Modelle anzeigen
+    for modell in modelle_liste:
+        status_icon = "⭐" if modell.ist_favorit else "📋"
+        quelle_icon = "🏦" if "Finanzierer" in modell.quelle else "🧮"
+
+        with st.expander(f"{status_icon} {modell.name} | {modell.monatliche_rate:,.2f} €/Monat | {quelle_icon} {modell.quelle}", expanded=False):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Finanzierung:**")
+                st.write(f"Darlehensbetrag: {modell.darlehensbetrag:,.2f} €")
+                st.write(f"Eigenkapital: {modell.eigenkapital:,.2f} €")
+                st.write(f"Finanzierungsbedarf: {modell.finanzierungsbedarf:,.2f} €")
+
+            with col2:
+                st.markdown("**Konditionen:**")
+                st.write(f"Zinssatz: {modell.zinssatz:.2f}%")
+                st.write(f"Tilgung: {modell.tilgungssatz:.2f}%")
+                st.write(f"Sollzinsbindung: {modell.sollzinsbindung} Jahre")
+
+            with col3:
+                st.markdown("**Ergebnis:**")
+                st.write(f"Monatliche Rate: {modell.monatliche_rate:,.2f} €")
+                st.write(f"Gesamtzinsen: {modell.gesamtzinsen:,.2f} €")
+                st.write(f"Restschuld ({modell.sollzinsbindung}J): {modell.restschuld_nach_zinsbindung:,.2f} €")
+
+            if modell.notizen:
+                st.markdown(f"**Notizen:** {modell.notizen}")
+
+            st.caption(f"Erstellt: {modell.erstellt_am.strftime('%d.%m.%Y %H:%M')} | Status: {modell.status}")
+
+            # Aktionen
+            st.markdown("---")
+            col_a1, col_a2, col_a3, col_a4, col_a5 = st.columns(5)
+
+            with col_a1:
+                if st.button("⭐ Favorit", key=f"fav_{modell.modell_id}"):
+                    modell.ist_favorit = not modell.ist_favorit
+                    st.rerun()
+
+            with col_a2:
+                if st.button("✏️ Bearbeiten", key=f"edit_{modell.modell_id}"):
+                    st.session_state[f'editing_modell_{modell.modell_id}'] = True
+                    st.rerun()
+
+            with col_a3:
+                if st.button("📋 Kopieren", key=f"copy_{modell.modell_id}"):
+                    import uuid
+                    neues_id = str(uuid.uuid4())[:8]
+                    kopie = Finanzierungsmodell(
+                        modell_id=neues_id,
+                        projekt_id=modell.projekt_id,
+                        kaeufer_id=modell.kaeufer_id,
+                        name=f"{modell.name} (Kopie)",
+                        kaufpreis=modell.kaufpreis,
+                        nebenkosten=modell.nebenkosten,
+                        finanzierungsbedarf=modell.finanzierungsbedarf,
+                        eigenkapital=modell.eigenkapital,
+                        darlehensbetrag=modell.darlehensbetrag,
+                        zinssatz=modell.zinssatz,
+                        tilgungssatz=modell.tilgungssatz,
+                        monatliche_rate=modell.monatliche_rate,
+                        sollzinsbindung=modell.sollzinsbindung,
+                        sondertilgung_prozent=modell.sondertilgung_prozent,
+                        restschuld_nach_zinsbindung=modell.restschuld_nach_zinsbindung,
+                        gesamtlaufzeit_jahre=modell.gesamtlaufzeit_jahre,
+                        gesamtzinsen=modell.gesamtzinsen,
+                        gesamtkosten=modell.gesamtkosten,
+                        tilgungsplan_json=modell.tilgungsplan_json,
+                        notizen=modell.notizen,
+                        quelle=modell.quelle
+                    )
+                    st.session_state.finanzierungsmodelle[neues_id] = kopie
+                    st.success("Modell wurde kopiert!")
+                    st.rerun()
+
+            with col_a4:
+                if st.button("📤 Anfrage senden", key=f"anfrage_{modell.modell_id}"):
+                    modell.status = FinanzierungsmodellStatus.ANGEFORDERT.value
+                    st.success("Modell für Finanzierungsanfrage markiert!")
+                    st.info("Gehen Sie zum Tab 'Finanzierungsanfragen' um eine Anfrage zu senden.")
+
+            with col_a5:
+                if st.button("🗑️ Löschen", key=f"del_{modell.modell_id}"):
+                    del st.session_state.finanzierungsmodelle[modell.modell_id]
+                    st.success("Modell wurde gelöscht!")
+                    st.rerun()
+
+            # Editor anzeigen wenn aktiviert
+            if st.session_state.get(f'editing_modell_{modell.modell_id}', False):
+                st.markdown("---")
+                st.markdown("#### ✏️ Modell bearbeiten")
+
+                edit_col1, edit_col2 = st.columns(2)
+
+                with edit_col1:
+                    new_name = st.text_input("Name", value=modell.name, key=f"edit_name_{modell.modell_id}")
+                    new_zinssatz = st.number_input("Zinssatz (%)", value=modell.zinssatz, step=0.1, key=f"edit_zins_{modell.modell_id}")
+                    new_tilgung = st.number_input("Tilgung (%)", value=modell.tilgungssatz, step=0.1, key=f"edit_tilg_{modell.modell_id}")
+
+                with edit_col2:
+                    new_notizen = st.text_area("Notizen", value=modell.notizen, key=f"edit_notiz_{modell.modell_id}")
+                    new_status = st.selectbox(
+                        "Status",
+                        [s.value for s in FinanzierungsmodellStatus],
+                        index=[s.value for s in FinanzierungsmodellStatus].index(modell.status),
+                        key=f"edit_status_{modell.modell_id}"
+                    )
+
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("💾 Änderungen speichern", key=f"save_edit_{modell.modell_id}"):
+                        modell.name = new_name
+                        modell.zinssatz = new_zinssatz
+                        modell.tilgungssatz = new_tilgung
+                        modell.notizen = new_notizen
+                        modell.status = new_status
+                        modell.geaendert_am = datetime.now()
+
+                        # Rate neu berechnen
+                        modell.monatliche_rate = modell.darlehensbetrag * (new_zinssatz + new_tilgung) / 100 / 12
+
+                        del st.session_state[f'editing_modell_{modell.modell_id}']
+                        st.success("Änderungen gespeichert!")
+                        st.rerun()
+
+                with col_cancel:
+                    if st.button("❌ Abbrechen", key=f"cancel_edit_{modell.modell_id}"):
+                        del st.session_state[f'editing_modell_{modell.modell_id}']
+                        st.rerun()
+
+
+def _finanzierung_modelle_vergleichen():
+    """Mehrere Finanzierungsmodelle miteinander vergleichen"""
+    import pandas as pd
+
+    st.markdown("#### ⚖️ Finanzierungsmodelle vergleichen")
+
+    user_id = st.session_state.current_user.user_id if st.session_state.current_user else ''
+    user_modelle = {k: v for k, v in st.session_state.finanzierungsmodelle.items()
+                    if v.kaeufer_id == user_id}
+
+    if len(user_modelle) < 2:
+        st.info("""
+        Speichern Sie mindestens 2 Finanzierungsmodelle, um diese vergleichen zu können.
+
+        Erstellen Sie verschiedene Berechnungen mit unterschiedlichen Konditionen
+        (z.B. verschiedene Zinssätze, Tilgungsraten) und speichern Sie diese.
+        """)
+        return
+
+    # Modelle zur Auswahl
+    modell_namen = {k: f"{v.name} ({v.monatliche_rate:,.2f} €/Monat)" for k, v in user_modelle.items()}
+
+    ausgewaehlte_ids = st.multiselect(
+        "Wählen Sie Modelle zum Vergleich (2-4):",
+        list(modell_namen.keys()),
+        format_func=lambda x: modell_namen[x],
+        max_selections=4,
+        key="vergleich_auswahl"
+    )
+
+    if len(ausgewaehlte_ids) < 2:
+        st.warning("Bitte wählen Sie mindestens 2 Modelle zum Vergleich aus.")
+        return
+
+    ausgewaehlte_modelle = [user_modelle[mid] for mid in ausgewaehlte_ids]
+
+    # Vergleichstabelle erstellen
+    st.markdown("---")
+    st.markdown("### 📊 Vergleichsübersicht")
+
+    vergleich_data = {
+        "Eigenschaft": [
+            "📋 Name",
+            "💰 Darlehensbetrag",
+            "💵 Eigenkapital",
+            "📈 Zinssatz",
+            "📉 Tilgungssatz",
+            "🗓️ Sollzinsbindung",
+            "💳 Monatliche Rate",
+            "📊 Gesamtzinsen",
+            "🏦 Restschuld n. Bindung",
+            "⏱️ Gesamtlaufzeit",
+            "💎 Gesamtkosten",
+            "📝 Quelle"
+        ]
+    }
+
+    for modell in ausgewaehlte_modelle:
+        vergleich_data[modell.name[:20]] = [
+            modell.name,
+            f"{modell.darlehensbetrag:,.2f} €",
+            f"{modell.eigenkapital:,.2f} €",
+            f"{modell.zinssatz:.2f}%",
+            f"{modell.tilgungssatz:.2f}%",
+            f"{modell.sollzinsbindung} Jahre",
+            f"{modell.monatliche_rate:,.2f} €",
+            f"{modell.gesamtzinsen:,.2f} €",
+            f"{modell.restschuld_nach_zinsbindung:,.2f} €",
+            f"{modell.gesamtlaufzeit_jahre:.1f} Jahre",
+            f"{modell.gesamtkosten:,.2f} €",
+            modell.quelle
+        ]
+
+    df_vergleich = pd.DataFrame(vergleich_data)
+    st.dataframe(df_vergleich, use_container_width=True, hide_index=True)
+
+    # Empfehlung
+    st.markdown("---")
+    st.markdown("### 💡 Analyse")
+
+    # Beste Optionen finden
+    niedrigste_rate = min(ausgewaehlte_modelle, key=lambda x: x.monatliche_rate)
+    niedrigste_zinsen = min(ausgewaehlte_modelle, key=lambda x: x.gesamtzinsen)
+    niedrigste_restschuld = min(ausgewaehlte_modelle, key=lambda x: x.restschuld_nach_zinsbindung)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.success(f"""
+        **💳 Niedrigste Rate:**
+        {niedrigste_rate.name}
+
+        {niedrigste_rate.monatliche_rate:,.2f} €/Monat
+        """)
+
+    with col2:
+        st.success(f"""
+        **📊 Niedrigste Gesamtzinsen:**
+        {niedrigste_zinsen.name}
+
+        {niedrigste_zinsen.gesamtzinsen:,.2f} €
+        """)
+
+    with col3:
+        st.success(f"""
+        **🏦 Niedrigste Restschuld:**
+        {niedrigste_restschuld.name}
+
+        {niedrigste_restschuld.restschuld_nach_zinsbindung:,.2f} €
+        """)
+
+    # Differenzen anzeigen
+    if len(ausgewaehlte_modelle) == 2:
+        m1, m2 = ausgewaehlte_modelle
+        st.markdown("---")
+        st.markdown("### 📈 Differenzen")
+
+        diff_rate = m2.monatliche_rate - m1.monatliche_rate
+        diff_zinsen = m2.gesamtzinsen - m1.gesamtzinsen
+        diff_restschuld = m2.restschuld_nach_zinsbindung - m1.restschuld_nach_zinsbindung
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Rate Differenz",
+                f"{abs(diff_rate):,.2f} €",
+                delta=f"{diff_rate:+,.2f} € ({m2.name[:15]})"
+            )
+
+        with col2:
+            st.metric(
+                "Zinsen Differenz",
+                f"{abs(diff_zinsen):,.2f} €",
+                delta=f"{diff_zinsen:+,.2f} € ({m2.name[:15]})"
+            )
+
+        with col3:
+            st.metric(
+                "Restschuld Differenz",
+                f"{abs(diff_restschuld):,.2f} €",
+                delta=f"{diff_restschuld:+,.2f} € ({m2.name[:15]})"
+            )
+
+
+def _finanzierung_angebot_importieren():
+    """Finanzierer-Angebot importieren (PDF, CSV, Excel)"""
+    import json
+    import uuid
+
+    st.markdown("#### 📥 Finanzierer-Angebot importieren")
+
+    st.info("""
+    Importieren Sie ein Angebot von Ihrem Finanzierer.
+    Unterstützte Formate: **PDF**, **CSV**, **Excel**
+
+    Das importierte Angebot wird als neues Finanzierungsmodell gespeichert
+    und kann mit Ihren eigenen Berechnungen verglichen werden.
+    """)
+
+    # Upload
+    uploaded_file = st.file_uploader(
+        "Angebot hochladen",
+        type=['pdf', 'csv', 'xlsx', 'xls'],
+        key="import_angebot"
+    )
+
+    if uploaded_file:
+        file_type = uploaded_file.name.split('.')[-1].lower()
+
+        st.success(f"✅ Datei '{uploaded_file.name}' hochgeladen ({file_type.upper()})")
+
+        # Manuelle Eingabe der Konditionen (da PDF-Parsing komplex ist)
+        st.markdown("---")
+        st.markdown("### 📝 Angebotsdaten eingeben")
+        st.caption("Übertragen Sie die Konditionen aus dem Angebot:")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            import_name = st.text_input(
+                "Name des Angebots",
+                value=f"Angebot {uploaded_file.name}",
+                key="import_name"
+            )
+            import_finanzierer = st.text_input(
+                "Name des Finanzierers/Bank",
+                key="import_finanzierer"
+            )
+            import_darlehensbetrag = st.number_input(
+                "Darlehensbetrag (€)",
+                min_value=0.0,
+                value=300000.0,
+                step=5000.0,
+                key="import_darlehen"
+            )
+            import_zinssatz = st.number_input(
+                "Sollzinssatz (%)",
+                min_value=0.0,
+                max_value=15.0,
+                value=3.5,
+                step=0.1,
+                key="import_zins"
+            )
+
+        with col2:
+            import_tilgung = st.number_input(
+                "Anfängliche Tilgung (%)",
+                min_value=0.0,
+                max_value=10.0,
+                value=2.0,
+                step=0.1,
+                key="import_tilgung"
+            )
+            import_rate = st.number_input(
+                "Monatliche Rate (€)",
+                min_value=0.0,
+                value=import_darlehensbetrag * (import_zinssatz + import_tilgung) / 100 / 12,
+                step=50.0,
+                key="import_rate"
+            )
+            import_bindung = st.number_input(
+                "Sollzinsbindung (Jahre)",
+                min_value=1,
+                max_value=30,
+                value=10,
+                key="import_bindung"
+            )
+            import_effektivzins = st.number_input(
+                "Effektivzins (%) - falls angegeben",
+                min_value=0.0,
+                max_value=15.0,
+                value=0.0,
+                step=0.1,
+                key="import_effektiv"
+            )
+
+        import_notizen = st.text_area(
+            "Besondere Bedingungen / Notizen",
+            placeholder="z.B. Sondertilgungsrecht, Bereitstellungszinsen, Bearbeitungsgebühren...",
+            key="import_notizen"
+        )
+
+        if st.button("💾 Angebot als Modell speichern", type="primary", key="speichere_import"):
+            modell_id = str(uuid.uuid4())[:8]
+
+            # Quelle basierend auf Dateityp
+            if file_type == 'pdf':
+                quelle = FinanzierungsmodellQuelle.IMPORT_PDF.value
+            elif file_type == 'csv':
+                quelle = FinanzierungsmodellQuelle.IMPORT_CSV.value
+            else:
+                quelle = FinanzierungsmodellQuelle.IMPORT_EXCEL.value
+
+            # Restschuld berechnen (vereinfacht)
+            monatszins = import_zinssatz / 100 / 12
+            restschuld = import_darlehensbetrag
+            for _ in range(import_bindung * 12):
+                zinsen = restschuld * monatszins
+                tilgung = import_rate - zinsen
+                if tilgung > 0:
+                    restschuld -= tilgung
+                if restschuld <= 0:
+                    break
+
+            neues_modell = Finanzierungsmodell(
+                modell_id=modell_id,
+                projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                name=import_name,
+                kaufpreis=st.session_state.get('berechneter_kaufpreis', 0),
+                nebenkosten=st.session_state.get('berechnete_nebenkosten', 0),
+                finanzierungsbedarf=import_darlehensbetrag + st.session_state.get('berechnete_nebenkosten', 0),
+                eigenkapital=0,
+                darlehensbetrag=import_darlehensbetrag,
+                zinssatz=import_zinssatz,
+                tilgungssatz=import_tilgung,
+                monatliche_rate=import_rate,
+                sollzinsbindung=import_bindung,
+                effektivzins=import_effektivzins,
+                restschuld_nach_zinsbindung=max(0, restschuld),
+                notizen=import_notizen,
+                quelle=quelle,
+                finanzierer_name=import_finanzierer,
+                angebot_pdf_data=uploaded_file.read() if file_type == 'pdf' else None,
+                status=FinanzierungsmodellStatus.ANGEBOT_ERHALTEN.value
+            )
+
+            st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+            st.success(f"✅ Angebot '{import_name}' wurde als Modell gespeichert!")
+            st.info("Sie können es jetzt im Tab '💾 Gespeicherte Modelle' einsehen und vergleichen.")
+
+    else:
+        # Alternative: Manuelle Eingabe ohne Datei
+        st.markdown("---")
+        st.markdown("**Oder:** Geben Sie die Konditionen manuell ein:")
+
+        if st.checkbox("Manuelle Eingabe ohne Datei-Upload", key="manual_import"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                manual_name = st.text_input("Name des Angebots", key="manual_name")
+                manual_finanzierer = st.text_input("Bank/Finanzierer", key="manual_finanzierer")
+                manual_darlehen = st.number_input("Darlehensbetrag (€)", min_value=0.0, value=300000.0, key="manual_darlehen")
+                manual_zins = st.number_input("Sollzinssatz (%)", min_value=0.0, value=3.5, step=0.1, key="manual_zins")
+
+            with col2:
+                manual_tilgung = st.number_input("Tilgung (%)", min_value=0.0, value=2.0, step=0.1, key="manual_tilgung")
+                manual_rate = st.number_input("Monatliche Rate (€)", min_value=0.0, value=1375.0, key="manual_rate")
+                manual_bindung = st.number_input("Sollzinsbindung (Jahre)", min_value=1, value=10, key="manual_bindung")
+
+            manual_notizen = st.text_area("Notizen", key="manual_notizen")
+
+            if st.button("💾 Manuelles Angebot speichern", key="save_manual"):
+                if not manual_name:
+                    st.error("Bitte geben Sie einen Namen ein.")
+                    return
+
+                modell_id = str(uuid.uuid4())[:8]
+
+                neues_modell = Finanzierungsmodell(
+                    modell_id=modell_id,
+                    projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                    kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                    name=manual_name,
+                    kaufpreis=0,
+                    nebenkosten=0,
+                    finanzierungsbedarf=manual_darlehen,
+                    eigenkapital=0,
+                    darlehensbetrag=manual_darlehen,
+                    zinssatz=manual_zins,
+                    tilgungssatz=manual_tilgung,
+                    monatliche_rate=manual_rate,
+                    sollzinsbindung=manual_bindung,
+                    notizen=manual_notizen,
+                    quelle=FinanzierungsmodellQuelle.FINANZIERER_ANGEBOT.value,
+                    finanzierer_name=manual_finanzierer,
+                    status=FinanzierungsmodellStatus.ANGEBOT_ERHALTEN.value
+                )
+
+                st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+                st.success(f"✅ Angebot '{manual_name}' gespeichert!")
+
 
 def kaeufer_kaufnebenkosten_view(projekte):
     """Kaufnebenkosten-Rechner für Käufer - Notar, Grundbuch, Makler, Grunderwerbsteuer"""
@@ -11058,19 +11735,51 @@ def kaeufer_kaufnebenkosten_view(projekte):
     if projekt.adresse:
         st.caption(f"📍 {projekt.adresse}")
 
+    # Hinweis zur Kaufpreis-Eingabe
+    st.warning("""
+    ⚠️ **Wichtig:** Geben Sie hier den **endgültigen Kaufpreis** ein, der im Kaufvertrag vereinbart wird.
+    Dieser Preis ist die Grundlage für alle Nebenkosten-Berechnungen und den Finanzierungsbedarf.
+    """)
+
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("##### 💵 Grunddaten")
 
-        # Kaufpreis
-        kaufpreis = st.number_input(
-            "Kaufpreis (€)",
-            min_value=0.0,
-            value=float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 300000.0,
-            step=5000.0,
-            key=f"kosten_kaufpreis_{projekt.projekt_id}"
-        )
+        # Option: Kaufpreis aus Projekt übernehmen oder manuell eingeben
+        projekt_kaufpreis = float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 0.0
+
+        if projekt_kaufpreis > 0:
+            kaufpreis_quelle = st.radio(
+                "Kaufpreis:",
+                ["Aus Projekt übernehmen", "Anderen Kaufpreis eingeben"],
+                horizontal=True,
+                key=f"kaufpreis_quelle_{projekt.projekt_id}"
+            )
+
+            if kaufpreis_quelle == "Aus Projekt übernehmen":
+                kaufpreis = projekt_kaufpreis
+                st.metric("Kaufpreis aus Projekt", f"{kaufpreis:,.2f} €")
+                st.caption("Dieser Kaufpreis wurde im Projekt hinterlegt.")
+            else:
+                kaufpreis = st.number_input(
+                    "Endgültiger Kaufpreis (€)",
+                    min_value=0.0,
+                    value=projekt_kaufpreis,
+                    step=5000.0,
+                    key=f"kosten_kaufpreis_manuell_{projekt.projekt_id}",
+                    help="Geben Sie hier den verhandelten Kaufpreis ein"
+                )
+        else:
+            st.info("💡 Im Projekt ist noch kein Kaufpreis hinterlegt.")
+            kaufpreis = st.number_input(
+                "Endgültiger Kaufpreis (€)",
+                min_value=0.0,
+                value=300000.0,
+                step=5000.0,
+                key=f"kosten_kaufpreis_{projekt.projekt_id}",
+                help="Geben Sie hier den verhandelten Kaufpreis ein"
+            )
 
         # Bundesland für Grunderwerbsteuer
         bundesland = st.selectbox(
