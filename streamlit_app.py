@@ -3896,6 +3896,7 @@ def berechne_notarkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
         'netto': netto,
         'mwst': mwst,
         'brutto': brutto,
+        'gesamt': brutto,  # Alias für Kompatibilität
         'erklaerung': {
             'beurkundung': '2,0-fache Gebühr für Beurkundung des Kaufvertrags',
             'vollzug': '0,5-fache Gebühr für Vollzugstätigkeiten',
@@ -3969,6 +3970,16 @@ def berechne_grundschuldkosten(grundschuldbetrag: float, anzahl: int = 1) -> Dic
         'grundschuldbetrag': grundschuldbetrag,
         'anzahl': anzahl,
         'vollgebuehr': vollgebuehr,
+        # Flache Schlüssel für einfachen Zugriff
+        'notar_beurkundung': notar_beurkundung,
+        'notar_vollzug': notar_vollzug,
+        'notar_auslagen': notar_auslagen,
+        'notar_netto': notar_netto,
+        'notar_mwst': notar_mwst,
+        'notar_gesamt': notar_brutto,
+        'grundbuch_eintragung': grundbuch_eintragung,
+        'grundbuch_gesamt': grundbuch_eintragung,
+        # Verschachtelte Struktur für Kompatibilität
         'notar': {
             'beurkundung': notar_beurkundung,
             'vollzug': notar_vollzug,
@@ -4022,6 +4033,15 @@ def berechne_loeschungskosten(betrag: float, anzahl: int = 1) -> Dict[str, Any]:
         'betrag': betrag,
         'anzahl': anzahl,
         'vollgebuehr': vollgebuehr,
+        # Flache Schlüssel für einfachen Zugriff
+        'notar_loeschung': notar_loeschung,
+        'notar_auslagen': notar_auslagen,
+        'notar_netto': notar_netto,
+        'notar_mwst': notar_mwst,
+        'notar_gesamt': notar_brutto,
+        'grundbuch_loeschung': grundbuch_loeschung,
+        'grundbuch_gesamt': grundbuch_loeschung,
+        # Verschachtelte Struktur für Kompatibilität
         'notar': {
             'loeschung': notar_loeschung,
             'auslagen': notar_auslagen,
@@ -4067,6 +4087,7 @@ def berechne_maklerkosten(kaufpreis: float, provision_prozent: float, inkl_mwst:
         'netto': netto,
         'mwst': mwst,
         'brutto': brutto,
+        'gesamt': brutto,  # Alias für Kompatibilität
     }
 
 
