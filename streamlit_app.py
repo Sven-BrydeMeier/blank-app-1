@@ -10777,22 +10777,73 @@ def _finanzierung_neue_berechnung():
     # Prüfen ob Finanzierungsbedarf aus Kostenberechnung übernommen wurde
     has_berechnung = 'berechneter_finanzierungsbedarf' in st.session_state
 
+    # Box für Datenübernahme aus Kaufnebenkosten
+    st.markdown("#### 📋 Finanzierungsbedarf aus Kaufnebenkosten")
+
     if has_berechnung:
         st.success(f"""
-        **📋 Aus Kaufnebenkosten-Berechnung übernommen:**
+        **✅ Daten aus Kaufnebenkosten-Berechnung verfügbar:**
         - Kaufpreis: {st.session_state.get('berechneter_kaufpreis', 0):,.2f} €
         - Nebenkosten: {st.session_state.get('berechnete_nebenkosten', 0):,.2f} €
         - **Finanzierungsbedarf: {st.session_state['berechneter_finanzierungsbedarf']:,.2f} €**
         """)
 
+        # Button zum Aktualisieren
+        if st.button("🔄 Daten aus Kaufnebenkosten neu laden", key="reload_kosten"):
+            st.info("Wechseln Sie zum Tab '💰 Kaufnebenkosten', passen Sie die Daten an und kehren Sie hierher zurück.")
+
         # Default-Wert aus Berechnung, falls nicht manuell überschrieben
         default_betrag = st.session_state['berechneter_finanzierungsbedarf']
     else:
         st.warning("""
-        💡 **Tipp:** Berechnen Sie zuerst Ihre Kaufnebenkosten im Tab "💰 Kaufnebenkosten",
-        um den genauen Finanzierungsbedarf automatisch zu übernehmen.
+        ⚠️ **Keine Kaufnebenkosten-Berechnung vorhanden.**
+
+        Um den korrekten Finanzierungsbedarf (Kaufpreis + alle Nebenkosten) zu ermitteln,
+        sollten Sie zuerst die Kaufnebenkosten berechnen.
         """)
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            st.markdown("""
+            **Empfohlen:** Berechnen Sie zuerst die Kaufnebenkosten im Tab "💰 Kaufnebenkosten".
+            Dort werden Notar-, Grundbuch-, Maklerkosten und Grunderwerbsteuer berechnet.
+            """)
+
+        with col_btn2:
+            # Schnellberechnung direkt hier
+            with st.expander("⚡ Schnellberechnung des Finanzierungsbedarfs"):
+                schnell_kaufpreis = st.number_input(
+                    "Kaufpreis (€)",
+                    min_value=0.0,
+                    value=300000.0,
+                    step=5000.0,
+                    key="schnell_kaufpreis"
+                )
+                schnell_nebenkosten_prozent = st.slider(
+                    "Geschätzte Nebenkosten (%)",
+                    min_value=5.0,
+                    max_value=15.0,
+                    value=10.0,
+                    step=0.5,
+                    key="schnell_nk_prozent",
+                    help="Typisch: 10-12% (inkl. Notar, Grundbuch, Makler, Grunderwerbsteuer)"
+                )
+
+                schnell_nebenkosten = schnell_kaufpreis * schnell_nebenkosten_prozent / 100
+                schnell_gesamt = schnell_kaufpreis + schnell_nebenkosten
+
+                st.metric("Geschätzter Finanzierungsbedarf", f"{schnell_gesamt:,.2f} €")
+
+                if st.button("📊 Diese Werte übernehmen", type="primary", key="uebernehme_schnell"):
+                    st.session_state['berechneter_kaufpreis'] = schnell_kaufpreis
+                    st.session_state['berechnete_nebenkosten'] = schnell_nebenkosten
+                    st.session_state['berechneter_finanzierungsbedarf'] = schnell_gesamt
+                    st.success("✅ Werte wurden übernommen!")
+                    st.rerun()
+
         default_betrag = 300000.0
+
+    st.markdown("---")
 
     col1, col2 = st.columns(2)
 
