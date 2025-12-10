@@ -1645,6 +1645,274 @@ class MarktpreisHistorie:
     min_preis_qm: float
     max_preis_qm: float
 
+
+# ===== DATENERMITTLUNG FÜR NOTAR =====
+
+class DatenermittlungStatus(Enum):
+    """Status einer Datenermittlung"""
+    AUSSTEHEND = "Ausstehend"
+    ANGEFRAGT = "Angefragt"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    ERHALTEN = "Erhalten"
+    FEHLER = "Fehler"
+    NICHT_VERFUEGBAR = "Nicht verfügbar"
+
+
+@dataclass
+class FlurkartAnfrage:
+    """Anfrage für elektronische Flurkarte"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Grundstücksdaten
+    bundesland: str
+    landkreis: str
+    gemeinde: str
+    gemarkung: str
+    flur: str
+    flurstueck: str
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Kosten
+    kosten: float = 0.0
+    bezahlt: bool = False
+    # Dokument
+    flurkarte_pdf: Optional[bytes] = None
+    flurkarte_dateiname: str = ""
+    # Portal
+    portal_name: str = ""  # z.B. "BORIS", "Geoportal Bayern"
+    portal_url: str = ""
+    notizen: str = ""
+
+
+@dataclass
+class GrundbuchAnfrage:
+    """Anfrage für elektronisches Grundbuch"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Grundbuchdaten
+    bundesland: str
+    amtsgericht: str
+    grundbuchbezirk: str
+    grundbuchblatt: str
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Unterstützung
+    egvp_unterstuetzt: bool = True  # Elektronisches Gerichts- und Verwaltungspostfach
+    solum_star_unterstuetzt: bool = False  # SolumSTAR System
+    # Kosten
+    kosten: float = 0.0
+    bezahlt: bool = False
+    # Dokumente
+    grundbuchauszug_pdf: Optional[bytes] = None
+    grundbuchauszug_dateiname: str = ""
+    abteilung_1: str = ""  # Eigentümer
+    abteilung_2: str = ""  # Lasten und Beschränkungen
+    abteilung_3: str = ""  # Hypotheken, Grundschulden
+    notizen: str = ""
+
+
+@dataclass
+class BaulastenAnfrage:
+    """Anfrage für Baulastenverzeichnis"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Objektdaten
+    bundesland: str
+    landkreis: str
+    gemeinde: str
+    strasse: str
+    hausnummer: str
+    plz: str
+    # Zuständiges Bauamt
+    bauamt_name: str = ""
+    bauamt_adresse: str = ""
+    bauamt_telefon: str = ""
+    bauamt_email: str = ""
+    bauamt_url: str = ""
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Ergebnis
+    baulasten_vorhanden: bool = False
+    baulasten_beschreibung: str = ""
+    auskunft_pdf: Optional[bytes] = None
+    kosten: float = 0.0
+    notizen: str = ""
+
+
+@dataclass
+class SteuerIDAbfrage:
+    """Steuer-ID Abfrage für Käufer/Verkäufer"""
+    abfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Person
+    person_typ: str  # "Käufer" oder "Verkäufer"
+    person_id: str
+    person_name: str
+    # Adressdaten (für Finanzamt-Zuordnung)
+    plz: str
+    ort: str
+    bundesland: str
+    # Steuer-ID
+    steuer_id: str = ""
+    steuer_id_bestaetigt: bool = False
+    # Zuständiges Finanzamt
+    finanzamt_name: str = ""
+    finanzamt_adresse: str = ""
+    finanzamt_telefon: str = ""
+    finanzamt_email: str = ""
+    finanzamt_nummer: str = ""  # Behördennummer
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    erfasst_am: datetime = field(default_factory=datetime.now)
+    notizen: str = ""
+
+
+@dataclass
+class GrunderwerbsteuerMeldung:
+    """Meldung an Finanzamt für Grunderwerbsteuer"""
+    meldung_id: str
+    projekt_id: str
+    notar_id: str
+    # Kaufvertragsdaten
+    kaufpreis: float
+    kaufvertrag_datum: Optional[date] = None
+    urkundennummer: str = ""
+    # Parteien
+    kaeufer_ids: List[str] = field(default_factory=list)
+    verkaeufer_ids: List[str] = field(default_factory=list)
+    # Objekt
+    objekt_adresse: str = ""
+    gemarkung: str = ""
+    flur: str = ""
+    flurstueck: str = ""
+    grundbuchblatt: str = ""
+    # Zuständiges Finanzamt (Grunderwerbsteuer-Stelle)
+    finanzamt_name: str = ""
+    finanzamt_adresse: str = ""
+    finanzamt_aktenzeichen: str = ""
+    # Steuersatz nach Bundesland
+    bundesland: str = ""
+    steuersatz: float = 0.0  # z.B. 6.5 für 6,5%
+    geschaetzte_steuer: float = 0.0
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    gemeldet_am: Optional[datetime] = None
+    bescheid_erhalten_am: Optional[datetime] = None
+    bescheid_pdf: Optional[bytes] = None
+    steuerbetrag_festgesetzt: float = 0.0
+    faellig_am: Optional[date] = None
+    bezahlt: bool = False
+    bezahlt_am: Optional[date] = None
+    unbedenklichkeitsbescheinigung: Optional[bytes] = None
+    notizen: str = ""
+
+
+@dataclass
+class VorkaufsrechtAnfrage:
+    """Anfrage auf Vorkaufsrecht an Gemeinde/Stadt"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Gemeinde/Stadt
+    gemeinde_name: str
+    gemeinde_adresse: str = ""
+    gemeinde_telefon: str = ""
+    gemeinde_email: str = ""
+    gemeinde_ansprechpartner: str = ""
+    # Objektdaten
+    objekt_adresse: str = ""
+    gemarkung: str = ""
+    flur: str = ""
+    flurstueck: str = ""
+    grundstuecksgroesse_qm: float = 0.0
+    # Kaufvertragsdaten
+    kaufpreis: float = 0.0
+    urkundennummer: str = ""
+    kaufvertrag_datum: Optional[date] = None
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    frist_bis: Optional[date] = None  # 2 Monate nach Anfrage
+    # Ergebnis
+    vorkaufsrecht_ausgeubt: Optional[bool] = None  # None = noch nicht beantwortet
+    antwort_erhalten_am: Optional[datetime] = None
+    negativzeugnis_pdf: Optional[bytes] = None  # Verzichtserklärung
+    # Grund für Vorkaufsrecht (falls ausgeübt)
+    vorkaufsrecht_grund: str = ""  # z.B. "städtebauliche Maßnahme"
+    notizen: str = ""
+
+
+# Bundesland-spezifische Grunderwerbsteuersätze (Stand 2024)
+GRUNDERWERBSTEUER_SAETZE = {
+    "Baden-Württemberg": 5.0,
+    "Bayern": 3.5,
+    "Berlin": 6.0,
+    "Brandenburg": 6.5,
+    "Bremen": 5.0,
+    "Hamburg": 5.5,
+    "Hessen": 6.0,
+    "Mecklenburg-Vorpommern": 6.0,
+    "Niedersachsen": 5.0,
+    "Nordrhein-Westfalen": 6.5,
+    "Rheinland-Pfalz": 5.0,
+    "Saarland": 6.5,
+    "Sachsen": 5.5,
+    "Sachsen-Anhalt": 5.0,
+    "Schleswig-Holstein": 6.5,
+    "Thüringen": 5.0
+}
+
+# Bundesländer mit elektronischem Grundbuch (EGVP/SolumSTAR)
+ELEKTRONISCHES_GRUNDBUCH_SUPPORT = {
+    "Baden-Württemberg": {"egvp": True, "solum_star": True, "portal": "Grundbuchportal BW"},
+    "Bayern": {"egvp": True, "solum_star": True, "portal": "Bayern-Portal"},
+    "Berlin": {"egvp": True, "solum_star": False, "portal": "Berlin.de"},
+    "Brandenburg": {"egvp": True, "solum_star": False, "portal": "Service Brandenburg"},
+    "Bremen": {"egvp": True, "solum_star": False, "portal": "Bremen.de"},
+    "Hamburg": {"egvp": True, "solum_star": False, "portal": "Hamburg.de"},
+    "Hessen": {"egvp": True, "solum_star": True, "portal": "Service Hessen"},
+    "Mecklenburg-Vorpommern": {"egvp": True, "solum_star": False, "portal": "MV-Portal"},
+    "Niedersachsen": {"egvp": True, "solum_star": True, "portal": "Niedersachsen.de"},
+    "Nordrhein-Westfalen": {"egvp": True, "solum_star": True, "portal": "NRW Geoportal"},
+    "Rheinland-Pfalz": {"egvp": True, "solum_star": True, "portal": "RLP-Portal"},
+    "Saarland": {"egvp": True, "solum_star": False, "portal": "Saarland.de"},
+    "Sachsen": {"egvp": True, "solum_star": True, "portal": "Amt24 Sachsen"},
+    "Sachsen-Anhalt": {"egvp": True, "solum_star": False, "portal": "Sachsen-Anhalt.de"},
+    "Schleswig-Holstein": {"egvp": True, "solum_star": True, "portal": "SH-Portal"},
+    "Thüringen": {"egvp": True, "solum_star": False, "portal": "Thüringen.de"}
+}
+
+# Geoportale für Flurkarten nach Bundesland
+GEOPORTALE = {
+    "Baden-Württemberg": {"name": "Geoportal BW", "url": "https://www.geoportal-bw.de/"},
+    "Bayern": {"name": "BayernAtlas", "url": "https://geoportal.bayern.de/bayernatlas/"},
+    "Berlin": {"name": "FIS-Broker", "url": "https://fbinter.stadt-berlin.de/fb/"},
+    "Brandenburg": {"name": "Geoportal Brandenburg", "url": "https://geoportal.brandenburg.de/"},
+    "Bremen": {"name": "GeoPortal Bremen", "url": "https://geoportal.bremen.de/"},
+    "Hamburg": {"name": "Geoportal Hamburg", "url": "https://geoportal-hamburg.de/"},
+    "Hessen": {"name": "Geoportal Hessen", "url": "https://www.geoportal.hessen.de/"},
+    "Mecklenburg-Vorpommern": {"name": "GeoPortal.MV", "url": "https://www.geoportal-mv.de/"},
+    "Niedersachsen": {"name": "LGLN", "url": "https://www.lgln.niedersachsen.de/"},
+    "Nordrhein-Westfalen": {"name": "TIM-online", "url": "https://www.tim-online.nrw.de/"},
+    "Rheinland-Pfalz": {"name": "Geoportal RLP", "url": "https://www.geoportal.rlp.de/"},
+    "Saarland": {"name": "Geoportal Saarland", "url": "https://geoportal.saarland.de/"},
+    "Sachsen": {"name": "GeoSN", "url": "https://geoportal.sachsen.de/"},
+    "Sachsen-Anhalt": {"name": "Geodatenportal ST", "url": "https://www.geodatenportal.sachsen-anhalt.de/"},
+    "Schleswig-Holstein": {"name": "Digitaler Atlas Nord", "url": "https://danord.gdi-sh.de/"},
+    "Thüringen": {"name": "Geoproxy Thüringen", "url": "https://www.geoportal-th.de/"}
+}
+
+
 class TodoKategorie(Enum):
     """Kategorien für Käufer-Todos"""
     FINANZIERUNG = "Finanzierung"
@@ -2920,6 +3188,14 @@ def init_session_state():
         # Automatische Marktanalyse
         st.session_state.marktanalyse_ergebnisse = {}  # Projekt-ID -> MarktanalyseErgebnis
         st.session_state.marktpreis_historie = {}  # Projekt-ID -> List[MarktpreisHistorie]
+
+        # Notar-Datenermittlung
+        st.session_state.flurkart_anfragen = {}  # ID -> FlurkartAnfrage
+        st.session_state.grundbuch_anfragen = {}  # ID -> GrundbuchAnfrage
+        st.session_state.baulasten_anfragen = {}  # ID -> BaulastenAnfrage
+        st.session_state.steuer_id_abfragen = {}  # ID -> SteuerIDAbfrage
+        st.session_state.grunderwerbsteuer_meldungen = {}  # ID -> GrunderwerbsteuerMeldung
+        st.session_state.vorkaufsrecht_anfragen = {}  # ID -> VorkaufsrechtAnfrage
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
@@ -15078,6 +15354,7 @@ def notar_dashboard():
         "📊 Timeline",
         "📋 Projekte",
         "📁 Aktenmanagement",  # NEU: Aktenführung
+        "🔍 Datenermittlung",  # NEU: Flurkarten, Grundbuch, Baulasten etc.
         "💰 Preiseinigungen",
         "📚 Vertragsarchiv",  # Textbausteine & Dokumente
         "📝 Vertragserstellung",  # Verträge aus Bausteinen erstellen
@@ -15105,48 +15382,51 @@ def notar_dashboard():
         notar_aktenmanagement_view()  # NEU: Aktenführung
 
     with tabs[3]:
-        notar_preiseinigungen_view()
+        notar_datenermittlung_view()  # NEU: Flurkarten, Grundbuch, Baulasten etc.
 
     with tabs[4]:
-        notar_vertragsarchiv_view()
+        notar_preiseinigungen_view()
 
     with tabs[5]:
-        notar_vertragserstellung_view()
+        notar_vertragsarchiv_view()
 
     with tabs[6]:
-        notar_checklisten_view()
+        notar_vertragserstellung_view()
 
     with tabs[7]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
+        notar_checklisten_view()
 
     with tabs[8]:
-        notar_mitarbeiter_view()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[9]:
-        notar_finanzierungsnachweise()
+        notar_mitarbeiter_view()
 
     with tabs[10]:
-        notar_dokumenten_freigaben()
+        notar_finanzierungsnachweise()
 
     with tabs[11]:
-        notar_kaufvertrag_generator()
+        notar_dokumenten_freigaben()
 
     with tabs[12]:
-        notar_termine()
+        notar_kaufvertrag_generator()
 
     with tabs[13]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[14]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[15]:
-        notar_ausweis_erfassung()
+        notar_handwerker_view()
 
     with tabs[16]:
-        notar_rechtsdokumente_view()
+        notar_ausweis_erfassung()
 
     with tabs[17]:
+        notar_rechtsdokumente_view()
+
+    with tabs[18]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -19242,6 +19522,763 @@ def notar_ausweis_erfassung():
                             render_ausweis_upload(verkaeufer_id, UserRole.VERKAEUFER.value, context=f"notar_{verkaeufer_id}")
         else:
             st.info("Noch keine Verkäufer für dieses Projekt.")
+
+
+# ============================================================================
+# NOTAR DATENERMITTLUNG
+# ============================================================================
+
+def notar_datenermittlung_view():
+    """Datenermittlung für Notar - Flurkarten, Grundbuch, Baulasten, Steuer-ID, Grunderwerbsteuer, Vorkaufsrecht"""
+    st.subheader("📋 Datenermittlung")
+    st.caption("Zentrale Stelle für alle behördlichen Anfragen und Datenermittlungen zu Ihren Projekten.")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Projekte dieses Notars
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen. Datenermittlung ist erst nach Projektzuweisung möglich.")
+        return
+
+    # Projekt auswählen
+    projekt_optionen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        options=list(projekt_optionen.keys()),
+        format_func=lambda x: projekt_optionen[x],
+        key="datenermittlung_projekt"
+    )
+
+    if not selected_projekt_id:
+        return
+
+    projekt = st.session_state.projekte.get(selected_projekt_id)
+    if not projekt:
+        return
+
+    st.divider()
+
+    # Tabs für verschiedene Bereiche
+    daten_tabs = st.tabs([
+        "🗺️ Flurkarten",
+        "📚 Grundbuch",
+        "🏗️ Baulastenverzeichnis",
+        "🪪 Steuer-ID",
+        "💰 Grunderwerbsteuer",
+        "🏛️ Vorkaufsrecht"
+    ])
+
+    with daten_tabs[0]:
+        _render_flurkarten_bereich(projekt, notar_id)
+
+    with daten_tabs[1]:
+        _render_grundbuch_bereich(projekt, notar_id)
+
+    with daten_tabs[2]:
+        _render_baulasten_bereich(projekt, notar_id)
+
+    with daten_tabs[3]:
+        _render_steuer_id_bereich(projekt, notar_id)
+
+    with daten_tabs[4]:
+        _render_grunderwerbsteuer_bereich(projekt, notar_id)
+
+    with daten_tabs[5]:
+        _render_vorkaufsrecht_bereich(projekt, notar_id)
+
+
+def _render_flurkarten_bereich(projekt, notar_id: str):
+    """Flurkarten elektronisch kaufen und herunterladen"""
+    st.markdown("### 🗺️ Flurkarten")
+    st.caption("Elektronischer Abruf von Flurkarten über die Landesgeoportale.")
+
+    # Bundesland aus Adresse ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    # Geoportal-Info anzeigen
+    if bundesland and bundesland in GEOPORTALE:
+        portal = GEOPORTALE[bundesland]
+        st.info(f"📍 **{bundesland}**: [{portal['name']}]({portal['url']})")
+
+    # Bestehende Anfragen anzeigen
+    anfragen = [a for a in st.session_state.flurkart_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Flurkart-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.gemarkung} - Flur {anfrage.flur}, Flurstück {anfrage.flurstueck}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Bundesland:** {anfrage.bundesland}")
+                    st.write(f"**Landkreis:** {anfrage.landkreis}")
+                    st.write(f"**Gemeinde:** {anfrage.gemeinde}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}")
+                    if anfrage.kosten:
+                        st.write(f"**Kosten:** {anfrage.kosten:.2f} €")
+
+                if anfrage.flurkarte_pdf:
+                    st.download_button(
+                        "📥 Flurkarte herunterladen",
+                        data=anfrage.flurkarte_pdf,
+                        file_name=f"Flurkarte_{anfrage.gemarkung}_{anfrage.flurstueck}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_flurkarte_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage erstellen
+    st.markdown("#### Neue Flurkarte anfordern")
+
+    with st.form(key=f"flurkarte_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            bundesland_input = st.selectbox(
+                "Bundesland",
+                options=list(GEOPORTALE.keys()),
+                index=list(GEOPORTALE.keys()).index(bundesland) if bundesland in GEOPORTALE.keys() else 0,
+                key=f"flurkarte_bundesland_{projekt.projekt_id}"
+            )
+            landkreis = st.text_input("Landkreis/Kreisfreie Stadt", key=f"flurkarte_landkreis_{projekt.projekt_id}")
+            gemeinde = st.text_input("Gemeinde", key=f"flurkarte_gemeinde_{projekt.projekt_id}")
+
+        with col2:
+            gemarkung = st.text_input("Gemarkung", key=f"flurkarte_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"flurkarte_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"flurkarte_flurstueck_{projekt.projekt_id}")
+
+        if st.form_submit_button("🗺️ Flurkarte anfordern", type="primary"):
+            if gemarkung and flur and flurstueck:
+                anfrage_id = f"FK-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = FlurkartAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bundesland=bundesland_input,
+                    landkreis=landkreis,
+                    gemeinde=gemeinde,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now(),
+                    portal_name=GEOPORTALE.get(bundesland_input, {}).get('name', ''),
+                    portal_url=GEOPORTALE.get(bundesland_input, {}).get('url', '')
+                )
+                st.session_state.flurkart_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Flurkarte-Anfrage erstellt! Portal: {neue_anfrage.portal_name}")
+                st.rerun()
+            else:
+                st.error("Bitte Gemarkung, Flur und Flurstück angeben.")
+
+
+def _render_grundbuch_bereich(projekt, notar_id: str):
+    """Elektronisches Grundbuch - Abruf je nach Bundesland"""
+    st.markdown("### 📚 Elektronisches Grundbuch")
+    st.caption("Elektronischer Grundbuchabruf über EGVP oder SolumSTAR je nach Bundesland-Unterstützung.")
+
+    # Bundesland aus Adresse ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    # Support-Info anzeigen
+    if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT:
+        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT[bundesland]
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("EGVP", "✅ Ja" if support['egvp'] else "❌ Nein")
+        with col2:
+            st.metric("SolumSTAR", "✅ Ja" if support['solum_star'] else "❌ Nein")
+        with col3:
+            st.info(f"Portal: {support['portal']}")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Grundbuch-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.grundbuchamt} - Blatt {anfrage.grundbuchblatt}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk}")
+                    st.write(f"**Band:** {anfrage.band}")
+                    st.write(f"**Abteilung:** {anfrage.abteilung or 'Alle'}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    st.write(f"**Zugang:** {'EGVP' if anfrage.egvp_zugang else 'SolumSTAR' if anfrage.solum_star_zugang else 'Manuell'}")
+                    if anfrage.abruf_datum:
+                        st.write(f"**Abgerufen am:** {anfrage.abruf_datum.strftime('%d.%m.%Y %H:%M')}")
+
+                if anfrage.grundbuchauszug_pdf:
+                    st.download_button(
+                        "📥 Grundbuchauszug herunterladen",
+                        data=anfrage.grundbuchauszug_pdf,
+                        file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_grundbuch_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neuen Grundbuchauszug anfordern")
+
+    with st.form(key=f"grundbuch_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            bundesland_input = st.selectbox(
+                "Bundesland",
+                options=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()),
+                index=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()).index(bundesland) if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT else 0,
+                key=f"grundbuch_bundesland_{projekt.projekt_id}"
+            )
+            grundbuchamt = st.text_input("Grundbuchamt", key=f"grundbuch_amt_{projekt.projekt_id}")
+            grundbuchbezirk = st.text_input("Grundbuchbezirk", key=f"grundbuch_bezirk_{projekt.projekt_id}")
+
+        with col2:
+            grundbuchblatt = st.text_input("Grundbuchblatt", key=f"grundbuch_blatt_{projekt.projekt_id}")
+            band = st.text_input("Band", key=f"grundbuch_band_{projekt.projekt_id}")
+            abteilung = st.selectbox(
+                "Abteilung",
+                options=["Alle", "I (Eigentum)", "II (Lasten/Beschränkungen)", "III (Grundpfandrechte)"],
+                key=f"grundbuch_abteilung_{projekt.projekt_id}"
+            )
+
+        # Zugangsmethode
+        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT.get(bundesland_input, {})
+        zugang = st.radio(
+            "Zugangsart",
+            options=["EGVP", "SolumSTAR", "Manuell"],
+            horizontal=True,
+            key=f"grundbuch_zugang_{projekt.projekt_id}",
+            help="EGVP = Elektronisches Gerichts- und Verwaltungspostfach"
+        )
+
+        if st.form_submit_button("📚 Grundbuchauszug anfordern", type="primary"):
+            if grundbuchamt and grundbuchblatt:
+                anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = GrundbuchAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bundesland=bundesland_input,
+                    grundbuchamt=grundbuchamt,
+                    grundbuchbezirk=grundbuchbezirk,
+                    grundbuchblatt=grundbuchblatt,
+                    band=band,
+                    abteilung=None if abteilung == "Alle" else abteilung,
+                    egvp_zugang=(zugang == "EGVP"),
+                    solum_star_zugang=(zugang == "SolumSTAR"),
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Grundbuch-Anfrage erstellt! Zugang: {zugang}")
+                st.rerun()
+            else:
+                st.error("Bitte Grundbuchamt und Grundbuchblatt angeben.")
+
+
+def _render_baulasten_bereich(projekt, notar_id: str):
+    """Baulastenverzeichnis beim zuständigen Bauamt"""
+    st.markdown("### 🏗️ Baulastenverzeichnis")
+    st.caption("Anfrage an das zuständige Bauamt für Eintragungen im Baulastenverzeichnis.")
+
+    st.info("💡 **Hinweis:** In Bayern und Brandenburg gibt es kein Baulastenverzeichnis - dort werden Baulasten im Grundbuch eingetragen.")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.baulasten_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Baulasten-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.bauamt_name} - {anfrage.flurstueck}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Bauamt:** {anfrage.bauamt_name}")
+                    st.write(f"**Adresse:** {anfrage.bauamt_adresse}")
+                    if anfrage.bauamt_ansprechpartner:
+                        st.write(f"**Ansprechpartner:** {anfrage.bauamt_ansprechpartner}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y')}")
+                    st.write(f"**Baulasten vorhanden:** {'Ja' if anfrage.baulasten_vorhanden else 'Nein' if anfrage.baulasten_vorhanden is False else 'Unbekannt'}")
+
+                if anfrage.baulastenverzeichnis_pdf:
+                    st.download_button(
+                        "📥 Baulastenverzeichnis herunterladen",
+                        data=anfrage.baulastenverzeichnis_pdf,
+                        file_name=f"Baulastenverzeichnis_{anfrage.flurstueck}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_baulasten_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neue Baulasten-Anfrage")
+
+    with st.form(key=f"baulasten_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Zuständiges Bauamt**")
+            bauamt_name = st.text_input("Name des Bauamts", key=f"baulasten_amt_{projekt.projekt_id}")
+            bauamt_adresse = st.text_input("Adresse", key=f"baulasten_adresse_{projekt.projekt_id}")
+            bauamt_telefon = st.text_input("Telefon", key=f"baulasten_telefon_{projekt.projekt_id}")
+            bauamt_email = st.text_input("E-Mail", key=f"baulasten_email_{projekt.projekt_id}")
+            bauamt_ansprechpartner = st.text_input("Ansprechpartner (optional)", key=f"baulasten_ansprech_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Grundstücksdaten**")
+            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"baulasten_objekt_{projekt.projekt_id}")
+            gemarkung = st.text_input("Gemarkung", key=f"baulasten_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"baulasten_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"baulasten_flurstueck_{projekt.projekt_id}")
+
+        if st.form_submit_button("🏗️ Baulasten-Anfrage senden", type="primary"):
+            if bauamt_name and flurstueck:
+                anfrage_id = f"BL-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = BaulastenAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bauamt_name=bauamt_name,
+                    bauamt_adresse=bauamt_adresse,
+                    bauamt_telefon=bauamt_telefon,
+                    bauamt_email=bauamt_email,
+                    bauamt_ansprechpartner=bauamt_ansprechpartner,
+                    objekt_adresse=objekt_adresse,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.baulasten_anfragen[anfrage_id] = neue_anfrage
+                st.success("✅ Baulasten-Anfrage erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte Bauamt und Flurstück angeben.")
+
+
+def _render_steuer_id_bereich(projekt, notar_id: str):
+    """Steuer-ID Abfrage basierend auf Wohnort von Käufer/Verkäufer"""
+    st.markdown("### 🪪 Steuer-ID Abfrage")
+    st.caption("Abfrage der Steuer-Identifikationsnummer beim Bundeszentralamt für Steuern (BZSt).")
+
+    st.info("💡 **Hinweis:** Die Steuer-ID wird für die Grunderwerbsteuer-Anmeldung benötigt. Die Abfrage erfolgt beim BZSt basierend auf dem Wohnort der Person.")
+
+    # Käufer und Verkäufer sammeln
+    parteien = []
+    for kid in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kid)
+        if kaeufer:
+            parteien.append({"id": kid, "name": kaeufer.name, "rolle": "Käufer", "user": kaeufer})
+
+    for vid in projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(vid)
+        if verkaeufer:
+            parteien.append({"id": vid, "name": verkaeufer.name, "rolle": "Verkäufer", "user": verkaeufer})
+
+    if not parteien:
+        st.warning("Keine Käufer oder Verkäufer für dieses Projekt gefunden.")
+        return
+
+    # Bestehende Abfragen
+    abfragen = [a for a in st.session_state.steuer_id_abfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if abfragen:
+        st.markdown("#### Bestehende Steuer-ID Abfragen")
+        for abfrage in abfragen:
+            status_icon = _get_datenermittlung_status_icon(abfrage.status)
+            with st.expander(f"{status_icon} {abfrage.person_name} ({abfrage.person_rolle})"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Name:** {abfrage.person_name}")
+                    st.write(f"**Rolle:** {abfrage.person_rolle}")
+                    st.write(f"**Wohnort:** {abfrage.wohnort_plz} {abfrage.wohnort_ort}")
+                with col2:
+                    st.write(f"**Status:** {abfrage.status}")
+                    if abfrage.steuer_id:
+                        st.write(f"**Steuer-ID:** {abfrage.steuer_id}")
+                    if abfrage.finanzamt:
+                        st.write(f"**Zuständiges FA:** {abfrage.finanzamt}")
+
+    # Neue Abfrage
+    st.markdown("#### Neue Steuer-ID Abfrage")
+
+    with st.form(key=f"steuer_id_form_{projekt.projekt_id}"):
+        # Person auswählen
+        person_optionen = {p["id"]: f"{p['name']} ({p['rolle']})" for p in parteien}
+        selected_person_id = st.selectbox(
+            "Person auswählen",
+            options=list(person_optionen.keys()),
+            format_func=lambda x: person_optionen[x],
+            key=f"steuer_id_person_{projekt.projekt_id}"
+        )
+
+        selected_person = next((p for p in parteien if p["id"] == selected_person_id), None)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            geburtsdatum = st.date_input(
+                "Geburtsdatum",
+                min_value=date(1900, 1, 1),
+                max_value=date.today(),
+                key=f"steuer_id_geburt_{projekt.projekt_id}"
+            )
+            geburtsort = st.text_input("Geburtsort", key=f"steuer_id_geburtsort_{projekt.projekt_id}")
+
+        with col2:
+            wohnort_strasse = st.text_input("Straße und Hausnummer", key=f"steuer_id_strasse_{projekt.projekt_id}")
+            col_plz, col_ort = st.columns([1, 2])
+            with col_plz:
+                wohnort_plz = st.text_input("PLZ", key=f"steuer_id_plz_{projekt.projekt_id}")
+            with col_ort:
+                wohnort_ort = st.text_input("Ort", key=f"steuer_id_ort_{projekt.projekt_id}")
+
+        if st.form_submit_button("🪪 Steuer-ID abfragen", type="primary"):
+            if selected_person and geburtsdatum and wohnort_plz and wohnort_ort:
+                abfrage_id = f"SID-{datetime.now().strftime('%Y%m%d%H%M%S')}-{selected_person_id[:8]}"
+                neue_abfrage = SteuerIDAbfrage(
+                    abfrage_id=abfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    person_id=selected_person_id,
+                    person_name=selected_person["name"],
+                    person_rolle=selected_person["rolle"],
+                    geburtsdatum=geburtsdatum,
+                    geburtsort=geburtsort,
+                    wohnort_strasse=wohnort_strasse,
+                    wohnort_plz=wohnort_plz,
+                    wohnort_ort=wohnort_ort,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.steuer_id_abfragen[abfrage_id] = neue_abfrage
+                st.success("✅ Steuer-ID Abfrage beim BZSt erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte alle Pflichtfelder ausfüllen.")
+
+
+def _render_grunderwerbsteuer_bereich(projekt, notar_id: str):
+    """Grunderwerbsteuer Meldung ans Finanzamt"""
+    st.markdown("### 💰 Grunderwerbsteuer")
+    st.caption("Anzeige des Kaufvertrags an das zuständige Finanzamt für die Grunderwerbsteuer-Festsetzung.")
+
+    # Bundesland und Steuersatz ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    if bundesland and bundesland in GRUNDERWERBSTEUER_SAETZE:
+        steuersatz = GRUNDERWERBSTEUER_SAETZE[bundesland]
+        kaufpreis = projekt.kaufpreis or 0
+        steuer = kaufpreis * steuersatz / 100
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Bundesland", bundesland)
+        with col2:
+            st.metric("Steuersatz", f"{steuersatz:.1f}%")
+        with col3:
+            st.metric("Voraussichtliche Steuer", f"{steuer:,.2f} €")
+    else:
+        st.warning("Bundesland konnte nicht ermittelt werden. Bitte Objekt-Adresse im Projekt hinterlegen.")
+
+    # Bestehende Meldungen
+    meldungen = [m for m in st.session_state.grunderwerbsteuer_meldungen.values()
+                 if m.projekt_id == projekt.projekt_id]
+
+    if meldungen:
+        st.markdown("#### Bestehende Grunderwerbsteuer-Meldungen")
+        for meldung in meldungen:
+            status_icon = _get_datenermittlung_status_icon(meldung.status)
+            with st.expander(f"{status_icon} UR-Nr. {meldung.urkundennummer} - {meldung.finanzamt}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Finanzamt:** {meldung.finanzamt}")
+                    st.write(f"**Kaufpreis:** {meldung.kaufpreis:,.2f} €")
+                    st.write(f"**Steuersatz:** {meldung.steuersatz:.1f}%")
+                    st.write(f"**Steuerbetrag:** {meldung.steuerbetrag:,.2f} €")
+                with col2:
+                    st.write(f"**Status:** {meldung.status}")
+                    if meldung.gemeldet_am:
+                        st.write(f"**Gemeldet am:** {meldung.gemeldet_am.strftime('%d.%m.%Y')}")
+                    if meldung.steuerbescheid_erhalten:
+                        st.write("✅ Steuerbescheid erhalten")
+                        if meldung.zahlungsfrist:
+                            st.write(f"**Zahlungsfrist:** {meldung.zahlungsfrist.strftime('%d.%m.%Y')}")
+                    if meldung.unbedenklichkeitsbescheinigung:
+                        st.write("✅ Unbedenklichkeitsbescheinigung erhalten")
+
+    # Neue Meldung
+    st.markdown("#### Neue Grunderwerbsteuer-Anzeige")
+
+    with st.form(key=f"grest_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Finanzamt**")
+            finanzamt = st.text_input("Zuständiges Finanzamt", key=f"grest_finanzamt_{projekt.projekt_id}")
+            finanzamt_adresse = st.text_input("Adresse des Finanzamts", key=f"grest_fa_adresse_{projekt.projekt_id}")
+            steuernummer_verkaeufer = st.text_input("Steuernummer Verkäufer (optional)", key=f"grest_stnr_v_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Kaufvertragsdaten**")
+            urkundennummer = st.text_input("Urkundennummer", key=f"grest_urnr_{projekt.projekt_id}")
+            kaufvertrag_datum = st.date_input("Datum des Kaufvertrags", key=f"grest_datum_{projekt.projekt_id}")
+            kaufpreis_input = st.number_input(
+                "Kaufpreis (€)",
+                min_value=0.0,
+                value=float(projekt.kaufpreis or 0),
+                key=f"grest_kaufpreis_{projekt.projekt_id}"
+            )
+
+            # Steuersatz basierend auf Bundesland
+            bundesland_input = st.selectbox(
+                "Bundesland (für Steuersatz)",
+                options=list(GRUNDERWERBSTEUER_SAETZE.keys()),
+                index=list(GRUNDERWERBSTEUER_SAETZE.keys()).index(bundesland) if bundesland and bundesland in GRUNDERWERBSTEUER_SAETZE else 0,
+                key=f"grest_bundesland_{projekt.projekt_id}"
+            )
+
+        steuersatz_aktuell = GRUNDERWERBSTEUER_SAETZE.get(bundesland_input, 5.0)
+        steuerbetrag_aktuell = kaufpreis_input * steuersatz_aktuell / 100
+        st.info(f"**Berechnete Grunderwerbsteuer:** {steuerbetrag_aktuell:,.2f} € ({steuersatz_aktuell:.1f}%)")
+
+        if st.form_submit_button("💰 Grunderwerbsteuer anzeigen", type="primary"):
+            if finanzamt and urkundennummer and kaufpreis_input > 0:
+                meldung_id = f"GREST-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_meldung = GrunderwerbsteuerMeldung(
+                    meldung_id=meldung_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    finanzamt=finanzamt,
+                    finanzamt_adresse=finanzamt_adresse,
+                    bundesland=bundesland_input,
+                    kaufpreis=kaufpreis_input,
+                    steuersatz=steuersatz_aktuell,
+                    steuerbetrag=steuerbetrag_aktuell,
+                    urkundennummer=urkundennummer,
+                    kaufvertrag_datum=kaufvertrag_datum,
+                    steuernummer_verkaeufer=steuernummer_verkaeufer,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    gemeldet_am=datetime.now()
+                )
+                st.session_state.grunderwerbsteuer_meldungen[meldung_id] = neue_meldung
+                st.success("✅ Grunderwerbsteuer-Anzeige an das Finanzamt erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte Finanzamt, Urkundennummer und Kaufpreis angeben.")
+
+
+def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
+    """Anfrage auf Vorkaufsrecht an Gemeinde/Stadt"""
+    st.markdown("### 🏛️ Vorkaufsrecht")
+    st.caption("Anfrage an die Gemeinde/Stadt, ob ein gesetzliches Vorkaufsrecht ausgeübt wird.")
+
+    st.info("💡 **Hinweis:** Die Gemeinde hat nach § 28 BauGB ein Vorkaufsrecht bei bestimmten Grundstücksverkäufen. "
+            "Sie muss innerhalb von 2 Monaten nach Anzeige entscheiden, ob sie das Vorkaufsrecht ausübt. "
+            "Nach Verzicht erhält der Notar ein Negativzeugnis.")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.vorkaufsrecht_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Vorkaufsrecht-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+
+            # Farbcodierung basierend auf Ergebnis
+            if anfrage.vorkaufsrecht_ausgeubt is True:
+                titel_zusatz = "⚠️ AUSGEÜBT"
+            elif anfrage.vorkaufsrecht_ausgeubt is False:
+                titel_zusatz = "✅ Verzichtet"
+            else:
+                titel_zusatz = "⏳ Ausstehend"
+
+            with st.expander(f"{status_icon} {anfrage.gemeinde_name} - {titel_zusatz}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Gemeinde/Stadt:** {anfrage.gemeinde_name}")
+                    if anfrage.gemeinde_adresse:
+                        st.write(f"**Adresse:** {anfrage.gemeinde_adresse}")
+                    if anfrage.gemeinde_ansprechpartner:
+                        st.write(f"**Ansprechpartner:** {anfrage.gemeinde_ansprechpartner}")
+                    st.write(f"**Objekt:** {anfrage.objekt_adresse}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y')}")
+                    if anfrage.frist_bis:
+                        tage_bis_frist = (anfrage.frist_bis - date.today()).days
+                        if tage_bis_frist > 0:
+                            st.write(f"**Frist bis:** {anfrage.frist_bis.strftime('%d.%m.%Y')} ({tage_bis_frist} Tage)")
+                        else:
+                            st.write(f"**Frist abgelaufen:** {anfrage.frist_bis.strftime('%d.%m.%Y')}")
+
+                    if anfrage.vorkaufsrecht_ausgeubt is True:
+                        st.error(f"⚠️ Vorkaufsrecht ausgeübt! Grund: {anfrage.vorkaufsrecht_grund}")
+                    elif anfrage.vorkaufsrecht_ausgeubt is False:
+                        st.success("✅ Vorkaufsrecht nicht ausgeübt - Negativzeugnis erhalten")
+
+                if anfrage.negativzeugnis_pdf:
+                    st.download_button(
+                        "📥 Negativzeugnis herunterladen",
+                        data=anfrage.negativzeugnis_pdf,
+                        file_name=f"Negativzeugnis_{anfrage.gemeinde_name}_{projekt.projekt_id[:8]}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_negativ_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neue Vorkaufsrecht-Anfrage")
+
+    with st.form(key=f"vorkaufsrecht_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Gemeinde/Stadt**")
+            gemeinde_name = st.text_input("Name der Gemeinde/Stadt", key=f"vkr_gemeinde_{projekt.projekt_id}")
+            gemeinde_adresse = st.text_input("Adresse", key=f"vkr_adresse_{projekt.projekt_id}")
+            gemeinde_telefon = st.text_input("Telefon", key=f"vkr_telefon_{projekt.projekt_id}")
+            gemeinde_email = st.text_input("E-Mail", key=f"vkr_email_{projekt.projekt_id}")
+            gemeinde_ansprechpartner = st.text_input("Ansprechpartner (optional)", key=f"vkr_ansprech_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Objektdaten**")
+            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"vkr_objekt_{projekt.projekt_id}")
+            gemarkung = st.text_input("Gemarkung", key=f"vkr_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"vkr_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"vkr_flurstueck_{projekt.projekt_id}")
+            grundstuecksgroesse = st.number_input("Grundstücksgröße (qm)", min_value=0.0, key=f"vkr_groesse_{projekt.projekt_id}")
+
+        st.markdown("**Kaufvertragsdaten**")
+        col3, col4 = st.columns(2)
+        with col3:
+            kaufpreis = st.number_input(
+                "Kaufpreis (€)",
+                min_value=0.0,
+                value=float(projekt.kaufpreis or 0),
+                key=f"vkr_kaufpreis_{projekt.projekt_id}"
+            )
+            urkundennummer = st.text_input("Urkundennummer", key=f"vkr_urnr_{projekt.projekt_id}")
+        with col4:
+            kaufvertrag_datum = st.date_input("Datum des Kaufvertrags", key=f"vkr_datum_{projekt.projekt_id}")
+
+        if st.form_submit_button("🏛️ Vorkaufsrecht-Anfrage senden", type="primary"):
+            if gemeinde_name and objekt_adresse:
+                anfrage_id = f"VKR-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                frist = date.today() + timedelta(days=60)  # 2 Monate Frist
+
+                neue_anfrage = VorkaufsrechtAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    gemeinde_name=gemeinde_name,
+                    gemeinde_adresse=gemeinde_adresse,
+                    gemeinde_telefon=gemeinde_telefon,
+                    gemeinde_email=gemeinde_email,
+                    gemeinde_ansprechpartner=gemeinde_ansprechpartner,
+                    objekt_adresse=objekt_adresse,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    grundstuecksgroesse_qm=grundstuecksgroesse,
+                    kaufpreis=kaufpreis,
+                    urkundennummer=urkundennummer,
+                    kaufvertrag_datum=kaufvertrag_datum,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now(),
+                    frist_bis=frist
+                )
+                st.session_state.vorkaufsrecht_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Vorkaufsrecht-Anfrage an {gemeinde_name} erstellt! Frist: {frist.strftime('%d.%m.%Y')}")
+                st.rerun()
+            else:
+                st.error("Bitte Gemeinde/Stadt und Objekt-Adresse angeben.")
+
+
+def _get_datenermittlung_status_icon(status: str) -> str:
+    """Gibt das passende Icon für den Datenermittlungs-Status zurück"""
+    icons = {
+        DatenermittlungStatus.AUSSTEHEND.value: "⏳",
+        DatenermittlungStatus.ANGEFRAGT.value: "📤",
+        DatenermittlungStatus.IN_BEARBEITUNG.value: "🔄",
+        DatenermittlungStatus.ERHALTEN.value: "✅",
+        DatenermittlungStatus.FEHLER.value: "❌",
+        DatenermittlungStatus.NICHT_VERFUEGBAR.value: "🚫"
+    }
+    return icons.get(status, "❓")
+
+
+def _ermittle_bundesland_aus_adresse(adresse: str) -> Optional[str]:
+    """Versucht das Bundesland aus einer Adresse zu ermitteln"""
+    if not adresse:
+        return None
+
+    adresse_lower = adresse.lower()
+
+    # PLZ-Bereiche für Bundesländer (vereinfacht)
+    plz_mapping = {
+        "01": "Sachsen", "02": "Sachsen", "03": "Brandenburg", "04": "Sachsen",
+        "06": "Sachsen-Anhalt", "07": "Thüringen", "08": "Sachsen", "09": "Sachsen",
+        "10": "Berlin", "12": "Berlin", "13": "Berlin", "14": "Brandenburg",
+        "15": "Brandenburg", "16": "Brandenburg", "17": "Mecklenburg-Vorpommern",
+        "18": "Mecklenburg-Vorpommern", "19": "Mecklenburg-Vorpommern",
+        "20": "Hamburg", "21": "Niedersachsen", "22": "Hamburg", "23": "Schleswig-Holstein",
+        "24": "Schleswig-Holstein", "25": "Schleswig-Holstein", "26": "Niedersachsen",
+        "27": "Niedersachsen", "28": "Bremen", "29": "Niedersachsen",
+        "30": "Niedersachsen", "31": "Niedersachsen", "32": "Nordrhein-Westfalen",
+        "33": "Nordrhein-Westfalen", "34": "Hessen", "35": "Hessen", "36": "Hessen",
+        "37": "Niedersachsen", "38": "Niedersachsen", "39": "Sachsen-Anhalt",
+        "40": "Nordrhein-Westfalen", "41": "Nordrhein-Westfalen", "42": "Nordrhein-Westfalen",
+        "44": "Nordrhein-Westfalen", "45": "Nordrhein-Westfalen", "46": "Nordrhein-Westfalen",
+        "47": "Nordrhein-Westfalen", "48": "Nordrhein-Westfalen", "49": "Niedersachsen",
+        "50": "Nordrhein-Westfalen", "51": "Nordrhein-Westfalen", "52": "Nordrhein-Westfalen",
+        "53": "Nordrhein-Westfalen", "54": "Rheinland-Pfalz", "55": "Rheinland-Pfalz",
+        "56": "Rheinland-Pfalz", "57": "Nordrhein-Westfalen", "58": "Nordrhein-Westfalen",
+        "59": "Nordrhein-Westfalen",
+        "60": "Hessen", "61": "Hessen", "63": "Hessen", "64": "Hessen", "65": "Hessen",
+        "66": "Saarland", "67": "Rheinland-Pfalz", "68": "Baden-Württemberg", "69": "Baden-Württemberg",
+        "70": "Baden-Württemberg", "71": "Baden-Württemberg", "72": "Baden-Württemberg",
+        "73": "Baden-Württemberg", "74": "Baden-Württemberg", "75": "Baden-Württemberg",
+        "76": "Baden-Württemberg", "77": "Baden-Württemberg", "78": "Baden-Württemberg",
+        "79": "Baden-Württemberg",
+        "80": "Bayern", "81": "Bayern", "82": "Bayern", "83": "Bayern", "84": "Bayern",
+        "85": "Bayern", "86": "Bayern", "87": "Bayern", "88": "Baden-Württemberg",
+        "89": "Baden-Württemberg",
+        "90": "Bayern", "91": "Bayern", "92": "Bayern", "93": "Bayern", "94": "Bayern",
+        "95": "Bayern", "96": "Bayern", "97": "Bayern", "98": "Thüringen", "99": "Thüringen"
+    }
+
+    # PLZ aus Adresse extrahieren
+    import re
+    plz_match = re.search(r'\b(\d{5})\b', adresse)
+    if plz_match:
+        plz_prefix = plz_match.group(1)[:2]
+        if plz_prefix in plz_mapping:
+            return plz_mapping[plz_prefix]
+
+    # Direkte Suche nach Bundesland-Namen
+    bundeslaender = list(GRUNDERWERBSTEUER_SAETZE.keys())
+    for bl in bundeslaender:
+        if bl.lower() in adresse_lower:
+            return bl
+
+    return None
 
 
 def notar_rechtsdokumente_view():
