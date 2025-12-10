@@ -18,6 +18,26 @@ import base64
 import uuid
 
 # ============================================================================
+# DEUTSCHE ZAHLENFORMATIERUNG
+# ============================================================================
+
+def format_euro(betrag: float, dezimalstellen: int = 2) -> str:
+    """
+    Formatiert einen Betrag im deutschen Format.
+    - Punkt (.) als Tausendertrennzeichen
+    - Komma (,) als Dezimaltrennzeichen
+
+    Beispiel: 100000.50 -> "100.000,50"
+    """
+    if dezimalstellen == 0:
+        formatted = f"{betrag:,.0f}"
+    else:
+        formatted = f"{betrag:,.{dezimalstellen}f}"
+    # Konvertiere US-Format zu deutschem Format
+    # Erst Komma durch Platzhalter ersetzen, dann Punkt durch Komma, dann Platzhalter durch Punkt
+    return formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ============================================================================
 # RESPONSIVE DESIGN SYSTEM
 # ============================================================================
 
@@ -2425,7 +2445,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
                 create_notification(
                     user_id=vk_id,
                     titel="💰 Neues Preisangebot erhalten",
-                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    nachricht=f"{von_name} bietet {format_euro(betrag)} € für {projekt.name}",
                     typ=NotificationType.INFO.value
                 )
         else:
@@ -2434,7 +2454,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
                 create_notification(
                     user_id=kf_id,
                     titel="💰 Neues Preisangebot vom Verkäufer",
-                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    nachricht=f"{von_name} bietet {format_euro(betrag)} € für {projekt.name}",
                     typ=NotificationType.INFO.value
                 )
 
@@ -2443,7 +2463,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
             create_notification(
                 user_id=projekt.makler_id,
                 titel="💰 Preisangebot in Ihrem Projekt",
-                nachricht=f"{von_name} ({von_rolle}) hat ein Angebot über {betrag:,.2f} € für {projekt.name} gemacht.",
+                nachricht=f"{von_name} ({von_rolle}) hat ein Angebot über {format_euro(betrag)} € für {projekt.name} gemacht.",
                 typ=NotificationType.INFO.value
             )
 
@@ -2476,7 +2496,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="✅ Preisangebot angenommen!",
-                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde angenommen! Der Kaufpreis wurde aktualisiert.",
+                nachricht=f"Ihr Angebot über {format_euro(angebot.betrag)} € für {projekt.name} wurde angenommen! Der Kaufpreis wurde aktualisiert.",
                 typ=NotificationType.SUCCESS.value
             )
 
@@ -2485,7 +2505,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
                 create_notification(
                     user_id=projekt.makler_id,
                     titel="✅ Preiseinigung erzielt",
-                    nachricht=f"Käufer und Verkäufer haben sich auf {angebot.betrag:,.2f} € für {projekt.name} geeinigt. Kaufpreis wurde von {alter_preis:,.2f} € aktualisiert.",
+                    nachricht=f"Käufer und Verkäufer haben sich auf {format_euro(angebot.betrag)} € für {projekt.name} geeinigt. Kaufpreis wurde von {format_euro(alter_preis)} € aktualisiert.",
                     typ=NotificationType.SUCCESS.value
                 )
 
@@ -2494,7 +2514,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
                 create_notification(
                     user_id=projekt.notar_id,
                     titel="💰 Preiseinigung für Beurkundung",
-                    nachricht=f"Für {projekt.name} wurde eine Preiseinigung über {angebot.betrag:,.2f} € erzielt. Bitte Beurkundungstermin vorbereiten.",
+                    nachricht=f"Für {projekt.name} wurde eine Preiseinigung über {format_euro(angebot.betrag)} € erzielt. Bitte Beurkundungstermin vorbereiten.",
                     typ=NotificationType.INFO.value
                 )
 
@@ -2509,7 +2529,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="❌ Preisangebot abgelehnt",
-                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde abgelehnt. {antwort_nachricht}",
+                nachricht=f"Ihr Angebot über {format_euro(angebot.betrag)} € für {projekt.name} wurde abgelehnt. {antwort_nachricht}",
                 typ=NotificationType.WARNING.value
             )
         elif neuer_status == PreisangebotStatus.GEGENANGEBOT.value and gegenangebot_betrag:
@@ -2530,7 +2550,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="💬 Gegenangebot erhalten",
-                nachricht=f"Auf Ihr Angebot über {angebot.betrag:,.2f} € wurde ein Gegenangebot von {gegenangebot_betrag:,.2f} € gemacht.",
+                nachricht=f"Auf Ihr Angebot über {format_euro(angebot.betrag)} € wurde ein Gegenangebot von {format_euro(gegenangebot_betrag)} € gemacht.",
                 typ=NotificationType.INFO.value
             )
 
@@ -5229,7 +5249,7 @@ def generate_expose_druckversion(expose: 'ExposeData') -> str:
         <div class="header">
             <h1>{expose.objekttitel}</h1>
             <p>{expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}</p>
-            <div class="preis">{expose.kaufpreis:,.2f} €</div>
+            <div class="preis">{format_euro(expose.kaufpreis)} €</div>
         </div>
 
         <div class="content">
@@ -5297,15 +5317,15 @@ def generate_expose_druckversion(expose: 'ExposeData') -> str:
                 <table class="kosten-tabelle">
                     <tr>
                         <td>Kaufpreis</td>
-                        <td>{expose.kaufpreis:,.2f} €</td>
+                        <td>{format_euro(expose.kaufpreis)} €</td>
                     </tr>
                     <tr>
                         <td>Hausgeld (monatlich)</td>
-                        <td>{expose.hausgeld:,.2f} €</td>
+                        <td>{format_euro(expose.hausgeld)} €</td>
                     </tr>
                     <tr>
                         <td>Grundsteuer (jährlich)</td>
-                        <td>{expose.grundsteuer:,.2f} €</td>
+                        <td>{format_euro(expose.grundsteuer)} €</td>
                     </tr>
                     <tr>
                         <td>Provision</td>
@@ -5510,11 +5530,11 @@ def render_expose_editor(projekt: Projekt):
             diff = kaufpreis - preis_vorschlag
             diff_prozent = (diff / preis_vorschlag * 100) if preis_vorschlag > 0 else 0
             if diff_prozent > 10:
-                st.warning(f"Vorschlag: {preis_vorschlag:,.0f} € (+{diff_prozent:.1f}% über Markt)")
+                st.warning(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € (+{diff_prozent:.1f}% über Markt)")
             elif diff_prozent < -10:
-                st.info(f"Vorschlag: {preis_vorschlag:,.0f} € ({diff_prozent:.1f}% unter Markt)")
+                st.info(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € ({diff_prozent:.1f}% unter Markt)")
             else:
-                st.success(f"Vorschlag: {preis_vorschlag:,.0f} € (marktgerecht)")
+                st.success(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € (marktgerecht)")
     with col2:
         provision = st.text_input("Provision", value=expose.provision, placeholder="z.B. 3,57% inkl. MwSt.", key=f"expose_prov_{expose.expose_id}")
     with col3:
@@ -5601,7 +5621,7 @@ def render_expose_editor(projekt: Projekt):
             with col1:
                 st.markdown(f"[{vgl.get('titel', 'Vergleichsobjekt')}]({vgl.get('url', '#')})")
             with col2:
-                st.write(f"{vgl.get('preis', 0):,.0f} €")
+                st.write(f"{format_euro(vgl.get('preis', 0), 0)} €")
             with col3:
                 st.write(f"{vgl.get('flaeche', 0)} m² • {vgl.get('zimmer', 0)} Zi.")
             with col4:
@@ -5658,9 +5678,9 @@ def render_expose_editor(projekt: Projekt):
 
             st.info(f"""
             **Marktvergleich ({len(expose.vergleichsobjekte)} Objekte):**
-            - Ø Preis: {avg_preis:,.0f} €
+            - Ø Preis: {format_euro(avg_preis, 0)} €
             - Ø Fläche: {avg_flaeche:.0f} m²
-            - Ø Preis/m²: {avg_qm_preis:,.0f} €
+            - Ø Preis/m²: {format_euro(avg_qm_preis, 0)} €
             """)
 
             # Vergleich mit eigenem Objekt
@@ -5669,11 +5689,11 @@ def render_expose_editor(projekt: Projekt):
                 diff_prozent = ((eigener_qm_preis - avg_qm_preis) / avg_qm_preis * 100) if avg_qm_preis > 0 else 0
 
                 if diff_prozent > 5:
-                    st.warning(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² (+{diff_prozent:.1f}% über Markt)")
+                    st.warning(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² (+{diff_prozent:.1f}% über Markt)")
                 elif diff_prozent < -5:
-                    st.success(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² ({diff_prozent:.1f}% unter Markt)")
+                    st.success(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² ({diff_prozent:.1f}% unter Markt)")
                 else:
-                    st.success(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² (marktgerecht)")
+                    st.success(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² (marktgerecht)")
 
     # Bilder
     st.markdown("#### Bilder und Dokumente")
@@ -5812,7 +5832,7 @@ def render_expose_editor(projekt: Projekt):
         preview_html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: white; border: 1px solid #ddd;">
             <h1 style="color: #333;">{expose.objekttitel}</h1>
-            <p style="font-size: 1.2em; color: #e74c3c;"><strong>Kaufpreis: {expose.kaufpreis:,.2f} €</strong></p>
+            <p style="font-size: 1.2em; color: #e74c3c;"><strong>Kaufpreis: {format_euro(expose.kaufpreis)} €</strong></p>
 
             <h2>Objektbeschreibung</h2>
             <p>{expose.objektbeschreibung}</p>
@@ -6330,7 +6350,7 @@ def makler_projekte_view():
                 if projekt.adresse:
                     st.markdown(f"**Adresse:** {projekt.adresse}")
                 if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
                 st.markdown(f"**Status:** {projekt.status}")
                 st.markdown(f"**Erstellt:** {projekt.created_at.strftime('%d.%m.%Y')}")
 
@@ -6375,11 +6395,11 @@ def makler_projekte_view():
 
                     if angenommene:
                         einigung = angenommene[0]
-                        st.success(f"✅ **Preiseinigung erzielt:** {einigung.betrag:,.2f} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
+                        st.success(f"✅ **Preiseinigung erzielt:** {format_euro(einigung.betrag)} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
                     elif letztes_angebot and letztes_angebot.status == PreisangebotStatus.OFFEN.value:
                         von_user = st.session_state.users.get(letztes_angebot.von_user_id)
                         von_name = von_user.name if von_user else "Unbekannt"
-                        st.info(f"⏳ **Offenes Angebot:** {letztes_angebot.betrag:,.2f} € von {von_name} ({letztes_angebot.von_rolle})")
+                        st.info(f"⏳ **Offenes Angebot:** {format_euro(letztes_angebot.betrag)} € von {von_name} ({letztes_angebot.von_rolle})")
 
                     # Vollständiger Verlauf
                     st.markdown("**Verhandlungsverlauf:**")
@@ -6395,7 +6415,7 @@ def makler_projekte_view():
                         }.get(angebot.status, "❓")
 
                         st.markdown(f"""
-                        {status_icon} **{angebot.betrag:,.2f} €** - {von_name} ({angebot.von_rolle})
+                        {status_icon} **{format_euro(angebot.betrag)} €** - {von_name} ({angebot.von_rolle})
                         - Status: {angebot.status} | {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                         {"- *" + angebot.nachricht + "*" if angebot.nachricht else ""}
                         """)
@@ -6415,7 +6435,7 @@ def makler_projekte_view():
                         st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
                     with col2:
                         st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
-                        st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €")
+                        st.write(f"**Kaufpreis:** {format_euro(expose.kaufpreis)} €")
                     with col3:
                         st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y %H:%M')}")
                         if expose.adresse_validiert:
@@ -7176,7 +7196,7 @@ def kaeufer_projekte_view():
             if projekt.adresse:
                 st.markdown(f"**Adresse:** {projekt.adresse}")
             if projekt.kaufpreis > 0:
-                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
             if projekt.expose_pdf:
                 st.download_button(
@@ -7203,7 +7223,7 @@ def kaeufer_projekte_view():
 
                     if letztes_offenes.von_user_id == user_id:
                         # Eigenes offenes Angebot
-                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Verkäufers.")
+                        st.info(f"⏳ Ihr Angebot über **{format_euro(letztes_offenes.betrag)} €** wartet auf Antwort des Verkäufers.")
                         if letztes_offenes.nachricht:
                             st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
 
@@ -7213,7 +7233,7 @@ def kaeufer_projekte_view():
                             st.rerun()
                     else:
                         # Offenes Angebot vom Verkäufer
-                        st.warning(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        st.warning(f"📬 **{von_name}** bietet **{format_euro(letztes_offenes.betrag)} €**")
                         if letztes_offenes.nachricht:
                             st.caption(f"Nachricht: {letztes_offenes.nachricht}")
 
@@ -7271,7 +7291,7 @@ def kaeufer_projekte_view():
                             betrag=angebot_betrag,
                             nachricht=angebot_nachricht
                         )
-                        st.success(f"Angebot über {angebot_betrag:,.2f} € gesendet!")
+                        st.success(f"Angebot über {format_euro(angebot_betrag)} € gesendet!")
                         st.rerun()
 
                 # Zeige Verhandlungsverlauf
@@ -7289,7 +7309,7 @@ def kaeufer_projekte_view():
                             }.get(angebot.status, "❓")
 
                             st.markdown(f"""
-                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            {status_icon} **{format_euro(angebot.betrag)} €** von {von_name} ({angebot.von_rolle})
                             - Status: {angebot.status}
                             - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                             {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
@@ -8163,7 +8183,7 @@ def render_idee_item(idee: IdeenboardEintrag):
             st.caption(idee.beschreibung)
 
         if idee.geschaetzte_kosten > 0:
-            st.caption(f"💰 Geschätzte Kosten: {idee.geschaetzte_kosten:,.2f} €")
+            st.caption(f"💰 Geschätzte Kosten: {format_euro(idee.geschaetzte_kosten)} €")
 
     with col2:
         if idee.bild_url:
@@ -8241,7 +8261,7 @@ def kaeufer_finanzierung_anfragen(projekte):
         st.session_state.finanzierer_einladungen = {}
 
     for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €", expanded=True):
+        with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €", expanded=True):
             # Prüfe ob bereits Finanzierungsanfrage existiert
             bestehende_anfrage = None
             for anfrage in st.session_state.finanzierungsanfragen.values():
@@ -8256,9 +8276,9 @@ def kaeufer_finanzierung_anfragen(projekte):
 
                 if bestehende_anfrage:
                     st.success("✅ Finanzierungsanfrage gestellt")
-                    st.write(f"**Kaufpreis:** {bestehende_anfrage.kaufpreis:,.2f} €")
-                    st.write(f"**Eigenkapital:** {bestehende_anfrage.eigenkapital:,.2f} €")
-                    st.write(f"**Finanzierungsbetrag:** {bestehende_anfrage.finanzierungsbetrag:,.2f} €")
+                    st.write(f"**Kaufpreis:** {format_euro(bestehende_anfrage.kaufpreis)} €")
+                    st.write(f"**Eigenkapital:** {format_euro(bestehende_anfrage.eigenkapital)} €")
+                    st.write(f"**Finanzierungsbetrag:** {format_euro(bestehende_anfrage.finanzierungsbetrag)} €")
                     if bestehende_anfrage.dokumente_freigegeben:
                         st.info("📄 Dokumente für Finanzierer freigegeben")
                 else:
@@ -8279,7 +8299,7 @@ def kaeufer_finanzierung_anfragen(projekte):
                         )
                         finanzierungsbetrag = kaufpreis - eigenkapital
 
-                        st.metric("Zu finanzierender Betrag", f"{finanzierungsbetrag:,.2f} €")
+                        st.metric("Zu finanzierender Betrag", f"{format_euro(finanzierungsbetrag)} €")
 
                         dokumente_freigeben = st.checkbox(
                             "Meine Unterlagen für Finanzierer freigeben",
@@ -8414,14 +8434,14 @@ def kaeufer_finanzierungsangebote():
             # Haupt-Konditionen
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
                 st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
                 if offer.effektivzins > 0:
                     st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
 
             with col2:
                 st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
-                st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
                 st.metric("Sollzinsbindung", f"{offer.sollzinsbindung} Jahre")
 
             with col3:
@@ -8555,11 +8575,11 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
         # Zusammenfassung
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Monatliche Rate", f"{anfaengliche_rate:,.2f} €")
+            st.metric("Monatliche Rate", f"{format_euro(anfaengliche_rate)} €")
         with col2:
-            st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+            st.metric("Gesamtzinsen", f"{format_euro(gesamt_zinsen)} €")
         with col3:
-            st.metric("Restschuld nach Laufzeit", f"{tilgungsplan[-1]['Restschuld']:,.2f} €")
+            st.metric("Restschuld nach Laufzeit", f"{format_euro(tilgungsplan[-1]['Restschuld'])} €")
 
         # Jährliche Zusammenfassung
         anzeige_option = st.radio(
@@ -8579,9 +8599,9 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
 
             st.dataframe(
                 df_jaehrlich.style.format({
-                    'Zinsen (€)': '{:,.2f}',
-                    'Tilgung (€)': '{:,.2f}',
-                    'Restschuld (€)': '{:,.2f}'
+                    'Zinsen (€)': lambda x: format_euro(x),
+                    'Tilgung (€)': lambda x: format_euro(x),
+                    'Restschuld (€)': lambda x: format_euro(x)
                 }),
                 use_container_width=True,
                 height=400
@@ -8592,10 +8612,10 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
 
             st.dataframe(
                 df_monatlich.style.format({
-                    'Rate (€)': '{:,.2f}',
-                    'Zinsen (€)': '{:,.2f}',
-                    'Tilgung (€)': '{:,.2f}',
-                    'Restschuld (€)': '{:,.2f}'
+                    'Rate (€)': lambda x: format_euro(x),
+                    'Zinsen (€)': lambda x: format_euro(x),
+                    'Tilgung (€)': lambda x: format_euro(x),
+                    'Restschuld (€)': lambda x: format_euro(x)
                 }),
                 use_container_width=True,
                 height=400
@@ -8804,7 +8824,7 @@ def kaeufer_finanzierungsrechner():
         )
 
         darlehensbetrag = finanzierungsbetrag - eigenkapital
-        st.metric("Darlehensbetrag", f"{darlehensbetrag:,.2f} €")
+        st.metric("Darlehensbetrag", f"{format_euro(darlehensbetrag)} €")
 
     with col2:
         st.markdown("#### 📊 Konditionen")
@@ -8983,22 +9003,22 @@ def kaeufer_finanzierungsrechner():
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Monatliche Rate", f"{monatliche_rate:,.2f} €")
+                st.metric("Monatliche Rate", f"{format_euro(monatliche_rate)} €")
             with col2:
-                st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+                st.metric("Gesamtzinsen", f"{format_euro(gesamt_zinsen)} €")
             with col3:
-                st.metric("Restschuld", f"{letzte_restschuld:,.2f} €")
+                st.metric("Restschuld", f"{format_euro(letzte_restschuld)} €")
             with col4:
                 st.metric("Laufzeit", f"{laufzeit_effektiv // 12} J. {laufzeit_effektiv % 12} M.")
 
             # Zusätzliche Infos
             gesamtkosten = gesamt_zinsen + darlehensbetrag
-            st.info(f"💰 **Gesamtkosten des Kredits:** {gesamtkosten:,.2f} € (Darlehensbetrag + Zinsen)")
+            st.info(f"💰 **Gesamtkosten des Kredits:** {format_euro(gesamtkosten)} € (Darlehensbetrag + Zinsen)")
 
             if sollzinsbindung * 12 < laufzeit_effektiv and not vollltilger:
                 restschuld_bei_bindung = df[df['Monat'] == sollzinsbindung * 12]['Restschuld'].values
                 if len(restschuld_bei_bindung) > 0:
-                    st.warning(f"⚠️ **Restschuld nach {sollzinsbindung} Jahren Sollzinsbindung:** {restschuld_bei_bindung[0]:,.2f} €")
+                    st.warning(f"⚠️ **Restschuld nach {sollzinsbindung} Jahren Sollzinsbindung:** {format_euro(restschuld_bei_bindung[0])} €")
 
             # Tilgungsplan anzeigen
             st.markdown("---")
@@ -9021,9 +9041,9 @@ def kaeufer_finanzierungsrechner():
 
                 st.dataframe(
                     df_jaehrlich.style.format({
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -9035,10 +9055,10 @@ def kaeufer_finanzierungsrechner():
 
                 st.dataframe(
                     df_display.style.format({
-                        'Rate (€)': '{:,.2f}',
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Rate (€)': lambda x: format_euro(x),
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -9050,10 +9070,10 @@ def kaeufer_finanzierungsrechner():
 
                 st.dataframe(
                     df_24.style.format({
-                        'Rate (€)': '{:,.2f}',
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Rate (€)': lambda x: format_euro(x),
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -9373,7 +9393,7 @@ def verkaeufer_projekte_view():
             if projekt.adresse:
                 st.markdown(f"**Adresse:** {projekt.adresse}")
             if projekt.kaufpreis > 0:
-                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
             st.markdown(f"**Status:** {projekt.status}")
 
             # === PREISVERHANDLUNG ===
@@ -9391,7 +9411,7 @@ def verkaeufer_projekte_view():
 
                     if letztes_offenes.von_user_id == user_id:
                         # Eigenes offenes Angebot
-                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Käufers.")
+                        st.info(f"⏳ Ihr Angebot über **{format_euro(letztes_offenes.betrag)} €** wartet auf Antwort des Käufers.")
                         if letztes_offenes.nachricht:
                             st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
 
@@ -9401,7 +9421,7 @@ def verkaeufer_projekte_view():
                             st.rerun()
                     else:
                         # Offenes Angebot vom Käufer
-                        st.success(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        st.success(f"📬 **{von_name}** bietet **{format_euro(letztes_offenes.betrag)} €**")
                         if letztes_offenes.nachricht:
                             st.caption(f"Nachricht: {letztes_offenes.nachricht}")
 
@@ -9459,7 +9479,7 @@ def verkaeufer_projekte_view():
                             betrag=angebot_betrag,
                             nachricht=angebot_nachricht
                         )
-                        st.success(f"Preisvorschlag über {angebot_betrag:,.2f} € gesendet!")
+                        st.success(f"Preisvorschlag über {format_euro(angebot_betrag)} € gesendet!")
                         st.rerun()
 
                 # Zeige Verhandlungsverlauf
@@ -9477,7 +9497,7 @@ def verkaeufer_projekte_view():
                             }.get(angebot.status, "❓")
 
                             st.markdown(f"""
-                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            {status_icon} **{format_euro(angebot.betrag)} €** von {von_name} ({angebot.von_rolle})
                             - Status: {angebot.status}
                             - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                             {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
@@ -10070,16 +10090,16 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
         elif verbleibend <= 3:
             ablauf_info = f" ⚠️ {verbleibend}T"
 
-    with st.expander(f"{icon} {projekt_name} - {titel} | {offer.darlehensbetrag:,.0f} € | {offer.zinssatz}%{ablauf_info}"):
+    with st.expander(f"{icon} {projekt_name} - {titel} | {format_euro(offer.darlehensbetrag, 0)} € | {offer.zinssatz}%{ablauf_info}"):
         # Konditionen
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+            st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
             st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
             if offer.effektivzins > 0:
                 st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
         with col2:
-            st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+            st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
             st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
             st.metric("Laufzeit", f"{offer.gesamtlaufzeit} Jahre")
         with col3:
@@ -10279,7 +10299,7 @@ def notar_projekte_view():
                 if projekt.adresse:
                     st.markdown(f"**Adresse:** {projekt.adresse}")
                 if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
             with col2:
                 st.markdown("**Parteien:**")
@@ -10339,10 +10359,10 @@ def notar_preiseinigungen_view():
             kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids if st.session_state.users.get(kid)]
             verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids if st.session_state.users.get(vid)]
 
-            with st.expander(f"🏠 {projekt.name} - {einigung.betrag:,.2f} €", expanded=True):
+            with st.expander(f"🏠 {projekt.name} - {format_euro(einigung.betrag)} €", expanded=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown(f"**Kaufpreis:** {einigung.betrag:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(einigung.betrag)} €")
                     st.markdown(f"**Einigung am:** {einigung.beantwortet_am.strftime('%d.%m.%Y %H:%M') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
                     st.markdown(f"**Adresse:** {projekt.adresse or 'Nicht angegeben'}")
                 with col2:
@@ -10385,14 +10405,14 @@ def notar_preiseinigungen_view():
         for projekt, letztes in offene_verhandlungen:
             von_user = st.session_state.users.get(letztes.von_user_id)
             von_name = von_user.name if von_user else "Unbekannt"
-            st.info(f"**{projekt.name}**: Offenes Angebot von {von_name} ({letztes.von_rolle}) über {letztes.betrag:,.2f} €")
+            st.info(f"**{projekt.name}**: Offenes Angebot von {von_name} ({letztes.von_rolle}) über {format_euro(letztes.betrag)} €")
 
     # Ohne Verhandlung
     if ohne_verhandlung:
         st.markdown("---")
         st.markdown("### 📋 Ohne aktive Preisverhandlung")
         for projekt in ohne_verhandlung:
-            st.write(f"• {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €")
+            st.write(f"• {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €")
 
 
 def notar_checklisten_view():
@@ -10694,10 +10714,10 @@ def notar_finanzierungsnachweise():
                 with st.expander(f"{icon} Finanzierung von {finanzierer_name}", expanded=offer.fuer_notar_markiert):
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                        st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
                         st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
                     with col2:
-                        st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                        st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
                         st.metric("Angenommen am", offer.accepted_at.strftime("%d.%m.%Y"))
 
                     if offer.fuer_notar_markiert:
@@ -10865,7 +10885,7 @@ def render_vertrag_datenuebersicht(projekt):
             st.write(f"**Objektart:** {expose.objektart}")
             st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
         with col2:
-            st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €" if expose.kaufpreis else "**Kaufpreis:** N/A")
+            st.write(f"**Kaufpreis:** {format_euro(expose.kaufpreis)} €" if expose.kaufpreis else "**Kaufpreis:** N/A")
             st.write(f"**Grundstücksfläche:** {expose.grundstuecksflaeche} m²" if expose.grundstuecksflaeche else "")
             st.write(f"**Baujahr:** {expose.baujahr}" if expose.baujahr else "")
             st.write(f"**Zimmer:** {expose.anzahl_zimmer}" if expose.anzahl_zimmer else "")
@@ -10893,7 +10913,7 @@ def render_vertrag_datenuebersicht(projekt):
                 if o.projekt_id == projekt.projekt_id and o.status == "Angenommen"]
     if angebote:
         for angebot in angebote:
-            st.success(f"✅ Finanzierung gesichert: {angebot.betrag:,.2f} € bei {angebot.zinssatz}% Zinsen")
+            st.success(f"✅ Finanzierung gesichert: {format_euro(angebot.betrag)} € bei {angebot.zinssatz}% Zinsen")
     else:
         st.warning("⚠️ Keine angenommene Finanzierung")
 
@@ -11031,7 +11051,7 @@ Adresse: {kaeufer_personal.get('strasse', '')} {kaeufer_personal.get('hausnummer
         objekt_data = f"""Adresse: {expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}
 Objektart: {expose.objektart}
 Wohnfläche: {expose.wohnflaeche} m²
-Kaufpreis: {expose.kaufpreis:,.2f} EUR"""
+Kaufpreis: {format_euro(expose.kaufpreis)} EUR"""
 
     prompt = f"""Erstelle einen professionellen deutschen Kaufvertragsentwurf.
 
@@ -12446,7 +12466,7 @@ def notarmitarbeiter_dashboard():
                             if projekt.adresse:
                                 st.markdown(f"**Adresse:** {projekt.adresse}")
                             if projekt.kaufpreis > 0:
-                                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
                         with col2:
                             st.markdown("**Parteien:**")
@@ -12558,14 +12578,14 @@ def notarmitarbeiter_dashboard():
                                     col1, col2 = st.columns(2)
 
                                     with col1:
-                                        st.write(f"**Darlehensbetrag:** {offer.darlehensbetrag:,.2f} €")
+                                        st.write(f"**Darlehensbetrag:** {format_euro(offer.darlehensbetrag)} €")
                                         st.write(f"**Zinssatz:** {offer.zinssatz}%")
                                         st.write(f"**Sollzinsbindung:** {offer.sollzinsbindung} Jahre")
                                         st.write(f"**Tilgungssatz:** {offer.tilgungssatz}%")
 
                                     with col2:
                                         st.write(f"**Gesamtlaufzeit:** {offer.gesamtlaufzeit} Jahre")
-                                        st.write(f"**Monatliche Rate:** {offer.monatliche_rate:,.2f} €")
+                                        st.write(f"**Monatliche Rate:** {format_euro(offer.monatliche_rate)} €")
                                         st.write(f"**Angenommen am:** {offer.accepted_at.strftime('%d.%m.%Y') if offer.accepted_at else 'N/A'}")
 
                                     if offer.besondere_bedingungen:
