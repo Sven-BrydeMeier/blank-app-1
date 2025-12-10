@@ -935,6 +935,486 @@ def render_avatar(name: str, size: str = ""):
     return f'<div class="avatar {size_class}">{initials}</div>'
 
 # ============================================================================
+# AKTENTASCHE - UI FUNKTIONEN
+# ============================================================================
+
+def get_or_create_aktentasche(user_id: str) -> 'Aktentasche':
+    """Holt oder erstellt die Aktentasche eines Benutzers"""
+    if 'aktentaschen' not in st.session_state:
+        st.session_state.aktentaschen = {}
+
+    if user_id not in st.session_state.aktentaschen:
+        from dataclasses import dataclass, field
+        st.session_state.aktentaschen[user_id] = Aktentasche(user_id=user_id)
+
+    return st.session_state.aktentaschen[user_id]
+
+def add_to_aktentasche(
+    user_id: str,
+    inhalt_typ: str,
+    titel: str,
+    beschreibung: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    dateiname: str = "",
+    dateigröße: int = 0,
+    pdf_data: bytes = None,
+    projekt_id: str = "",
+    projekt_name: str = ""
+) -> str:
+    """Fügt ein Element zur Aktentasche hinzu"""
+    aktentasche = get_or_create_aktentasche(user_id)
+
+    inhalt_id = f"akt_{user_id}_{len(aktentasche.inhalte)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    inhalt = AktentascheInhalt(
+        inhalt_id=inhalt_id,
+        inhalt_typ=inhalt_typ,
+        titel=titel,
+        beschreibung=beschreibung,
+        referenz_id=referenz_id,
+        referenz_typ=referenz_typ,
+        dateiname=dateiname,
+        dateigröße=dateigröße,
+        pdf_data=pdf_data,
+        projekt_id=projekt_id,
+        projekt_name=projekt_name
+    )
+
+    aktentasche.inhalte[inhalt_id] = inhalt
+    aktentasche.zuletzt_geaendert = datetime.now()
+
+    return inhalt_id
+
+def remove_from_aktentasche(user_id: str, inhalt_id: str) -> bool:
+    """Entfernt ein Element aus der Aktentasche"""
+    aktentasche = get_or_create_aktentasche(user_id)
+
+    if inhalt_id in aktentasche.inhalte:
+        del aktentasche.inhalte[inhalt_id]
+        aktentasche.zuletzt_geaendert = datetime.now()
+        return True
+    return False
+
+def get_projekt_beteiligte(projekt_id: str) -> List[Dict[str, str]]:
+    """Holt alle Beteiligten eines Projekts für die Freigabe"""
+    beteiligte = []
+    projekt = st.session_state.projekte.get(projekt_id)
+
+    if not projekt:
+        return beteiligte
+
+    # Makler
+    if projekt.makler_id:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            beteiligte.append({
+                "user_id": makler.user_id,
+                "name": makler.name,
+                "rolle": "Makler",
+                "email": makler.email
+            })
+
+    # Käufer
+    for kid in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kid)
+        if kaeufer:
+            beteiligte.append({
+                "user_id": kaeufer.user_id,
+                "name": kaeufer.name,
+                "rolle": "Käufer",
+                "email": kaeufer.email
+            })
+
+    # Verkäufer
+    for vid in projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(vid)
+        if verkaeufer:
+            beteiligte.append({
+                "user_id": verkaeufer.user_id,
+                "name": verkaeufer.name,
+                "rolle": "Verkäufer",
+                "email": verkaeufer.email
+            })
+
+    # Finanzierer
+    for fid in projekt.finanzierer_ids:
+        finanzierer = st.session_state.users.get(fid)
+        if finanzierer:
+            beteiligte.append({
+                "user_id": finanzierer.user_id,
+                "name": finanzierer.name,
+                "rolle": "Finanzierer",
+                "email": finanzierer.email
+            })
+
+    # Notar
+    if projekt.notar_id:
+        notar = st.session_state.users.get(projekt.notar_id)
+        if notar:
+            beteiligte.append({
+                "user_id": notar.user_id,
+                "name": notar.name,
+                "rolle": "Notar",
+                "email": notar.email
+            })
+
+    return beteiligte
+
+def render_aktentasche_sidebar(user_id: str, aktives_projekt_id: str = ""):
+    """Rendert die Aktentasche in der Sidebar"""
+    aktentasche = get_or_create_aktentasche(user_id)
+    anzahl_inhalte = len(aktentasche.inhalte)
+
+    # Aktentasche-Button mit Badge
+    with st.sidebar:
+        st.markdown("---")
+
+        # Expander für die Aktentasche
+        with st.expander(f"💼 Aktentasche ({anzahl_inhalte})", expanded=False):
+            if anzahl_inhalte == 0:
+                st.info("Ihre Aktentasche ist leer.\n\nFügen Sie Dokumente, Angebote oder andere Inhalte hinzu, um sie später zu teilen oder herunterzuladen.")
+            else:
+                # Filter-Optionen
+                filter_typ = st.selectbox(
+                    "Filter",
+                    options=["Alle", "Dokumente", "Angebote", "Finanzierungsangebote", "Exposés", "Sonstiges"],
+                    key="aktentasche_filter"
+                )
+
+                # Inhalte filtern
+                inhalte_liste = list(aktentasche.inhalte.values())
+
+                if filter_typ != "Alle":
+                    typ_mapping = {
+                        "Dokumente": AktentascheInhaltTyp.DOKUMENT.value,
+                        "Angebote": AktentascheInhaltTyp.ANGEBOT.value,
+                        "Finanzierungsangebote": AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value,
+                        "Exposés": AktentascheInhaltTyp.EXPOSE.value,
+                        "Sonstiges": AktentascheInhaltTyp.SONSTIGES.value
+                    }
+                    inhalte_liste = [i for i in inhalte_liste if i.inhalt_typ == typ_mapping.get(filter_typ, "")]
+
+                # Sortieren nach Datum (neueste zuerst)
+                inhalte_liste.sort(key=lambda x: x.hinzugefuegt_am, reverse=True)
+
+                # Checkbox für Mehrfachauswahl
+                if 'aktentasche_auswahl' not in st.session_state:
+                    st.session_state.aktentasche_auswahl = []
+
+                st.markdown("##### Inhalte")
+
+                for inhalt in inhalte_liste:
+                    col1, col2 = st.columns([0.15, 0.85])
+
+                    with col1:
+                        selected = st.checkbox(
+                            "",
+                            key=f"akt_sel_{inhalt.inhalt_id}",
+                            value=inhalt.inhalt_id in st.session_state.aktentasche_auswahl
+                        )
+                        if selected and inhalt.inhalt_id not in st.session_state.aktentasche_auswahl:
+                            st.session_state.aktentasche_auswahl.append(inhalt.inhalt_id)
+                        elif not selected and inhalt.inhalt_id in st.session_state.aktentasche_auswahl:
+                            st.session_state.aktentasche_auswahl.remove(inhalt.inhalt_id)
+
+                    with col2:
+                        # Icon basierend auf Typ
+                        typ_icons = {
+                            AktentascheInhaltTyp.DOKUMENT.value: "📄",
+                            AktentascheInhaltTyp.ANGEBOT.value: "💰",
+                            AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value: "🏦",
+                            AktentascheInhaltTyp.EXPOSE.value: "🏠",
+                            AktentascheInhaltTyp.VERTRAG.value: "📜",
+                            AktentascheInhaltTyp.NACHRICHT.value: "✉️",
+                            AktentascheInhaltTyp.SONSTIGES.value: "📎"
+                        }
+                        icon = typ_icons.get(inhalt.inhalt_typ, "📎")
+
+                        st.markdown(f"**{icon} {inhalt.titel}**")
+                        if inhalt.projekt_name:
+                            st.caption(f"{inhalt.projekt_name}")
+                        st.caption(f"{inhalt.hinzugefuegt_am.strftime('%d.%m.%Y %H:%M')}")
+
+                # Aktionen für ausgewählte Elemente
+                if st.session_state.aktentasche_auswahl:
+                    st.markdown("---")
+                    st.markdown(f"**{len(st.session_state.aktentasche_auswahl)} ausgewählt**")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        if st.button("📤 Teilen", key="akt_teilen", use_container_width=True):
+                            st.session_state.aktentasche_teilen_dialog = True
+
+                    with col2:
+                        if st.button("⬇️ Download", key="akt_download", use_container_width=True):
+                            st.session_state.aktentasche_download = True
+
+                    with col3:
+                        if st.button("🗑️ Entfernen", key="akt_entfernen", use_container_width=True):
+                            for inhalt_id in st.session_state.aktentasche_auswahl:
+                                remove_from_aktentasche(user_id, inhalt_id)
+                            st.session_state.aktentasche_auswahl = []
+                            st.rerun()
+
+def render_aktentasche_teilen_dialog(user_id: str):
+    """Rendert den Dialog zum Teilen von Aktentasche-Inhalten"""
+    if not st.session_state.get('aktentasche_teilen_dialog', False):
+        return
+
+    aktentasche = get_or_create_aktentasche(user_id)
+    ausgewaehlte_ids = st.session_state.get('aktentasche_auswahl', [])
+
+    if not ausgewaehlte_ids:
+        st.session_state.aktentasche_teilen_dialog = False
+        return
+
+    st.markdown("### 📤 Inhalte teilen")
+
+    # Ausgewählte Inhalte anzeigen
+    st.markdown("**Ausgewählte Inhalte:**")
+    for inhalt_id in ausgewaehlte_ids:
+        inhalt = aktentasche.inhalte.get(inhalt_id)
+        if inhalt:
+            st.markdown(f"- {inhalt.titel}")
+
+    st.markdown("---")
+
+    # Versand-Methode wählen
+    versand_methode = st.radio(
+        "Versand an",
+        options=["👥 Projektbeteiligte", "📧 E-Mail an Dritte", "🔗 Download-Link erstellen"],
+        key="teilen_methode"
+    )
+
+    if versand_methode == "👥 Projektbeteiligte":
+        # Projekt auswählen falls mehrere
+        user = st.session_state.users.get(user_id)
+        projekte = [st.session_state.projekte.get(pid) for pid in user.projekt_ids if st.session_state.projekte.get(pid)]
+
+        if projekte:
+            projekt_auswahl = st.selectbox(
+                "Projekt",
+                options=[p.name for p in projekte],
+                key="teilen_projekt"
+            )
+
+            ausgewaehltes_projekt = next((p for p in projekte if p.name == projekt_auswahl), None)
+
+            if ausgewaehltes_projekt:
+                beteiligte = get_projekt_beteiligte(ausgewaehltes_projekt.projekt_id)
+                # Eigenen User ausschließen
+                beteiligte = [b for b in beteiligte if b['user_id'] != user_id]
+
+                if beteiligte:
+                    st.markdown("**Empfänger auswählen:**")
+                    empfaenger_auswahl = []
+
+                    for b in beteiligte:
+                        if st.checkbox(f"{b['name']} ({b['rolle']})", key=f"empf_{b['user_id']}"):
+                            empfaenger_auswahl.append(b['user_id'])
+
+                    nachricht = st.text_area(
+                        "Nachricht (optional)",
+                        placeholder="Fügen Sie eine persönliche Nachricht hinzu...",
+                        key="teilen_nachricht"
+                    )
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("📤 Senden", type="primary", use_container_width=True):
+                            if empfaenger_auswahl:
+                                # Benachrichtigungen erstellen
+                                absender = st.session_state.users.get(user_id)
+                                for emp_id in empfaenger_auswahl:
+                                    titel_liste = [aktentasche.inhalte[i].titel for i in ausgewaehlte_ids if i in aktentasche.inhalte]
+                                    create_notification(
+                                        user_id=emp_id,
+                                        titel="💼 Dokumente aus Aktentasche erhalten",
+                                        nachricht=f"{absender.name} hat Ihnen {len(titel_liste)} Dokument(e) gesendet: {', '.join(titel_liste[:3])}{'...' if len(titel_liste) > 3 else ''}",
+                                        typ=NotificationType.INFO.value
+                                    )
+
+                                    # Inhalte zur Aktentasche des Empfängers kopieren
+                                    for inhalt_id in ausgewaehlte_ids:
+                                        original = aktentasche.inhalte.get(inhalt_id)
+                                        if original:
+                                            add_to_aktentasche(
+                                                user_id=emp_id,
+                                                inhalt_typ=original.inhalt_typ,
+                                                titel=f"{original.titel} (von {absender.name})",
+                                                beschreibung=original.beschreibung,
+                                                referenz_id=original.referenz_id,
+                                                referenz_typ=original.referenz_typ,
+                                                dateiname=original.dateiname,
+                                                dateigröße=original.dateigröße,
+                                                pdf_data=original.pdf_data,
+                                                projekt_id=original.projekt_id,
+                                                projekt_name=original.projekt_name
+                                            )
+
+                                st.success(f"✅ An {len(empfaenger_auswahl)} Empfänger gesendet!")
+                                st.session_state.aktentasche_teilen_dialog = False
+                                st.session_state.aktentasche_auswahl = []
+                                st.rerun()
+                            else:
+                                st.warning("Bitte wählen Sie mindestens einen Empfänger.")
+
+                    with col2:
+                        if st.button("❌ Abbrechen", use_container_width=True):
+                            st.session_state.aktentasche_teilen_dialog = False
+                            st.rerun()
+                else:
+                    st.info("Keine anderen Projektbeteiligten gefunden.")
+        else:
+            st.info("Sie sind an keinem Projekt beteiligt.")
+
+    elif versand_methode == "📧 E-Mail an Dritte":
+        empfaenger_email = st.text_input(
+            "E-Mail-Adresse",
+            placeholder="empfaenger@beispiel.de",
+            key="teilen_email"
+        )
+        empfaenger_name = st.text_input(
+            "Name des Empfängers",
+            placeholder="Max Mustermann",
+            key="teilen_email_name"
+        )
+        betreff = st.text_input(
+            "Betreff",
+            value="Dokumente aus der Immobilien-Transaktionsplattform",
+            key="teilen_betreff"
+        )
+        nachricht = st.text_area(
+            "Nachricht",
+            placeholder="Sehr geehrte/r...",
+            key="teilen_email_nachricht"
+        )
+
+        # Gültigkeitsdauer
+        gueltigkeit = st.selectbox(
+            "Link gültig für",
+            options=["7 Tage", "14 Tage", "30 Tage", "Unbegrenzt"],
+            key="teilen_gueltigkeit"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📧 E-Mail senden", type="primary", use_container_width=True):
+                if empfaenger_email and "@" in empfaenger_email:
+                    # Hier würde die E-Mail-Versand-Logik implementiert
+                    st.success(f"✅ E-Mail wurde an {empfaenger_email} gesendet!")
+                    st.info("💡 Hinweis: In der Demo-Version wird keine echte E-Mail versendet.")
+                    st.session_state.aktentasche_teilen_dialog = False
+                    st.session_state.aktentasche_auswahl = []
+                    st.rerun()
+                else:
+                    st.warning("Bitte geben Sie eine gültige E-Mail-Adresse ein.")
+
+        with col2:
+            if st.button("❌ Abbrechen", use_container_width=True, key="email_abbrechen"):
+                st.session_state.aktentasche_teilen_dialog = False
+                st.rerun()
+
+    else:  # Download-Link erstellen
+        st.info("Ein Download-Link wird erstellt, den Sie kopieren und teilen können.")
+
+        gueltigkeit = st.selectbox(
+            "Link gültig für",
+            options=["24 Stunden", "7 Tage", "14 Tage", "30 Tage"],
+            key="download_gueltigkeit"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔗 Link erstellen", type="primary", use_container_width=True):
+                # Generiere einen simulierten Download-Link
+                link_id = uuid.uuid4().hex[:12]
+                download_link = f"https://immo-plattform.de/download/{link_id}"
+
+                st.success("✅ Download-Link erstellt!")
+                st.code(download_link)
+                st.info("💡 Kopieren Sie den Link und teilen Sie ihn mit dem Empfänger.")
+
+        with col2:
+            if st.button("❌ Abbrechen", use_container_width=True, key="link_abbrechen"):
+                st.session_state.aktentasche_teilen_dialog = False
+                st.rerun()
+
+def render_aktentasche_download(user_id: str):
+    """Rendert den Download-Dialog für Aktentasche-Inhalte"""
+    if not st.session_state.get('aktentasche_download', False):
+        return
+
+    aktentasche = get_or_create_aktentasche(user_id)
+    ausgewaehlte_ids = st.session_state.get('aktentasche_auswahl', [])
+
+    if not ausgewaehlte_ids:
+        st.session_state.aktentasche_download = False
+        return
+
+    st.markdown("### ⬇️ Inhalte herunterladen")
+
+    # Sammle alle Download-fähigen Inhalte
+    downloadable = []
+    for inhalt_id in ausgewaehlte_ids:
+        inhalt = aktentasche.inhalte.get(inhalt_id)
+        if inhalt and inhalt.pdf_data:
+            downloadable.append(inhalt)
+
+    if downloadable:
+        st.markdown(f"**{len(downloadable)} Dokument(e) zum Download verfügbar:**")
+
+        for inhalt in downloadable:
+            st.download_button(
+                label=f"📥 {inhalt.dateiname or inhalt.titel}",
+                data=inhalt.pdf_data,
+                file_name=inhalt.dateiname or f"{inhalt.titel}.pdf",
+                mime="application/pdf",
+                key=f"dl_{inhalt.inhalt_id}"
+            )
+    else:
+        st.info("Die ausgewählten Elemente enthalten keine herunterladbaren Dateien.")
+
+    if st.button("✅ Fertig", use_container_width=True):
+        st.session_state.aktentasche_download = False
+        st.session_state.aktentasche_auswahl = []
+        st.rerun()
+
+def render_zur_aktentasche_button(
+    user_id: str,
+    inhalt_typ: str,
+    titel: str,
+    beschreibung: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    dateiname: str = "",
+    dateigröße: int = 0,
+    pdf_data: bytes = None,
+    projekt_id: str = "",
+    projekt_name: str = "",
+    key_suffix: str = ""
+):
+    """Rendert einen Button zum Hinzufügen zur Aktentasche"""
+    if st.button(f"💼 Zur Aktentasche", key=f"zur_akt_{referenz_id}_{key_suffix}", help="In die Aktentasche legen"):
+        add_to_aktentasche(
+            user_id=user_id,
+            inhalt_typ=inhalt_typ,
+            titel=titel,
+            beschreibung=beschreibung,
+            referenz_id=referenz_id,
+            referenz_typ=referenz_typ,
+            dateiname=dateiname,
+            dateigröße=dateigröße,
+            pdf_data=pdf_data,
+            projekt_id=projekt_id,
+            projekt_name=projekt_name
+        )
+        st.success(f"✅ '{titel}' zur Aktentasche hinzugefügt!")
+        st.rerun()
+
+# ============================================================================
 # ENUMS UND KONSTANTEN
 # ============================================================================
 
@@ -1750,6 +2230,78 @@ class VerkäuferDokument:
     status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
 
 # ============================================================================
+# AKTENTASCHE - MOBILER DOKUMENTENORDNER
+# ============================================================================
+
+class AktentascheInhaltTyp(Enum):
+    """Typen von Inhalten in der Aktentasche"""
+    DOKUMENT = "Dokument"
+    ANGEBOT = "Angebot"
+    FINANZIERUNGSANGEBOT = "Finanzierungsangebot"
+    EXPOSE = "Exposé"
+    VERTRAG = "Vertrag"
+    NACHRICHT = "Nachricht"
+    SONSTIGES = "Sonstiges"
+
+@dataclass
+class AktentascheInhalt:
+    """Ein Element in der Aktentasche"""
+    inhalt_id: str
+    inhalt_typ: str  # AktentascheInhaltTyp
+    titel: str
+    beschreibung: str = ""
+
+    # Referenz zum Original-Objekt
+    referenz_id: str = ""  # ID des Originaldokuments/Angebots
+    referenz_typ: str = ""  # z.B. "VerkäuferDokument", "Preisangebot", "FinancingOffer"
+
+    # Datei-Daten (falls Dokument)
+    dateiname: str = ""
+    dateigröße: int = 0
+    pdf_data: Optional[bytes] = None
+
+    # Projekt-Bezug
+    projekt_id: str = ""
+    projekt_name: str = ""
+
+    hinzugefuegt_am: datetime = field(default_factory=datetime.now)
+    notizen: str = ""
+
+@dataclass
+class AktentascheFreigabe:
+    """Protokolliert eine Freigabe/Versand aus der Aktentasche"""
+    freigabe_id: str
+    aktentasche_user_id: str
+    inhalt_ids: List[str]  # Liste der freigegebenen Inhalte
+
+    # Empfänger
+    empfaenger_typ: str  # "projektbeteiligter", "email", "download"
+    empfaenger_user_ids: List[str] = field(default_factory=list)  # Bei Projektbeteiligten
+    empfaenger_email: str = ""  # Bei Email-Versand
+    empfaenger_name: str = ""  # Name des externen Empfängers
+
+    betreff: str = ""
+    nachricht: str = ""
+
+    freigabe_datum: datetime = field(default_factory=datetime.now)
+    abgelaufen_am: Optional[datetime] = None  # Optional: Ablaufdatum für Zugriff
+    download_link: str = ""  # Generierter Download-Link
+
+@dataclass
+class Aktentasche:
+    """Die persönliche Aktentasche eines Benutzers"""
+    user_id: str
+    inhalte: Dict[str, AktentascheInhalt] = field(default_factory=dict)
+    freigaben: List[AktentascheFreigabe] = field(default_factory=list)
+
+    # Einstellungen
+    sortierung: str = "datum_absteigend"  # datum_absteigend, datum_aufsteigend, name, typ
+    filter_typ: str = "alle"  # alle, dokumente, angebote, etc.
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+
+# ============================================================================
 # SESSION PERSISTENZ (COOKIES/LOCAL STORAGE)
 # ============================================================================
 
@@ -1925,6 +2477,9 @@ def init_session_state():
 
         # Ideenboard für Käufer
         st.session_state.ideenboard = {}  # ID -> IdeenboardEintrag
+
+        # Aktentaschen für alle Benutzer
+        st.session_state.aktentaschen = {}  # User-ID -> Aktentasche
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
@@ -6211,6 +6766,16 @@ def makler_dashboard():
     """Dashboard für Makler"""
     st.title("📊 Makler-Dashboard")
 
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("makler")
     if search_term:
@@ -7097,6 +7662,15 @@ def kaeufer_dashboard():
         # User muss erst Dokumente akzeptieren
         return
 
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("kaeufer")
     if search_term:
@@ -7199,12 +7773,30 @@ def kaeufer_projekte_view():
                 st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
             if projekt.expose_pdf:
-                st.download_button(
-                    "📥 Exposé herunterladen",
-                    projekt.expose_pdf,
-                    file_name=f"Expose_{projekt.name}.pdf",
-                    mime="application/pdf"
-                )
+                col_dl, col_akt = st.columns(2)
+                with col_dl:
+                    st.download_button(
+                        "📥 Exposé herunterladen",
+                        projekt.expose_pdf,
+                        file_name=f"Expose_{projekt.name}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with col_akt:
+                    render_zur_aktentasche_button(
+                        user_id=user_id,
+                        inhalt_typ=AktentascheInhaltTyp.EXPOSE.value,
+                        titel=f"Exposé {projekt.name}",
+                        beschreibung=projekt.adresse or "",
+                        referenz_id=projekt.projekt_id,
+                        referenz_typ="Projekt",
+                        dateiname=f"Expose_{projekt.name}.pdf",
+                        dateigröße=len(projekt.expose_pdf) if projekt.expose_pdf else 0,
+                        pdf_data=projekt.expose_pdf,
+                        projekt_id=projekt.projekt_id,
+                        projekt_name=projekt.name,
+                        key_suffix=f"expose_{projekt.projekt_id}"
+                    )
             else:
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
 
@@ -8473,13 +9065,32 @@ def kaeufer_finanzierungsangebote():
                     st.warning(f"⏰ Gültig bis: {offer.gueltig_bis.strftime('%d.%m.%Y %H:%M')}")
 
             if offer.pdf_data:
-                st.download_button(
-                    "📥 Angebot als PDF herunterladen",
-                    offer.pdf_data,
-                    file_name=f"Finanzierungsangebot_{offer.offer_id}.pdf",
-                    mime="application/pdf",
-                    key=f"dl_offer_{offer.offer_id}"
-                )
+                col_dl, col_akt = st.columns(2)
+                with col_dl:
+                    st.download_button(
+                        "📥 Angebot als PDF herunterladen",
+                        offer.pdf_data,
+                        file_name=f"Finanzierungsangebot_{offer.offer_id}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_offer_{offer.offer_id}",
+                        use_container_width=True
+                    )
+                with col_akt:
+                    projekt = st.session_state.projekte.get(offer.projekt_id)
+                    render_zur_aktentasche_button(
+                        user_id=user_id,
+                        inhalt_typ=AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value,
+                        titel=f"Finanzierungsangebot {finanzierer_name}",
+                        beschreibung=f"{offer.zinssatz}% Zinsen, {format_euro(offer.monatliche_rate)} €/Monat",
+                        referenz_id=offer.offer_id,
+                        referenz_typ="FinancingOffer",
+                        dateiname=f"Finanzierungsangebot_{offer.offer_id}.pdf",
+                        dateigröße=len(offer.pdf_data) if offer.pdf_data else 0,
+                        pdf_data=offer.pdf_data,
+                        projekt_id=offer.projekt_id,
+                        projekt_name=projekt.name if projekt else "",
+                        key_suffix=f"fin_{offer.offer_id}"
+                    )
 
             if offer.status == FinanzierungsStatus.GESENDET.value:
                 st.markdown("---")
@@ -9141,6 +9752,15 @@ def verkaeufer_dashboard():
         # User muss erst Dokumente akzeptieren
         return
 
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("verkaeufer")
     if search_term:
@@ -9747,6 +10367,16 @@ def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
     st.title("💼 Finanzierer-Dashboard")
 
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("finanzierer")
     if search_term:
@@ -10183,6 +10813,16 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 def notar_dashboard():
     """Dashboard für Notar"""
     st.title("⚖️ Notar-Dashboard")
+
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
 
     # Suchleiste
     search_term = render_dashboard_search("notar")
