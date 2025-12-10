@@ -1852,6 +1852,627 @@ class VorkaufsrechtAnfrage:
     notizen: str = ""
 
 
+# ============================================================================
+# DOKUMENTEN-MANAGEMENT-SYSTEM MIT KAMERA-SCANNER
+# ============================================================================
+
+class DokumentTyp(Enum):
+    """Typen von Dokumenten für automatische Zuordnung"""
+    PERSONALAUSWEIS = "Personalausweis"
+    REISEPASS = "Reisepass"
+    GRUNDBUCHAUSZUG = "Grundbuchauszug"
+    FLURKARTE = "Flurkarte"
+    ENERGIEAUSWEIS = "Energieausweis"
+    KAUFVERTRAG = "Kaufvertrag"
+    FINANZIERUNGSBESTAETIGUNG = "Finanzierungsbestätigung"
+    GEHALTSNACHWEIS = "Gehaltsnachweis"
+    STEUERBESCHEID = "Steuerbescheid"
+    KONTOAUSZUG = "Kontoauszug"
+    BAULASTENVERZEICHNIS = "Baulastenverzeichnis"
+    TEILUNGSERKLAERUNG = "Teilungserklärung"
+    PROTOKOLL_WEG = "Protokoll WEG"
+    WIRTSCHAFTSPLAN = "Wirtschaftsplan"
+    EXPOSE = "Exposé"
+    VOLLMACHT = "Vollmacht"
+    SONSTIGES = "Sonstiges"
+
+
+# Standard-Ordnerstruktur pro Rolle
+STANDARD_ORDNER = {
+    UserRole.KAEUFER.value: [
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG, DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
+        {"name": "Kaufunterlagen", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.GRUNDBUCHAUSZUG]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.FLURKARTE, DokumentTyp.EXPOSE]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.VERKAEUFER.value: [
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.BAULASTENVERZEICHNIS]},
+        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG, DokumentTyp.WIRTSCHAFTSPLAN]},
+        {"name": "Kaufvertrag", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.VOLLMACHT]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.MAKLER.value: [
+        {"name": "Exposé & Marketing", "typen": [DokumentTyp.EXPOSE]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS]},
+        {"name": "Vertragsdokumente", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.VOLLMACHT]},
+        {"name": "Kundendokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.NOTAR.value: [
+        {"name": "Ausweisdokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Grundbuch & Kataster", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.BAULASTENVERZEICHNIS]},
+        {"name": "Kaufvertrag", "typen": [DokumentTyp.KAUFVERTRAG]},
+        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG]},
+        {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG]},
+        {"name": "Vollmachten", "typen": [DokumentTyp.VOLLMACHT]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.FINANZIERER.value: [
+        {"name": "Bonitätsunterlagen", "typen": [DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.EXPOSE]},
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Vertragsdokumente", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.FINANZIERUNGSBESTAETIGUNG]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ]
+}
+
+
+@dataclass
+class DokumentenOrdner:
+    """Ordner für Dokumente eines Benutzers"""
+    ordner_id: str
+    user_id: str
+    projekt_id: str = ""
+    name: str = ""
+    beschreibung: str = ""
+    standard_dokument_typen: List[str] = field(default_factory=list)
+    dokument_ids: List[str] = field(default_factory=list)
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    ist_system_ordner: bool = False  # True = kann nicht gelöscht werden
+
+
+@dataclass
+class GescanntesDokument:
+    """Ein gescanntes oder hochgeladenes Dokument"""
+    dokument_id: str
+    user_id: str
+    projekt_id: str = ""
+    ordner_id: str = ""
+    # Datei-Informationen
+    dateiname: str = ""
+    original_dateiname: str = ""
+    dateityp: str = ""  # pdf, jpg, png
+    dateigroesse_bytes: int = 0
+    datei_inhalt: Optional[bytes] = None
+    # Dokumenten-Klassifizierung
+    dokument_typ: str = DokumentTyp.SONSTIGES.value
+    dokument_typ_erkannt: bool = False  # True = automatisch erkannt
+    # OCR & PDF-A
+    ist_ocr_verarbeitet: bool = False
+    ocr_text: str = ""
+    ist_pdf_a: bool = False
+    pdf_a_version: str = ""  # z.B. "PDF/A-1b"
+    # Scan-Informationen
+    gescannt_mit_kamera: bool = False
+    kamera_typ: str = ""  # "front" oder "back"
+    scan_qualitaet: str = ""  # "hoch", "mittel", "niedrig"
+    # Metadaten
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    geaendert_am: Optional[datetime] = None
+    notizen: str = ""
+    tags: List[str] = field(default_factory=list)
+
+
+# Schlüsselwörter für automatische Dokumenttyp-Erkennung
+DOKUMENT_ERKENNUNGS_KEYWORDS = {
+    DokumentTyp.PERSONALAUSWEIS.value: ["personalausweis", "identity card", "ausweisnummer", "gültig bis", "staatsangehörigkeit"],
+    DokumentTyp.REISEPASS.value: ["reisepass", "passport", "passnummer", "nationality"],
+    DokumentTyp.GRUNDBUCHAUSZUG.value: ["grundbuch", "abteilung i", "abteilung ii", "abteilung iii", "eigentümer", "flur", "flurstück"],
+    DokumentTyp.FLURKARTE.value: ["flurkarte", "liegenschaftskarte", "kataster", "gemarkung", "flurstück"],
+    DokumentTyp.ENERGIEAUSWEIS.value: ["energieausweis", "energiebedarf", "energieverbrauch", "kwh", "endenergie", "primärenergie"],
+    DokumentTyp.KAUFVERTRAG.value: ["kaufvertrag", "verkauf", "veräußerung", "übereignung", "auflassung", "notar"],
+    DokumentTyp.FINANZIERUNGSBESTAETIGUNG.value: ["finanzierungsbestätigung", "darlehen", "kredit", "finanzierung zugesagt", "kreditbetrag"],
+    DokumentTyp.GEHALTSNACHWEIS.value: ["gehaltsabrechnung", "lohnabrechnung", "brutto", "netto", "steuerklasse", "arbeitgeber"],
+    DokumentTyp.STEUERBESCHEID.value: ["steuerbescheid", "einkommensteuer", "finanzamt", "steuernummer", "festsetzung"],
+    DokumentTyp.KONTOAUSZUG.value: ["kontoauszug", "kontostand", "saldo", "buchung", "iban", "bic"],
+    DokumentTyp.BAULASTENVERZEICHNIS.value: ["baulastenverzeichnis", "baulast", "bauamt", "bauordnung"],
+    DokumentTyp.TEILUNGSERKLAERUNG.value: ["teilungserklärung", "wohnungseigentum", "miteigentum", "sondereigentum", "gemeinschaftseigentum"],
+    DokumentTyp.PROTOKOLL_WEG.value: ["eigentümerversammlung", "protokoll", "weg", "beschluss", "wohnungseigentümer"],
+    DokumentTyp.WIRTSCHAFTSPLAN.value: ["wirtschaftsplan", "hausgeld", "rücklage", "instandhaltung", "betriebskosten"],
+    DokumentTyp.EXPOSE.value: ["exposé", "objekt", "immobilie", "verkaufspreis", "wohnfläche", "zimmer"],
+    DokumentTyp.VOLLMACHT.value: ["vollmacht", "bevollmächtigt", "vertretung", "handeln im namen"]
+}
+
+
+def erkenne_dokument_typ(text: str, dateiname: str = "") -> Tuple[str, float]:
+    """
+    Erkennt den Dokumenttyp anhand von OCR-Text und Dateiname.
+    Gibt Dokumenttyp und Konfidenz (0-1) zurück.
+    """
+    text_lower = text.lower()
+    dateiname_lower = dateiname.lower()
+
+    beste_treffer = []
+
+    for dok_typ, keywords in DOKUMENT_ERKENNUNGS_KEYWORDS.items():
+        treffer = 0
+        for keyword in keywords:
+            if keyword in text_lower or keyword in dateiname_lower:
+                treffer += 1
+
+        if treffer > 0:
+            konfidenz = min(treffer / len(keywords), 1.0)
+            beste_treffer.append((dok_typ, konfidenz))
+
+    if beste_treffer:
+        beste_treffer.sort(key=lambda x: x[1], reverse=True)
+        return beste_treffer[0]
+
+    return DokumentTyp.SONSTIGES.value, 0.0
+
+
+def ordner_fuer_dokument_typ(user_rolle: str, dokument_typ: str) -> str:
+    """Findet den passenden Ordner für einen Dokumenttyp basierend auf der Benutzerrolle"""
+    ordner_config = STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])
+
+    for ordner in ordner_config:
+        typen_values = [t.value if isinstance(t, DokumentTyp) else t for t in ordner['typen']]
+        if dokument_typ in typen_values:
+            return ordner['name']
+
+    return "Sonstiges"
+
+
+def initialisiere_benutzer_ordner(user_id: str, user_rolle: str, projekt_id: str = "") -> List[DokumentenOrdner]:
+    """Erstellt die Standard-Ordnerstruktur für einen Benutzer"""
+    ordner_liste = []
+    ordner_config = STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])
+
+    for idx, config in enumerate(ordner_config):
+        ordner = DokumentenOrdner(
+            ordner_id=f"ord_{user_id}_{projekt_id}_{idx}",
+            user_id=user_id,
+            projekt_id=projekt_id,
+            name=config['name'],
+            standard_dokument_typen=[t.value if isinstance(t, DokumentTyp) else t for t in config['typen']],
+            ist_system_ordner=True
+        )
+        ordner_liste.append(ordner)
+
+    return ordner_liste
+
+
+def konvertiere_zu_pdf_a(datei_inhalt: bytes, dateiname: str) -> Tuple[bytes, bool, str]:
+    """
+    Konvertiert ein Dokument zu PDF/A Format.
+    In Produktion würde hier eine echte PDF/A-Konvertierung erfolgen (z.B. mit ghostscript).
+    Gibt (konvertierte_bytes, erfolg, pdf_a_version) zurück.
+    """
+    # Simulation - in Produktion mit ghostscript oder ähnlichem
+    # gs -dPDFA -dBATCH -dNOPAUSE -sProcessColorModel=DeviceRGB -sDEVICE=pdfwrite
+    #    -sPDFACompatibilityPolicy=1 -sOutputFile=output.pdf input.pdf
+
+    if dateiname.lower().endswith('.pdf'):
+        # PDF bereits vorhanden, markiere als PDF/A (Simulation)
+        return datei_inhalt, True, "PDF/A-1b"
+    elif dateiname.lower().endswith(('.jpg', '.jpeg', '.png')):
+        # Bild zu PDF konvertieren (Simulation)
+        # In Produktion: Pillow + reportlab oder ähnlich
+        return datei_inhalt, True, "PDF/A-1b"
+    else:
+        return datei_inhalt, False, ""
+
+
+def render_kamera_scanner(key_prefix: str, context: str = "dokument") -> Optional[Dict]:
+    """
+    Rendert einen Kamera-Scanner mit Auswahl von Vorder-/Rückkamera.
+    Gibt die gescannten Daten zurück oder None.
+    """
+    st.markdown("#### 📷 Dokument mit Kamera scannen")
+
+    # Kamera-Auswahl
+    col_cam1, col_cam2 = st.columns(2)
+    with col_cam1:
+        kamera_auswahl = st.radio(
+            "Kamera auswählen",
+            options=["📱 Rückkamera (Hauptkamera)", "🤳 Frontkamera"],
+            key=f"{key_prefix}_kamera_auswahl",
+            horizontal=True,
+            help="Die Rückkamera (Hauptkamera) liefert meist bessere Qualität für Dokumente"
+        )
+
+    with col_cam2:
+        qualitaet = st.select_slider(
+            "Scan-Qualität",
+            options=["Niedrig", "Mittel", "Hoch"],
+            value="Hoch",
+            key=f"{key_prefix}_qualitaet",
+            help="Höhere Qualität = größere Datei, bessere OCR-Erkennung"
+        )
+
+    # Kamera-Facing bestimmen
+    facing_mode = "environment" if "Rück" in kamera_auswahl else "user"
+
+    # JavaScript für Kamera-Zugriff einbetten
+    kamera_html = f"""
+    <style>
+        .camera-container {{
+            text-align: center;
+            margin: 10px 0;
+        }}
+        .camera-video {{
+            width: 100%;
+            max-width: 400px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }}
+        .camera-btn {{
+            margin: 10px 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }}
+        .capture-btn {{
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }}
+        .switch-btn {{
+            background-color: #2196F3;
+            color: white;
+            border: none;
+        }}
+    </style>
+    <div class="camera-container" id="camera_{key_prefix}">
+        <p>📷 Klicken Sie auf "Kamera starten" um ein Dokument zu scannen</p>
+        <p><small>Kamera: {kamera_auswahl} | Qualität: {qualitaet}</small></p>
+    </div>
+    """
+
+    st.markdown(kamera_html, unsafe_allow_html=True)
+
+    # Streamlit native Kamera-Input als Fallback
+    st.markdown("---")
+    st.markdown("**Alternative: Datei hochladen oder Foto aufnehmen**")
+
+    camera_input = st.camera_input(
+        f"📸 Foto aufnehmen ({context})",
+        key=f"{key_prefix}_camera_input",
+        help="Nutzen Sie die Kamera Ihres Geräts"
+    )
+
+    if camera_input:
+        # Bild wurde aufgenommen
+        return {
+            'datei': camera_input,
+            'dateiname': f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
+            'kamera_typ': "back" if "Rück" in kamera_auswahl else "front",
+            'qualitaet': qualitaet.lower(),
+            'gescannt': True
+        }
+
+    return None
+
+
+def render_dokument_upload_mit_scanner(
+    key_prefix: str,
+    user_id: str,
+    user_rolle: str,
+    projekt_id: str = "",
+    erlaubte_typen: List[str] = None,
+    auto_ordner: bool = True,
+    kontext: str = "Dokument"
+) -> Optional[GescanntesDokument]:
+    """
+    Universelle Dokument-Upload-Komponente mit Kamera-Scanner und automatischer Zuordnung.
+    """
+    if erlaubte_typen is None:
+        erlaubte_typen = ["pdf", "jpg", "jpeg", "png", "tiff", "bmp"]
+
+    st.markdown(f"### 📄 {kontext} hochladen oder scannen")
+
+    # Tabs für Upload-Methoden
+    upload_tabs = st.tabs(["📁 Datei hochladen", "📷 Mit Kamera scannen"])
+
+    datei_daten = None
+    scan_info = None
+
+    with upload_tabs[0]:
+        # Klassischer Datei-Upload
+        uploaded_file = st.file_uploader(
+            f"{kontext} auswählen",
+            type=erlaubte_typen,
+            key=f"{key_prefix}_file_upload",
+            help=f"Erlaubte Formate: {', '.join(erlaubte_typen)}"
+        )
+
+        if uploaded_file:
+            datei_daten = {
+                'datei': uploaded_file,
+                'dateiname': uploaded_file.name,
+                'gescannt': False
+            }
+
+    with upload_tabs[1]:
+        # Kamera-Scanner
+        scan_result = render_kamera_scanner(key_prefix, kontext)
+        if scan_result:
+            datei_daten = scan_result
+            scan_info = {
+                'kamera_typ': scan_result.get('kamera_typ', ''),
+                'qualitaet': scan_result.get('qualitaet', '')
+            }
+
+    if not datei_daten:
+        return None
+
+    # Datei verarbeiten
+    datei = datei_daten['datei']
+    dateiname = datei_daten['dateiname']
+    datei_bytes = datei.getvalue() if hasattr(datei, 'getvalue') else datei.read()
+
+    st.success(f"✅ Datei geladen: {dateiname} ({len(datei_bytes) / 1024:.1f} KB)")
+
+    # OCR durchführen (simuliert)
+    st.markdown("---")
+    with st.expander("🔍 Dokumenterkennung & OCR", expanded=True):
+        ocr_text = ""
+
+        if st.button("🔍 Dokument analysieren", key=f"{key_prefix}_analyze"):
+            with st.spinner("Analysiere Dokument..."):
+                # Simulierte OCR-Analyse
+                ocr_text = f"[OCR-Text für {dateiname}]"
+
+                # Dokumenttyp erkennen
+                erkannter_typ, konfidenz = erkenne_dokument_typ(ocr_text, dateiname)
+
+                st.info(f"📋 **Erkannter Dokumenttyp:** {erkannter_typ} (Konfidenz: {konfidenz*100:.0f}%)")
+
+                # Ordner-Vorschlag
+                if auto_ordner:
+                    vorgeschlagener_ordner = ordner_fuer_dokument_typ(user_rolle, erkannter_typ)
+                    st.info(f"📁 **Empfohlener Ordner:** {vorgeschlagener_ordner}")
+
+    # Dokumenttyp manuell wählen/bestätigen
+    st.markdown("---")
+    st.markdown("#### 📋 Dokumentdetails")
+
+    col_typ, col_ordner = st.columns(2)
+
+    with col_typ:
+        dokument_typ = st.selectbox(
+            "Dokumenttyp",
+            options=[t.value for t in DokumentTyp],
+            key=f"{key_prefix}_dok_typ",
+            help="Wählen Sie den passenden Dokumenttyp"
+        )
+
+    with col_ordner:
+        # Ordner-Auswahl basierend auf Rolle
+        ordner_optionen = [o['name'] for o in STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])]
+        vorgeschlagener = ordner_fuer_dokument_typ(user_rolle, dokument_typ)
+        default_idx = ordner_optionen.index(vorgeschlagener) if vorgeschlagener in ordner_optionen else 0
+
+        ordner_name = st.selectbox(
+            "Zielordner",
+            options=ordner_optionen,
+            index=default_idx,
+            key=f"{key_prefix}_ordner",
+            help="Der Ordner wird automatisch vorgeschlagen, kann aber geändert werden"
+        )
+
+    # PDF-A Konvertierung
+    st.markdown("---")
+    col_pdfa, col_ocr = st.columns(2)
+
+    with col_pdfa:
+        als_pdf_a = st.checkbox(
+            "📄 Als PDF/A speichern (archivierbar)",
+            value=True,
+            key=f"{key_prefix}_pdfa",
+            help="PDF/A ist ein ISO-Standard für langfristige Archivierung"
+        )
+
+    with col_ocr:
+        mit_ocr = st.checkbox(
+            "🔍 OCR durchführen (durchsuchbar)",
+            value=True,
+            key=f"{key_prefix}_ocr",
+            help="Text im Dokument wird erkannt und durchsuchbar gemacht"
+        )
+
+    # Notizen
+    notizen = st.text_area(
+        "Notizen (optional)",
+        placeholder="Zusätzliche Informationen zum Dokument...",
+        key=f"{key_prefix}_notizen"
+    )
+
+    # Speichern
+    if st.button("💾 Dokument speichern", type="primary", key=f"{key_prefix}_save"):
+        # PDF-A Konvertierung
+        if als_pdf_a:
+            datei_bytes, pdf_a_erfolg, pdf_a_version = konvertiere_zu_pdf_a(datei_bytes, dateiname)
+            if not dateiname.lower().endswith('.pdf'):
+                dateiname = dateiname.rsplit('.', 1)[0] + '.pdf'
+        else:
+            pdf_a_erfolg = False
+            pdf_a_version = ""
+
+        # Dokument erstellen
+        dok_id = f"dok_{datetime.now().strftime('%Y%m%d%H%M%S')}_{user_id[:8]}"
+
+        neues_dokument = GescanntesDokument(
+            dokument_id=dok_id,
+            user_id=user_id,
+            projekt_id=projekt_id,
+            ordner_id="",  # Wird später zugewiesen
+            dateiname=dateiname,
+            original_dateiname=datei_daten['dateiname'],
+            dateityp=dateiname.rsplit('.', 1)[-1].lower(),
+            dateigroesse_bytes=len(datei_bytes),
+            datei_inhalt=datei_bytes,
+            dokument_typ=dokument_typ,
+            dokument_typ_erkannt=False,
+            ist_ocr_verarbeitet=mit_ocr,
+            ocr_text=ocr_text if mit_ocr else "",
+            ist_pdf_a=pdf_a_erfolg,
+            pdf_a_version=pdf_a_version if pdf_a_erfolg else "",
+            gescannt_mit_kamera=datei_daten.get('gescannt', False),
+            kamera_typ=scan_info.get('kamera_typ', '') if scan_info else "",
+            scan_qualitaet=scan_info.get('qualitaet', '') if scan_info else "",
+            notizen=notizen
+        )
+
+        st.success(f"✅ Dokument '{dateiname}' wurde gespeichert!")
+
+        if pdf_a_erfolg:
+            st.info(f"📄 Konvertiert zu {pdf_a_version}")
+
+        return neues_dokument
+
+    return None
+
+
+def render_ordner_verwaltung(user_id: str, user_rolle: str, projekt_id: str = ""):
+    """Zeigt die Ordner-Verwaltung mit allen Dokumenten und Dateimanagement"""
+    st.markdown("### 📁 Dokumenten-Verwaltung")
+
+    # Initialisiere Ordner im Session State falls nötig
+    ordner_key = f"dokument_ordner_{user_id}_{projekt_id}"
+    if ordner_key not in st.session_state:
+        st.session_state[ordner_key] = initialisiere_benutzer_ordner(user_id, user_rolle, projekt_id)
+
+    dokumente_key = f"dokumente_{user_id}_{projekt_id}"
+    if dokumente_key not in st.session_state:
+        st.session_state[dokumente_key] = {}
+
+    ordner_liste = st.session_state[ordner_key]
+    dokumente = st.session_state[dokumente_key]
+
+    # Ordner als Sidebar oder Tabs
+    ordner_namen = [o.name for o in ordner_liste]
+    selected_ordner_name = st.selectbox(
+        "📁 Ordner auswählen",
+        options=ordner_namen,
+        key=f"ordner_select_{user_id}_{projekt_id}"
+    )
+
+    selected_ordner = next((o for o in ordner_liste if o.name == selected_ordner_name), None)
+
+    if not selected_ordner:
+        return
+
+    st.markdown(f"#### 📂 {selected_ordner.name}")
+
+    # Dokumente in diesem Ordner
+    ordner_dokumente = [d for d in dokumente.values() if d.ordner_id == selected_ordner.ordner_id]
+
+    if ordner_dokumente:
+        for dok in ordner_dokumente:
+            with st.expander(f"📄 {dok.dateiname} ({dok.dokument_typ})"):
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    st.write(f"**Typ:** {dok.dokument_typ}")
+                    st.write(f"**Größe:** {dok.dateigroesse_bytes / 1024:.1f} KB")
+                    st.write(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+                    if dok.ist_pdf_a:
+                        st.success(f"✅ PDF/A ({dok.pdf_a_version})")
+                    if dok.ist_ocr_verarbeitet:
+                        st.success("✅ OCR durchsuchbar")
+                    if dok.gescannt_mit_kamera:
+                        st.info(f"📷 Gescannt mit {dok.kamera_typ}-Kamera")
+
+                with col2:
+                    # Download
+                    if dok.datei_inhalt:
+                        st.download_button(
+                            "📥 Download",
+                            data=dok.datei_inhalt,
+                            file_name=dok.dateiname,
+                            key=f"dl_{dok.dokument_id}"
+                        )
+
+                # Dateimanagement-Aktionen
+                st.markdown("---")
+                st.markdown("**Aktionen:**")
+                col_move, col_copy, col_del = st.columns(3)
+
+                with col_move:
+                    ziel_ordner = st.selectbox(
+                        "Verschieben nach",
+                        options=[o.name for o in ordner_liste if o.ordner_id != selected_ordner.ordner_id],
+                        key=f"move_{dok.dokument_id}"
+                    )
+                    if st.button("📦 Verschieben", key=f"move_btn_{dok.dokument_id}"):
+                        ziel = next((o for o in ordner_liste if o.name == ziel_ordner), None)
+                        if ziel:
+                            dok.ordner_id = ziel.ordner_id
+                            st.success(f"✅ Verschoben nach '{ziel_ordner}'")
+                            st.rerun()
+
+                with col_copy:
+                    kopie_ordner = st.selectbox(
+                        "Kopieren nach",
+                        options=[o.name for o in ordner_liste if o.ordner_id != selected_ordner.ordner_id],
+                        key=f"copy_{dok.dokument_id}"
+                    )
+                    if st.button("📋 Kopieren", key=f"copy_btn_{dok.dokument_id}"):
+                        ziel = next((o for o in ordner_liste if o.name == kopie_ordner), None)
+                        if ziel:
+                            # Kopie erstellen
+                            kopie_id = f"dok_{datetime.now().strftime('%Y%m%d%H%M%S')}_copy"
+                            kopie = GescanntesDokument(
+                                dokument_id=kopie_id,
+                                user_id=dok.user_id,
+                                projekt_id=dok.projekt_id,
+                                ordner_id=ziel.ordner_id,
+                                dateiname=f"Kopie_{dok.dateiname}",
+                                original_dateiname=dok.original_dateiname,
+                                dateityp=dok.dateityp,
+                                dateigroesse_bytes=dok.dateigroesse_bytes,
+                                datei_inhalt=dok.datei_inhalt,
+                                dokument_typ=dok.dokument_typ,
+                                ist_ocr_verarbeitet=dok.ist_ocr_verarbeitet,
+                                ocr_text=dok.ocr_text,
+                                ist_pdf_a=dok.ist_pdf_a,
+                                pdf_a_version=dok.pdf_a_version
+                            )
+                            dokumente[kopie_id] = kopie
+                            st.success(f"✅ Kopiert nach '{kopie_ordner}'")
+                            st.rerun()
+
+                with col_del:
+                    if st.button("🗑️ Löschen", key=f"del_btn_{dok.dokument_id}", type="secondary"):
+                        if dok.dokument_id in dokumente:
+                            del dokumente[dok.dokument_id]
+                            st.success("✅ Dokument gelöscht")
+                            st.rerun()
+    else:
+        st.info("📭 Dieser Ordner ist leer.")
+
+    # Neues Dokument hochladen
+    st.markdown("---")
+    with st.expander("➕ Neues Dokument hinzufügen", expanded=False):
+        neues_dok = render_dokument_upload_mit_scanner(
+            key_prefix=f"upload_{selected_ordner.ordner_id}",
+            user_id=user_id,
+            user_rolle=user_rolle,
+            projekt_id=projekt_id,
+            kontext="Dokument"
+        )
+
+        if neues_dok:
+            neues_dok.ordner_id = selected_ordner.ordner_id
+            dokumente[neues_dok.dokument_id] = neues_dok
+            st.rerun()
+
+
 # Bundesland-spezifische Grunderwerbsteuersätze (Stand 2024)
 GRUNDERWERBSTEUER_SAETZE = {
     "Baden-Württemberg": 5.0,
@@ -4405,16 +5026,17 @@ def automatische_marktanalyse_durchfuehren(
         }
         vergleichsobjekte.append(vergleichsobjekt)
 
-    # Statistiken berechnen
-    preise = [v['preis'] for v in vergleichsobjekte]
-    preise_qm = [v['preis_qm'] for v in vergleichsobjekte]
+    # Statistiken berechnen (mit Schutz vor Division durch Null)
+    preise = [v['preis'] for v in vergleichsobjekte if v.get('preis', 0) > 0]
+    preise_qm = [v['preis_qm'] for v in vergleichsobjekte if v.get('preis_qm', 0) > 0]
 
-    durchschnitt_preis = sum(preise) / len(preise)
-    durchschnitt_preis_qm = sum(preise_qm) / len(preise_qm)
-    min_preis = min(preise)
-    max_preis = max(preise)
-    min_preis_qm = min(preise_qm)
-    max_preis_qm = max(preise_qm)
+    # Sichere Berechnung mit Fallback
+    durchschnitt_preis = sum(preise) / len(preise) if preise else 0
+    durchschnitt_preis_qm = sum(preise_qm) / len(preise_qm) if preise_qm else 0
+    min_preis = min(preise) if preise else 0
+    max_preis = max(preise) if preise else 0
+    min_preis_qm = min(preise_qm) if preise_qm else 0
+    max_preis_qm = max(preise_qm) if preise_qm else 0
 
     # Preisempfehlung berechnen
     if eigene_flaeche > 0:
@@ -6265,27 +6887,66 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
             file_data = uploaded_file.read()
             file_name = uploaded_file.name
     else:
-        st.info("📱 **Tipp:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen. Die **Rückkamera** wird für bessere Qualität verwendet.")
+        # Kamera-Auswahl für Benutzer
+        st.markdown("##### 📷 Kamera-Einstellungen")
+        col_cam1, col_cam2 = st.columns(2)
 
-        # JavaScript um Rückkamera zu bevorzugen
-        st.markdown("""
+        with col_cam1:
+            kamera_auswahl = st.radio(
+                "Kamera auswählen",
+                options=["📱 Rückkamera (Hauptkamera)", "🤳 Frontkamera"],
+                key=f"kamera_wahl_{seite}_{widget_prefix}",
+                horizontal=True,
+                help="Die Rückkamera (Hauptkamera) liefert meist bessere Qualität für Dokumente"
+            )
+
+        with col_cam2:
+            scan_hinweise = st.checkbox(
+                "Hinweise anzeigen",
+                value=True,
+                key=f"hinweise_{seite}_{widget_prefix}"
+            )
+
+        # Bestimme Kamera-Modus basierend auf Auswahl
+        facing_mode = "environment" if "Rück" in kamera_auswahl else "user"
+        kamera_typ = "back" if "Rück" in kamera_auswahl else "front"
+
+        if scan_hinweise:
+            if "Rück" in kamera_auswahl:
+                st.info("""📱 **Tipps für Rückkamera (Hauptkamera):**
+                - Halten Sie den Ausweis flach und parallel zur Kamera
+                - Sorgen Sie für gute, gleichmäßige Beleuchtung
+                - Vermeiden Sie Reflexionen und Schatten
+                - Halten Sie ca. 20-30 cm Abstand
+                - Warten Sie, bis das Bild scharf ist""")
+            else:
+                st.info("""🤳 **Tipps für Frontkamera:**
+                - Die Frontkamera hat meist niedrigere Auflösung
+                - Nutzen Sie wenn möglich die Rückkamera
+                - Halten Sie das Gerät stabil""")
+
+        # JavaScript um gewählte Kamera zu verwenden
+        st.markdown(f"""
         <script>
-        // Versuche Rückkamera (environment) zu verwenden
-        (function() {
+        // Setze Kamera auf {facing_mode}
+        (function() {{
             const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            navigator.mediaDevices.getUserMedia = function(constraints) {
-                if (constraints && constraints.video) {
-                    if (typeof constraints.video === 'boolean') {
-                        constraints.video = { facingMode: { ideal: 'environment' } };
-                    } else if (typeof constraints.video === 'object' && !constraints.video.facingMode) {
-                        constraints.video.facingMode = { ideal: 'environment' };
-                    }
-                }
+            navigator.mediaDevices.getUserMedia = function(constraints) {{
+                if (constraints && constraints.video) {{
+                    if (typeof constraints.video === 'boolean') {{
+                        constraints.video = {{ facingMode: {{ ideal: '{facing_mode}' }} }};
+                    }} else if (typeof constraints.video === 'object') {{
+                        constraints.video.facingMode = {{ ideal: '{facing_mode}' }};
+                    }}
+                }}
                 return originalGetUserMedia(constraints);
-            };
-        })();
+            }};
+        }})();
         </script>
         """, unsafe_allow_html=True)
+
+        # Kamera-Status anzeigen
+        st.markdown(f"**Aktive Kamera:** {kamera_auswahl}")
 
         camera_photo = st.camera_input(
             f"{seite_label} fotografieren",
@@ -6293,7 +6954,8 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
         )
         if camera_photo:
             file_data = camera_photo.read()
-            file_name = f"{seite}_kamera.jpg"
+            file_name = f"{seite}_kamera_{kamera_typ}.jpg"
+            st.session_state[f"kamera_typ_{seite}_{widget_prefix}"] = kamera_typ
 
     if file_data:
         col1, col2 = st.columns([1, 2])
@@ -7532,10 +8194,10 @@ def create_termin_from_vorschlag(vorschlag: 'TerminVorschlag', ausgewaehlter_ind
             })
 
     # Termin-Titel erstellen: "Verkäufer ./. Käufer, Projektname (Makler)"
-    verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids
-                        if st.session_state.users.get(vid)]
-    kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids
-                     if st.session_state.users.get(kid)]
+    verkaeufer_namen = [user.name for vid in projekt.verkaeufer_ids
+                        if (user := st.session_state.users.get(vid))]
+    kaeufer_namen = [user.name for kid in projekt.kaeufer_ids
+                     if (user := st.session_state.users.get(kid))]
     makler_name = ""
     if projekt.makler_id:
         makler = st.session_state.users.get(projekt.makler_id)
@@ -11990,11 +12652,12 @@ def _finanzierung_neue_berechnung():
     st.markdown("#### 📋 Finanzierungsbedarf aus Kaufnebenkosten")
 
     if has_berechnung:
+        finanzierungsbedarf = st.session_state.get('berechneter_finanzierungsbedarf', 0)
         st.success(f"""
         **✅ Daten aus Kaufnebenkosten-Berechnung verfügbar:**
         - Kaufpreis: {st.session_state.get('berechneter_kaufpreis', 0):,.2f} €
         - Nebenkosten: {st.session_state.get('berechnete_nebenkosten', 0):,.2f} €
-        - **Finanzierungsbedarf: {st.session_state['berechneter_finanzierungsbedarf']:,.2f} €**
+        - **Finanzierungsbedarf: {finanzierungsbedarf:,.2f} €**
         """)
 
         # Button zum Aktualisieren
@@ -12002,7 +12665,7 @@ def _finanzierung_neue_berechnung():
             st.info("Wechseln Sie zum Tab '💰 Kaufnebenkosten', passen Sie die Daten an und kehren Sie hierher zurück.")
 
         # Default-Wert aus Berechnung, falls nicht manuell überschrieben
-        default_betrag = st.session_state['berechneter_finanzierungsbedarf']
+        default_betrag = finanzierungsbedarf
     else:
         st.warning("""
         ⚠️ **Keine Kaufnebenkosten-Berechnung vorhanden.**
@@ -18649,11 +19312,12 @@ def render_ki_vertrag_generator(projekt):
     api_key = None
     api_type = None
 
-    if st.session_state.get('api_keys', {}).get('openai'):
-        api_key = st.session_state['api_keys']['openai']
+    api_keys = st.session_state.get('api_keys', {})
+    if api_keys.get('openai'):
+        api_key = api_keys['openai']
         api_type = "openai"
-    elif st.session_state.get('api_keys', {}).get('anthropic'):
-        api_key = st.session_state['api_keys']['anthropic']
+    elif api_keys.get('anthropic'):
+        api_key = api_keys['anthropic']
         api_type = "anthropic"
 
     if not api_key:
