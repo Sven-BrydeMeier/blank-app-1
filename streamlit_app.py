@@ -12274,12 +12274,34 @@ def _finanzierung_neue_berechnung():
         if tilgungsplan:
             df = pd.DataFrame(tilgungsplan)
 
+            letzte_restschuld = tilgungsplan[-1]['Restschuld']
+            laufzeit_effektiv = len(tilgungsplan)
+            gesamtkosten = gesamt_zinsen + darlehensbetrag
+
+            # *** Berechnungsergebnisse im Session State speichern ***
+            st.session_state.rechner_ergebnis = {
+                'tilgungsplan': tilgungsplan,
+                'darlehensbetrag': darlehensbetrag,
+                'zinssatz': zinssatz,
+                'tilgungssatz': tilgungssatz,
+                'monatliche_rate': monatliche_rate,
+                'sollzinsbindung': sollzinsbindung,
+                'gesamt_zinsen': gesamt_zinsen,
+                'gesamtkosten': gesamtkosten,
+                'laufzeit_effektiv': laufzeit_effektiv,
+                'letzte_restschuld': letzte_restschuld,
+                'vollltilger': vollltilger,
+                'sondertilgung_betrag': sondertilgung_betrag,
+                'kaufpreis_wert': st.session_state.get('berechneter_kaufpreis', 0),
+                'nebenkosten_wert': st.session_state.get('berechnete_nebenkosten', 0),
+                'eigenkapital': st.session_state.get('berechnetes_eigenkapital', 0),
+                'finanzierungsbetrag': st.session_state.get('berechneter_finanzierungsbetrag', darlehensbetrag),
+                'df': df
+            }
+
             # Zusammenfassung
             st.markdown("---")
             st.markdown("### 📈 Ergebnis")
-
-            letzte_restschuld = tilgungsplan[-1]['Restschuld']
-            laufzeit_effektiv = len(tilgungsplan)
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -12292,7 +12314,6 @@ def _finanzierung_neue_berechnung():
                 st.metric("Laufzeit", f"{laufzeit_effektiv // 12} J. {laufzeit_effektiv % 12} M.")
 
             # Zusätzliche Infos
-            gesamtkosten = gesamt_zinsen + darlehensbetrag
             st.info(f"💰 **Gesamtkosten des Kredits:** {gesamtkosten:,.2f} € (Darlehensbetrag + Zinsen)")
 
             if sollzinsbindung * 12 < laufzeit_effektiv and not vollltilger:
@@ -12359,88 +12380,123 @@ def _finanzierung_neue_berechnung():
                     height=400
                 )
 
-            # --- SPEICHERN ALS MODELL ---
+            # Hinweis auf Speichern
             st.markdown("---")
-            st.markdown("### 💾 Berechnung speichern")
+            st.success("✅ Berechnung abgeschlossen! Scrollen Sie nach unten, um das Modell zu speichern.")
 
-            # Berechnungsergebnisse für Speicherung sammeln
-            kaufpreis_wert = st.session_state.get('berechneter_kaufpreis', 0)
-            nebenkosten_wert = st.session_state.get('berechnete_nebenkosten', 0)
+    # --- SPEICHERN ALS MODELL (außerhalb des Button-Blocks) ---
+    # Dieser Block wird angezeigt, wenn Berechnungsergebnisse im Session State sind
+    if 'rechner_ergebnis' in st.session_state and st.session_state.rechner_ergebnis:
+        ergebnis = st.session_state.rechner_ergebnis
 
-            col_save1, col_save2 = st.columns([2, 1])
+        st.markdown("---")
+        st.markdown("### 💾 Berechnung speichern")
 
-            with col_save1:
-                modell_name = st.text_input(
-                    "Name für dieses Finanzierungsmodell",
-                    value=f"Modell {datetime.now().strftime('%d.%m.%Y %H:%M')}",
-                    key="modell_name_input"
-                )
-                modell_notizen = st.text_area(
-                    "Notizen (optional)",
-                    placeholder="z.B. Bank XY, Sonderkonditionen...",
-                    key="modell_notizen_input"
-                )
+        col_save1, col_save2 = st.columns([2, 1])
 
-            with col_save2:
-                st.markdown("**Zusammenfassung:**")
-                st.write(f"Darlehensbetrag: {darlehensbetrag:,.2f} €")
-                st.write(f"Zinssatz: {zinssatz}%")
-                st.write(f"Tilgung: {tilgungssatz:.2f}%")
-                st.write(f"Rate: {monatliche_rate:,.2f} €")
+        with col_save1:
+            modell_name = st.text_input(
+                "Name für dieses Finanzierungsmodell",
+                value=f"Modell {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                key="modell_name_input"
+            )
+            modell_notizen = st.text_area(
+                "Notizen (optional)",
+                placeholder="z.B. Bank XY, Sonderkonditionen...",
+                key="modell_notizen_input"
+            )
 
-            if st.button("💾 Als Modell speichern", type="primary", key="speichere_modell"):
-                # Neues Modell erstellen
-                modell_id = str(uuid.uuid4())[:8]
+        with col_save2:
+            st.markdown("**Zusammenfassung:**")
+            st.write(f"Darlehensbetrag: {ergebnis['darlehensbetrag']:,.2f} €")
+            st.write(f"Zinssatz: {ergebnis['zinssatz']}%")
+            st.write(f"Tilgung: {ergebnis['tilgungssatz']:.2f}%")
+            st.write(f"Rate: {ergebnis['monatliche_rate']:,.2f} €")
 
-                # Restschuld nach Zinsbindung berechnen
-                restschuld_bindung = 0.0
-                if sollzinsbindung * 12 <= len(tilgungsplan):
-                    restschuld_bindung = tilgungsplan[sollzinsbindung * 12 - 1]['Restschuld']
-                elif tilgungsplan:
-                    restschuld_bindung = tilgungsplan[-1]['Restschuld']
+        if st.button("💾 Als Modell speichern", type="primary", key="speichere_modell"):
+            # Daten aus Session State holen
+            tilgungsplan = ergebnis['tilgungsplan']
+            darlehensbetrag = ergebnis['darlehensbetrag']
+            zinssatz = ergebnis['zinssatz']
+            tilgungssatz = ergebnis['tilgungssatz']
+            monatliche_rate = ergebnis['monatliche_rate']
+            sollzinsbindung = ergebnis['sollzinsbindung']
+            gesamt_zinsen = ergebnis['gesamt_zinsen']
+            gesamtkosten = ergebnis['gesamtkosten']
+            laufzeit_effektiv = ergebnis['laufzeit_effektiv']
+            sondertilgung_betrag = ergebnis['sondertilgung_betrag']
+            kaufpreis_wert = ergebnis['kaufpreis_wert']
+            nebenkosten_wert = ergebnis['nebenkosten_wert']
+            eigenkapital = ergebnis['eigenkapital']
+            finanzierungsbetrag = ergebnis['finanzierungsbetrag']
 
-                neues_modell = Finanzierungsmodell(
-                    modell_id=modell_id,
-                    projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
-                    kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
-                    name=modell_name,
-                    kaufpreis=kaufpreis_wert,
-                    nebenkosten=nebenkosten_wert,
-                    finanzierungsbedarf=finanzierungsbetrag,
-                    eigenkapital=eigenkapital,
-                    darlehensbetrag=darlehensbetrag,
-                    zinssatz=zinssatz,
-                    tilgungssatz=tilgungssatz,
-                    monatliche_rate=monatliche_rate,
-                    sollzinsbindung=sollzinsbindung,
-                    sondertilgung_prozent=sondertilgung_betrag / darlehensbetrag * 100 if darlehensbetrag > 0 else 0,
-                    restschuld_nach_zinsbindung=restschuld_bindung,
-                    gesamtlaufzeit_jahre=laufzeit_effektiv / 12,
-                    gesamtzinsen=gesamt_zinsen,
-                    gesamtkosten=gesamtkosten,
-                    tilgungsplan_json=json.dumps(tilgungsplan),
-                    notizen=modell_notizen,
-                    quelle=FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
-                )
+            # Neues Modell erstellen
+            modell_id = str(uuid.uuid4())[:8]
 
-                st.session_state.finanzierungsmodelle[modell_id] = neues_modell
-                st.success(f"✅ Modell '{modell_name}' wurde gespeichert!")
-                st.info("Sie finden das Modell im Tab '💾 Gespeicherte Modelle'.")
+            # Restschuld nach Zinsbindung berechnen
+            restschuld_bindung = 0.0
+            if sollzinsbindung * 12 <= len(tilgungsplan):
+                restschuld_bindung = tilgungsplan[sollzinsbindung * 12 - 1]['Restschuld']
+            elif tilgungsplan:
+                restschuld_bindung = tilgungsplan[-1]['Restschuld']
 
-                # Option: Direkt Angebot anfordern
-                st.markdown("---")
-                st.markdown("**💡 Möchten Sie direkt ein Angebot bei Finanzierern anfordern?**")
-                if st.button("📨 Ja, Angebot jetzt anfordern", key=f"direct_anfrage_{modell_id}"):
+            neues_modell = Finanzierungsmodell(
+                modell_id=modell_id,
+                projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                name=modell_name,
+                kaufpreis=kaufpreis_wert,
+                nebenkosten=nebenkosten_wert,
+                finanzierungsbedarf=finanzierungsbetrag,
+                eigenkapital=eigenkapital,
+                darlehensbetrag=darlehensbetrag,
+                zinssatz=zinssatz,
+                tilgungssatz=tilgungssatz,
+                monatliche_rate=monatliche_rate,
+                sollzinsbindung=sollzinsbindung,
+                sondertilgung_prozent=sondertilgung_betrag / darlehensbetrag * 100 if darlehensbetrag > 0 else 0,
+                restschuld_nach_zinsbindung=restschuld_bindung,
+                gesamtlaufzeit_jahre=laufzeit_effektiv / 12,
+                gesamtzinsen=gesamt_zinsen,
+                gesamtkosten=gesamtkosten,
+                tilgungsplan_json=json.dumps(tilgungsplan),
+                notizen=modell_notizen,
+                quelle=FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
+            )
+
+            st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+
+            # Speichere die ID für die Angebots-Anfrage Option
+            st.session_state['letztes_gespeichertes_modell_id'] = modell_id
+
+            st.success(f"✅ Modell '{modell_name}' wurde gespeichert!")
+            st.info("Sie finden das Modell im Tab '💾 Gespeicherte Modelle'.")
+            st.rerun()
+
+    # Option: Angebot anfordern nach Speichern
+    if 'letztes_gespeichertes_modell_id' in st.session_state:
+        modell_id = st.session_state.letztes_gespeichertes_modell_id
+        if modell_id in st.session_state.finanzierungsmodelle:
+            st.markdown("---")
+            st.markdown("**💡 Möchten Sie direkt ein Angebot bei Finanzierern anfordern?**")
+            col_btn1, col_btn2 = st.columns([1, 3])
+            with col_btn1:
+                if st.button("📨 Ja, Angebot anfordern", key=f"direct_anfrage_{modell_id}", type="primary"):
                     st.session_state[f'show_fin_dialog_{modell_id}'] = True
+                    del st.session_state['letztes_gespeichertes_modell_id']
+                    st.rerun()
+            with col_btn2:
+                if st.button("❌ Nein, später", key=f"skip_anfrage_{modell_id}"):
+                    del st.session_state['letztes_gespeichertes_modell_id']
                     st.rerun()
 
-        # Dialog für direkte Anfrage nach Speichern anzeigen
-        if 'finanzierungsmodelle' in st.session_state:
-            for mid in list(st.session_state.finanzierungsmodelle.keys()):
-                if st.session_state.get(f'show_fin_dialog_{mid}', False):
-                    modell = st.session_state.finanzierungsmodelle.get(mid)
-                    if modell:
-                        _render_finanzierer_auswahl_dialog(modell, f"neue_berechnung_{mid}")
+    # Dialog für direkte Anfrage nach Speichern anzeigen
+    if 'finanzierungsmodelle' in st.session_state:
+        for mid in list(st.session_state.finanzierungsmodelle.keys()):
+            if st.session_state.get(f'show_fin_dialog_{mid}', False):
+                modell = st.session_state.finanzierungsmodelle.get(mid)
+                if modell:
+                    _render_finanzierer_auswahl_dialog(modell, f"neue_berechnung_{mid}")
 
 
 def _modell_an_finanzierer_senden(modell_id: str, finanzierer_ids: List[str], an_alle: bool = False):
