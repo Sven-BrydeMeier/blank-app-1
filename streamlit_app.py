@@ -10829,7 +10829,7 @@ def makler_dashboard():
     with tabs[9]:
         makler_ausweis_erfassung()
 
-    with tabs[9]:
+    with tabs[10]:
         # Termin-Übersicht für Makler mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -17384,10 +17384,6 @@ def notar_dashboard():
         notar_termine()
 
     with tabs[14]:
-        notar_aktenimport_view()
-
-    with tabs[15]:
-
         notar_makler_empfehlung_view()
 
     with tabs[15]:
@@ -17400,6 +17396,9 @@ def notar_dashboard():
         notar_rechtsdokumente_view()
 
     with tabs[18]:
+        notar_aktenimport_view()
+
+    with tabs[19]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
