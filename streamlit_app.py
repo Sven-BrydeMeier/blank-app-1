@@ -3714,10 +3714,10 @@ class AktenDokument:
     dokument_id: str
     akte_id: str
     ordner_name: str  # Zugehöriger Ordner in der Akte
-    ordner_id: str = ""  # ID des zugehörigen Ordners
+    titel: str  # Dokumenttitel (Pflichtfeld)
 
-    # Dokumentdaten
-    titel: str
+    # Optionale Felder
+    ordner_id: str = ""  # ID des zugehörigen Ordners
     dokument_typ: str = AktenDokumentTyp.SONSTIGES.value
     dateiname: str = ""
     dateigröße: int = 0
