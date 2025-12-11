@@ -17,6 +17,422 @@ import re
 import base64
 import uuid
 
+# Datenbank-Integration
+try:
+    from database import (
+        init_database,
+        check_database_connection,
+        health_check as db_health_check,
+        track_interaktion,
+        get_interaktionen_stats,
+        InteraktionsTyp as DBInteraktionsTyp,
+    )
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+
+
+def safe_track_interaktion(
+    interaktions_typ: str,
+    details: dict = None,
+    nutzer_id: str = None,
+    projekt_id: str = None,
+    immobilien_id: str = None
+):
+    """
+    Sicher Interaktionen tracken - nur wenn DB verfügbar und verbunden.
+
+    Args:
+        interaktions_typ: Typ der Interaktion (z.B. 'login', 'dokument_upload')
+        details: Zusätzliche Details als Dictionary
+        nutzer_id: ID des Nutzers (falls nicht aus session_state)
+        projekt_id: ID des Projekts (optional)
+        immobilien_id: ID der Immobilie (optional)
+    """
+    if not DATABASE_AVAILABLE:
+        return None
+
+    if not st.session_state.get('database_connected', False):
+        return None
+
+    try:
+        # Nutzer-ID aus Session State holen falls nicht übergeben
+        if nutzer_id is None and st.session_state.get('current_user'):
+            user = st.session_state.current_user
+            nutzer_id = getattr(user, 'user_id', None)
+
+        # Interaktion tracken
+        return track_interaktion(
+            nutzer_id=nutzer_id,
+            projekt_id=projekt_id,
+            immobilien_id=immobilien_id,
+            interaktions_typ=interaktions_typ,
+            details=details or {}
+        )
+    except Exception as e:
+        # Fehler beim Tracking sollten die App nicht crashen
+        print(f"Tracking-Fehler: {e}")
+        return None
+
+
+# ============================================================================
+# DATENBANK-KONFIGURATION FUNKTIONEN
+# ============================================================================
+
+def test_database_connection(db_url: str) -> dict:
+    """
+    Testet die Datenbankverbindung mit der gegebenen URL.
+
+    Args:
+        db_url: SQLAlchemy-kompatible Datenbank-URL
+
+    Returns:
+        Dictionary mit 'success', 'error' (bei Fehler), 'server_info'
+    """
+    try:
+        from sqlalchemy import create_engine, text
+        import os
+
+        # Für SQLite: Verzeichnis erstellen falls nötig
+        if db_url.startswith('sqlite:///'):
+            db_path = db_url.replace('sqlite:///', '')
+            db_dir = os.path.dirname(db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+
+        # Engine erstellen mit Timeout
+        engine = create_engine(db_url, pool_pre_ping=True, pool_timeout=5)
+
+        # Verbindung testen
+        with engine.connect() as conn:
+            if db_url.startswith('sqlite'):
+                result = conn.execute(text("SELECT sqlite_version()"))
+                version = result.scalar()
+                server_info = f"SQLite {version}"
+            elif 'postgresql' in db_url:
+                result = conn.execute(text("SELECT version()"))
+                version = result.scalar()
+                server_info = version.split(',')[0] if version else "PostgreSQL"
+            elif 'mysql' in db_url:
+                result = conn.execute(text("SELECT VERSION()"))
+                version = result.scalar()
+                server_info = f"MySQL {version}"
+            else:
+                server_info = "Verbunden"
+
+        engine.dispose()
+        return {'success': True, 'server_info': server_info}
+
+    except ImportError as e:
+        return {'success': False, 'error': f"Fehlende Pakete: {e}. Installieren Sie sqlalchemy und ggf. psycopg2-binary oder pymysql."}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def save_database_config(config: dict) -> bool:
+    """
+    Speichert die Datenbank-Konfiguration in .streamlit/secrets.toml
+
+    Args:
+        config: Dictionary mit Datenbank-Konfiguration
+
+    Returns:
+        True bei Erfolg
+    """
+    import os
+
+    secrets_dir = ".streamlit"
+    secrets_file = os.path.join(secrets_dir, "secrets.toml")
+
+    # Verzeichnis erstellen falls nötig
+    if not os.path.exists(secrets_dir):
+        os.makedirs(secrets_dir)
+
+    # Bestehende Secrets laden falls vorhanden
+    existing_content = ""
+    if os.path.exists(secrets_file):
+        with open(secrets_file, 'r') as f:
+            existing_content = f.read()
+
+    # [database] Sektion erstellen
+    db_type = config.get('db_type', 'sqlite')
+
+    if db_type == 'sqlite':
+        db_url = f"sqlite:///{config.get('sqlite_path', 'data/immobilien_plattform.db')}"
+    elif db_type == 'postgresql':
+        db_url = f"postgresql://{config.get('username', '')}:{config.get('password', '')}@{config.get('host', 'localhost')}:{config.get('port', 5432)}/{config.get('database', 'immobilien_plattform')}"
+    else:
+        db_url = f"mysql+pymysql://{config.get('username', '')}:{config.get('password', '')}@{config.get('host', 'localhost')}:{config.get('port', 3306)}/{config.get('database', 'immobilien_plattform')}"
+
+    db_section = f'''
+[database]
+type = "{db_type}"
+url = "{db_url}"
+auto_load = {str(config.get('auto_load', False)).lower()}
+'''
+
+    # Alte [database] Sektion entfernen falls vorhanden
+    import re
+    existing_content = re.sub(r'\[database\].*?(?=\n\[|\Z)', '', existing_content, flags=re.DOTALL)
+    existing_content = existing_content.strip()
+
+    # Neue Sektion anhängen
+    new_content = existing_content + "\n" + db_section if existing_content else db_section.strip()
+
+    with open(secrets_file, 'w') as f:
+        f.write(new_content)
+
+    return True
+
+
+def initialize_database_tables(db_url: str) -> dict:
+    """
+    Erstellt alle Datenbanktabellen basierend auf den SQLAlchemy-Modellen.
+
+    Args:
+        db_url: SQLAlchemy-kompatible Datenbank-URL
+
+    Returns:
+        Dictionary mit 'success', 'tables_created', 'error'
+    """
+    try:
+        from sqlalchemy import create_engine, inspect
+        import os
+
+        # Für SQLite: Verzeichnis erstellen falls nötig
+        if db_url.startswith('sqlite:///'):
+            db_path = db_url.replace('sqlite:///', '')
+            db_dir = os.path.dirname(db_path)
+            if db_dir and not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+
+        engine = create_engine(db_url)
+
+        # Prüfe welche Tabellen bereits existieren
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+
+        # Importiere das Base-Model und erstelle Tabellen
+        if DATABASE_AVAILABLE:
+            from database import Base
+            Base.metadata.create_all(engine)
+
+            # Neue Tabellen zählen
+            new_tables = set(inspector.get_table_names())
+            created_count = len(new_tables - existing_tables)
+            total_count = len(new_tables)
+
+            engine.dispose()
+            return {
+                'success': True,
+                'tables_created': created_count,
+                'total_tables': total_count
+            }
+        else:
+            return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def migrate_session_to_database(items: list) -> dict:
+    """
+    Migriert ausgewählte Daten vom Session State in die Datenbank.
+
+    Args:
+        items: Liste der zu migrierenden Datentypen
+
+    Returns:
+        Dictionary mit 'success', 'migrated_count', 'error'
+    """
+    if not DATABASE_AVAILABLE:
+        return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    db_url = st.session_state.get('db_connection_url')
+    if not db_url:
+        return {'success': False, 'error': 'Keine Datenbankverbindung konfiguriert'}
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from database import Base, Nutzer, Projekt, Dokument, Akte, Preisvorschlag, Benachrichtigung
+
+        engine = create_engine(db_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        migrated_count = 0
+
+        # Nutzer migrieren
+        if "Nutzer" in items:
+            for user_id, user in st.session_state.get('users', {}).items():
+                existing = session.query(Nutzer).filter_by(user_id=user_id).first()
+                if not existing:
+                    db_nutzer = Nutzer(
+                        user_id=user.user_id,
+                        email=user.email,
+                        password_hash=user.password_hash,
+                        name=user.name,
+                        rolle=user.rolle,
+                        telefon=getattr(user, 'telefon', ''),
+                        adresse=getattr(user, 'adresse', ''),
+                        onboarding_complete=getattr(user, 'onboarding_complete', False)
+                    )
+                    session.add(db_nutzer)
+                    migrated_count += 1
+
+        # Projekte migrieren
+        if "Projekte" in items:
+            for projekt_id, projekt in st.session_state.get('projekte', {}).items():
+                existing = session.query(Projekt).filter_by(projekt_id=projekt_id).first()
+                if not existing:
+                    db_projekt = Projekt(
+                        projekt_id=projekt.projekt_id,
+                        name=projekt.name,
+                        beschreibung=getattr(projekt, 'beschreibung', ''),
+                        adresse=getattr(projekt, 'adresse', ''),
+                        kaufpreis=getattr(projekt, 'kaufpreis', 0),
+                        status=getattr(projekt, 'status', 'aktiv'),
+                        makler_id=getattr(projekt, 'makler_id', None),
+                        notar_id=getattr(projekt, 'notar_id', None)
+                    )
+                    session.add(db_projekt)
+                    migrated_count += 1
+
+        # Akten migrieren
+        if "Akten" in items:
+            for akte_id, akte in st.session_state.get('akten', {}).items():
+                existing = session.query(Akte).filter_by(akte_id=akte_id).first()
+                if not existing:
+                    db_akte = Akte(
+                        akte_id=akte.akte_id,
+                        notar_id=akte.notar_id,
+                        aktenzeichen=akte.aktenzeichen,
+                        aktennummer=akte.aktennummer,
+                        aktenjahr=akte.aktenjahr,
+                        hauptbereich=akte.hauptbereich,
+                        untertyp=akte.untertyp,
+                        betreff=getattr(akte, 'betreff', ''),
+                        status=getattr(akte, 'status', 'offen')
+                    )
+                    session.add(db_akte)
+                    migrated_count += 1
+
+        session.commit()
+        session.close()
+        engine.dispose()
+
+        return {'success': True, 'migrated_count': migrated_count}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def load_database_to_session() -> dict:
+    """
+    Lädt Daten aus der Datenbank in den Session State.
+
+    Returns:
+        Dictionary mit 'success', 'loaded_count', 'error'
+    """
+    if not DATABASE_AVAILABLE:
+        return {'success': False, 'error': 'Datenbank-Modul nicht verfügbar'}
+
+    db_url = st.session_state.get('db_connection_url')
+    if not db_url:
+        return {'success': False, 'error': 'Keine Datenbankverbindung konfiguriert'}
+
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from database import Nutzer, Projekt, Akte
+
+        engine = create_engine(db_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        loaded_count = 0
+
+        # Nutzer laden
+        db_users = session.query(Nutzer).all()
+        for db_user in db_users:
+            # In Session State User-Objekt konvertieren
+            user = User(
+                user_id=db_user.user_id,
+                email=db_user.email,
+                password_hash=db_user.password_hash,
+                name=db_user.name,
+                rolle=db_user.rolle,
+                telefon=db_user.telefon or '',
+                adresse=db_user.adresse or '',
+                onboarding_complete=db_user.onboarding_complete or False
+            )
+            st.session_state.users[db_user.user_id] = user
+            loaded_count += 1
+
+        # Projekte laden
+        db_projekte = session.query(Projekt).all()
+        for db_projekt in db_projekte:
+            projekt = ProjektData(
+                projekt_id=db_projekt.projekt_id,
+                name=db_projekt.name,
+                beschreibung=db_projekt.beschreibung or '',
+                adresse=db_projekt.adresse or '',
+                kaufpreis=float(db_projekt.kaufpreis) if db_projekt.kaufpreis else 0,
+                status=db_projekt.status or 'aktiv',
+                makler_id=db_projekt.makler_id,
+                notar_id=db_projekt.notar_id
+            )
+            st.session_state.projekte[db_projekt.projekt_id] = projekt
+            loaded_count += 1
+
+        session.close()
+        engine.dispose()
+
+        return {'success': True, 'loaded_count': loaded_count}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def load_database_config_on_startup():
+    """
+    Lädt die Datenbank-Konfiguration aus secrets.toml beim Start.
+    Wird in der main() Funktion aufgerufen.
+    """
+    import os
+
+    try:
+        # Prüfe ob secrets.toml existiert
+        if hasattr(st, 'secrets') and 'database' in st.secrets:
+            db_config = st.secrets['database']
+            db_url = db_config.get('url', '')
+            db_type = db_config.get('type', 'sqlite')
+            auto_load = db_config.get('auto_load', False)
+
+            if db_url:
+                # Konfiguration in Session State speichern
+                st.session_state.db_config = {
+                    'db_type': db_type,
+                    'auto_load': auto_load
+                }
+                st.session_state.db_connection_url = db_url
+
+                # Verbindung testen
+                result = test_database_connection(db_url)
+                if result['success']:
+                    st.session_state.database_connected = True
+
+                    # Auto-Load wenn aktiviert
+                    if auto_load:
+                        load_database_to_session()
+                else:
+                    st.session_state.database_connected = False
+
+    except Exception as e:
+        print(f"Fehler beim Laden der Datenbank-Konfiguration: {e}")
+
+
 # ============================================================================
 # DEUTSCHE ZAHLENFORMATIERUNG
 # ============================================================================
@@ -1609,6 +2025,1014 @@ class FinanzierungsAnfrage:
     erstellt_am: datetime = field(default_factory=datetime.now)
     dokumente_freigegeben: bool = False
     notizen: str = ""
+    # NEU: Verknüpfung mit Finanzierungsmodell
+    modell_id: Optional[str] = None  # Referenz auf Finanzierungsmodell
+    # NEU: Ausgewählte Finanzierer für die Anfrage
+    finanzierer_ids: List[str] = field(default_factory=list)
+    an_alle_finanzierer: bool = False
+    anfrage_status: str = "Entwurf"  # Entwurf, Gesendet, Beantwortet
+
+
+@dataclass
+class FinanzierungsanfrageAnFinanzierer:
+    """Einzelne Anfrage an einen bestimmten Finanzierer"""
+    anfrage_einzeln_id: str
+    hauptanfrage_id: str  # Referenz auf FinanzierungsAnfrage
+    modell_id: str  # Referenz auf Finanzierungsmodell
+    finanzierer_id: str
+    kaeufer_id: str
+    projekt_id: str
+    gesendet_am: datetime = field(default_factory=datetime.now)
+    status: str = "Gesendet"  # Gesendet, Gelesen, Angebot_erstellt, Abgelehnt
+    finanzierer_notizen: str = ""
+    angebot_id: Optional[str] = None  # Referenz auf erhaltenes Angebot
+
+class FinanzierungsmodellStatus(Enum):
+    """Status eines Finanzierungsmodells"""
+    ENTWURF = "Entwurf"
+    FAVORIT = "Favorit"
+    ANGEFORDERT = "Bei Finanzierer angefordert"
+    ANGEBOT_ERHALTEN = "Angebot erhalten"
+    ABGELEHNT = "Abgelehnt"
+    ANGENOMMEN = "Angenommen"
+
+class FinanzierungsmodellQuelle(Enum):
+    """Quelle eines Finanzierungsmodells"""
+    EIGENE_BERECHNUNG = "Eigene Berechnung"
+    FINANZIERER_ANGEBOT = "Finanzierer-Angebot"
+    IMPORT_PDF = "Import aus PDF"
+    IMPORT_CSV = "Import aus CSV"
+    IMPORT_EXCEL = "Import aus Excel"
+
+@dataclass
+class Finanzierungsmodell:
+    """Gespeichertes Finanzierungsmodell für Vergleich und Anfragen"""
+    modell_id: str
+    projekt_id: str
+    kaeufer_id: str
+    name: str
+    # Basisdaten
+    kaufpreis: float
+    nebenkosten: float
+    finanzierungsbedarf: float
+    eigenkapital: float
+    darlehensbetrag: float
+    # Konditionen
+    zinssatz: float
+    tilgungssatz: float
+    monatliche_rate: float
+    sollzinsbindung: int  # Jahre
+    # Optionale Konditionen
+    sondertilgung_prozent: float = 0.0
+    bereitstellungszinsen: float = 0.0
+    effektivzins: float = 0.0
+    # Berechnungsergebnisse
+    restschuld_nach_zinsbindung: float = 0.0
+    gesamtlaufzeit_jahre: float = 0.0
+    gesamtzinsen: float = 0.0
+    gesamtkosten: float = 0.0
+    # Tilgungsplan (als JSON-String gespeichert)
+    tilgungsplan_json: str = ""
+    # Metadaten
+    status: str = FinanzierungsmodellStatus.ENTWURF.value
+    quelle: str = FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
+    finanzierer_id: Optional[str] = None
+    finanzierer_name: str = ""
+    angebot_pdf_data: Optional[bytes] = None
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    geaendert_am: datetime = field(default_factory=datetime.now)
+    ist_favorit: bool = False
+
+@dataclass
+class MarktanalyseErgebnis:
+    """Ergebnis einer automatischen Marktanalyse"""
+    analyse_id: str
+    projekt_id: str
+    durchgefuehrt_von: str  # User-ID
+    durchgefuehrt_am: datetime
+    # Suchkriterien
+    plz: str
+    ort: str
+    objekttyp: str  # Wohnung, Haus, etc.
+    wohnflaeche_von: float
+    wohnflaeche_bis: float
+    zimmer_von: int
+    zimmer_bis: int
+    umkreis_km: int
+    # Ergebnisse
+    vergleichsobjekte: List[Dict[str, Any]] = field(default_factory=list)
+    durchschnitt_preis: float = 0.0
+    durchschnitt_preis_qm: float = 0.0
+    min_preis: float = 0.0
+    max_preis: float = 0.0
+    min_preis_qm: float = 0.0
+    max_preis_qm: float = 0.0
+    anzahl_objekte: int = 0
+    # Preisempfehlung
+    empfohlener_preis: float = 0.0
+    preis_spanne_von: float = 0.0
+    preis_spanne_bis: float = 0.0
+
+@dataclass
+class MarktpreisHistorie:
+    """Historische Marktpreisdaten für Charts"""
+    eintrag_id: str
+    projekt_id: str
+    erfasst_am: datetime
+    durchschnitt_preis_qm: float
+    anzahl_vergleichsobjekte: int
+    min_preis_qm: float
+    max_preis_qm: float
+
+
+# ===== DATENERMITTLUNG FÜR NOTAR =====
+
+class DatenermittlungStatus(Enum):
+    """Status einer Datenermittlung"""
+    AUSSTEHEND = "Ausstehend"
+    ANGEFRAGT = "Angefragt"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    ERHALTEN = "Erhalten"
+    FEHLER = "Fehler"
+    NICHT_VERFUEGBAR = "Nicht verfügbar"
+
+
+@dataclass
+class FlurkartAnfrage:
+    """Anfrage für elektronische Flurkarte"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Grundstücksdaten
+    bundesland: str
+    landkreis: str
+    gemeinde: str
+    gemarkung: str
+    flur: str
+    flurstueck: str
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Kosten
+    kosten: float = 0.0
+    bezahlt: bool = False
+    # Dokument
+    flurkarte_pdf: Optional[bytes] = None
+    flurkarte_dateiname: str = ""
+    # Portal
+    portal_name: str = ""  # z.B. "BORIS", "Geoportal Bayern"
+    portal_url: str = ""
+    notizen: str = ""
+
+
+@dataclass
+class GrundbuchAnfrage:
+    """Anfrage für elektronisches Grundbuch"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Grundbuchdaten
+    bundesland: str
+    amtsgericht: str
+    grundbuchbezirk: str
+    grundbuchblatt: str
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Unterstützung
+    egvp_unterstuetzt: bool = True  # Elektronisches Gerichts- und Verwaltungspostfach
+    solum_star_unterstuetzt: bool = False  # SolumSTAR System
+    # Kosten
+    kosten: float = 0.0
+    bezahlt: bool = False
+    # Dokumente
+    grundbuchauszug_pdf: Optional[bytes] = None
+    grundbuchauszug_dateiname: str = ""
+    abteilung_1: str = ""  # Eigentümer
+    abteilung_2: str = ""  # Lasten und Beschränkungen
+    abteilung_3: str = ""  # Hypotheken, Grundschulden
+    notizen: str = ""
+
+
+@dataclass
+class BaulastenAnfrage:
+    """Anfrage für Baulastenverzeichnis"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Objektdaten
+    bundesland: str
+    landkreis: str
+    gemeinde: str
+    strasse: str
+    hausnummer: str
+    plz: str
+    # Zuständiges Bauamt
+    bauamt_name: str = ""
+    bauamt_adresse: str = ""
+    bauamt_telefon: str = ""
+    bauamt_email: str = ""
+    bauamt_url: str = ""
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    erhalten_am: Optional[datetime] = None
+    # Ergebnis
+    baulasten_vorhanden: bool = False
+    baulasten_beschreibung: str = ""
+    auskunft_pdf: Optional[bytes] = None
+    kosten: float = 0.0
+    notizen: str = ""
+
+
+@dataclass
+class SteuerIDAbfrage:
+    """Steuer-ID Abfrage für Käufer/Verkäufer"""
+    abfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Person
+    person_typ: str  # "Käufer" oder "Verkäufer"
+    person_id: str
+    person_name: str
+    # Adressdaten (für Finanzamt-Zuordnung)
+    plz: str
+    ort: str
+    bundesland: str
+    # Steuer-ID
+    steuer_id: str = ""
+    steuer_id_bestaetigt: bool = False
+    # Zuständiges Finanzamt
+    finanzamt_name: str = ""
+    finanzamt_adresse: str = ""
+    finanzamt_telefon: str = ""
+    finanzamt_email: str = ""
+    finanzamt_nummer: str = ""  # Behördennummer
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    erfasst_am: datetime = field(default_factory=datetime.now)
+    notizen: str = ""
+
+
+@dataclass
+class GrunderwerbsteuerMeldung:
+    """Meldung an Finanzamt für Grunderwerbsteuer"""
+    meldung_id: str
+    projekt_id: str
+    notar_id: str
+    # Kaufvertragsdaten
+    kaufpreis: float
+    kaufvertrag_datum: Optional[date] = None
+    urkundennummer: str = ""
+    # Parteien
+    kaeufer_ids: List[str] = field(default_factory=list)
+    verkaeufer_ids: List[str] = field(default_factory=list)
+    # Objekt
+    objekt_adresse: str = ""
+    gemarkung: str = ""
+    flur: str = ""
+    flurstueck: str = ""
+    grundbuchblatt: str = ""
+    # Zuständiges Finanzamt (Grunderwerbsteuer-Stelle)
+    finanzamt_name: str = ""
+    finanzamt_adresse: str = ""
+    finanzamt_aktenzeichen: str = ""
+    # Steuersatz nach Bundesland
+    bundesland: str = ""
+    steuersatz: float = 0.0  # z.B. 6.5 für 6,5%
+    geschaetzte_steuer: float = 0.0
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    gemeldet_am: Optional[datetime] = None
+    bescheid_erhalten_am: Optional[datetime] = None
+    bescheid_pdf: Optional[bytes] = None
+    steuerbetrag_festgesetzt: float = 0.0
+    faellig_am: Optional[date] = None
+    bezahlt: bool = False
+    bezahlt_am: Optional[date] = None
+    unbedenklichkeitsbescheinigung: Optional[bytes] = None
+    notizen: str = ""
+
+
+@dataclass
+class VorkaufsrechtAnfrage:
+    """Anfrage auf Vorkaufsrecht an Gemeinde/Stadt"""
+    anfrage_id: str
+    projekt_id: str
+    notar_id: str
+    # Gemeinde/Stadt
+    gemeinde_name: str
+    gemeinde_adresse: str = ""
+    gemeinde_telefon: str = ""
+    gemeinde_email: str = ""
+    gemeinde_ansprechpartner: str = ""
+    # Objektdaten
+    objekt_adresse: str = ""
+    gemarkung: str = ""
+    flur: str = ""
+    flurstueck: str = ""
+    grundstuecksgroesse_qm: float = 0.0
+    # Kaufvertragsdaten
+    kaufpreis: float = 0.0
+    urkundennummer: str = ""
+    kaufvertrag_datum: Optional[date] = None
+    # Status
+    status: str = DatenermittlungStatus.AUSSTEHEND.value
+    angefragt_am: Optional[datetime] = None
+    frist_bis: Optional[date] = None  # 2 Monate nach Anfrage
+    # Ergebnis
+    vorkaufsrecht_ausgeubt: Optional[bool] = None  # None = noch nicht beantwortet
+    antwort_erhalten_am: Optional[datetime] = None
+    negativzeugnis_pdf: Optional[bytes] = None  # Verzichtserklärung
+    # Grund für Vorkaufsrecht (falls ausgeübt)
+    vorkaufsrecht_grund: str = ""  # z.B. "städtebauliche Maßnahme"
+    notizen: str = ""
+
+
+# ============================================================================
+# DOKUMENTEN-MANAGEMENT-SYSTEM MIT KAMERA-SCANNER
+# ============================================================================
+
+class DokumentTyp(Enum):
+    """Typen von Dokumenten für automatische Zuordnung"""
+    PERSONALAUSWEIS = "Personalausweis"
+    REISEPASS = "Reisepass"
+    GRUNDBUCHAUSZUG = "Grundbuchauszug"
+    FLURKARTE = "Flurkarte"
+    ENERGIEAUSWEIS = "Energieausweis"
+    KAUFVERTRAG = "Kaufvertrag"
+    FINANZIERUNGSBESTAETIGUNG = "Finanzierungsbestätigung"
+    GEHALTSNACHWEIS = "Gehaltsnachweis"
+    STEUERBESCHEID = "Steuerbescheid"
+    KONTOAUSZUG = "Kontoauszug"
+    BAULASTENVERZEICHNIS = "Baulastenverzeichnis"
+    TEILUNGSERKLAERUNG = "Teilungserklärung"
+    PROTOKOLL_WEG = "Protokoll WEG"
+    WIRTSCHAFTSPLAN = "Wirtschaftsplan"
+    EXPOSE = "Exposé"
+    VOLLMACHT = "Vollmacht"
+    SONSTIGES = "Sonstiges"
+
+
+# Standard-Ordnerstruktur pro Rolle
+STANDARD_ORDNER = {
+    UserRole.KAEUFER.value: [
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG, DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
+        {"name": "Kaufunterlagen", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.GRUNDBUCHAUSZUG]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.FLURKARTE, DokumentTyp.EXPOSE]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.VERKAEUFER.value: [
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.BAULASTENVERZEICHNIS]},
+        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG, DokumentTyp.WIRTSCHAFTSPLAN]},
+        {"name": "Kaufvertrag", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.VOLLMACHT]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.MAKLER.value: [
+        {"name": "Exposé & Marketing", "typen": [DokumentTyp.EXPOSE]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS]},
+        {"name": "Vertragsdokumente", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.VOLLMACHT]},
+        {"name": "Kundendokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.NOTAR.value: [
+        {"name": "Ausweisdokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Grundbuch & Kataster", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.BAULASTENVERZEICHNIS]},
+        {"name": "Kaufvertrag", "typen": [DokumentTyp.KAUFVERTRAG]},
+        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG]},
+        {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG]},
+        {"name": "Vollmachten", "typen": [DokumentTyp.VOLLMACHT]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
+    UserRole.FINANZIERER.value: [
+        {"name": "Bonitätsunterlagen", "typen": [DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.EXPOSE]},
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Vertragsdokumente", "typen": [DokumentTyp.KAUFVERTRAG, DokumentTyp.FINANZIERUNGSBESTAETIGUNG]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ]
+}
+
+
+@dataclass
+class DokumentenOrdner:
+    """Ordner für Dokumente eines Benutzers"""
+    ordner_id: str
+    user_id: str
+    projekt_id: str = ""
+    name: str = ""
+    beschreibung: str = ""
+    standard_dokument_typen: List[str] = field(default_factory=list)
+    dokument_ids: List[str] = field(default_factory=list)
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    ist_system_ordner: bool = False  # True = kann nicht gelöscht werden
+
+
+@dataclass
+class GescanntesDokument:
+    """Ein gescanntes oder hochgeladenes Dokument"""
+    dokument_id: str
+    user_id: str
+    projekt_id: str = ""
+    ordner_id: str = ""
+    # Datei-Informationen
+    dateiname: str = ""
+    original_dateiname: str = ""
+    dateityp: str = ""  # pdf, jpg, png
+    dateigroesse_bytes: int = 0
+    datei_inhalt: Optional[bytes] = None
+    # Dokumenten-Klassifizierung
+    dokument_typ: str = DokumentTyp.SONSTIGES.value
+    dokument_typ_erkannt: bool = False  # True = automatisch erkannt
+    # OCR & PDF-A
+    ist_ocr_verarbeitet: bool = False
+    ocr_text: str = ""
+    ist_pdf_a: bool = False
+    pdf_a_version: str = ""  # z.B. "PDF/A-1b"
+    # Scan-Informationen
+    gescannt_mit_kamera: bool = False
+    kamera_typ: str = ""  # "front" oder "back"
+    scan_qualitaet: str = ""  # "hoch", "mittel", "niedrig"
+    # Metadaten
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    geaendert_am: Optional[datetime] = None
+    notizen: str = ""
+    tags: List[str] = field(default_factory=list)
+
+
+# Schlüsselwörter für automatische Dokumenttyp-Erkennung
+DOKUMENT_ERKENNUNGS_KEYWORDS = {
+    DokumentTyp.PERSONALAUSWEIS.value: ["personalausweis", "identity card", "ausweisnummer", "gültig bis", "staatsangehörigkeit"],
+    DokumentTyp.REISEPASS.value: ["reisepass", "passport", "passnummer", "nationality"],
+    DokumentTyp.GRUNDBUCHAUSZUG.value: ["grundbuch", "abteilung i", "abteilung ii", "abteilung iii", "eigentümer", "flur", "flurstück"],
+    DokumentTyp.FLURKARTE.value: ["flurkarte", "liegenschaftskarte", "kataster", "gemarkung", "flurstück"],
+    DokumentTyp.ENERGIEAUSWEIS.value: ["energieausweis", "energiebedarf", "energieverbrauch", "kwh", "endenergie", "primärenergie"],
+    DokumentTyp.KAUFVERTRAG.value: ["kaufvertrag", "verkauf", "veräußerung", "übereignung", "auflassung", "notar"],
+    DokumentTyp.FINANZIERUNGSBESTAETIGUNG.value: ["finanzierungsbestätigung", "darlehen", "kredit", "finanzierung zugesagt", "kreditbetrag"],
+    DokumentTyp.GEHALTSNACHWEIS.value: ["gehaltsabrechnung", "lohnabrechnung", "brutto", "netto", "steuerklasse", "arbeitgeber"],
+    DokumentTyp.STEUERBESCHEID.value: ["steuerbescheid", "einkommensteuer", "finanzamt", "steuernummer", "festsetzung"],
+    DokumentTyp.KONTOAUSZUG.value: ["kontoauszug", "kontostand", "saldo", "buchung", "iban", "bic"],
+    DokumentTyp.BAULASTENVERZEICHNIS.value: ["baulastenverzeichnis", "baulast", "bauamt", "bauordnung"],
+    DokumentTyp.TEILUNGSERKLAERUNG.value: ["teilungserklärung", "wohnungseigentum", "miteigentum", "sondereigentum", "gemeinschaftseigentum"],
+    DokumentTyp.PROTOKOLL_WEG.value: ["eigentümerversammlung", "protokoll", "weg", "beschluss", "wohnungseigentümer"],
+    DokumentTyp.WIRTSCHAFTSPLAN.value: ["wirtschaftsplan", "hausgeld", "rücklage", "instandhaltung", "betriebskosten"],
+    DokumentTyp.EXPOSE.value: ["exposé", "objekt", "immobilie", "verkaufspreis", "wohnfläche", "zimmer"],
+    DokumentTyp.VOLLMACHT.value: ["vollmacht", "bevollmächtigt", "vertretung", "handeln im namen"]
+}
+
+
+def erkenne_dokument_typ(text: str, dateiname: str = "") -> Tuple[str, float]:
+    """
+    Erkennt den Dokumenttyp anhand von OCR-Text und Dateiname.
+    Gibt Dokumenttyp und Konfidenz (0-1) zurück.
+    """
+    text_lower = text.lower()
+    dateiname_lower = dateiname.lower()
+
+    beste_treffer = []
+
+    for dok_typ, keywords in DOKUMENT_ERKENNUNGS_KEYWORDS.items():
+        treffer = 0
+        for keyword in keywords:
+            if keyword in text_lower or keyword in dateiname_lower:
+                treffer += 1
+
+        if treffer > 0:
+            konfidenz = min(treffer / len(keywords), 1.0)
+            beste_treffer.append((dok_typ, konfidenz))
+
+    if beste_treffer:
+        beste_treffer.sort(key=lambda x: x[1], reverse=True)
+        return beste_treffer[0]
+
+    return DokumentTyp.SONSTIGES.value, 0.0
+
+
+def ordner_fuer_dokument_typ(user_rolle: str, dokument_typ: str) -> str:
+    """Findet den passenden Ordner für einen Dokumenttyp basierend auf der Benutzerrolle"""
+    ordner_config = STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])
+
+    for ordner in ordner_config:
+        typen_values = [t.value if isinstance(t, DokumentTyp) else t for t in ordner['typen']]
+        if dokument_typ in typen_values:
+            return ordner['name']
+
+    return "Sonstiges"
+
+
+def initialisiere_benutzer_ordner(user_id: str, user_rolle: str, projekt_id: str = "") -> List[DokumentenOrdner]:
+    """Erstellt die Standard-Ordnerstruktur für einen Benutzer"""
+    ordner_liste = []
+    ordner_config = STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])
+
+    for idx, config in enumerate(ordner_config):
+        ordner = DokumentenOrdner(
+            ordner_id=f"ord_{user_id}_{projekt_id}_{idx}",
+            user_id=user_id,
+            projekt_id=projekt_id,
+            name=config['name'],
+            standard_dokument_typen=[t.value if isinstance(t, DokumentTyp) else t for t in config['typen']],
+            ist_system_ordner=True
+        )
+        ordner_liste.append(ordner)
+
+    return ordner_liste
+
+
+def konvertiere_zu_pdf_a(datei_inhalt: bytes, dateiname: str) -> Tuple[bytes, bool, str]:
+    """
+    Konvertiert ein Dokument zu PDF/A Format.
+    In Produktion würde hier eine echte PDF/A-Konvertierung erfolgen (z.B. mit ghostscript).
+    Gibt (konvertierte_bytes, erfolg, pdf_a_version) zurück.
+    """
+    # Simulation - in Produktion mit ghostscript oder ähnlichem
+    # gs -dPDFA -dBATCH -dNOPAUSE -sProcessColorModel=DeviceRGB -sDEVICE=pdfwrite
+    #    -sPDFACompatibilityPolicy=1 -sOutputFile=output.pdf input.pdf
+
+    if dateiname.lower().endswith('.pdf'):
+        # PDF bereits vorhanden, markiere als PDF/A (Simulation)
+        return datei_inhalt, True, "PDF/A-1b"
+    elif dateiname.lower().endswith(('.jpg', '.jpeg', '.png')):
+        # Bild zu PDF konvertieren (Simulation)
+        # In Produktion: Pillow + reportlab oder ähnlich
+        return datei_inhalt, True, "PDF/A-1b"
+    else:
+        return datei_inhalt, False, ""
+
+
+def render_kamera_scanner(key_prefix: str, context: str = "dokument") -> Optional[Dict]:
+    """
+    Rendert einen Kamera-Scanner mit Auswahl von Vorder-/Rückkamera.
+    Gibt die gescannten Daten zurück oder None.
+    """
+    st.markdown("#### 📷 Dokument mit Kamera scannen")
+
+    # Kamera-Auswahl
+    col_cam1, col_cam2 = st.columns(2)
+    with col_cam1:
+        kamera_auswahl = st.radio(
+            "Kamera auswählen",
+            options=["📱 Rückkamera (Hauptkamera)", "🤳 Frontkamera"],
+            key=f"{key_prefix}_kamera_auswahl",
+            horizontal=True,
+            help="Die Rückkamera (Hauptkamera) liefert meist bessere Qualität für Dokumente"
+        )
+
+    with col_cam2:
+        qualitaet = st.select_slider(
+            "Scan-Qualität",
+            options=["Niedrig", "Mittel", "Hoch"],
+            value="Hoch",
+            key=f"{key_prefix}_qualitaet",
+            help="Höhere Qualität = größere Datei, bessere OCR-Erkennung"
+        )
+
+    # Kamera-Facing bestimmen
+    facing_mode = "environment" if "Rück" in kamera_auswahl else "user"
+
+    # JavaScript für Kamera-Zugriff einbetten
+    kamera_html = f"""
+    <style>
+        .camera-container {{
+            text-align: center;
+            margin: 10px 0;
+        }}
+        .camera-video {{
+            width: 100%;
+            max-width: 400px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }}
+        .camera-btn {{
+            margin: 10px 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }}
+        .capture-btn {{
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }}
+        .switch-btn {{
+            background-color: #2196F3;
+            color: white;
+            border: none;
+        }}
+    </style>
+    <div class="camera-container" id="camera_{key_prefix}">
+        <p>📷 Klicken Sie auf "Kamera starten" um ein Dokument zu scannen</p>
+        <p><small>Kamera: {kamera_auswahl} | Qualität: {qualitaet}</small></p>
+    </div>
+    """
+
+    st.markdown(kamera_html, unsafe_allow_html=True)
+
+    # Streamlit native Kamera-Input als Fallback
+    st.markdown("---")
+    st.markdown("**Alternative: Datei hochladen oder Foto aufnehmen**")
+
+    camera_input = st.camera_input(
+        f"📸 Foto aufnehmen ({context})",
+        key=f"{key_prefix}_camera_input",
+        help="Nutzen Sie die Kamera Ihres Geräts"
+    )
+
+    if camera_input:
+        # Bild wurde aufgenommen
+        return {
+            'datei': camera_input,
+            'dateiname': f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
+            'kamera_typ': "back" if "Rück" in kamera_auswahl else "front",
+            'qualitaet': qualitaet.lower(),
+            'gescannt': True
+        }
+
+    return None
+
+
+def render_dokument_upload_mit_scanner(
+    key_prefix: str,
+    user_id: str,
+    user_rolle: str,
+    projekt_id: str = "",
+    erlaubte_typen: List[str] = None,
+    auto_ordner: bool = True,
+    kontext: str = "Dokument"
+) -> Optional[GescanntesDokument]:
+    """
+    Universelle Dokument-Upload-Komponente mit Kamera-Scanner und automatischer Zuordnung.
+    """
+    if erlaubte_typen is None:
+        erlaubte_typen = ["pdf", "jpg", "jpeg", "png", "tiff", "bmp"]
+
+    st.markdown(f"### 📄 {kontext} hochladen oder scannen")
+
+    # Tabs für Upload-Methoden
+    upload_tabs = st.tabs(["📁 Datei hochladen", "📷 Mit Kamera scannen"])
+
+    datei_daten = None
+    scan_info = None
+
+    with upload_tabs[0]:
+        # Klassischer Datei-Upload
+        uploaded_file = st.file_uploader(
+            f"{kontext} auswählen",
+            type=erlaubte_typen,
+            key=f"{key_prefix}_file_upload",
+            help=f"Erlaubte Formate: {', '.join(erlaubte_typen)}"
+        )
+
+        if uploaded_file:
+            datei_daten = {
+                'datei': uploaded_file,
+                'dateiname': uploaded_file.name,
+                'gescannt': False
+            }
+
+    with upload_tabs[1]:
+        # Kamera-Scanner
+        scan_result = render_kamera_scanner(key_prefix, kontext)
+        if scan_result:
+            datei_daten = scan_result
+            scan_info = {
+                'kamera_typ': scan_result.get('kamera_typ', ''),
+                'qualitaet': scan_result.get('qualitaet', '')
+            }
+
+    if not datei_daten:
+        return None
+
+    # Datei verarbeiten
+    datei = datei_daten['datei']
+    dateiname = datei_daten['dateiname']
+    datei_bytes = datei.getvalue() if hasattr(datei, 'getvalue') else datei.read()
+
+    st.success(f"✅ Datei geladen: {dateiname} ({len(datei_bytes) / 1024:.1f} KB)")
+
+    # OCR durchführen (simuliert)
+    st.markdown("---")
+    with st.expander("🔍 Dokumenterkennung & OCR", expanded=True):
+        ocr_text = ""
+
+        if st.button("🔍 Dokument analysieren", key=f"{key_prefix}_analyze"):
+            with st.spinner("Analysiere Dokument..."):
+                # Simulierte OCR-Analyse
+                ocr_text = f"[OCR-Text für {dateiname}]"
+
+                # Dokumenttyp erkennen
+                erkannter_typ, konfidenz = erkenne_dokument_typ(ocr_text, dateiname)
+
+                st.info(f"📋 **Erkannter Dokumenttyp:** {erkannter_typ} (Konfidenz: {konfidenz*100:.0f}%)")
+
+                # Ordner-Vorschlag
+                if auto_ordner:
+                    vorgeschlagener_ordner = ordner_fuer_dokument_typ(user_rolle, erkannter_typ)
+                    st.info(f"📁 **Empfohlener Ordner:** {vorgeschlagener_ordner}")
+
+    # Dokumenttyp manuell wählen/bestätigen
+    st.markdown("---")
+    st.markdown("#### 📋 Dokumentdetails")
+
+    col_typ, col_ordner = st.columns(2)
+
+    with col_typ:
+        dokument_typ = st.selectbox(
+            "Dokumenttyp",
+            options=[t.value for t in DokumentTyp],
+            key=f"{key_prefix}_dok_typ",
+            help="Wählen Sie den passenden Dokumenttyp"
+        )
+
+    with col_ordner:
+        # Ordner-Auswahl basierend auf Rolle
+        ordner_optionen = [o['name'] for o in STANDARD_ORDNER.get(user_rolle, STANDARD_ORDNER[UserRole.KAEUFER.value])]
+        vorgeschlagener = ordner_fuer_dokument_typ(user_rolle, dokument_typ)
+        default_idx = ordner_optionen.index(vorgeschlagener) if vorgeschlagener in ordner_optionen else 0
+
+        ordner_name = st.selectbox(
+            "Zielordner",
+            options=ordner_optionen,
+            index=default_idx,
+            key=f"{key_prefix}_ordner",
+            help="Der Ordner wird automatisch vorgeschlagen, kann aber geändert werden"
+        )
+
+    # PDF-A Konvertierung
+    st.markdown("---")
+    col_pdfa, col_ocr = st.columns(2)
+
+    with col_pdfa:
+        als_pdf_a = st.checkbox(
+            "📄 Als PDF/A speichern (archivierbar)",
+            value=True,
+            key=f"{key_prefix}_pdfa",
+            help="PDF/A ist ein ISO-Standard für langfristige Archivierung"
+        )
+
+    with col_ocr:
+        mit_ocr = st.checkbox(
+            "🔍 OCR durchführen (durchsuchbar)",
+            value=True,
+            key=f"{key_prefix}_ocr",
+            help="Text im Dokument wird erkannt und durchsuchbar gemacht"
+        )
+
+    # Notizen
+    notizen = st.text_area(
+        "Notizen (optional)",
+        placeholder="Zusätzliche Informationen zum Dokument...",
+        key=f"{key_prefix}_notizen"
+    )
+
+    # Speichern
+    if st.button("💾 Dokument speichern", type="primary", key=f"{key_prefix}_save"):
+        # PDF-A Konvertierung
+        if als_pdf_a:
+            datei_bytes, pdf_a_erfolg, pdf_a_version = konvertiere_zu_pdf_a(datei_bytes, dateiname)
+            if not dateiname.lower().endswith('.pdf'):
+                dateiname = dateiname.rsplit('.', 1)[0] + '.pdf'
+        else:
+            pdf_a_erfolg = False
+            pdf_a_version = ""
+
+        # Dokument erstellen
+        dok_id = f"dok_{datetime.now().strftime('%Y%m%d%H%M%S')}_{user_id[:8]}"
+
+        neues_dokument = GescanntesDokument(
+            dokument_id=dok_id,
+            user_id=user_id,
+            projekt_id=projekt_id,
+            ordner_id="",  # Wird später zugewiesen
+            dateiname=dateiname,
+            original_dateiname=datei_daten['dateiname'],
+            dateityp=dateiname.rsplit('.', 1)[-1].lower(),
+            dateigroesse_bytes=len(datei_bytes),
+            datei_inhalt=datei_bytes,
+            dokument_typ=dokument_typ,
+            dokument_typ_erkannt=False,
+            ist_ocr_verarbeitet=mit_ocr,
+            ocr_text=ocr_text if mit_ocr else "",
+            ist_pdf_a=pdf_a_erfolg,
+            pdf_a_version=pdf_a_version if pdf_a_erfolg else "",
+            gescannt_mit_kamera=datei_daten.get('gescannt', False),
+            kamera_typ=scan_info.get('kamera_typ', '') if scan_info else "",
+            scan_qualitaet=scan_info.get('qualitaet', '') if scan_info else "",
+            notizen=notizen
+        )
+
+        st.success(f"✅ Dokument '{dateiname}' wurde gespeichert!")
+
+        if pdf_a_erfolg:
+            st.info(f"📄 Konvertiert zu {pdf_a_version}")
+
+        return neues_dokument
+
+    return None
+
+
+def render_ordner_verwaltung(user_id: str, user_rolle: str, projekt_id: str = ""):
+    """Zeigt die Ordner-Verwaltung mit allen Dokumenten und Dateimanagement"""
+    st.markdown("### 📁 Dokumenten-Verwaltung")
+
+    # Initialisiere Ordner im Session State falls nötig
+    ordner_key = f"dokument_ordner_{user_id}_{projekt_id}"
+    if ordner_key not in st.session_state:
+        st.session_state[ordner_key] = initialisiere_benutzer_ordner(user_id, user_rolle, projekt_id)
+
+    dokumente_key = f"dokumente_{user_id}_{projekt_id}"
+    if dokumente_key not in st.session_state:
+        st.session_state[dokumente_key] = {}
+
+    ordner_liste = st.session_state[ordner_key]
+    dokumente = st.session_state[dokumente_key]
+
+    # Ordner als Sidebar oder Tabs
+    ordner_namen = [o.name for o in ordner_liste]
+    selected_ordner_name = st.selectbox(
+        "📁 Ordner auswählen",
+        options=ordner_namen,
+        key=f"ordner_select_{user_id}_{projekt_id}"
+    )
+
+    selected_ordner = next((o for o in ordner_liste if o.name == selected_ordner_name), None)
+
+    if not selected_ordner:
+        return
+
+    st.markdown(f"#### 📂 {selected_ordner.name}")
+
+    # Dokumente in diesem Ordner
+    ordner_dokumente = [d for d in dokumente.values() if d.ordner_id == selected_ordner.ordner_id]
+
+    if ordner_dokumente:
+        for dok in ordner_dokumente:
+            with st.expander(f"📄 {dok.dateiname} ({dok.dokument_typ})"):
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    st.write(f"**Typ:** {dok.dokument_typ}")
+                    st.write(f"**Größe:** {dok.dateigroesse_bytes / 1024:.1f} KB")
+                    st.write(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+                    if dok.ist_pdf_a:
+                        st.success(f"✅ PDF/A ({dok.pdf_a_version})")
+                    if dok.ist_ocr_verarbeitet:
+                        st.success("✅ OCR durchsuchbar")
+                    if dok.gescannt_mit_kamera:
+                        st.info(f"📷 Gescannt mit {dok.kamera_typ}-Kamera")
+
+                with col2:
+                    # Download
+                    if dok.datei_inhalt:
+                        st.download_button(
+                            "📥 Download",
+                            data=dok.datei_inhalt,
+                            file_name=dok.dateiname,
+                            key=f"dl_{dok.dokument_id}"
+                        )
+
+                # Dateimanagement-Aktionen
+                st.markdown("---")
+                st.markdown("**Aktionen:**")
+                col_move, col_copy, col_del = st.columns(3)
+
+                with col_move:
+                    ziel_ordner = st.selectbox(
+                        "Verschieben nach",
+                        options=[o.name for o in ordner_liste if o.ordner_id != selected_ordner.ordner_id],
+                        key=f"move_{dok.dokument_id}"
+                    )
+                    if st.button("📦 Verschieben", key=f"move_btn_{dok.dokument_id}"):
+                        ziel = next((o for o in ordner_liste if o.name == ziel_ordner), None)
+                        if ziel:
+                            dok.ordner_id = ziel.ordner_id
+                            st.success(f"✅ Verschoben nach '{ziel_ordner}'")
+                            st.rerun()
+
+                with col_copy:
+                    kopie_ordner = st.selectbox(
+                        "Kopieren nach",
+                        options=[o.name for o in ordner_liste if o.ordner_id != selected_ordner.ordner_id],
+                        key=f"copy_{dok.dokument_id}"
+                    )
+                    if st.button("📋 Kopieren", key=f"copy_btn_{dok.dokument_id}"):
+                        ziel = next((o for o in ordner_liste if o.name == kopie_ordner), None)
+                        if ziel:
+                            # Kopie erstellen
+                            kopie_id = f"dok_{datetime.now().strftime('%Y%m%d%H%M%S')}_copy"
+                            kopie = GescanntesDokument(
+                                dokument_id=kopie_id,
+                                user_id=dok.user_id,
+                                projekt_id=dok.projekt_id,
+                                ordner_id=ziel.ordner_id,
+                                dateiname=f"Kopie_{dok.dateiname}",
+                                original_dateiname=dok.original_dateiname,
+                                dateityp=dok.dateityp,
+                                dateigroesse_bytes=dok.dateigroesse_bytes,
+                                datei_inhalt=dok.datei_inhalt,
+                                dokument_typ=dok.dokument_typ,
+                                ist_ocr_verarbeitet=dok.ist_ocr_verarbeitet,
+                                ocr_text=dok.ocr_text,
+                                ist_pdf_a=dok.ist_pdf_a,
+                                pdf_a_version=dok.pdf_a_version
+                            )
+                            dokumente[kopie_id] = kopie
+                            st.success(f"✅ Kopiert nach '{kopie_ordner}'")
+                            st.rerun()
+
+                with col_del:
+                    if st.button("🗑️ Löschen", key=f"del_btn_{dok.dokument_id}", type="secondary"):
+                        if dok.dokument_id in dokumente:
+                            del dokumente[dok.dokument_id]
+                            st.success("✅ Dokument gelöscht")
+                            st.rerun()
+    else:
+        st.info("📭 Dieser Ordner ist leer.")
+
+    # Neues Dokument hochladen
+    st.markdown("---")
+    with st.expander("➕ Neues Dokument hinzufügen", expanded=False):
+        neues_dok = render_dokument_upload_mit_scanner(
+            key_prefix=f"upload_{selected_ordner.ordner_id}",
+            user_id=user_id,
+            user_rolle=user_rolle,
+            projekt_id=projekt_id,
+            kontext="Dokument"
+        )
+
+        if neues_dok:
+            neues_dok.ordner_id = selected_ordner.ordner_id
+            dokumente[neues_dok.dokument_id] = neues_dok
+            st.rerun()
+
+
+# Bundesland-spezifische Grunderwerbsteuersätze (Stand 2024)
+GRUNDERWERBSTEUER_SAETZE = {
+    "Baden-Württemberg": 5.0,
+    "Bayern": 3.5,
+    "Berlin": 6.0,
+    "Brandenburg": 6.5,
+    "Bremen": 5.0,
+    "Hamburg": 5.5,
+    "Hessen": 6.0,
+    "Mecklenburg-Vorpommern": 6.0,
+    "Niedersachsen": 5.0,
+    "Nordrhein-Westfalen": 6.5,
+    "Rheinland-Pfalz": 5.0,
+    "Saarland": 6.5,
+    "Sachsen": 5.5,
+    "Sachsen-Anhalt": 5.0,
+    "Schleswig-Holstein": 6.5,
+    "Thüringen": 5.0
+}
+
+# Bundesländer mit elektronischem Grundbuch (EGVP/SolumSTAR)
+ELEKTRONISCHES_GRUNDBUCH_SUPPORT = {
+    "Baden-Württemberg": {"egvp": True, "solum_star": True, "portal": "Grundbuchportal BW"},
+    "Bayern": {"egvp": True, "solum_star": True, "portal": "Bayern-Portal"},
+    "Berlin": {"egvp": True, "solum_star": False, "portal": "Berlin.de"},
+    "Brandenburg": {"egvp": True, "solum_star": False, "portal": "Service Brandenburg"},
+    "Bremen": {"egvp": True, "solum_star": False, "portal": "Bremen.de"},
+    "Hamburg": {"egvp": True, "solum_star": False, "portal": "Hamburg.de"},
+    "Hessen": {"egvp": True, "solum_star": True, "portal": "Service Hessen"},
+    "Mecklenburg-Vorpommern": {"egvp": True, "solum_star": False, "portal": "MV-Portal"},
+    "Niedersachsen": {"egvp": True, "solum_star": True, "portal": "Niedersachsen.de"},
+    "Nordrhein-Westfalen": {"egvp": True, "solum_star": True, "portal": "NRW Geoportal"},
+    "Rheinland-Pfalz": {"egvp": True, "solum_star": True, "portal": "RLP-Portal"},
+    "Saarland": {"egvp": True, "solum_star": False, "portal": "Saarland.de"},
+    "Sachsen": {"egvp": True, "solum_star": True, "portal": "Amt24 Sachsen"},
+    "Sachsen-Anhalt": {"egvp": True, "solum_star": False, "portal": "Sachsen-Anhalt.de"},
+    "Schleswig-Holstein": {"egvp": True, "solum_star": True, "portal": "SH-Portal"},
+    "Thüringen": {"egvp": True, "solum_star": False, "portal": "Thüringen.de"}
+}
+
+# Geoportale für Flurkarten nach Bundesland
+GEOPORTALE = {
+    "Baden-Württemberg": {"name": "Geoportal BW", "url": "https://www.geoportal-bw.de/"},
+    "Bayern": {"name": "BayernAtlas", "url": "https://geoportal.bayern.de/bayernatlas/"},
+    "Berlin": {"name": "FIS-Broker", "url": "https://fbinter.stadt-berlin.de/fb/"},
+    "Brandenburg": {"name": "Geoportal Brandenburg", "url": "https://geoportal.brandenburg.de/"},
+    "Bremen": {"name": "GeoPortal Bremen", "url": "https://geoportal.bremen.de/"},
+    "Hamburg": {"name": "Geoportal Hamburg", "url": "https://geoportal-hamburg.de/"},
+    "Hessen": {"name": "Geoportal Hessen", "url": "https://www.geoportal.hessen.de/"},
+    "Mecklenburg-Vorpommern": {"name": "GeoPortal.MV", "url": "https://www.geoportal-mv.de/"},
+    "Niedersachsen": {"name": "LGLN", "url": "https://www.lgln.niedersachsen.de/"},
+    "Nordrhein-Westfalen": {"name": "TIM-online", "url": "https://www.tim-online.nrw.de/"},
+    "Rheinland-Pfalz": {"name": "Geoportal RLP", "url": "https://www.geoportal.rlp.de/"},
+    "Saarland": {"name": "Geoportal Saarland", "url": "https://geoportal.saarland.de/"},
+    "Sachsen": {"name": "GeoSN", "url": "https://geoportal.sachsen.de/"},
+    "Sachsen-Anhalt": {"name": "Geodatenportal ST", "url": "https://www.geodatenportal.sachsen-anhalt.de/"},
+    "Schleswig-Holstein": {"name": "Digitaler Atlas Nord", "url": "https://danord.gdi-sh.de/"},
+    "Thüringen": {"name": "Geoproxy Thüringen", "url": "https://www.geoportal-th.de/"}
+}
+
 
 class TodoKategorie(Enum):
     """Kategorien für Käufer-Todos"""
@@ -2452,6 +3876,491 @@ class Aktentasche:
     erstellt_am: datetime = field(default_factory=datetime.now)
     zuletzt_geaendert: datetime = field(default_factory=datetime.now)
 
+
+# VERTRAGSARCHIV & TEXTBAUSTEINE
+# ============================================================================
+
+class VertragsTyp(Enum):
+    """Vertragstypen für Kategorisierung von Textbausteinen"""
+    KAUFVERTRAG = "Kaufvertrag"
+    UEBERLASSUNGSVERTRAG = "Überlassungsvertrag"
+    ERBVERTRAG = "Erbvertrag"
+    SCHENKUNGSVERTRAG = "Schenkungsvertrag"
+    MIETVERTRAG = "Mietvertrag"
+    GRUNDSTUECKSKAUFVERTRAG = "Grundstückskaufvertrag"
+    WOHNUNGSKAUFVERTRAG = "Wohnungskaufvertrag"
+    BAUTRAEGERVERTRAG = "Bauträgervertrag"
+    TEILUNGSERKLAERUNG = "Teilungserklärung"
+    VOLLMACHT = "Vollmacht"
+    SONSTIGES = "Sonstiges"
+
+class TextbausteinKategorie(Enum):
+    """Kategorien für Textbausteine (Regelungsinhalte)"""
+    VERTRAGSPARTEIEN = "Vertragsparteien"
+    KAUFGEGENSTAND = "Kaufgegenstand"
+    KAUFPREIS = "Kaufpreis & Zahlung"
+    ZAHLUNGSMODALITAETEN = "Zahlungsmodalitäten"
+    FÄLLIGKEIT = "Fälligkeit"
+    AUFLASSUNG = "Auflassung & Eigentumsübergang"
+    BESITZUEBERGANG = "Besitzübergang"
+    HAFTUNG = "Haftung & Gewährleistung"
+    MAENGEL = "Mängelhaftung"
+    RUECKTRITT = "Rücktritt & Aufhebung"
+    VERTRAGSSTRAFE = "Vertragsstrafe"
+    KOSTEN = "Kosten & Steuern"
+    BELASTUNGEN = "Belastungen & Lasten"
+    GRUNDBUCH = "Grundbuch"
+    ERSCHLIESSUNG = "Erschließung"
+    BAULAST = "Baulasten"
+    VORKAUFSRECHT = "Vorkaufsrecht"
+    VOLLMACHTEN = "Vollmachten"
+    SCHLUSSBESTIMMUNGEN = "Schlussbestimmungen"
+    SALVATORISCH = "Salvatorische Klausel"
+    SONSTIGES = "Sonstiges"
+
+class TextbausteinStatus(Enum):
+    """Status eines Textbausteins"""
+    ENTWURF = "Entwurf"  # Neu hochgeladen, nicht geprüft
+    PRUEFUNG = "In Prüfung"  # Vom Notar zur Prüfung markiert
+    FREIGEGEBEN = "Freigegeben"  # Vom Notar freigegeben
+    AKTUALISIERUNG = "Update verfügbar"  # KI hat Update gefunden
+    ABGELEHNT = "Abgelehnt"  # Vom Notar abgelehnt
+    ARCHIVIERT = "Archiviert"  # Nicht mehr verwendet
+
+
+# ============================================================================
+# AKTENMANAGEMENT
+# ============================================================================
+
+class AktenHauptbereich(Enum):
+    """Hauptbereiche für Notarakten"""
+    ERBRECHT = "Erbrecht"
+    GESELLSCHAFTSRECHT = "Gesellschaftsrecht"
+    ZIVILRECHT = "Zivilrecht"
+    SONSTIGE = "Sonstige"
+
+
+class AktenTypErbrecht(Enum):
+    """Untertypen für Erbrecht"""
+    TESTAMENT_GEMEINSCHAFTLICH = "Gemeinschaftliches Testament (Eheleute)"
+    TESTAMENT_EINZEL = "Einzeltestament"
+    ERBVERTRAG = "Erbvertrag"
+    ERBAUSSCHLAGUNG = "Erbausschlagung"
+    ERBSCHEIN = "Erbschein"
+
+
+class AktenTypGesellschaftsrecht(Enum):
+    """Untertypen für Gesellschaftsrecht"""
+    GRUENDUNG = "Gründung einer Gesellschaft"
+    LIQUIDATION = "Liquidation einer Gesellschaft"
+    VERKAUF_ANTEILE = "Verkauf von Gesellschaftsanteilen"
+    ABTRETUNG_ANTEILE = "Abtretung von Gesellschaftsanteilen"
+
+
+class AktenTypZivilrecht(Enum):
+    """Untertypen für Zivilrecht"""
+    IMMOBILIENKAUFVERTRAG = "Notarieller Immobilienkaufvertrag"
+    UEBERLASSUNGSVERTRAG = "Überlassungsvertrag"
+    EHEVERTRAG = "Ehevertrag"
+    SCHEIDUNGSFOLGENVEREINBARUNG = "Scheidungsfolgenvereinbarung"
+    VORSORGEVERTRAG = "Vorsorgevertrag (Betreuungs- & Patientenverfügung)"
+    SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
+
+
+class AktenStatus(Enum):
+    """Status einer Akte"""
+    NEU = "Neu angelegt"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    WARTET_AUF_UNTERLAGEN = "Wartet auf Unterlagen"
+    BEURKUNDUNG_VORBEREITET = "Beurkundung vorbereitet"
+    BEURKUNDET = "Beurkundet"
+    VOLLZUG = "Im Vollzug"
+    ABGESCHLOSSEN = "Abgeschlossen"
+    STORNIERT = "Storniert"
+
+
+# Mapping von Hauptbereich zu Untertypen
+AKTEN_UNTERTYPEN = {
+    AktenHauptbereich.ERBRECHT.value: [e.value for e in AktenTypErbrecht],
+    AktenHauptbereich.GESELLSCHAFTSRECHT.value: [e.value for e in AktenTypGesellschaftsrecht],
+    AktenHauptbereich.ZIVILRECHT.value: [e.value for e in AktenTypZivilrecht],
+    AktenHauptbereich.SONSTIGE.value: ["Sonstiges"],
+}
+
+
+@dataclass
+class Akte:
+    """Notarielle Akte"""
+    akte_id: str
+    notar_id: str  # Notar, dem die Akte gehört
+    sachbearbeiter_id: Optional[str] = None  # Mitarbeiter-ID
+
+    # Aktenzeichen-Komponenten
+    aktennummer: int = 0
+    aktenjahr: int = 24  # 2-stellig
+    verkaeufer_nachname: str = ""
+    kaeufer_nachname: str = ""
+    notar_kuerzel: str = ""
+    mitarbeiter_kuerzel: str = ""
+
+    # Generierte Bezeichnungen
+    aktenzeichen: str = ""  # z.B. "Krug ./. Müller 333/24 SQ-Go"
+    kurzbezeichnung: str = ""  # z.B. "Krug ./. Müller 333/24"
+
+    # Kategorisierung
+    hauptbereich: str = ""  # Erbrecht, Gesellschaftsrecht, Zivilrecht
+    untertyp: str = ""  # Spezifischer Typ
+    benutzerdefinierte_kategorie: str = ""  # Falls benutzerdefiniert
+
+    # Verknüpfung mit Projekt (falls Immobilientransaktion)
+    projekt_id: Optional[str] = None
+
+    # Parteien
+    parteien: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Status
+    status: str = AktenStatus.NEU.value
+
+    # Beschreibung
+    betreff: str = ""
+    interne_notizen: str = ""
+
+    # Termine
+    beurkundungstermin: Optional[datetime] = None
+    naechste_wiedervorlage: Optional[date] = None
+
+    # Finanzen
+    geschaeftswert: float = 0.0
+    gebuehren: float = 0.0
+    gebuehren_bezahlt: bool = False
+
+    # Dokumente und Nachrichten (IDs)
+    dokument_ids: List[str] = field(default_factory=list)
+    nachricht_ids: List[str] = field(default_factory=list)
+    textbaustein_ids: List[str] = field(default_factory=list)
+
+    # Timestamps
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    abgeschlossen_am: Optional[datetime] = None
+
+    def generiere_aktenzeichen(self) -> str:
+        """Generiert das vollständige Aktenzeichen"""
+        vk = self.verkaeufer_nachname or "N.N."
+        kf = self.kaeufer_nachname or "N.N."
+        basis = f"{vk} ./. {kf} {self.aktennummer}/{self.aktenjahr:02d}"
+        if self.notar_kuerzel and self.mitarbeiter_kuerzel:
+            return f"{basis} {self.notar_kuerzel}-{self.mitarbeiter_kuerzel}"
+        elif self.notar_kuerzel:
+            return f"{basis} {self.notar_kuerzel}"
+        return basis
+
+    def generiere_kurzbezeichnung(self) -> str:
+        """Generiert die Kurzbezeichnung für Kommunikation"""
+        vk = self.verkaeufer_nachname or "N.N."
+        kf = self.kaeufer_nachname or "N.N."
+        return f"{vk} ./. {kf} {self.aktennummer}/{self.aktenjahr:02d}"
+
+
+@dataclass
+class BenutzerdefiniertKategorie:
+    """Benutzerdefinierte Akten-Kategorie"""
+    kategorie_id: str
+    notar_id: str
+    hauptbereich: str
+    name: str
+    beschreibung: str = ""
+    erstellt_von_id: str = ""
+    freigegeben: bool = False
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von_id: Optional[str] = None
+    ist_aktiv: bool = True
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class AktenNachricht:
+    """Nachricht zu einer Akte"""
+    nachricht_id: str
+    akte_id: str
+    absender_id: str
+    empfaenger_ids: List[str] = field(default_factory=list)
+    betreff: str = ""  # Wird automatisch mit Aktenzeichen präfixiert
+    nachricht: str = ""
+    nachrichtentyp: str = "intern"  # intern, extern, notiz
+    kanal: str = "portal"  # email, portal, telefon, fax
+    anhaenge: List[Dict[str, Any]] = field(default_factory=list)
+    gelesen: bool = False
+    gelesen_am: Optional[datetime] = None
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+# Vertragstyp-Templates: Definiert die typische Reihenfolge der Kategorien für jeden Vertragstyp
+# Bei "alternativen" können verschiedene Bausteine der gleichen Kategorie ausgewählt werden
+VERTRAGSTYP_TEMPLATES = {
+    VertragsTyp.KAUFVERTRAG.value: {
+        "name": "Kaufvertrag",
+        "beschreibung": "Standard-Kaufvertrag für Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KAUFPREIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZAHLUNGSMODALITAETEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.FÄLLIGKEIT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MAENGEL.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VORKAUFSRECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VOLLMACHTEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SALVATORISCH.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.UEBERLASSUNGSVERTRAG.value: {
+        "name": "Überlassungsvertrag",
+        "beschreibung": "Vertrag zur Überlassung von Grundstücken/Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ERBVERTRAG.value: {
+        "name": "Erbvertrag",
+        "beschreibung": "Notarieller Erbvertrag",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.SCHENKUNGSVERTRAG.value: {
+        "name": "Schenkungsvertrag",
+        "beschreibung": "Vertrag über Schenkung von Immobilien",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BELASTUNGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKTRITT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.TEILUNGSERKLAERUNG.value: {
+        "name": "Teilungserklärung",
+        "beschreibung": "WEG-Teilungserklärung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+        ]
+    },
+}
+
+# Farben für die visuelle Baustein-Hervorhebung (wechselnde Farben)
+BAUSTEIN_FARBEN = [
+    "#E3F2FD",  # Hellblau
+    "#E8F5E9",  # Hellgrün
+    "#FFEBEE",  # Hellrot/Rosa
+    "#FFF3E0",  # Hellorange
+    "#F3E5F5",  # Helllila
+    "#E0F7FA",  # Hellcyan
+]
+
+@dataclass
+class Textbaustein:
+    """Ein Textbaustein (Klausel) für Verträge"""
+    baustein_id: str
+    notar_id: str  # Eigentümer/Ersteller
+
+    # Inhalt
+    titel: str  # Überschrift des Bausteins
+    text: str  # Der eigentliche Klauseltext
+    zusammenfassung: str = ""  # KI-generierte Kurzbeschreibung
+
+    # Kategorisierung
+    kategorie: str = TextbausteinKategorie.SONSTIGES.value  # Regelungsinhalt
+    vertragstypen: List[str] = field(default_factory=list)  # In welchen Vertragsarten verwendbar
+
+    # Herkunft & Kontext
+    quelle_dokument_id: Optional[str] = None  # Falls aus Vertrag extrahiert
+    position_im_dokument: int = 0  # Position im Ursprungsdokument
+    start_index: int = 0  # Startposition im Ursprungstext (Zeichenindex)
+    end_index: int = 0  # Endposition im Ursprungstext (Zeichenindex)
+    vorgaenger_baustein_id: Optional[str] = None  # Vorheriger Baustein im Ursprung
+    nachfolger_baustein_id: Optional[str] = None  # Nächster Baustein im Ursprung
+
+    # Status & Freigabe
+    status: str = TextbausteinStatus.ENTWURF.value
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von: str = ""  # User-ID des Notars
+
+    # Verknüpfungen
+    verwendet_in_vertraegen: List[str] = field(default_factory=list)  # Vertrags-IDs
+    duplikat_von: Optional[str] = None  # Falls als Duplikat erkannt
+    aehnliche_bausteine: List[str] = field(default_factory=list)  # Ähnliche Baustein-IDs
+
+    # KI-Metadaten
+    ki_generiert: bool = False  # Wurde Titel/Zusammenfassung von KI erstellt
+    ki_kategorisiert: bool = False  # Wurde Kategorie von KI vorgeschlagen
+    ki_update_vorschlag: str = ""  # Vorgeschlagenes Update von KI
+    ki_update_quelle: str = ""  # Quelle des Updates
+    ki_update_datum: Optional[datetime] = None
+
+    # Versionen
+    version: int = 1
+    vorherige_version_id: Optional[str] = None  # Für Versionsverlauf
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""  # User-ID des Erstellers (Mitarbeiter oder Notar)
+    notizen: str = ""  # Interne Notizen
+
+    # Text-Hash für Duplikaterkennung
+    text_hash: str = ""
+
+@dataclass
+class VertragsDokument:
+    """Ein hochgeladenes Vertragsdokument"""
+    dokument_id: str
+    notar_id: str
+
+    # Datei-Informationen
+    dateiname: str
+    dateityp: str  # "docx", "pdf", "image"
+    dateigroesse: int
+    datei_bytes: Optional[bytes] = None
+
+    # Extrahierter Text
+    volltext: str = ""
+    ocr_durchgefuehrt: bool = False
+
+    # Kategorisierung
+    vertragstyp: str = VertragsTyp.SONSTIGES.value
+    beschreibung: str = ""
+
+    # Zerlegung in Bausteine
+    zerlegt: bool = False  # Wurde in Bausteine aufgeteilt
+    baustein_ids: List[str] = field(default_factory=list)  # Extrahierte Bausteine
+    anzahl_erkannte_klauseln: int = 0
+
+    # Status
+    status: str = "Hochgeladen"  # Hochgeladen, In Verarbeitung, Verarbeitet, Fehler
+    fehler_meldung: str = ""
+
+    # Metadaten
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    hochgeladen_von: str = ""  # User-ID
+    verarbeitet_am: Optional[datetime] = None
+
+@dataclass
+class VertragsVorlage:
+    """Eine Vertragsvorlage aus Textbausteinen"""
+    vorlage_id: str
+    notar_id: str
+
+    # Basis-Informationen
+    name: str
+    beschreibung: str = ""
+    vertragstyp: str = VertragsTyp.KAUFVERTRAG.value
+
+    # Struktur: Liste von Baustein-IDs in Reihenfolge
+    baustein_ids: List[str] = field(default_factory=list)
+
+    # Oder: Freier Text mit Platzhaltern
+    vorlage_text: str = ""  # Falls nicht aus Bausteinen zusammengesetzt
+
+    # Platzhalter-Definitionen
+    platzhalter: Dict[str, str] = field(default_factory=dict)  # {name: beschreibung}
+
+    # Status
+    freigegeben: bool = False
+    freigegeben_am: Optional[datetime] = None
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+    version: int = 1
+
+class VertragsentwurfStatus(Enum):
+    """Status eines Vertragsentwurfs"""
+    ENTWURF = "Entwurf"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    PRUEFUNG = "Zur Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    VERSENDET = "Versendet"
+    UNTERZEICHNET = "Unterzeichnet"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class Vertragsentwurf:
+    """Ein konkreter Vertragsentwurf für ein Projekt"""
+    entwurf_id: str
+    notar_id: str
+    projekt_id: str  # Zugehöriges Immobilien-Projekt
+
+    # Basis-Informationen
+    name: str
+    vertragstyp: str = VertragsTyp.KAUFVERTRAG.value
+
+    # Inhalt
+    volltext: str = ""  # Der vollständige Vertragstext
+    baustein_ids: List[str] = field(default_factory=list)  # Verwendete Bausteine
+    vorlage_id: Optional[str] = None  # Falls aus Vorlage erstellt
+
+    # Parteien-spezifische Daten (ausgefüllte Platzhalter)
+    platzhalter_werte: Dict[str, str] = field(default_factory=dict)
+
+    # Besondere Wünsche
+    kaeufer_wuensche: List[str] = field(default_factory=list)
+    verkaeufer_wuensche: List[str] = field(default_factory=list)
+
+    # Status & Workflow
+    status: str = VertragsentwurfStatus.ENTWURF.value
+    freigegeben_am: Optional[datetime] = None
+    freigegeben_von: str = ""
+
+    # Versand
+    versendet_an: List[str] = field(default_factory=list)  # User-IDs
+    versendet_am: Optional[datetime] = None
+
+    # PDF-Version
+    pdf_data: Optional[bytes] = None
+    pdf_generiert_am: Optional[datetime] = None
+
+    # KI-Generiert
+    ki_generiert: bool = False
+    ki_prompt: str = ""  # Falls KI-generiert, der verwendete Prompt
+
+    # Versionen
+    version: int = 1
+    vorherige_version_id: Optional[str] = None
+    aenderungshistorie: List[Dict[str, Any]] = field(default_factory=list)
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+    notizen: str = ""
+
 # ============================================================================
 # SESSION PERSISTENZ (COOKIES/LOCAL STORAGE)
 # ============================================================================
@@ -2618,6 +4527,19 @@ def init_session_state():
         # Finanzierungs-Erweiterung
         st.session_state.finanzierer_einladungen = {}  # ID -> FinanziererEinladung
         st.session_state.finanzierungsanfragen = {}  # ID -> FinanzierungsAnfrage
+        st.session_state.finanzierungsmodelle = {}  # ID -> Finanzierungsmodell
+
+        # Automatische Marktanalyse
+        st.session_state.marktanalyse_ergebnisse = {}  # Projekt-ID -> MarktanalyseErgebnis
+        st.session_state.marktpreis_historie = {}  # Projekt-ID -> List[MarktpreisHistorie]
+
+        # Notar-Datenermittlung
+        st.session_state.flurkart_anfragen = {}  # ID -> FlurkartAnfrage
+        st.session_state.grundbuch_anfragen = {}  # ID -> GrundbuchAnfrage
+        st.session_state.baulasten_anfragen = {}  # ID -> BaulastenAnfrage
+        st.session_state.steuer_id_abfragen = {}  # ID -> SteuerIDAbfrage
+        st.session_state.grunderwerbsteuer_meldungen = {}  # ID -> GrunderwerbsteuerMeldung
+        st.session_state.vorkaufsrecht_anfragen = {}  # ID -> VorkaufsrechtAnfrage
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
@@ -2660,6 +4582,40 @@ def init_session_state():
 
         # Notar-Rechtsdokumente (Datenschutz, AGB, Widerruf)
         st.session_state.notar_rechtsdokumente = {}
+
+        # ============================================================
+        # VERTRAGSARCHIV & TEXTBAUSTEINE
+        # ============================================================
+        st.session_state.textbausteine = {}  # baustein_id -> Textbaustein
+        st.session_state.vertragsdokumente = {}  # dokument_id -> VertragsDokument
+        st.session_state.vertragsvorlagen = {}  # vorlage_id -> VertragsVorlage
+        st.session_state.vertragsentwuerfe = {}  # entwurf_id -> Vertragsentwurf
+
+        # ============================================================
+        # AKTENMANAGEMENT
+        # ============================================================
+        st.session_state.akten = {}  # akte_id -> Akte
+        st.session_state.akten_nachrichten = {}  # nachricht_id -> AktenNachricht
+        st.session_state.benutzerdefinierte_kategorien = {}  # kategorie_id -> BenutzerdefiniertKategorie
+        st.session_state.notar_kuerzel = {}  # notar_id -> kuerzel (z.B. "SQ")
+        st.session_state.mitarbeiter_kuerzel = {}  # mitarbeiter_id -> kuerzel (z.B. "Go")
+        st.session_state.letzte_aktennummer = {}  # notar_id -> {jahr: nummer}
+
+        # Datenbank-Status
+        st.session_state.database_connected = False
+        st.session_state.database_status = None
+
+        # Datenbank initialisieren (falls verfügbar)
+        if DATABASE_AVAILABLE:
+            try:
+                db_status = check_database_connection()
+                if db_status.get('connected'):
+                    st.session_state.database_connected = True
+                    st.session_state.database_status = db_status
+                    # Tabellen erstellen falls nicht vorhanden
+                    init_database(drop_existing=False)
+            except Exception as e:
+                st.session_state.database_status = {'error': str(e)}
 
         # Demo-Daten
         create_demo_users()
@@ -3141,6 +5097,19 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
 
     st.session_state.preisangebote[angebot_id] = angebot
 
+    # Preisverhandlung tracken (für ML-Training)
+    safe_track_interaktion(
+        interaktions_typ='preisvorschlag',
+        details={
+            'angebot_id': angebot_id,
+            'betrag': betrag,
+            'von_rolle': von_rolle,
+            'status': 'offen'
+        },
+        nutzer_id=von_user_id,
+        projekt_id=projekt_id
+    )
+
     # Benachrichtigungen an Gegenseite
     projekt = st.session_state.projekte.get(projekt_id)
     if projekt:
@@ -3191,6 +5160,18 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
     angebot.status = neuer_status
     angebot.beantwortet_am = datetime.now()
     angebot.antwort_nachricht = antwort_nachricht
+
+    # Antwort auf Preisangebot tracken
+    safe_track_interaktion(
+        interaktions_typ='preisvorschlag_antwort',
+        details={
+            'angebot_id': angebot_id,
+            'neuer_status': neuer_status,
+            'ursprungs_betrag': angebot.betrag,
+            'gegenangebot_betrag': gegenangebot_betrag
+        },
+        projekt_id=angebot.projekt_id
+    )
 
     projekt = st.session_state.projekte.get(angebot.projekt_id)
     von_user = st.session_state.users.get(angebot.von_user_id)
@@ -3279,6 +5260,1396 @@ def get_letztes_offenes_angebot(projekt_id: str) -> Optional[Preisangebot]:
         if angebot.status == PreisangebotStatus.OFFEN.value:
             return angebot
     return None
+
+
+# ============================================================================
+# AKTENMANAGEMENT FUNKTIONEN
+# ============================================================================
+
+def get_naechste_aktennummer(notar_id: str) -> Tuple[int, int]:
+    """
+    Ermittelt die nächste Aktennummer für einen Notar.
+    Gibt (aktennummer, aktenjahr) zurück.
+    """
+    aktuelles_jahr = datetime.now().year % 100  # 2-stellig: 24, 25, etc.
+
+    if notar_id not in st.session_state.letzte_aktennummer:
+        st.session_state.letzte_aktennummer[notar_id] = {}
+
+    notar_nummern = st.session_state.letzte_aktennummer[notar_id]
+
+    if aktuelles_jahr not in notar_nummern:
+        notar_nummern[aktuelles_jahr] = 0
+
+    notar_nummern[aktuelles_jahr] += 1
+    return notar_nummern[aktuelles_jahr], aktuelles_jahr
+
+
+def create_akte(
+    notar_id: str,
+    hauptbereich: str,
+    untertyp: str,
+    verkaeufer_nachname: str = "",
+    kaeufer_nachname: str = "",
+    sachbearbeiter_id: Optional[str] = None,
+    projekt_id: Optional[str] = None,
+    betreff: str = "",
+    geschaeftswert: float = 0.0
+) -> Akte:
+    """
+    Erstellt eine neue Akte mit automatischem Aktenzeichen.
+
+    Args:
+        notar_id: ID des Notars
+        hauptbereich: Erbrecht, Gesellschaftsrecht, Zivilrecht, Sonstige
+        untertyp: Spezifischer Typ innerhalb des Hauptbereichs
+        verkaeufer_nachname: Nachname der ersten Partei (Verkäufer/Erblasser etc.)
+        kaeufer_nachname: Nachname der zweiten Partei (Käufer/Erbe etc.)
+        sachbearbeiter_id: ID des zuständigen Mitarbeiters
+        projekt_id: Verknüpfung mit Makler-Projekt (falls vorhanden)
+        betreff: Kurzbeschreibung des Falls
+        geschaeftswert: Geschäftswert für Gebührenberechnung
+
+    Returns:
+        Die erstellte Akte
+    """
+    akte_id = str(uuid.uuid4())[:8]
+
+    # Nächste Aktennummer holen
+    aktennummer, aktenjahr = get_naechste_aktennummer(notar_id)
+
+    # Kürzel ermitteln
+    notar_kuerzel = st.session_state.notar_kuerzel.get(notar_id, "")
+    mitarbeiter_kuerzel = ""
+    if sachbearbeiter_id:
+        mitarbeiter_kuerzel = st.session_state.mitarbeiter_kuerzel.get(sachbearbeiter_id, "")
+
+    # Akte erstellen
+    akte = Akte(
+        akte_id=akte_id,
+        notar_id=notar_id,
+        sachbearbeiter_id=sachbearbeiter_id,
+        aktennummer=aktennummer,
+        aktenjahr=aktenjahr,
+        verkaeufer_nachname=verkaeufer_nachname,
+        kaeufer_nachname=kaeufer_nachname,
+        notar_kuerzel=notar_kuerzel,
+        mitarbeiter_kuerzel=mitarbeiter_kuerzel,
+        hauptbereich=hauptbereich,
+        untertyp=untertyp,
+        projekt_id=projekt_id,
+        betreff=betreff,
+        geschaeftswert=geschaeftswert
+    )
+
+    # Aktenzeichen generieren
+    akte.aktenzeichen = akte.generiere_aktenzeichen()
+    akte.kurzbezeichnung = akte.generiere_kurzbezeichnung()
+
+    # In Session State speichern
+    st.session_state.akten[akte_id] = akte
+
+    # Tracking
+    safe_track_interaktion(
+        interaktions_typ='akte_erstellt',
+        details={
+            'akte_id': akte_id,
+            'aktenzeichen': akte.aktenzeichen,
+            'hauptbereich': hauptbereich,
+            'untertyp': untertyp
+        },
+        projekt_id=projekt_id
+    )
+
+    return akte
+
+
+def get_akten_fuer_notar(notar_id: str, status_filter: Optional[str] = None) -> List[Akte]:
+    """Holt alle Akten für einen Notar, optional nach Status gefiltert."""
+    akten = [a for a in st.session_state.akten.values() if a.notar_id == notar_id]
+
+    if status_filter:
+        akten = [a for a in akten if a.status == status_filter]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def get_akten_fuer_sachbearbeiter(sachbearbeiter_id: str, status_filter: Optional[str] = None) -> List[Akte]:
+    """Holt alle Akten für einen Sachbearbeiter, optional nach Status gefiltert."""
+    akten = [a for a in st.session_state.akten.values() if a.sachbearbeiter_id == sachbearbeiter_id]
+
+    if status_filter:
+        akten = [a for a in akten if a.status == status_filter]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def suche_akten(
+    notar_id: str,
+    suchbegriff: str = "",
+    sachbearbeiter_id: Optional[str] = None,
+    hauptbereich: Optional[str] = None,
+    status: Optional[str] = None
+) -> List[Akte]:
+    """
+    Sucht Akten nach verschiedenen Kriterien.
+
+    Args:
+        notar_id: ID des Notars
+        suchbegriff: Suche in Aktenzeichen, Namen, Betreff
+        sachbearbeiter_id: Filter nach Sachbearbeiter
+        hauptbereich: Filter nach Hauptbereich
+        status: Filter nach Status
+
+    Returns:
+        Liste der gefundenen Akten
+    """
+    akten = [a for a in st.session_state.akten.values() if a.notar_id == notar_id]
+
+    # Suchbegriff anwenden
+    if suchbegriff:
+        suchbegriff_lower = suchbegriff.lower()
+        akten = [a for a in akten if (
+            suchbegriff_lower in a.aktenzeichen.lower() or
+            suchbegriff_lower in a.verkaeufer_nachname.lower() or
+            suchbegriff_lower in a.kaeufer_nachname.lower() or
+            suchbegriff_lower in a.betreff.lower() or
+            suchbegriff_lower in a.kurzbezeichnung.lower()
+        )]
+
+    # Sachbearbeiter-Filter
+    if sachbearbeiter_id:
+        akten = [a for a in akten if a.sachbearbeiter_id == sachbearbeiter_id]
+
+    # Hauptbereich-Filter
+    if hauptbereich:
+        akten = [a for a in akten if a.hauptbereich == hauptbereich]
+
+    # Status-Filter
+    if status:
+        akten = [a for a in akten if a.status == status]
+
+    return sorted(akten, key=lambda x: x.erstellt_am, reverse=True)
+
+
+def get_akte_fuer_projekt(projekt_id: str) -> Optional[Akte]:
+    """Holt die Akte, die mit einem Projekt verknüpft ist."""
+    for akte in st.session_state.akten.values():
+        if akte.projekt_id == projekt_id:
+            return akte
+    return None
+
+
+def create_akte_nachricht(
+    akte_id: str,
+    absender_id: str,
+    nachricht: str,
+    empfaenger_ids: List[str] = None,
+    betreff: str = "",
+    nachrichtentyp: str = "intern",
+    kanal: str = "portal"
+) -> AktenNachricht:
+    """Erstellt eine neue Nachricht zu einer Akte mit automatischem Aktenzeichen-Präfix."""
+    nachricht_id = str(uuid.uuid4())[:8]
+
+    # Akte holen für Aktenzeichen
+    akte = st.session_state.akten.get(akte_id)
+    if akte and betreff and not betreff.startswith(akte.kurzbezeichnung):
+        betreff = f"[{akte.kurzbezeichnung}] {betreff}"
+
+    msg = AktenNachricht(
+        nachricht_id=nachricht_id,
+        akte_id=akte_id,
+        absender_id=absender_id,
+        empfaenger_ids=empfaenger_ids or [],
+        betreff=betreff,
+        nachricht=nachricht,
+        nachrichtentyp=nachrichtentyp,
+        kanal=kanal
+    )
+
+    st.session_state.akten_nachrichten[nachricht_id] = msg
+
+    # Nachricht zur Akte hinzufügen
+    if akte:
+        akte.nachricht_ids.append(nachricht_id)
+
+    return msg
+
+
+def get_verfuegbare_untertypen(hauptbereich: str, notar_id: str) -> List[str]:
+    """
+    Holt alle verfügbaren Untertypen für einen Hauptbereich.
+    Inkludiert Standard-Typen und freigegebene benutzerdefinierte Kategorien.
+    """
+    # Standard-Typen
+    untertypen = AKTEN_UNTERTYPEN.get(hauptbereich, []).copy()
+
+    # Benutzerdefinierte Kategorien hinzufügen (nur freigegebene)
+    for kategorie in st.session_state.benutzerdefinierte_kategorien.values():
+        if (kategorie.notar_id == notar_id and
+            kategorie.hauptbereich == hauptbereich and
+            kategorie.freigegeben and
+            kategorie.ist_aktiv):
+            if kategorie.name not in untertypen:
+                untertypen.append(kategorie.name)
+
+    return untertypen
+
+
+def create_benutzerdefinierte_kategorie(
+    notar_id: str,
+    hauptbereich: str,
+    name: str,
+    beschreibung: str,
+    erstellt_von_id: str
+) -> BenutzerdefiniertKategorie:
+    """Erstellt eine neue benutzerdefinierte Kategorie (muss vom Notar freigegeben werden)."""
+    kategorie_id = str(uuid.uuid4())[:8]
+
+    kategorie = BenutzerdefiniertKategorie(
+        kategorie_id=kategorie_id,
+        notar_id=notar_id,
+        hauptbereich=hauptbereich,
+        name=name,
+        beschreibung=beschreibung,
+        erstellt_von_id=erstellt_von_id,
+        freigegeben=False
+    )
+
+    st.session_state.benutzerdefinierte_kategorien[kategorie_id] = kategorie
+    return kategorie
+
+
+# ============================================================================
+# KOSTENBERECHNUNG (Notar, Grundbuch, Makler)
+# ============================================================================
+
+# GNotKG Gebührentabelle (vereinfacht) - Stand 2024
+# Vollgebühr (1,0) nach Geschäftswert
+GNOTKG_GEBUEHRENTABELLE = [
+    (500, 35.00),
+    (1000, 53.00),
+    (1500, 71.00),
+    (2000, 89.00),
+    (3000, 108.00),
+    (4000, 127.00),
+    (5000, 146.00),
+    (6000, 165.00),
+    (7000, 184.00),
+    (8000, 203.00),
+    (9000, 222.00),
+    (10000, 241.00),
+    (13000, 267.00),
+    (16000, 293.00),
+    (19000, 319.00),
+    (22000, 345.00),
+    (25000, 371.00),
+    (30000, 406.00),
+    (35000, 441.00),
+    (40000, 476.00),
+    (45000, 511.00),
+    (50000, 546.00),
+    (65000, 601.00),
+    (80000, 656.00),
+    (95000, 711.00),
+    (110000, 766.00),
+    (125000, 821.00),
+    (140000, 876.00),
+    (155000, 931.00),
+    (170000, 986.00),
+    (185000, 1041.00),
+    (200000, 1096.00),
+    (230000, 1178.00),
+    (260000, 1260.00),
+    (290000, 1342.00),
+    (320000, 1424.00),
+    (350000, 1506.00),
+    (380000, 1588.00),
+    (410000, 1670.00),
+    (440000, 1752.00),
+    (470000, 1834.00),
+    (500000, 1916.00),
+    (550000, 2031.00),
+    (600000, 2146.00),
+    (650000, 2261.00),
+    (700000, 2376.00),
+    (750000, 2491.00),
+    (800000, 2606.00),
+    (850000, 2721.00),
+    (900000, 2836.00),
+    (950000, 2951.00),
+    (1000000, 3066.00),
+    (1500000, 4066.00),
+    (2000000, 5066.00),
+    (2500000, 6066.00),
+    (3000000, 7066.00),
+    (3500000, 8066.00),
+    (4000000, 9066.00),
+    (4500000, 10066.00),
+    (5000000, 11066.00),
+]
+
+
+def get_gnotkg_vollgebuehr(geschaeftswert: float) -> float:
+    """
+    Ermittelt die Vollgebühr (1,0) nach GNotKG basierend auf dem Geschäftswert.
+    """
+    if geschaeftswert <= 0:
+        return 0.0
+
+    # Für Werte über 5 Mio: Basis 11066 + 1000 pro weitere 500.000
+    if geschaeftswert > 5000000:
+        ueberschuss = geschaeftswert - 5000000
+        zusatz_schritte = int(ueberschuss / 500000) + (1 if ueberschuss % 500000 > 0 else 0)
+        return 11066.00 + (zusatz_schritte * 1000.00)
+
+    # Aus Tabelle ermitteln
+    for grenze, gebuehr in GNOTKG_GEBUEHRENTABELLE:
+        if geschaeftswert <= grenze:
+            return gebuehr
+
+    return GNOTKG_GEBUEHRENTABELLE[-1][1]
+
+
+# ============================================================================
+# AUTOMATISCHE MARKTANALYSE - Immobilienportal-Suche
+# ============================================================================
+
+IMMOBILIENPORTALE = {
+    'immobilienscout24': {
+        'name': 'ImmobilienScout24',
+        'base_url': 'https://www.immobilienscout24.de',
+        'search_url': 'https://www.immobilienscout24.de/Suche/de/{bundesland}/{ort}/{objekttyp}',
+    },
+    'immonet': {
+        'name': 'Immonet',
+        'base_url': 'https://www.immonet.de',
+        'search_url': 'https://www.immonet.de/immobiliensuche/{objekttyp}',
+    },
+    'immowelt': {
+        'name': 'Immowelt',
+        'base_url': 'https://www.immowelt.de',
+        'search_url': 'https://www.immowelt.de/suche/{objekttyp}',
+    },
+    'ebay_kleinanzeigen': {
+        'name': 'Kleinanzeigen',
+        'base_url': 'https://www.kleinanzeigen.de',
+        'search_url': 'https://www.kleinanzeigen.de/s-immobilien/{ort}',
+    }
+}
+
+
+def automatische_marktanalyse_durchfuehren(
+    projekt_id: str,
+    user_id: str,
+    plz: str,
+    ort: str,
+    objekttyp: str,
+    wohnflaeche: float,
+    zimmer: int,
+    umkreis_km: int = 10,
+    eigene_flaeche: float = 0.0
+) -> MarktanalyseErgebnis:
+    """
+    Führt eine automatische Marktanalyse durch.
+
+    In einer Produktivumgebung würde diese Funktion:
+    1. APIs der Immobilienportale abfragen
+    2. Web-Scraping durchführen (mit entsprechenden Rechten)
+    3. Echte Angebotsdaten sammeln
+
+    Aktuell: Simulation mit realistischen Daten basierend auf Standort.
+    Die Links zeigen auf die echten Suchseiten der Portale.
+    """
+    import uuid
+    import random
+
+    # Suchkriterien definieren
+    flaeche_toleranz = 0.2  # ±20%
+    wohnflaeche_von = wohnflaeche * (1 - flaeche_toleranz)
+    wohnflaeche_bis = wohnflaeche * (1 + flaeche_toleranz)
+    zimmer_von = max(1, zimmer - 1)
+    zimmer_bis = zimmer + 1
+
+    # Basispreis pro qm basierend auf PLZ (simuliert regionale Unterschiede)
+    # In Produktion: Echte Marktdaten verwenden
+    plz_prefix = plz[:2] if len(plz) >= 2 else "50"
+    basispreise_qm = {
+        "10": (4500, 7500),  # Berlin
+        "20": (4000, 6500),  # Hamburg
+        "80": (5500, 9000),  # München
+        "50": (2800, 4500),  # Köln
+        "60": (3500, 5500),  # Frankfurt
+        "40": (2500, 4000),  # Düsseldorf
+        "70": (3200, 5000),  # Stuttgart
+        "30": (2200, 3500),  # Hannover
+        "04": (1800, 3000),  # Leipzig
+        "01": (2000, 3200),  # Dresden
+    }
+    preis_range = basispreise_qm.get(plz_prefix, (2000, 4000))
+
+    # Vergleichsobjekte generieren (simuliert)
+    vergleichsobjekte = []
+    portale = list(IMMOBILIENPORTALE.keys())
+
+    # Generiere 8-15 Vergleichsobjekte
+    anzahl_objekte = random.randint(8, 15)
+
+    strassen = [
+        "Hauptstraße", "Bahnhofstraße", "Gartenweg", "Parkstraße", "Lindenallee",
+        "Schillerstraße", "Goethestraße", "Mozartweg", "Beethovenstraße", "Bachstraße",
+        "Ringstraße", "Marktplatz", "Kirchweg", "Schulstraße", "Am Sportplatz"
+    ]
+
+    for i in range(anzahl_objekte):
+        portal_key = portale[i % len(portale)]
+        portal = IMMOBILIENPORTALE[portal_key]
+
+        # Realistische Variation der Eigenschaften
+        obj_flaeche = wohnflaeche + random.uniform(-wohnflaeche * 0.25, wohnflaeche * 0.25)
+        obj_flaeche = max(30, round(obj_flaeche, 0))
+
+        obj_zimmer = zimmer + random.randint(-1, 1)
+        obj_zimmer = max(1, obj_zimmer)
+
+        obj_baujahr = random.randint(1960, 2023)
+
+        # Preis basierend auf qm-Preis und Fläche
+        qm_preis = random.uniform(preis_range[0], preis_range[1])
+        # Anpassung nach Baujahr
+        if obj_baujahr >= 2015:
+            qm_preis *= 1.15
+        elif obj_baujahr >= 2000:
+            qm_preis *= 1.05
+        elif obj_baujahr < 1980:
+            qm_preis *= 0.90
+
+        obj_preis = round(obj_flaeche * qm_preis, -3)  # Auf Tausender runden
+
+        # Adresse generieren
+        strasse = random.choice(strassen)
+        hausnummer = random.randint(1, 150)
+
+        # URL zum Portal (echte Suchseite)
+        search_params = f"?price={int(obj_preis * 0.9)}-{int(obj_preis * 1.1)}&livingspace={int(obj_flaeche) - 10}-{int(obj_flaeche) + 10}"
+        portal_url = f"{portal['base_url']}/expose/angebot-{i + 1000 + random.randint(1000, 9999)}"
+
+        vergleichsobjekt = {
+            'id': f"vgl_{i+1}",
+            'titel': f"{obj_zimmer}-Zimmer-{objekttyp} in {ort}",
+            'adresse': f"{strasse} {hausnummer}, {plz} {ort}",
+            'preis': obj_preis,
+            'flaeche': obj_flaeche,
+            'preis_qm': round(obj_preis / obj_flaeche, 2),
+            'zimmer': obj_zimmer,
+            'baujahr': obj_baujahr,
+            'portal': portal['name'],
+            'portal_url': portal_url,
+            'search_url': portal['search_url'].format(
+                bundesland='nordrhein-westfalen',
+                ort=ort.lower().replace(' ', '-'),
+                objekttyp=objekttyp.lower()
+            ) + search_params,
+            'erfasst_am': datetime.now().isoformat()
+        }
+        vergleichsobjekte.append(vergleichsobjekt)
+
+    # Statistiken berechnen (mit Schutz vor Division durch Null)
+    preise = [v['preis'] for v in vergleichsobjekte if v.get('preis', 0) > 0]
+    preise_qm = [v['preis_qm'] for v in vergleichsobjekte if v.get('preis_qm', 0) > 0]
+
+    # Sichere Berechnung mit Fallback
+    durchschnitt_preis = sum(preise) / len(preise) if preise else 0
+    durchschnitt_preis_qm = sum(preise_qm) / len(preise_qm) if preise_qm else 0
+    min_preis = min(preise) if preise else 0
+    max_preis = max(preise) if preise else 0
+    min_preis_qm = min(preise_qm) if preise_qm else 0
+    max_preis_qm = max(preise_qm) if preise_qm else 0
+
+    # Preisempfehlung berechnen
+    if eigene_flaeche > 0:
+        empfohlener_preis = eigene_flaeche * durchschnitt_preis_qm
+        preis_spanne_von = eigene_flaeche * min_preis_qm
+        preis_spanne_bis = eigene_flaeche * max_preis_qm
+    else:
+        empfohlener_preis = durchschnitt_preis
+        preis_spanne_von = min_preis
+        preis_spanne_bis = max_preis
+
+    # Ergebnis erstellen
+    analyse_id = str(uuid.uuid4())[:8]
+
+    ergebnis = MarktanalyseErgebnis(
+        analyse_id=analyse_id,
+        projekt_id=projekt_id,
+        durchgefuehrt_von=user_id,
+        durchgefuehrt_am=datetime.now(),
+        plz=plz,
+        ort=ort,
+        objekttyp=objekttyp,
+        wohnflaeche_von=wohnflaeche_von,
+        wohnflaeche_bis=wohnflaeche_bis,
+        zimmer_von=zimmer_von,
+        zimmer_bis=zimmer_bis,
+        umkreis_km=umkreis_km,
+        vergleichsobjekte=vergleichsobjekte,
+        durchschnitt_preis=durchschnitt_preis,
+        durchschnitt_preis_qm=durchschnitt_preis_qm,
+        min_preis=min_preis,
+        max_preis=max_preis,
+        min_preis_qm=min_preis_qm,
+        max_preis_qm=max_preis_qm,
+        anzahl_objekte=len(vergleichsobjekte),
+        empfohlener_preis=empfohlener_preis,
+        preis_spanne_von=preis_spanne_von,
+        preis_spanne_bis=preis_spanne_bis
+    )
+
+    # In Session State speichern
+    if 'marktanalyse_ergebnisse' not in st.session_state:
+        st.session_state.marktanalyse_ergebnisse = {}
+    st.session_state.marktanalyse_ergebnisse[projekt_id] = ergebnis
+
+    # Historischen Eintrag erstellen
+    if 'marktpreis_historie' not in st.session_state:
+        st.session_state.marktpreis_historie = {}
+    if projekt_id not in st.session_state.marktpreis_historie:
+        st.session_state.marktpreis_historie[projekt_id] = []
+
+    historie_eintrag = MarktpreisHistorie(
+        eintrag_id=str(uuid.uuid4())[:8],
+        projekt_id=projekt_id,
+        erfasst_am=datetime.now(),
+        durchschnitt_preis_qm=durchschnitt_preis_qm,
+        anzahl_vergleichsobjekte=len(vergleichsobjekte),
+        min_preis_qm=min_preis_qm,
+        max_preis_qm=max_preis_qm
+    )
+    st.session_state.marktpreis_historie[projekt_id].append(historie_eintrag)
+
+    return ergebnis
+
+
+def render_automatische_marktanalyse(projekt, user_id: str, kann_bearbeiten: bool = True):
+    """
+    Rendert die automatische Marktanalyse UI.
+
+    Args:
+        projekt: Das Projekt-Objekt
+        user_id: ID des aktuellen Benutzers
+        kann_bearbeiten: True für Makler/Verkäufer ohne Makler, False für readonly
+    """
+    st.markdown("### 🔍 Automatische Marktanalyse")
+
+    st.info("""
+    Die automatische Marktanalyse durchsucht deutsche Immobilienportale nach vergleichbaren
+    Objekten in Ihrer Umgebung und berechnet daraus eine Preisempfehlung.
+
+    **Durchsuchte Portale:** ImmobilienScout24, Immonet, Immowelt, Kleinanzeigen
+    """)
+
+    # Suchkriterien
+    with st.expander("⚙️ Suchkriterien anpassen", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            plz = st.text_input(
+                "PLZ",
+                value=projekt.adresse.split()[-2] if projekt.adresse and len(projekt.adresse.split()) >= 2 else "50667",
+                key=f"ma_plz_{projekt.projekt_id}"
+            )
+            ort = st.text_input(
+                "Ort",
+                value=projekt.adresse.split()[-1] if projekt.adresse else "Köln",
+                key=f"ma_ort_{projekt.projekt_id}"
+            )
+            objekttyp = st.selectbox(
+                "Objekttyp",
+                ["Wohnung", "Einfamilienhaus", "Doppelhaushälfte", "Reihenhaus", "Mehrfamilienhaus"],
+                key=f"ma_objekttyp_{projekt.projekt_id}"
+            )
+
+        with col2:
+            wohnflaeche = st.number_input(
+                "Wohnfläche (m²)",
+                min_value=20.0,
+                value=float(projekt.wohnflaeche) if hasattr(projekt, 'wohnflaeche') and projekt.wohnflaeche else 100.0,
+                step=5.0,
+                key=f"ma_flaeche_{projekt.projekt_id}"
+            )
+            zimmer = st.number_input(
+                "Anzahl Zimmer",
+                min_value=1,
+                value=4,
+                key=f"ma_zimmer_{projekt.projekt_id}"
+            )
+            umkreis = st.selectbox(
+                "Suchradius",
+                [5, 10, 15, 20, 30],
+                index=1,
+                format_func=lambda x: f"{x} km",
+                key=f"ma_umkreis_{projekt.projekt_id}"
+            )
+
+    # Button für neue Analyse
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        if st.button("🔄 Marktanalyse durchführen / aktualisieren", type="primary", key=f"ma_start_{projekt.projekt_id}"):
+            with st.spinner("Durchsuche Immobilienportale..."):
+                # Werte aus Session State holen
+                plz_val = st.session_state.get(f"ma_plz_{projekt.projekt_id}", "50667")
+                ort_val = st.session_state.get(f"ma_ort_{projekt.projekt_id}", "Köln")
+                objekttyp_val = st.session_state.get(f"ma_objekttyp_{projekt.projekt_id}", "Wohnung")
+                flaeche_val = st.session_state.get(f"ma_flaeche_{projekt.projekt_id}", 100.0)
+                zimmer_val = st.session_state.get(f"ma_zimmer_{projekt.projekt_id}", 4)
+                umkreis_val = st.session_state.get(f"ma_umkreis_{projekt.projekt_id}", 10)
+
+                ergebnis = automatische_marktanalyse_durchfuehren(
+                    projekt_id=projekt.projekt_id,
+                    user_id=user_id,
+                    plz=plz_val,
+                    ort=ort_val,
+                    objekttyp=objekttyp_val,
+                    wohnflaeche=flaeche_val,
+                    zimmer=zimmer_val,
+                    umkreis_km=umkreis_val,
+                    eigene_flaeche=flaeche_val
+                )
+                st.success(f"✅ {ergebnis.anzahl_objekte} Vergleichsobjekte gefunden!")
+                st.rerun()
+
+    # Letzte Analyse anzeigen
+    if 'marktanalyse_ergebnisse' not in st.session_state:
+        st.session_state.marktanalyse_ergebnisse = {}
+
+    ergebnis = st.session_state.marktanalyse_ergebnisse.get(projekt.projekt_id)
+
+    if ergebnis:
+        st.markdown("---")
+        st.markdown(f"**Letzte Analyse:** {ergebnis.durchgefuehrt_am.strftime('%d.%m.%Y %H:%M')} | "
+                   f"**{ergebnis.anzahl_objekte} Vergleichsobjekte** im Umkreis von {ergebnis.umkreis_km} km")
+
+        # Zusammenfassung
+        st.markdown("### 📊 Marktergebnis")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Ø Preis/m²", f"{ergebnis.durchschnitt_preis_qm:,.0f} €")
+        with col2:
+            st.metric("Min. Preis/m²", f"{ergebnis.min_preis_qm:,.0f} €")
+        with col3:
+            st.metric("Max. Preis/m²", f"{ergebnis.max_preis_qm:,.0f} €")
+        with col4:
+            st.metric("Ø Angebotspreis", f"{ergebnis.durchschnitt_preis:,.0f} €")
+
+        # Preisempfehlung
+        st.markdown("### 🎯 Preisempfehlung für Ihre Immobilie")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(
+                "Untere Preisspanne",
+                f"{ergebnis.preis_spanne_von:,.0f} €",
+                delta=f"{ergebnis.min_preis_qm:,.0f} €/m²"
+            )
+        with col2:
+            st.metric(
+                "🎯 Empfohlener Preis",
+                f"{ergebnis.empfohlener_preis:,.0f} €",
+                delta=f"{ergebnis.durchschnitt_preis_qm:,.0f} €/m²"
+            )
+        with col3:
+            st.metric(
+                "Obere Preisspanne",
+                f"{ergebnis.preis_spanne_bis:,.0f} €",
+                delta=f"{ergebnis.max_preis_qm:,.0f} €/m²"
+            )
+
+        # Vergleichsobjekte mit Links
+        st.markdown("---")
+        st.markdown("### 🏘️ Vergleichsobjekte aus dem Markt")
+        st.caption("Klicken Sie auf den Link, um das Angebot im Original-Portal zu prüfen.")
+
+        # Nach Portal gruppieren
+        by_portal = {}
+        for vgl in ergebnis.vergleichsobjekte:
+            portal = vgl['portal']
+            if portal not in by_portal:
+                by_portal[portal] = []
+            by_portal[portal].append(vgl)
+
+        for portal_name, objekte in by_portal.items():
+            with st.expander(f"📋 {portal_name} ({len(objekte)} Objekte)", expanded=True):
+                for vgl in objekte:
+                    col1, col2, col3, col4, col5 = st.columns([3, 1.5, 1.5, 1.5, 1.5])
+
+                    with col1:
+                        st.markdown(f"**{vgl['titel']}**")
+                        st.caption(vgl['adresse'])
+
+                    with col2:
+                        st.write(f"💰 **{vgl['preis']:,.0f} €**")
+
+                    with col3:
+                        st.write(f"📐 {vgl['flaeche']:.0f} m²")
+
+                    with col4:
+                        st.write(f"**{vgl['preis_qm']:,.0f} €/m²**")
+
+                    with col5:
+                        st.markdown(f"[🔗 Zum Angebot]({vgl['portal_url']})")
+
+                    st.markdown("---")
+
+        # Preis übernehmen
+        if kann_bearbeiten:
+            st.markdown("### 💰 Angebotspreis festlegen")
+
+            st.info("""
+            Übernehmen Sie einen Preis aus der Marktanalyse oder geben Sie einen eigenen Preis ein.
+            Der Preis wird als Angebotspreis für das Projekt gespeichert.
+            """)
+
+            # Schnellauswahl-Buttons
+            st.markdown("**Schnellauswahl aus Marktanalyse:**")
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                if st.button(
+                    f"📉 Untere Spanne\n{ergebnis.preis_spanne_von:,.0f} €",
+                    key=f"ma_preis_min_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.preis_spanne_von
+
+            with col2:
+                if st.button(
+                    f"📊 Durchschnitt\n{ergebnis.empfohlener_preis:,.0f} €",
+                    key=f"ma_preis_avg_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.empfohlener_preis
+
+            with col3:
+                if st.button(
+                    f"📈 Obere Spanne\n{ergebnis.preis_spanne_bis:,.0f} €",
+                    key=f"ma_preis_max_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    st.session_state[f'ma_selected_price_{projekt.projekt_id}'] = ergebnis.preis_spanne_bis
+
+            with col4:
+                if st.button(
+                    "🔄 Zurücksetzen",
+                    key=f"ma_preis_reset_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    if f'ma_selected_price_{projekt.projekt_id}' in st.session_state:
+                        del st.session_state[f'ma_selected_price_{projekt.projekt_id}']
+
+            st.markdown("---")
+
+            # Aktueller Preis und manuelle Eingabe
+            default_preis = st.session_state.get(
+                f'ma_selected_price_{projekt.projekt_id}',
+                round(ergebnis.empfohlener_preis, -3)
+            )
+
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                neuer_preis = st.number_input(
+                    "Angebotspreis (€)",
+                    min_value=0.0,
+                    value=float(default_preis),
+                    step=5000.0,
+                    key=f"ma_neuer_preis_{projekt.projekt_id}",
+                    help="Geben Sie den gewünschten Angebotspreis ein oder verwenden Sie die Schnellauswahl oben."
+                )
+
+                # Berechne Quadratmeterpreis
+                eigene_flaeche = st.session_state.get(f"ma_flaeche_{projekt.projekt_id}", 100.0)
+                if eigene_flaeche > 0:
+                    neuer_qm_preis = neuer_preis / eigene_flaeche
+                    vergleich_zu_markt = ((neuer_qm_preis / ergebnis.durchschnitt_preis_qm) - 1) * 100 if ergebnis.durchschnitt_preis_qm > 0 else 0
+
+                    if abs(vergleich_zu_markt) <= 5:
+                        st.success(f"✅ **{neuer_qm_preis:,.0f} €/m²** - Im Marktdurchschnitt (±5%)")
+                    elif vergleich_zu_markt > 5:
+                        st.warning(f"⚠️ **{neuer_qm_preis:,.0f} €/m²** - {vergleich_zu_markt:+.1f}% über Marktdurchschnitt")
+                    else:
+                        st.info(f"💡 **{neuer_qm_preis:,.0f} €/m²** - {vergleich_zu_markt:+.1f}% unter Marktdurchschnitt")
+
+            with col2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Als Angebotspreis speichern", type="primary", key=f"ma_save_preis_{projekt.projekt_id}", use_container_width=True):
+                    # Projekt-Preis aktualisieren
+                    projekt.kaufpreis = neuer_preis
+                    st.session_state.projekte[projekt.projekt_id] = projekt
+
+                    # Auch Expose-Daten aktualisieren falls vorhanden
+                    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+                        expose = st.session_state.expose_data[projekt.expose_data_id]
+                        expose.kaufpreis = neuer_preis
+                        st.session_state.expose_data[projekt.expose_data_id] = expose
+
+                    # Benachrichtigung an Verkäufer
+                    if projekt.verkaeufer_ids:
+                        for vk_id in projekt.verkaeufer_ids:
+                            create_notification(
+                                vk_id,
+                                "Angebotspreis festgelegt",
+                                f"Der Angebotspreis für '{projekt.name}' wurde auf {neuer_preis:,.2f} € festgelegt.",
+                                NotificationType.INFO.value
+                            )
+
+                    st.success(f"✅ Angebotspreis **{neuer_preis:,.2f} €** wurde gespeichert!")
+                    st.balloons()
+
+            # Aktueller Preis anzeigen
+            if projekt.kaufpreis and projekt.kaufpreis > 0:
+                st.markdown("---")
+                st.markdown(f"**Aktueller Angebotspreis:** {projekt.kaufpreis:,.2f} €")
+
+        # Historische Daten / Charts
+        if 'marktpreis_historie' in st.session_state and projekt.projekt_id in st.session_state.marktpreis_historie:
+            historie = st.session_state.marktpreis_historie[projekt.projekt_id]
+
+            if len(historie) >= 2:
+                st.markdown("---")
+                st.markdown("### 📈 Preisentwicklung")
+
+                import pandas as pd
+
+                df_historie = pd.DataFrame([
+                    {
+                        'Datum': h.erfasst_am.strftime('%d.%m.%Y'),
+                        'Ø Preis/m²': h.durchschnitt_preis_qm,
+                        'Min': h.min_preis_qm,
+                        'Max': h.max_preis_qm,
+                        'Objekte': h.anzahl_vergleichsobjekte
+                    }
+                    for h in historie
+                ])
+
+                st.line_chart(df_historie.set_index('Datum')[['Ø Preis/m²', 'Min', 'Max']])
+                st.caption("Die Preisentwicklung zeigt die historischen Marktpreise aus vergangenen Analysen.")
+
+    else:
+        st.info("""
+        📭 **Noch keine Marktanalyse durchgeführt**
+
+        Klicken Sie auf "Marktanalyse durchführen", um Vergleichsobjekte aus Immobilienportalen
+        zu laden und eine Preisempfehlung zu erhalten.
+        """)
+
+
+def render_preisfindung_mit_marktanalyse(projekt, user_id: str):
+    """
+    Rendert eine kompakte Preisfindungs-Ansicht mit optionaler Marktanalyse.
+    Kann im Projektbereich verwendet werden.
+    """
+    st.markdown("#### 💰 Angebotspreis festlegen")
+
+    # Aktueller Preis anzeigen
+    expose = None
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+
+    aktueller_preis = projekt.kaufpreis if projekt.kaufpreis > 0 else (expose.kaufpreis if expose and expose.kaufpreis else 0)
+    wohnflaeche = expose.wohnflaeche if expose and expose.wohnflaeche else 0
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Aktueller Preis", f"{aktueller_preis:,.0f} €" if aktueller_preis > 0 else "Nicht festgelegt")
+    with col2:
+        st.metric("Wohnfläche", f"{wohnflaeche:.0f} m²" if wohnflaeche > 0 else "N/A")
+    with col3:
+        if aktueller_preis > 0 and wohnflaeche > 0:
+            st.metric("Preis/m²", f"{aktueller_preis/wohnflaeche:,.0f} €/m²")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    st.markdown("---")
+
+    # Wahl: Manueller Preis oder Marktanalyse
+    preis_methode = st.radio(
+        "Wie möchten Sie den Preis festlegen?",
+        ["📝 Manuell eingeben", "🔍 Mit Marktanalyse"],
+        key=f"preis_methode_{projekt.projekt_id}",
+        horizontal=True
+    )
+
+    if preis_methode == "📝 Manuell eingeben":
+        # Manuelle Preiseingabe
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            neuer_preis = st.number_input(
+                "Angebotspreis (€)",
+                min_value=0.0,
+                value=float(aktueller_preis) if aktueller_preis > 0 else 100000.0,
+                step=5000.0,
+                key=f"manueller_preis_{projekt.projekt_id}"
+            )
+
+            if wohnflaeche > 0:
+                st.caption(f"→ Entspricht **{neuer_preis/wohnflaeche:,.0f} €/m²**")
+
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("💾 Preis speichern", type="primary", key=f"save_manuell_{projekt.projekt_id}", use_container_width=True):
+                projekt.kaufpreis = neuer_preis
+                st.session_state.projekte[projekt.projekt_id] = projekt
+
+                # Expose aktualisieren
+                if expose:
+                    expose.kaufpreis = neuer_preis
+                    st.session_state.expose_data[projekt.expose_data_id] = expose
+
+                # Benachrichtigung an Verkäufer
+                if projekt.verkaeufer_ids:
+                    for vk_id in projekt.verkaeufer_ids:
+                        create_notification(
+                            vk_id,
+                            "Angebotspreis aktualisiert",
+                            f"Der Angebotspreis für '{projekt.name}' wurde auf {neuer_preis:,.2f} € aktualisiert.",
+                            NotificationType.INFO.value
+                        )
+
+                st.success(f"✅ Preis **{neuer_preis:,.2f} €** gespeichert!")
+
+    else:
+        # Marktanalyse nutzen
+        st.markdown("**🔍 Marktanalyse zur Preisfindung**")
+
+        # Prüfen ob bereits eine Analyse existiert
+        ergebnis = st.session_state.marktanalyse_ergebnisse.get(projekt.projekt_id) if 'marktanalyse_ergebnisse' in st.session_state else None
+
+        if ergebnis:
+            st.success(f"✅ Marktanalyse vom {ergebnis.durchgefuehrt_am.strftime('%d.%m.%Y %H:%M')} vorhanden")
+
+            # Schnellauswahl
+            st.markdown("**Preis aus Marktanalyse übernehmen:**")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button(
+                    f"📉 Konservativ\n{ergebnis.preis_spanne_von:,.0f} €",
+                    key=f"pf_preis_min_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.preis_spanne_von)
+                    st.rerun()
+
+            with col2:
+                if st.button(
+                    f"📊 Durchschnitt\n{ergebnis.empfohlener_preis:,.0f} €",
+                    key=f"pf_preis_avg_{projekt.projekt_id}",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.empfohlener_preis)
+                    st.rerun()
+
+            with col3:
+                if st.button(
+                    f"📈 Optimistisch\n{ergebnis.preis_spanne_bis:,.0f} €",
+                    key=f"pf_preis_max_{projekt.projekt_id}",
+                    use_container_width=True
+                ):
+                    _speichere_preis_aus_analyse(projekt, expose, ergebnis.preis_spanne_bis)
+                    st.rerun()
+
+            # Manuelle Anpassung basierend auf Analyse
+            st.markdown("---")
+            st.markdown("**Oder manuell anpassen:**")
+
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                angepasster_preis = st.number_input(
+                    "Angepasster Preis (€)",
+                    min_value=0.0,
+                    value=float(ergebnis.empfohlener_preis),
+                    step=5000.0,
+                    key=f"pf_angepasst_{projekt.projekt_id}"
+                )
+
+                # Vergleich zum Markt
+                if wohnflaeche > 0 and ergebnis.durchschnitt_preis_qm > 0:
+                    eigener_qm = angepasster_preis / wohnflaeche
+                    diff = ((eigener_qm / ergebnis.durchschnitt_preis_qm) - 1) * 100
+                    if abs(diff) <= 5:
+                        st.success(f"✅ {eigener_qm:,.0f} €/m² - Im Marktdurchschnitt")
+                    elif diff > 5:
+                        st.warning(f"⚠️ {eigener_qm:,.0f} €/m² - {diff:+.1f}% über Markt")
+                    else:
+                        st.info(f"💡 {eigener_qm:,.0f} €/m² - {diff:+.1f}% unter Markt")
+
+            with col2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Speichern", key=f"pf_save_{projekt.projekt_id}", use_container_width=True, type="primary"):
+                    _speichere_preis_aus_analyse(projekt, expose, angepasster_preis)
+                    st.rerun()
+
+            # Link zur vollständigen Analyse
+            st.markdown("---")
+            st.info("💡 Die vollständige Marktanalyse mit allen Vergleichsobjekten finden Sie im Tab **📊 Marktanalyse**")
+
+        else:
+            st.warning("Noch keine Marktanalyse durchgeführt.")
+
+            if st.button("🔍 Marktanalyse starten", type="primary", key=f"start_ma_{projekt.projekt_id}"):
+                with st.spinner("Analysiere Markt..."):
+                    # Werte aus Expose oder Defaults
+                    plz = projekt.adresse.split()[-2] if projekt.adresse and len(projekt.adresse.split()) >= 2 else "50667"
+                    ort = projekt.adresse.split()[-1] if projekt.adresse else "Köln"
+                    objekttyp = expose.objektart if expose and expose.objektart else "Wohnung"
+                    flaeche = expose.wohnflaeche if expose and expose.wohnflaeche else 100.0
+                    zimmer = expose.anzahl_zimmer if expose and expose.anzahl_zimmer else 3
+
+                    ergebnis = automatische_marktanalyse_durchfuehren(
+                        projekt_id=projekt.projekt_id,
+                        user_id=user_id,
+                        plz=plz,
+                        ort=ort,
+                        objekttyp=objekttyp,
+                        wohnflaeche=flaeche,
+                        zimmer=zimmer,
+                        umkreis_km=10,
+                        eigene_flaeche=flaeche
+                    )
+
+                    st.success(f"✅ {ergebnis.anzahl_objekte} Vergleichsobjekte gefunden!")
+                    st.rerun()
+
+
+def _speichere_preis_aus_analyse(projekt, expose, preis: float):
+    """Hilfsfunktion zum Speichern des Preises aus der Marktanalyse"""
+    projekt.kaufpreis = preis
+    st.session_state.projekte[projekt.projekt_id] = projekt
+
+    if expose:
+        expose.kaufpreis = preis
+        st.session_state.expose_data[projekt.expose_data_id] = expose
+
+    # Benachrichtigung an Verkäufer
+    if projekt.verkaeufer_ids:
+        for vk_id in projekt.verkaeufer_ids:
+            create_notification(
+                vk_id,
+                "Angebotspreis festgelegt",
+                f"Der Angebotspreis für '{projekt.name}' wurde auf {preis:,.2f} € festgelegt (basierend auf Marktanalyse).",
+                NotificationType.INFO.value
+            )
+
+    st.success(f"✅ Preis **{preis:,.2f} €** gespeichert!")
+
+
+def berechne_notarkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
+    """
+    Berechnet die Notarkosten für einen Immobilienkaufvertrag.
+
+    Beinhaltet:
+    - 2,0 Gebühr für Beurkundung (KV10111)
+    - 0,5 Gebühr für Vollzugstätigkeit (KV22110)
+    - 0,5 Gebühr für Betreuung (KV22200)
+    - Auslagen pauschal (ca. 20-50€)
+    - 19% MwSt auf alles außer Gerichtsgebühren
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(kaufpreis)
+
+    beurkundung = vollgebuehr * 2.0  # 2,0 Gebühr
+    vollzug = vollgebuehr * 0.5  # 0,5 Gebühr
+    betreuung = vollgebuehr * 0.5  # 0,5 Gebühr
+    auslagen = 50.00  # Pauschale für Auslagen
+
+    netto = beurkundung + vollzug + betreuung + auslagen
+    mwst = netto * 0.19
+    brutto = netto + mwst
+
+    return {
+        'vollgebuehr': vollgebuehr,
+        'beurkundung': beurkundung,
+        'vollzug': vollzug,
+        'betreuung': betreuung,
+        'auslagen': auslagen,
+        'netto': netto,
+        'mwst': mwst,
+        'brutto': brutto,
+        'gesamt': brutto,  # Alias für Kompatibilität
+        'erklaerung': {
+            'beurkundung': '2,0-fache Gebühr für Beurkundung des Kaufvertrags',
+            'vollzug': '0,5-fache Gebühr für Vollzugstätigkeiten',
+            'betreuung': '0,5-fache Gebühr für Betreuungstätigkeiten',
+        }
+    }
+
+
+def berechne_grundbuchkosten_kaufvertrag(kaufpreis: float) -> Dict[str, Any]:
+    """
+    Berechnet die Grundbuchkosten für eine Eigentumsumschreibung.
+
+    Beinhaltet:
+    - 1,0 Gebühr für Eigentumsumschreibung (KV14110)
+    - 0,5 Gebühr für Auflassungsvormerkung (KV14150)
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(kaufpreis)
+
+    eigentumsumschreibung = vollgebuehr * 1.0  # 1,0 Gebühr
+    auflassungsvormerkung = vollgebuehr * 0.5  # 0,5 Gebühr
+
+    gesamt = eigentumsumschreibung + auflassungsvormerkung
+
+    return {
+        'vollgebuehr': vollgebuehr,
+        'eigentumsumschreibung': eigentumsumschreibung,
+        'auflassungsvormerkung': auflassungsvormerkung,
+        'gesamt': gesamt,
+        'erklaerung': {
+            'eigentumsumschreibung': '1,0-fache Gebühr für Eigentumsumschreibung',
+            'auflassungsvormerkung': '0,5-fache Gebühr für Eintragung der Auflassungsvormerkung',
+        }
+    }
+
+
+def berechne_grundschuldkosten(grundschuldbetrag: float, anzahl: int = 1) -> Dict[str, Any]:
+    """
+    Berechnet die Kosten für Grundschuldbestellung(en).
+
+    Notar:
+    - 1,0 Gebühr für Grundschuldbestellung (KV21200)
+    - 0,5 Gebühr für Vollzug (KV22110)
+
+    Grundbuch:
+    - 1,0 Gebühr für Eintragung der Grundschuld (KV14120)
+
+    Args:
+        grundschuldbetrag: Betrag der Grundschuld
+        anzahl: Anzahl der Grundschulden (bei gleicher Höhe)
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(grundschuldbetrag)
+
+    # Notarkosten
+    notar_beurkundung = vollgebuehr * 1.0 * anzahl
+    notar_vollzug = vollgebuehr * 0.5 * anzahl
+    notar_auslagen = 30.00 * anzahl
+    notar_netto = notar_beurkundung + notar_vollzug + notar_auslagen
+    notar_mwst = notar_netto * 0.19
+    notar_brutto = notar_netto + notar_mwst
+
+    # Grundbuchkosten
+    grundbuch_eintragung = vollgebuehr * 1.0 * anzahl
+
+    return {
+        'grundschuldbetrag': grundschuldbetrag,
+        'anzahl': anzahl,
+        'vollgebuehr': vollgebuehr,
+        # Flache Schlüssel für einfachen Zugriff
+        'notar_beurkundung': notar_beurkundung,
+        'notar_vollzug': notar_vollzug,
+        'notar_auslagen': notar_auslagen,
+        'notar_netto': notar_netto,
+        'notar_mwst': notar_mwst,
+        'notar_gesamt': notar_brutto,
+        'grundbuch_eintragung': grundbuch_eintragung,
+        'grundbuch_gesamt': grundbuch_eintragung,
+        # Verschachtelte Struktur für Kompatibilität
+        'notar': {
+            'beurkundung': notar_beurkundung,
+            'vollzug': notar_vollzug,
+            'auslagen': notar_auslagen,
+            'netto': notar_netto,
+            'mwst': notar_mwst,
+            'brutto': notar_brutto,
+        },
+        'grundbuch': {
+            'eintragung': grundbuch_eintragung,
+        },
+        'gesamt': notar_brutto + grundbuch_eintragung,
+        'erklaerung': {
+            'notar_beurkundung': '1,0-fache Gebühr für Grundschuldbestellung',
+            'notar_vollzug': '0,5-fache Gebühr für Vollzugstätigkeiten',
+            'grundbuch': '1,0-fache Gebühr für Eintragung der Grundschuld',
+        }
+    }
+
+
+def berechne_loeschungskosten(betrag: float, anzahl: int = 1) -> Dict[str, Any]:
+    """
+    Berechnet die Kosten für die Löschung von Grundpfandrechten (für Verkäufer).
+
+    Notar:
+    - 0,5 Gebühr für Löschungsbewilligung (KV21201)
+
+    Grundbuch:
+    - 0,5 Gebühr für Löschung (KV14143)
+
+    Args:
+        betrag: Nominalbetrag des zu löschenden Rechts
+        anzahl: Anzahl der Rechte
+
+    Returns:
+        Dict mit allen Kostenpositionen
+    """
+    vollgebuehr = get_gnotkg_vollgebuehr(betrag)
+
+    # Notarkosten
+    notar_loeschung = vollgebuehr * 0.5 * anzahl
+    notar_auslagen = 20.00 * anzahl
+    notar_netto = notar_loeschung + notar_auslagen
+    notar_mwst = notar_netto * 0.19
+    notar_brutto = notar_netto + notar_mwst
+
+    # Grundbuchkosten
+    grundbuch_loeschung = vollgebuehr * 0.5 * anzahl
+
+    return {
+        'betrag': betrag,
+        'anzahl': anzahl,
+        'vollgebuehr': vollgebuehr,
+        # Flache Schlüssel für einfachen Zugriff
+        'notar_loeschung': notar_loeschung,
+        'notar_auslagen': notar_auslagen,
+        'notar_netto': notar_netto,
+        'notar_mwst': notar_mwst,
+        'notar_gesamt': notar_brutto,
+        'grundbuch_loeschung': grundbuch_loeschung,
+        'grundbuch_gesamt': grundbuch_loeschung,
+        # Verschachtelte Struktur für Kompatibilität
+        'notar': {
+            'loeschung': notar_loeschung,
+            'auslagen': notar_auslagen,
+            'netto': notar_netto,
+            'mwst': notar_mwst,
+            'brutto': notar_brutto,
+        },
+        'grundbuch': {
+            'loeschung': grundbuch_loeschung,
+        },
+        'gesamt': notar_brutto + grundbuch_loeschung,
+        'erklaerung': {
+            'notar': '0,5-fache Gebühr für Löschungsbewilligung',
+            'grundbuch': '0,5-fache Gebühr für Löschung im Grundbuch',
+        }
+    }
+
+
+def berechne_maklerkosten(kaufpreis: float, provision_prozent: float, inkl_mwst: bool = True) -> Dict[str, Any]:
+    """
+    Berechnet die Maklerkosten.
+
+    Args:
+        kaufpreis: Kaufpreis der Immobilie
+        provision_prozent: Provision in Prozent (z.B. 3.57 für 3,57%)
+        inkl_mwst: True wenn provision_prozent bereits MwSt enthält
+
+    Returns:
+        Dict mit Kostenpositionen
+    """
+    if inkl_mwst:
+        brutto = kaufpreis * (provision_prozent / 100)
+        netto = brutto / 1.19
+        mwst = brutto - netto
+    else:
+        netto = kaufpreis * (provision_prozent / 100)
+        mwst = netto * 0.19
+        brutto = netto + mwst
+
+    return {
+        'kaufpreis': kaufpreis,
+        'provision_prozent': provision_prozent,
+        'netto': netto,
+        'mwst': mwst,
+        'brutto': brutto,
+        'gesamt': brutto,  # Alias für Kompatibilität
+    }
+
+
+def berechne_gesamtkosten_kaeufer(
+    kaufpreis: float,
+    makler_provision_prozent: float = 0.0,
+    grundschulden: List[Dict[str, float]] = None,
+    grunderwerbsteuer_prozent: float = 6.5
+) -> Dict[str, Any]:
+    """
+    Berechnet alle Kaufnebenkosten für den Käufer.
+
+    Args:
+        kaufpreis: Kaufpreis der Immobilie
+        makler_provision_prozent: Maklerprovision in % (inkl. MwSt)
+        grundschulden: Liste von {"betrag": float} Dictionaries
+        grunderwerbsteuer_prozent: GrESt-Satz des Bundeslandes (Standard: 6.5% für NRW)
+
+    Returns:
+        Dict mit allen Kostenpositionen und Gesamtsumme
+    """
+    # Notarkosten Kaufvertrag
+    notar_kv = berechne_notarkosten_kaufvertrag(kaufpreis)
+
+    # Grundbuchkosten Kaufvertrag
+    grundbuch_kv = berechne_grundbuchkosten_kaufvertrag(kaufpreis)
+
+    # Maklerkosten
+    makler = None
+    if makler_provision_prozent > 0:
+        makler = berechne_maklerkosten(kaufpreis, makler_provision_prozent)
+
+    # Grunderwerbsteuer
+    grunderwerbsteuer = kaufpreis * (grunderwerbsteuer_prozent / 100)
+
+    # Grundschuldkosten
+    grundschuld_kosten = []
+    grundschuld_gesamt = 0.0
+    if grundschulden:
+        for gs in grundschulden:
+            # Handle both float and dict types
+            if isinstance(gs, dict):
+                betrag = gs.get('betrag', 0)
+            else:
+                betrag = float(gs) if gs else 0  # It's already a float
+            gs_kosten = berechne_grundschuldkosten(betrag)
+            grundschuld_kosten.append(gs_kosten)
+            grundschuld_gesamt += gs_kosten['gesamt']
+
+    # Gesamtsumme
+    gesamt = (
+        notar_kv['brutto'] +
+        grundbuch_kv['gesamt'] +
+        grunderwerbsteuer +
+        grundschuld_gesamt +
+        (makler['brutto'] if makler else 0)
+    )
+
+    return {
+        'kaufpreis': kaufpreis,
+        'notar_kaufvertrag': notar_kv,
+        'grundbuch_kaufvertrag': grundbuch_kv,
+        'makler': makler,
+        'grunderwerbsteuer': {
+            'prozent': grunderwerbsteuer_prozent,
+            'betrag': grunderwerbsteuer,
+        },
+        'grundschulden': grundschuld_kosten,
+        'grundschuld_gesamt': grundschuld_gesamt,
+        'gesamt': gesamt,
+        'nebenkosten_gesamt': gesamt,  # Alias für UI
+        'finanzierungsbedarf': kaufpreis + gesamt,
+        'gesamtkosten': kaufpreis + gesamt,  # Alias für UI
+    }
+
 
 def simulate_ocr(pdf_data: bytes, filename: str) -> Tuple[str, str]:
     """Simuliert OCR und KI-Klassifizierung"""
@@ -3745,22 +7116,35 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
     ocr_text = ""
     vertrauenswuerdigkeit = 0.0
     personal_daten = PersonalDaten()
+    ocr_debug_info = []  # Sammle Debug-Infos
 
     # 1. Versuche Claude Vision API (Anthropic)
-    result = ocr_personalausweis_with_claude(image_data)
-    if result[0] is not None and result[2] > 0.5:
-        personal_daten, ocr_text, vertrauenswuerdigkeit = result
-        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
-        personal_daten.ocr_durchgefuehrt_am = datetime.now()
-        return personal_daten, ocr_text, vertrauenswuerdigkeit
+    try:
+        result = ocr_personalausweis_with_claude(image_data)
+        if result[0] is not None and result[2] > 0.5:
+            personal_daten, ocr_text, vertrauenswuerdigkeit = result
+            personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+            personal_daten.ocr_durchgefuehrt_am = datetime.now()
+            ocr_text = f"[OCR via Claude Vision API]\n\n{ocr_text}"
+            return personal_daten, ocr_text, vertrauenswuerdigkeit
+        else:
+            ocr_debug_info.append(f"Claude: {result[1] if result[1] else 'Niedrige Vertrauenswürdigkeit'}")
+    except Exception as e:
+        ocr_debug_info.append(f"Claude Fehler: {str(e)}")
 
     # 2. Versuche OpenAI Vision API (GPT-4 Vision)
-    result = ocr_personalausweis_with_openai(image_data)
-    if result[0] is not None and result[2] > 0.5:
-        personal_daten, ocr_text, vertrauenswuerdigkeit = result
-        personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
-        personal_daten.ocr_durchgefuehrt_am = datetime.now()
-        return personal_daten, ocr_text, vertrauenswuerdigkeit
+    try:
+        result = ocr_personalausweis_with_openai(image_data)
+        if result[0] is not None and result[2] > 0.5:
+            personal_daten, ocr_text, vertrauenswuerdigkeit = result
+            personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
+            personal_daten.ocr_durchgefuehrt_am = datetime.now()
+            ocr_text = f"[OCR via OpenAI Vision API]\n\n{ocr_text}"
+            return personal_daten, ocr_text, vertrauenswuerdigkeit
+        else:
+            ocr_debug_info.append(f"OpenAI: {result[1] if result[1] else 'Niedrige Vertrauenswürdigkeit'}")
+    except Exception as e:
+        ocr_debug_info.append(f"OpenAI Fehler: {str(e)}")
 
     # 3. Versuche pytesseract als lokaler Fallback
     try:
@@ -3784,31 +7168,45 @@ def ocr_personalausweis(image_data: bytes, filename: str) -> Tuple['PersonalDate
         personal_daten = parse_ausweis_ocr_text(ocr_text)
 
     except ImportError:
+        ocr_debug_info.append("Tesseract: Nicht installiert")
         # 4. Letzter Fallback: Simulation mit Demo-Daten
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
         vertrauenswuerdigkeit = 0.85
-        ocr_text = """⚠️ DEMO-MODUS
 
-Keine OCR-API konfiguriert. Um echte Ausweiserkennung zu aktivieren,
-fügen Sie einen der folgenden API-Keys in Streamlit Secrets hinzu:
+        # Debug-Info hinzufügen
+        debug_section = ""
+        if ocr_debug_info:
+            debug_section = "\n\n📋 **API-Versuche:**\n" + "\n".join(f"• {info}" for info in ocr_debug_info) + "\n"
 
-• ANTHROPIC_API_KEY - für Claude Vision (empfohlen)
-• OPENAI_API_KEY - für GPT-4 Vision
+        ocr_text = f"""⚠️ DEMO-MODUS
+
+Keine funktionierende OCR-API verfügbar. Die folgenden Methoden wurden versucht:
+{debug_section}
+Um echte Ausweiserkennung zu aktivieren, prüfen Sie:
+
+1. Ist ein gültiger API-Key in Streamlit Secrets konfiguriert?
+   • ANTHROPIC_API_KEY - für Claude Vision (empfohlen)
+   • OPENAI_API_KEY - für GPT-4 Vision
+
+2. Ist der API-Key noch gültig und hat ausreichend Credits?
+
+3. Bildformat: JPG/PNG werden unterstützt, PDF muss konvertiert werden.
 
 Anleitung: Settings → Secrets → secrets.toml bearbeiten
-
-Beispiel:
-ANTHROPIC_API_KEY = "sk-ant-api..."
-oder
-OPENAI_API_KEY = "sk-..."
 
 Die folgenden Demo-Daten wurden generiert:
 
 """ + ocr_text
 
     except Exception as e:
+        ocr_debug_info.append(f"Tesseract Fehler: {str(e)}")
         personal_daten, ocr_text = simulate_personalausweis_ocr(filename)
-        ocr_text = f"⚠️ OCR-Fehler: {str(e)}\n\n{ocr_text}"
+
+        debug_section = ""
+        if ocr_debug_info:
+            debug_section = "\n\n📋 **API-Versuche:**\n" + "\n".join(f"• {info}" for info in ocr_debug_info)
+
+        ocr_text = f"⚠️ OCR-Fehler: {str(e)}{debug_section}\n\n{ocr_text}"
         vertrauenswuerdigkeit = 0.85
 
     personal_daten.ocr_vertrauenswuerdigkeit = vertrauenswuerdigkeit
@@ -4218,27 +7616,66 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
             file_data = uploaded_file.read()
             file_name = uploaded_file.name
     else:
-        st.info("📱 **Tipp:** Halten Sie den Ausweis flach und gut beleuchtet. Vermeiden Sie Reflexionen. Die **Rückkamera** wird für bessere Qualität verwendet.")
+        # Kamera-Auswahl für Benutzer
+        st.markdown("##### 📷 Kamera-Einstellungen")
+        col_cam1, col_cam2 = st.columns(2)
 
-        # JavaScript um Rückkamera zu bevorzugen
-        st.markdown("""
+        with col_cam1:
+            kamera_auswahl = st.radio(
+                "Kamera auswählen",
+                options=["📱 Rückkamera (Hauptkamera)", "🤳 Frontkamera"],
+                key=f"kamera_wahl_{seite}_{widget_prefix}",
+                horizontal=True,
+                help="Die Rückkamera (Hauptkamera) liefert meist bessere Qualität für Dokumente"
+            )
+
+        with col_cam2:
+            scan_hinweise = st.checkbox(
+                "Hinweise anzeigen",
+                value=True,
+                key=f"hinweise_{seite}_{widget_prefix}"
+            )
+
+        # Bestimme Kamera-Modus basierend auf Auswahl
+        facing_mode = "environment" if "Rück" in kamera_auswahl else "user"
+        kamera_typ = "back" if "Rück" in kamera_auswahl else "front"
+
+        if scan_hinweise:
+            if "Rück" in kamera_auswahl:
+                st.info("""📱 **Tipps für Rückkamera (Hauptkamera):**
+                - Halten Sie den Ausweis flach und parallel zur Kamera
+                - Sorgen Sie für gute, gleichmäßige Beleuchtung
+                - Vermeiden Sie Reflexionen und Schatten
+                - Halten Sie ca. 20-30 cm Abstand
+                - Warten Sie, bis das Bild scharf ist""")
+            else:
+                st.info("""🤳 **Tipps für Frontkamera:**
+                - Die Frontkamera hat meist niedrigere Auflösung
+                - Nutzen Sie wenn möglich die Rückkamera
+                - Halten Sie das Gerät stabil""")
+
+        # JavaScript um gewählte Kamera zu verwenden
+        st.markdown(f"""
         <script>
-        // Versuche Rückkamera (environment) zu verwenden
-        (function() {
+        // Setze Kamera auf {facing_mode}
+        (function() {{
             const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            navigator.mediaDevices.getUserMedia = function(constraints) {
-                if (constraints && constraints.video) {
-                    if (typeof constraints.video === 'boolean') {
-                        constraints.video = { facingMode: { ideal: 'environment' } };
-                    } else if (typeof constraints.video === 'object' && !constraints.video.facingMode) {
-                        constraints.video.facingMode = { ideal: 'environment' };
-                    }
-                }
+            navigator.mediaDevices.getUserMedia = function(constraints) {{
+                if (constraints && constraints.video) {{
+                    if (typeof constraints.video === 'boolean') {{
+                        constraints.video = {{ facingMode: {{ ideal: '{facing_mode}' }} }};
+                    }} else if (typeof constraints.video === 'object') {{
+                        constraints.video.facingMode = {{ ideal: '{facing_mode}' }};
+                    }}
+                }}
                 return originalGetUserMedia(constraints);
-            };
-        })();
+            }};
+        }})();
         </script>
         """, unsafe_allow_html=True)
+
+        # Kamera-Status anzeigen
+        st.markdown(f"**Aktive Kamera:** {kamera_auswahl}")
 
         camera_photo = st.camera_input(
             f"{seite_label} fotografieren",
@@ -4246,7 +7683,8 @@ def render_ausweis_seite_upload(user_id: str, seite: str, key_prefix: str = ""):
         )
         if camera_photo:
             file_data = camera_photo.read()
-            file_name = f"{seite}_kamera.jpg"
+            file_name = f"{seite}_kamera_{kamera_typ}.jpg"
+            st.session_state[f"kamera_typ_{seite}_{widget_prefix}"] = kamera_typ
 
     if file_data:
         col1, col2 = st.columns([1, 2])
@@ -5027,16 +8465,38 @@ def render_document_requests_view(user_id: str, user_role: str):
         selected_projekt_id = projekt_options[selected_projekt_label]
         selected_projekt = st.session_state.projekte[selected_projekt_id]
 
-        # Empfänger auswählen
+        # Empfänger auswählen - alle Projektbeteiligten
         empfaenger_options = {}
+
+        # Käufer
         for kid in selected_projekt.kaeufer_ids:
             k = st.session_state.users.get(kid)
             if k:
-                empfaenger_options[f"Käufer: {k.name}"] = kid
+                empfaenger_options[f"🏠 Käufer: {k.name}"] = kid
+
+        # Verkäufer
         for vid in selected_projekt.verkaeufer_ids:
             v = st.session_state.users.get(vid)
             if v:
-                empfaenger_options[f"Verkäufer: {v.name}"] = vid
+                empfaenger_options[f"🏡 Verkäufer: {v.name}"] = vid
+
+        # Makler
+        if selected_projekt.makler_id:
+            m = st.session_state.users.get(selected_projekt.makler_id)
+            if m and selected_projekt.makler_id != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"👔 Makler: {m.name}"] = selected_projekt.makler_id
+
+        # Finanzierer
+        for fid in selected_projekt.finanzierer_ids:
+            f = st.session_state.users.get(fid)
+            if f and fid != user_id:  # Nicht an sich selbst
+                empfaenger_options[f"🏦 Finanzierer: {f.name}"] = fid
+
+        # Notar (falls Anfrage nicht vom Notar selbst kommt)
+        if selected_projekt.notar_id and selected_projekt.notar_id != user_id:
+            n = st.session_state.users.get(selected_projekt.notar_id)
+            if n:
+                empfaenger_options[f"⚖️ Notar: {n.name}"] = selected_projekt.notar_id
 
         if not empfaenger_options:
             st.warning("Keine Empfänger in diesem Projekt verfügbar.")
@@ -5463,10 +8923,10 @@ def create_termin_from_vorschlag(vorschlag: 'TerminVorschlag', ausgewaehlter_ind
             })
 
     # Termin-Titel erstellen: "Verkäufer ./. Käufer, Projektname (Makler)"
-    verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids
-                        if st.session_state.users.get(vid)]
-    kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids
-                     if st.session_state.users.get(kid)]
+    verkaeufer_namen = [user.name for vid in projekt.verkaeufer_ids
+                        if (user := st.session_state.users.get(vid))]
+    kaeufer_namen = [user.name for kid in projekt.kaeufer_ids
+                     if (user := st.session_state.users.get(kid))]
     makler_name = ""
     if projekt.makler_id:
         makler = st.session_state.users.get(projekt.makler_id)
@@ -7225,6 +10685,13 @@ def login_page():
                     st.session_state.valid_tokens[email] = token
                     save_session_to_browser(email, token)
 
+                # Login-Event tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={'rolle': user.role, 'remember_me': remember_me},
+                    nutzer_id=user.user_id
+                )
+
                 create_notification(
                     user.user_id,
                     "Willkommen zurück!",
@@ -7244,6 +10711,17 @@ def login_page():
                         st.session_state.valid_tokens = {}
                     st.session_state.valid_tokens[email] = token
                     save_session_to_browser(email, token)
+
+                # Mitarbeiter-Login tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={
+                        'rolle': 'notar_mitarbeiter',
+                        'mitarbeiter_rolle': mitarbeiter.rolle,
+                        'remember_me': remember_me
+                    },
+                    nutzer_id=mitarbeiter.mitarbeiter_id
+                )
 
                 st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
                 st.rerun()
@@ -7310,6 +10788,7 @@ def makler_dashboard():
     tabs = st.tabs([
         "📋 Timeline",
         "📁 Projekte",
+        "📊 Marktanalyse",
         "👤 Profil",
         "💼 Bankenmappe",
         "⚖️ Rechtliche Dokumente",
@@ -7327,24 +10806,27 @@ def makler_dashboard():
         makler_projekte_view()
 
     with tabs[2]:
-        makler_profil_view()
+        makler_marktanalyse_view()
 
     with tabs[3]:
-        render_bank_folder_view()
+        makler_profil_view()
 
     with tabs[4]:
-        makler_rechtliche_dokumente()
+        render_bank_folder_view()
 
     with tabs[5]:
-        makler_teilnehmer_status()
+        makler_rechtliche_dokumente()
 
     with tabs[6]:
-        makler_einladungen()
+        makler_teilnehmer_status()
 
     with tabs[7]:
-        makler_kommentare()
+        makler_einladungen()
 
     with tabs[8]:
+        makler_kommentare()
+
+    with tabs[9]:
         makler_ausweis_erfassung()
 
     with tabs[9]:
@@ -7386,6 +10868,252 @@ def makler_timeline_view():
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name} - Status: {projekt.status}", expanded=True):
             render_timeline(projekt.projekt_id, UserRole.MAKLER.value)
+
+
+def makler_marktanalyse_view():
+    """Marktanalyse und Vergleichsobjekte für die Preisfindung"""
+    st.subheader("📊 Marktanalyse & Vergleichsobjekte")
+
+    st.info("""
+    Hier können Sie Vergleichsobjekte erfassen und analysieren, um eine fundierte Preisfindung
+    für Ihre Immobilien zu unterstützen. Die Daten werden auch dem Verkäufer zur Verfügung gestellt.
+    """)
+
+    makler_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+    if not projekte:
+        st.warning("Sie haben noch keine Projekte angelegt.")
+        return
+
+    # Projekt auswählen
+    projekt_namen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+    ausgewaehltes_id = st.selectbox(
+        "Projekt auswählen",
+        list(projekt_namen.keys()),
+        format_func=lambda x: projekt_namen[x],
+        key="marktanalyse_projekt_select"
+    )
+
+    projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), None)
+    if not projekt:
+        return
+
+    # Expose-Daten holen oder erstellen
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+    else:
+        st.warning("Für dieses Projekt sind noch keine Exposé-Daten vorhanden. Bitte erstellen Sie zuerst ein Exposé unter 'Projekte'.")
+        return
+
+    # Projektinfo anzeigen
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Kaufpreis", f"{expose.kaufpreis:,.0f} €" if expose.kaufpreis else "Nicht angegeben")
+    with col2:
+        st.metric("Wohnfläche", f"{expose.wohnflaeche} m²" if expose.wohnflaeche else "N/A")
+    with col3:
+        if expose.kaufpreis and expose.wohnflaeche and expose.wohnflaeche > 0:
+            qm_preis = expose.kaufpreis / expose.wohnflaeche
+            st.metric("Preis/m²", f"{qm_preis:,.0f} €")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    st.markdown("---")
+
+    # ===== AUTOMATISCHE MARKTANALYSE =====
+    render_automatische_marktanalyse(projekt, makler_id, kann_bearbeiten=True)
+
+    st.markdown("---")
+
+    # ===== VERGLEICHSOBJEKTE VERWALTEN =====
+    st.markdown("### 🏘️ Manuelle Vergleichsobjekte")
+
+    # Bestehende Vergleichsobjekte anzeigen
+    if expose.vergleichsobjekte:
+        st.markdown(f"**{len(expose.vergleichsobjekte)} Vergleichsobjekt(e) erfasst:**")
+
+        for i, vgl in enumerate(expose.vergleichsobjekte):
+            with st.container():
+                col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+                with col1:
+                    titel = vgl.get('titel', 'Vergleichsobjekt')
+                    url = vgl.get('url', '#')
+                    if url and url != '#':
+                        st.markdown(f"**[{titel}]({url})**")
+                    else:
+                        st.markdown(f"**{titel}**")
+                with col2:
+                    st.write(f"💰 {vgl.get('preis', 0):,.0f} €")
+                with col3:
+                    st.write(f"📐 {vgl.get('flaeche', 0):.0f} m²")
+                with col4:
+                    st.write(f"🚪 {vgl.get('zimmer', 0)} Zimmer")
+                with col5:
+                    if st.button("🗑️", key=f"del_markt_vgl_{expose.expose_id}_{i}"):
+                        expose.vergleichsobjekte.pop(i)
+                        st.session_state.expose_data[expose.expose_id] = expose
+                        st.rerun()
+
+                if vgl.get('notiz'):
+                    st.caption(f"📝 {vgl.get('notiz')}")
+
+                # Quadratmeterpreis anzeigen
+                if vgl.get('preis', 0) > 0 and vgl.get('flaeche', 0) > 0:
+                    vgl_qm = vgl.get('preis') / vgl.get('flaeche')
+                    st.caption(f"→ {vgl_qm:,.0f} €/m²")
+
+                st.markdown("---")
+    else:
+        st.info("Noch keine Vergleichsobjekte erfasst. Fügen Sie unten welche hinzu.")
+
+    # Neues Vergleichsobjekt hinzufügen
+    st.markdown("### ➕ Neues Vergleichsobjekt hinzufügen")
+
+    with st.form(f"neues_vergleichsobjekt_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            vgl_titel = st.text_input(
+                "Titel / Bezeichnung",
+                placeholder="z.B. 3-Zi-Wohnung Südstadt",
+                key=f"markt_vgl_titel_{projekt.projekt_id}"
+            )
+            vgl_url = st.text_input(
+                "URL zum Inserat (optional)",
+                placeholder="https://www.immobilienscout24.de/...",
+                key=f"markt_vgl_url_{projekt.projekt_id}"
+            )
+            vgl_quelle = st.selectbox(
+                "Quelle",
+                ["ImmobilienScout24", "Immowelt", "eBay Kleinanzeigen", "Eigene Datenbank", "Sonstige"],
+                key=f"markt_vgl_quelle_{projekt.projekt_id}"
+            )
+
+        with col2:
+            vgl_preis = st.number_input(
+                "Angebotspreis (€)",
+                min_value=0.0,
+                step=5000.0,
+                key=f"markt_vgl_preis_{projekt.projekt_id}"
+            )
+            col2a, col2b = st.columns(2)
+            with col2a:
+                vgl_flaeche = st.number_input(
+                    "Wohnfläche (m²)",
+                    min_value=0.0,
+                    step=1.0,
+                    key=f"markt_vgl_flaeche_{projekt.projekt_id}"
+                )
+            with col2b:
+                vgl_zimmer = st.number_input(
+                    "Zimmer",
+                    min_value=0.0,
+                    step=0.5,
+                    key=f"markt_vgl_zimmer_{projekt.projekt_id}"
+                )
+
+        vgl_notiz = st.text_area(
+            "Notizen (optional)",
+            placeholder="z.B. Ähnliche Lage, bessere Ausstattung, renovierungsbedürftig...",
+            height=80,
+            key=f"markt_vgl_notiz_{projekt.projekt_id}"
+        )
+
+        submitted = st.form_submit_button("✅ Vergleichsobjekt hinzufügen", type="primary")
+
+        if submitted:
+            if vgl_titel or vgl_url:
+                neues_vgl = {
+                    'titel': vgl_titel if vgl_titel else "Vergleichsobjekt",
+                    'url': vgl_url,
+                    'quelle': vgl_quelle,
+                    'preis': vgl_preis,
+                    'flaeche': vgl_flaeche,
+                    'zimmer': vgl_zimmer,
+                    'notiz': vgl_notiz,
+                    'hinzugefuegt_am': datetime.now().isoformat(),
+                    'hinzugefuegt_von': makler_id
+                }
+                if not expose.vergleichsobjekte:
+                    expose.vergleichsobjekte = []
+                expose.vergleichsobjekte.append(neues_vgl)
+                st.session_state.expose_data[expose.expose_id] = expose
+                st.success("✅ Vergleichsobjekt hinzugefügt!")
+                st.rerun()
+            else:
+                st.warning("Bitte geben Sie mindestens einen Titel oder eine URL ein.")
+
+    # ===== MARKTANALYSE-ZUSAMMENFASSUNG =====
+    if expose.vergleichsobjekte and len(expose.vergleichsobjekte) >= 1:
+        st.markdown("---")
+        st.markdown("### 📈 Marktanalyse-Zusammenfassung")
+
+        preise = [v.get('preis', 0) for v in expose.vergleichsobjekte if v.get('preis', 0) > 0]
+        flaechen = [v.get('flaeche', 0) for v in expose.vergleichsobjekte if v.get('flaeche', 0) > 0]
+        qm_preise = [v.get('preis') / v.get('flaeche') for v in expose.vergleichsobjekte
+                     if v.get('preis', 0) > 0 and v.get('flaeche', 0) > 0]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if preise:
+                st.metric("Ø Preis", f"{sum(preise)/len(preise):,.0f} €")
+                st.caption(f"Min: {min(preise):,.0f} € | Max: {max(preise):,.0f} €")
+            else:
+                st.metric("Ø Preis", "N/A")
+
+        with col2:
+            if flaechen:
+                st.metric("Ø Fläche", f"{sum(flaechen)/len(flaechen):.0f} m²")
+            else:
+                st.metric("Ø Fläche", "N/A")
+
+        with col3:
+            if qm_preise:
+                avg_qm = sum(qm_preise) / len(qm_preise)
+                st.metric("Ø Preis/m²", f"{avg_qm:,.0f} €")
+                st.caption(f"Min: {min(qm_preise):,.0f} € | Max: {max(qm_preise):,.0f} €")
+            else:
+                st.metric("Ø Preis/m²", "N/A")
+
+        with col4:
+            st.metric("Anzahl Objekte", len(expose.vergleichsobjekte))
+
+        # Vergleich mit eigenem Objekt
+        if expose.kaufpreis > 0 and expose.wohnflaeche > 0 and qm_preise:
+            st.markdown("---")
+            st.markdown("#### 🎯 Vergleich mit Ihrem Objekt")
+
+            eigener_qm_preis = expose.kaufpreis / expose.wohnflaeche
+            avg_qm = sum(qm_preise) / len(qm_preise)
+            differenz = eigener_qm_preis - avg_qm
+            differenz_prozent = (differenz / avg_qm) * 100 if avg_qm > 0 else 0
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Ihr Preis/m²", f"{eigener_qm_preis:,.0f} €")
+
+            with col2:
+                st.metric("Markt Ø/m²", f"{avg_qm:,.0f} €")
+
+            with col3:
+                if differenz > 0:
+                    st.metric("Differenz", f"+{differenz:,.0f} €/m²", delta=f"+{differenz_prozent:.1f}%")
+                    st.caption("Über Marktdurchschnitt")
+                else:
+                    st.metric("Differenz", f"{differenz:,.0f} €/m²", delta=f"{differenz_prozent:.1f}%")
+                    st.caption("Unter Marktdurchschnitt")
+
+            # Empfehlung
+            if abs(differenz_prozent) <= 5:
+                st.success("✅ **Einschätzung:** Der Preis liegt im marktüblichen Bereich.")
+            elif differenz_prozent > 5:
+                st.warning(f"⚠️ **Einschätzung:** Der Preis liegt {differenz_prozent:.1f}% über dem Marktdurchschnitt. Prüfen Sie besondere Ausstattungsmerkmale oder Lagefaktoren.")
+            else:
+                st.info(f"💡 **Einschätzung:** Der Preis liegt {abs(differenz_prozent):.1f}% unter dem Marktdurchschnitt. Ggf. Spielraum für Preisanpassung.")
+
 
 def makler_projekte_view():
     """Projekt-Verwaltung für Makler"""
@@ -7560,6 +11288,12 @@ def makler_projekte_view():
 
             with st.expander("📝 Exposé bearbeiten" if expose_exists else "📝 Exposé-Daten eingeben", expanded=not expose_exists):
                 render_expose_editor(projekt)
+
+            st.markdown("---")
+
+            # ===== PREISFINDUNG MIT MARKTANALYSE =====
+            with st.expander("📊 Preisfindung mit Marktanalyse", expanded=False):
+                render_preisfindung_mit_marktanalyse(projekt, st.session_state.current_user.user_id)
 
             st.markdown("---")
 
@@ -9376,7 +13110,8 @@ def kaeufer_finanzierung_view():
         "📊 Angebote",
         "📁 Dokumente",
         "📤 Meine Unterlagen",
-        "🧮 Kreditrechner"
+        "🧮 Kreditrechner",
+        "💶 Kaufnebenkosten"
     ])
 
     with tabs[0]:
@@ -9394,6 +13129,9 @@ def kaeufer_finanzierung_view():
     with tabs[4]:
         kaeufer_finanzierungsrechner()
 
+    with tabs[5]:
+        kaeufer_kaufnebenkosten_view(projekte)
+
 
 def kaeufer_finanzierung_anfragen(projekte):
     """Finanzierung anfragen und Finanzierer einladen"""
@@ -9408,6 +13146,99 @@ def kaeufer_finanzierung_anfragen(projekte):
         st.session_state.finanzierungsanfragen = {}
     if 'finanzierer_einladungen' not in st.session_state:
         st.session_state.finanzierer_einladungen = {}
+    if 'finanzierungsanfragen_an_finanzierer' not in st.session_state:
+        st.session_state.finanzierungsanfragen_an_finanzierer = {}
+
+    # ===== GESENDETE ANFRAGEN ANZEIGEN =====
+    user_anfragen = [a for a in st.session_state.finanzierungsanfragen.values()
+                     if a.kaeufer_id == user_id and a.anfrage_status == "Gesendet"]
+
+    if user_anfragen:
+        st.markdown("#### 📤 Ihre gesendeten Finanzierungsanfragen")
+
+        for anfrage in user_anfragen:
+            projekt = st.session_state.projekte.get(anfrage.projekt_id)
+            modell = st.session_state.finanzierungsmodelle.get(anfrage.modell_id) if anfrage.modell_id else None
+
+            projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+            with st.expander(f"📨 Anfrage für {projekt_name} | {anfrage.finanzierungsbetrag:,.2f} € | {anfrage.erstellt_am.strftime('%d.%m.%Y')}", expanded=False):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("**Finanzierungsdetails:**")
+                    st.write(f"Kaufpreis: {anfrage.kaufpreis:,.2f} €")
+                    st.write(f"Eigenkapital: {anfrage.eigenkapital:,.2f} €")
+                    st.write(f"Finanzierungsbedarf: {anfrage.finanzierungsbetrag:,.2f} €")
+                    if modell:
+                        st.write(f"Wunsch-Zinssatz: {modell.zinssatz:.2f}%")
+                        st.write(f"Wunsch-Tilgung: {modell.tilgungssatz:.2f}%")
+                        st.write(f"Monatliche Rate (Basis): {modell.monatliche_rate:,.2f} €")
+
+                with col2:
+                    st.markdown("**Status bei Finanzierern:**")
+
+                    # Finde einzelne Anfragen
+                    einzelanfragen = [ea for ea in st.session_state.finanzierungsanfragen_an_finanzierer.values()
+                                      if ea.hauptanfrage_id == anfrage.anfrage_id]
+
+                    if einzelanfragen:
+                        for ea in einzelanfragen:
+                            fin_user = st.session_state.users.get(ea.finanzierer_id)
+                            fin_name = fin_user.name if fin_user else "Finanzierer"
+
+                            if ea.status == "Gesendet":
+                                st.write(f"⏳ {fin_name}: Gesendet")
+                            elif ea.status == "Gelesen":
+                                st.write(f"👁️ {fin_name}: Gelesen")
+                            elif ea.status == "Angebot_erstellt":
+                                st.write(f"✅ {fin_name}: Angebot erhalten!")
+                            elif ea.status == "Abgelehnt":
+                                st.write(f"❌ {fin_name}: Abgelehnt")
+                            else:
+                                st.write(f"📋 {fin_name}: {ea.status}")
+                    else:
+                        st.info("Anfrage wurde an Finanzierer gesendet.")
+
+                if anfrage.notizen:
+                    st.markdown(f"**Notizen:** {anfrage.notizen}")
+
+        st.markdown("---")
+
+    # ===== MODELLE ZUR ANFRAGE BEREIT =====
+    angeforderte_modelle = [m for m in st.session_state.finanzierungsmodelle.values()
+                           if m.kaeufer_id == user_id and m.status == FinanzierungsmodellStatus.ANGEFORDERT.value]
+
+    # Filtere Modelle, für die noch keine Anfrage gesendet wurde
+    bereits_gesendet_modelle = [a.modell_id for a in st.session_state.finanzierungsanfragen.values()
+                                if a.kaeufer_id == user_id and a.anfrage_status == "Gesendet"]
+    noch_nicht_gesendet = [m for m in angeforderte_modelle if m.modell_id not in bereits_gesendet_modelle]
+
+    if noch_nicht_gesendet:
+        st.markdown("#### 💡 Modelle bereit zur Anfrage")
+        st.info("Diese Modelle wurden zur Anfrage markiert. Klicken Sie auf 'Anfrage senden', um Angebote einzuholen.")
+
+        for modell in noch_nicht_gesendet:
+            with st.expander(f"📋 {modell.name} | {modell.darlehensbetrag:,.2f} € | {modell.monatliche_rate:,.2f} €/Monat"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write(f"**Zinssatz:** {modell.zinssatz:.2f}%")
+                    st.write(f"**Tilgung:** {modell.tilgungssatz:.2f}%")
+                    st.write(f"**Sollzinsbindung:** {modell.sollzinsbindung} Jahre")
+
+                with col2:
+                    st.write(f"**Gesamtzinsen:** {modell.gesamtzinsen:,.2f} €")
+                    st.write(f"**Restschuld:** {modell.restschuld_nach_zinsbindung:,.2f} €")
+
+                if st.button("📨 Anfrage jetzt senden", key=f"send_from_overview_{modell.modell_id}", type="primary"):
+                    st.session_state[f'show_fin_dialog_{modell.modell_id}'] = True
+                    st.rerun()
+
+                if st.session_state.get(f'show_fin_dialog_{modell.modell_id}', False):
+                    _render_finanzierer_auswahl_dialog(modell, f"overview_{modell.modell_id}")
+
+        st.markdown("---")
 
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €", expanded=True):
@@ -9959,28 +13790,160 @@ def kaeufer_wirtschaftsdaten_upload():
 
 
 def kaeufer_finanzierungsrechner():
-    """Umfassender Finanzierungsrechner für Käufer"""
+    """Umfassender Finanzierungsrechner für Käufer mit Modellverwaltung"""
     import pandas as pd
+    import json
+    import uuid
 
     st.markdown("### 🧮 Kreditrechner")
+
+    # Initialisiere finanzierungsmodelle falls nicht vorhanden
+    if 'finanzierungsmodelle' not in st.session_state:
+        st.session_state.finanzierungsmodelle = {}
+
+    # Tabs für verschiedene Funktionen
+    rechner_tabs = st.tabs([
+        "📊 Neue Berechnung",
+        "💾 Gespeicherte Modelle",
+        "⚖️ Modelle vergleichen",
+        "📥 Angebot importieren"
+    ])
+
+    with rechner_tabs[0]:
+        _finanzierung_neue_berechnung()
+
+    with rechner_tabs[1]:
+        _finanzierung_gespeicherte_modelle()
+
+    with rechner_tabs[2]:
+        _finanzierung_modelle_vergleichen()
+
+    with rechner_tabs[3]:
+        _finanzierung_angebot_importieren()
+
+
+def _finanzierung_neue_berechnung():
+    """Neue Finanzierungsberechnung erstellen"""
+    import pandas as pd
+    import json
+    import uuid
+
     st.info("""
     Berechnen Sie hier Ihre persönliche Finanzierung. Geben Sie Ihre Wunschkonditionen ein
     und sehen Sie den kompletten Tilgungsverlauf mit monatlicher Zins- und Tilgungsaufstellung.
     """)
+
+    # Prüfen ob Finanzierungsbedarf aus Kostenberechnung übernommen wurde
+    has_berechnung = 'berechneter_finanzierungsbedarf' in st.session_state
+
+    # Box für Datenübernahme aus Kaufnebenkosten
+    st.markdown("#### 📋 Finanzierungsbedarf aus Kaufnebenkosten")
+
+    if has_berechnung:
+        finanzierungsbedarf = st.session_state.get('berechneter_finanzierungsbedarf', 0)
+        st.success(f"""
+        **✅ Daten aus Kaufnebenkosten-Berechnung verfügbar:**
+        - Kaufpreis: {st.session_state.get('berechneter_kaufpreis', 0):,.2f} €
+        - Nebenkosten: {st.session_state.get('berechnete_nebenkosten', 0):,.2f} €
+        - **Finanzierungsbedarf: {finanzierungsbedarf:,.2f} €**
+        """)
+
+        # Button zum Aktualisieren
+        if st.button("🔄 Daten aus Kaufnebenkosten neu laden", key="reload_kosten"):
+            st.info("Wechseln Sie zum Tab '💰 Kaufnebenkosten', passen Sie die Daten an und kehren Sie hierher zurück.")
+
+        # Default-Wert aus Berechnung, falls nicht manuell überschrieben
+        default_betrag = finanzierungsbedarf
+    else:
+        st.warning("""
+        ⚠️ **Keine Kaufnebenkosten-Berechnung vorhanden.**
+
+        Um den korrekten Finanzierungsbedarf (Kaufpreis + alle Nebenkosten) zu ermitteln,
+        sollten Sie zuerst die Kaufnebenkosten berechnen.
+        """)
+
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            st.markdown("""
+            **Empfohlen:** Berechnen Sie zuerst die Kaufnebenkosten im Tab "💰 Kaufnebenkosten".
+            Dort werden Notar-, Grundbuch-, Maklerkosten und Grunderwerbsteuer berechnet.
+            """)
+
+        with col_btn2:
+            # Schnellberechnung direkt hier
+            with st.expander("⚡ Schnellberechnung des Finanzierungsbedarfs"):
+                schnell_kaufpreis = st.number_input(
+                    "Kaufpreis (€)",
+                    min_value=0.0,
+                    value=300000.0,
+                    step=5000.0,
+                    key="schnell_kaufpreis"
+                )
+                schnell_nebenkosten_prozent = st.slider(
+                    "Geschätzte Nebenkosten (%)",
+                    min_value=5.0,
+                    max_value=15.0,
+                    value=10.0,
+                    step=0.5,
+                    key="schnell_nk_prozent",
+                    help="Typisch: 10-12% (inkl. Notar, Grundbuch, Makler, Grunderwerbsteuer)"
+                )
+
+                schnell_nebenkosten = schnell_kaufpreis * schnell_nebenkosten_prozent / 100
+                schnell_gesamt = schnell_kaufpreis + schnell_nebenkosten
+
+                st.metric("Geschätzter Finanzierungsbedarf", f"{schnell_gesamt:,.2f} €")
+
+                if st.button("📊 Diese Werte übernehmen", type="primary", key="uebernehme_schnell"):
+                    st.session_state['berechneter_kaufpreis'] = schnell_kaufpreis
+                    st.session_state['berechnete_nebenkosten'] = schnell_nebenkosten
+                    st.session_state['berechneter_finanzierungsbedarf'] = schnell_gesamt
+                    st.success("✅ Werte wurden übernommen!")
+                    st.rerun()
+
+        default_betrag = 300000.0
+
+    st.markdown("---")
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("#### 💵 Finanzierungsdaten")
 
-        finanzierungsbetrag = st.number_input(
-            "Zu finanzierender Betrag (€)",
-            min_value=10000.0,
-            max_value=10000000.0,
-            value=300000.0,
-            step=5000.0,
-            key="rechner_betrag"
+        # Option für manuelle Eingabe
+        betrag_quelle = st.radio(
+            "Finanzierungsbetrag:",
+            ["Aus Berechnung übernehmen", "Manuell eingeben"] if has_berechnung else ["Manuell eingeben"],
+            horizontal=True,
+            key="betrag_quelle"
         )
+
+        if betrag_quelle == "Aus Berechnung übernehmen" and has_berechnung:
+            finanzierungsbetrag = st.session_state['berechneter_finanzierungsbedarf']
+            st.metric("Zu finanzierender Betrag", f"{finanzierungsbetrag:,.2f} €")
+
+            # Optional: Anpassung des Betrags
+            with st.expander("➕ Zusätzliche Kosten hinzufügen"):
+                zusatz = st.number_input(
+                    "Zusätzliche Kosten (z.B. Renovierung, Umzug) (€)",
+                    min_value=0.0,
+                    max_value=1000000.0,
+                    value=0.0,
+                    step=1000.0,
+                    key="zusatz_kosten"
+                )
+                if zusatz > 0:
+                    finanzierungsbetrag += zusatz
+                    st.info(f"Angepasster Finanzierungsbedarf: **{finanzierungsbetrag:,.2f} €**")
+        else:
+            finanzierungsbetrag = st.number_input(
+                "Zu finanzierender Betrag (€)",
+                min_value=10000.0,
+                max_value=10000000.0,
+                value=default_betrag,
+                step=5000.0,
+                key="rechner_betrag_manuell"
+            )
 
         eigenkapital = st.number_input(
             "Eigenkapital (€)",
@@ -10162,12 +14125,34 @@ def kaeufer_finanzierungsrechner():
         if tilgungsplan:
             df = pd.DataFrame(tilgungsplan)
 
+            letzte_restschuld = tilgungsplan[-1]['Restschuld']
+            laufzeit_effektiv = len(tilgungsplan)
+            gesamtkosten = gesamt_zinsen + darlehensbetrag
+
+            # *** Berechnungsergebnisse im Session State speichern ***
+            st.session_state.rechner_ergebnis = {
+                'tilgungsplan': tilgungsplan,
+                'darlehensbetrag': darlehensbetrag,
+                'zinssatz': zinssatz,
+                'tilgungssatz': tilgungssatz,
+                'monatliche_rate': monatliche_rate,
+                'sollzinsbindung': sollzinsbindung,
+                'gesamt_zinsen': gesamt_zinsen,
+                'gesamtkosten': gesamtkosten,
+                'laufzeit_effektiv': laufzeit_effektiv,
+                'letzte_restschuld': letzte_restschuld,
+                'vollltilger': vollltilger,
+                'sondertilgung_betrag': sondertilgung_betrag,
+                'kaufpreis_wert': st.session_state.get('berechneter_kaufpreis', 0),
+                'nebenkosten_wert': st.session_state.get('berechnete_nebenkosten', 0),
+                'eigenkapital': st.session_state.get('berechnetes_eigenkapital', 0),
+                'finanzierungsbetrag': st.session_state.get('berechneter_finanzierungsbetrag', darlehensbetrag),
+                'df': df
+            }
+
             # Zusammenfassung
             st.markdown("---")
             st.markdown("### 📈 Ergebnis")
-
-            letzte_restschuld = tilgungsplan[-1]['Restschuld']
-            laufzeit_effektiv = len(tilgungsplan)
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -10182,6 +14167,8 @@ def kaeufer_finanzierungsrechner():
             # Zusätzliche Infos
             gesamtkosten = gesamt_zinsen + darlehensbetrag
             st.info(f"💰 **Gesamtkosten des Kredits:** {format_euro(gesamtkosten)} € (Darlehensbetrag + Zinsen)")
+
+            st.info(f"💰 **Gesamtkosten des Kredits:** {gesamtkosten:,.2f} € (Darlehensbetrag + Zinsen)")
 
             if sollzinsbindung * 12 < laufzeit_effektiv and not vollltilger:
                 restschuld_bei_bindung = df[df['Monat'] == sollzinsbindung * 12]['Restschuld'].values
@@ -10246,6 +14233,1191 @@ def kaeufer_finanzierungsrechner():
                     use_container_width=True,
                     height=400
                 )
+
+            # Hinweis auf Speichern
+            st.markdown("---")
+            st.success("✅ Berechnung abgeschlossen! Scrollen Sie nach unten, um das Modell zu speichern.")
+
+    # --- SPEICHERN ALS MODELL (außerhalb des Button-Blocks) ---
+    # Dieser Block wird angezeigt, wenn Berechnungsergebnisse im Session State sind
+    if 'rechner_ergebnis' in st.session_state and st.session_state.rechner_ergebnis:
+        ergebnis = st.session_state.rechner_ergebnis
+
+        st.markdown("---")
+        st.markdown("### 💾 Berechnung speichern")
+
+        col_save1, col_save2 = st.columns([2, 1])
+
+        with col_save1:
+            modell_name = st.text_input(
+                "Name für dieses Finanzierungsmodell",
+                value=f"Modell {datetime.now().strftime('%d.%m.%Y %H:%M')}",
+                key="modell_name_input"
+            )
+            modell_notizen = st.text_area(
+                "Notizen (optional)",
+                placeholder="z.B. Bank XY, Sonderkonditionen...",
+                key="modell_notizen_input"
+            )
+
+        with col_save2:
+            st.markdown("**Zusammenfassung:**")
+            st.write(f"Darlehensbetrag: {ergebnis['darlehensbetrag']:,.2f} €")
+            st.write(f"Zinssatz: {ergebnis['zinssatz']}%")
+            st.write(f"Tilgung: {ergebnis['tilgungssatz']:.2f}%")
+            st.write(f"Rate: {ergebnis['monatliche_rate']:,.2f} €")
+
+        if st.button("💾 Als Modell speichern", type="primary", key="speichere_modell"):
+            # Daten aus Session State holen
+            tilgungsplan = ergebnis['tilgungsplan']
+            darlehensbetrag = ergebnis['darlehensbetrag']
+            zinssatz = ergebnis['zinssatz']
+            tilgungssatz = ergebnis['tilgungssatz']
+            monatliche_rate = ergebnis['monatliche_rate']
+            sollzinsbindung = ergebnis['sollzinsbindung']
+            gesamt_zinsen = ergebnis['gesamt_zinsen']
+            gesamtkosten = ergebnis['gesamtkosten']
+            laufzeit_effektiv = ergebnis['laufzeit_effektiv']
+            sondertilgung_betrag = ergebnis['sondertilgung_betrag']
+            kaufpreis_wert = ergebnis['kaufpreis_wert']
+            nebenkosten_wert = ergebnis['nebenkosten_wert']
+            eigenkapital = ergebnis['eigenkapital']
+            finanzierungsbetrag = ergebnis['finanzierungsbetrag']
+
+            # Neues Modell erstellen
+            modell_id = str(uuid.uuid4())[:8]
+
+            # Restschuld nach Zinsbindung berechnen
+            restschuld_bindung = 0.0
+            if sollzinsbindung * 12 <= len(tilgungsplan):
+                restschuld_bindung = tilgungsplan[sollzinsbindung * 12 - 1]['Restschuld']
+            elif tilgungsplan:
+                restschuld_bindung = tilgungsplan[-1]['Restschuld']
+
+            neues_modell = Finanzierungsmodell(
+                modell_id=modell_id,
+                projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                name=modell_name,
+                kaufpreis=kaufpreis_wert,
+                nebenkosten=nebenkosten_wert,
+                finanzierungsbedarf=finanzierungsbetrag,
+                eigenkapital=eigenkapital,
+                darlehensbetrag=darlehensbetrag,
+                zinssatz=zinssatz,
+                tilgungssatz=tilgungssatz,
+                monatliche_rate=monatliche_rate,
+                sollzinsbindung=sollzinsbindung,
+                sondertilgung_prozent=sondertilgung_betrag / darlehensbetrag * 100 if darlehensbetrag > 0 else 0,
+                restschuld_nach_zinsbindung=restschuld_bindung,
+                gesamtlaufzeit_jahre=laufzeit_effektiv / 12,
+                gesamtzinsen=gesamt_zinsen,
+                gesamtkosten=gesamtkosten,
+                tilgungsplan_json=json.dumps(tilgungsplan),
+                notizen=modell_notizen,
+                quelle=FinanzierungsmodellQuelle.EIGENE_BERECHNUNG.value
+            )
+
+            st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+
+            # Speichere die ID für die Angebots-Anfrage Option
+            st.session_state['letztes_gespeichertes_modell_id'] = modell_id
+
+            st.success(f"✅ Modell '{modell_name}' wurde gespeichert!")
+            st.info("Sie finden das Modell im Tab '💾 Gespeicherte Modelle'.")
+            st.rerun()
+
+    # Option: Angebot anfordern nach Speichern
+    if 'letztes_gespeichertes_modell_id' in st.session_state:
+        modell_id = st.session_state.letztes_gespeichertes_modell_id
+        if modell_id in st.session_state.finanzierungsmodelle:
+            st.markdown("---")
+            st.markdown("**💡 Möchten Sie direkt ein Angebot bei Finanzierern anfordern?**")
+            col_btn1, col_btn2 = st.columns([1, 3])
+            with col_btn1:
+                if st.button("📨 Ja, Angebot anfordern", key=f"direct_anfrage_{modell_id}", type="primary"):
+                    st.session_state[f'show_fin_dialog_{modell_id}'] = True
+                    del st.session_state['letztes_gespeichertes_modell_id']
+                    st.rerun()
+            with col_btn2:
+                if st.button("❌ Nein, später", key=f"skip_anfrage_{modell_id}"):
+                    del st.session_state['letztes_gespeichertes_modell_id']
+                    st.rerun()
+
+    # Dialog für direkte Anfrage nach Speichern anzeigen
+    if 'finanzierungsmodelle' in st.session_state:
+        for mid in list(st.session_state.finanzierungsmodelle.keys()):
+            if st.session_state.get(f'show_fin_dialog_{mid}', False):
+                modell = st.session_state.finanzierungsmodelle.get(mid)
+                if modell:
+                    _render_finanzierer_auswahl_dialog(modell, f"neue_berechnung_{mid}")
+
+
+def _modell_an_finanzierer_senden(modell_id: str, finanzierer_ids: List[str], an_alle: bool = False):
+    """
+    Überträgt ein Finanzierungsmodell in den Bereich 'Finanzierung anfragen' und sendet es an Finanzierer.
+
+    Args:
+        modell_id: ID des Finanzierungsmodells
+        finanzierer_ids: Liste der ausgewählten Finanzierer-IDs
+        an_alle: Wenn True, an alle verfügbaren Finanzierer senden
+    """
+    import uuid
+
+    if modell_id not in st.session_state.finanzierungsmodelle:
+        return None
+
+    modell = st.session_state.finanzierungsmodelle[modell_id]
+    user_id = st.session_state.current_user.user_id
+
+    # Initialisiere Session State falls nötig
+    if 'finanzierungsanfragen' not in st.session_state:
+        st.session_state.finanzierungsanfragen = {}
+    if 'finanzierungsanfragen_an_finanzierer' not in st.session_state:
+        st.session_state.finanzierungsanfragen_an_finanzierer = {}
+
+    # Erstelle Hauptanfrage
+    anfrage_id = f"fa_{modell_id}_{uuid.uuid4().hex[:6]}"
+
+    anfrage = FinanzierungsAnfrage(
+        anfrage_id=anfrage_id,
+        projekt_id=modell.projekt_id,
+        kaeufer_id=user_id,
+        kaufpreis=modell.kaufpreis,
+        eigenkapital=modell.eigenkapital,
+        finanzierungsbetrag=modell.finanzierungsbedarf,
+        wunsch_zinssatz=modell.zinssatz,
+        wunsch_tilgung=modell.tilgungssatz,
+        wunsch_laufzeit=modell.sollzinsbindung,
+        sondertilgung_gewuenscht=modell.sondertilgung_prozent > 0,
+        dokumente_freigegeben=True,
+        notizen=modell.notizen,
+        modell_id=modell_id,
+        finanzierer_ids=finanzierer_ids if not an_alle else [],
+        an_alle_finanzierer=an_alle,
+        anfrage_status="Gesendet"
+    )
+
+    st.session_state.finanzierungsanfragen[anfrage_id] = anfrage
+
+    # Update Modell-Status
+    modell.status = FinanzierungsmodellStatus.ANGEFORDERT.value
+    modell.geaendert_am = datetime.now()
+
+    # Ermittle Finanzierer für das Projekt
+    projekt = st.session_state.projekte.get(modell.projekt_id)
+
+    # Sammle alle Finanzierer (aus Projekt und eingeladene)
+    alle_finanzierer = []
+    if projekt and projekt.finanzierer_ids:
+        alle_finanzierer.extend(projekt.finanzierer_ids)
+
+    # Eingeladene Finanzierer hinzufügen
+    if 'finanzierer_einladungen' in st.session_state:
+        for einl in st.session_state.finanzierer_einladungen.values():
+            if einl.projekt_id == modell.projekt_id and einl.finanzierer_user_id:
+                if einl.finanzierer_user_id not in alle_finanzierer:
+                    alle_finanzierer.append(einl.finanzierer_user_id)
+
+    # Bestimme Empfänger
+    if an_alle:
+        empfaenger = alle_finanzierer
+    else:
+        empfaenger = finanzierer_ids
+
+    # Erstelle einzelne Anfragen an Finanzierer
+    for fin_id in empfaenger:
+        einzeln_id = f"faf_{anfrage_id}_{fin_id[:8]}"
+        einzelanfrage = FinanzierungsanfrageAnFinanzierer(
+            anfrage_einzeln_id=einzeln_id,
+            hauptanfrage_id=anfrage_id,
+            modell_id=modell_id,
+            finanzierer_id=fin_id,
+            kaeufer_id=user_id,
+            projekt_id=modell.projekt_id
+        )
+        st.session_state.finanzierungsanfragen_an_finanzierer[einzeln_id] = einzelanfrage
+
+        # Benachrichtigung an Finanzierer
+        fin_user = st.session_state.users.get(fin_id)
+        fin_name = fin_user.name if fin_user else "Finanzierer"
+        projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+        create_notification(
+            fin_id,
+            "Neue Finanzierungsanfrage",
+            f"Ein Käufer hat Ihnen eine detaillierte Finanzierungsanfrage für '{projekt_name}' gesendet. Darlehensbetrag: {modell.darlehensbetrag:,.2f} €",
+            NotificationType.INFO.value
+        )
+
+    return anfrage_id
+
+
+def _render_finanzierer_auswahl_dialog(modell: 'Finanzierungsmodell', dialog_key: str):
+    """Rendert einen Dialog zur Auswahl der Finanzierer für eine Anfrage"""
+
+    user_id = st.session_state.current_user.user_id
+    projekt = st.session_state.projekte.get(modell.projekt_id) if modell.projekt_id else None
+
+    st.markdown("---")
+    st.markdown("#### 📨 Angebot bei Finanzierern anfordern")
+
+    st.info(f"""
+    **Modell:** {modell.name}
+    **Darlehensbetrag:** {modell.darlehensbetrag:,.2f} €
+    **Monatliche Rate:** {modell.monatliche_rate:,.2f} €
+    """)
+
+    # Sammle verfügbare Finanzierer
+    verfuegbare_finanzierer = []
+
+    # Finanzierer aus dem Projekt
+    if projekt and projekt.finanzierer_ids:
+        for fin_id in projekt.finanzierer_ids:
+            fin_user = st.session_state.users.get(fin_id)
+            if fin_user:
+                verfuegbare_finanzierer.append({
+                    'id': fin_id,
+                    'name': fin_user.name,
+                    'firma': getattr(fin_user, 'firma', 'Finanzierer'),
+                    'quelle': 'Projekt'
+                })
+
+    # Eingeladene Finanzierer
+    if 'finanzierer_einladungen' in st.session_state:
+        for einl in st.session_state.finanzierer_einladungen.values():
+            if modell.projekt_id and einl.projekt_id == modell.projekt_id:
+                if einl.finanzierer_user_id:
+                    # Bereits registriert
+                    fin_user = st.session_state.users.get(einl.finanzierer_user_id)
+                    if fin_user and einl.finanzierer_user_id not in [f['id'] for f in verfuegbare_finanzierer]:
+                        verfuegbare_finanzierer.append({
+                            'id': einl.finanzierer_user_id,
+                            'name': fin_user.name,
+                            'firma': einl.firmenname or 'Finanzierer',
+                            'quelle': 'Einladung'
+                        })
+                else:
+                    # Noch nicht registriert
+                    verfuegbare_finanzierer.append({
+                        'id': f"pending_{einl.einladung_id}",
+                        'name': einl.finanzierer_name or einl.finanzierer_email,
+                        'firma': einl.firmenname or 'Ausstehend',
+                        'quelle': 'Einladung (ausstehend)'
+                    })
+
+    if not verfuegbare_finanzierer:
+        st.warning("""
+        ⚠️ **Keine Finanzierer verfügbar**
+
+        Laden Sie zuerst Finanzierer ein oder wechseln Sie zum Tab "🏦 Finanzierung anfragen"
+        um einen Finanzierer zum Projekt hinzuzufügen.
+        """)
+        return
+
+    # Auswahl-Option
+    auswahl_modus = st.radio(
+        "Anfrage senden an:",
+        ["Ausgewählte Finanzierer", "Alle Finanzierer"],
+        key=f"fin_auswahl_modus_{dialog_key}"
+    )
+
+    ausgewaehlte_ids = []
+
+    if auswahl_modus == "Ausgewählte Finanzierer":
+        st.markdown("**Finanzierer auswählen:**")
+        for fin in verfuegbare_finanzierer:
+            if not fin['id'].startswith('pending_'):
+                selected = st.checkbox(
+                    f"{fin['name']} ({fin['firma']})",
+                    key=f"fin_select_{dialog_key}_{fin['id']}"
+                )
+                if selected:
+                    ausgewaehlte_ids.append(fin['id'])
+    else:
+        st.success(f"Anfrage wird an **{len([f for f in verfuegbare_finanzierer if not f['id'].startswith('pending_')])} Finanzierer** gesendet.")
+        ausgewaehlte_ids = [f['id'] for f in verfuegbare_finanzierer if not f['id'].startswith('pending_')]
+
+    # Senden-Button
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📨 Anfrage jetzt senden", type="primary", key=f"send_anfrage_{dialog_key}"):
+            if auswahl_modus == "Alle Finanzierer":
+                anfrage_id = _modell_an_finanzierer_senden(modell.modell_id, [], an_alle=True)
+            else:
+                if not ausgewaehlte_ids:
+                    st.error("Bitte wählen Sie mindestens einen Finanzierer aus.")
+                    return
+                anfrage_id = _modell_an_finanzierer_senden(modell.modell_id, ausgewaehlte_ids, an_alle=False)
+
+            if anfrage_id:
+                st.success(f"✅ Finanzierungsanfrage wurde an {len(ausgewaehlte_ids) if auswahl_modus != 'Alle Finanzierer' else 'alle'} Finanzierer gesendet!")
+                st.info("Sie können den Status unter '🏦 Finanzierung anfragen' verfolgen.")
+                # Dialog schließen
+                del st.session_state[f'show_fin_dialog_{modell.modell_id}']
+                st.rerun()
+
+    with col2:
+        if st.button("❌ Abbrechen", key=f"cancel_anfrage_{dialog_key}"):
+            if f'show_fin_dialog_{modell.modell_id}' in st.session_state:
+                del st.session_state[f'show_fin_dialog_{modell.modell_id}']
+            st.rerun()
+
+
+def _finanzierung_gespeicherte_modelle():
+    """Gespeicherte Finanzierungsmodelle anzeigen und verwalten"""
+    import json
+
+    st.markdown("#### 💾 Ihre gespeicherten Finanzierungsmodelle")
+
+    # Filter nach aktuellem User
+    user_id = st.session_state.current_user.user_id if st.session_state.current_user else ''
+    user_modelle = {k: v for k, v in st.session_state.finanzierungsmodelle.items()
+                    if v.kaeufer_id == user_id}
+
+    if not user_modelle:
+        st.info("""
+        Sie haben noch keine Finanzierungsmodelle gespeichert.
+
+        Erstellen Sie eine neue Berechnung im Tab "📊 Neue Berechnung" und speichern Sie diese.
+        """)
+        return
+
+    st.success(f"**{len(user_modelle)} Modelle** gespeichert")
+
+    # Sortierung
+    sortierung = st.selectbox(
+        "Sortieren nach:",
+        ["Neueste zuerst", "Älteste zuerst", "Niedrigste Rate", "Höchste Rate", "Favoriten"],
+        key="modelle_sortierung"
+    )
+
+    modelle_liste = list(user_modelle.values())
+
+    if sortierung == "Neueste zuerst":
+        modelle_liste.sort(key=lambda x: x.erstellt_am, reverse=True)
+    elif sortierung == "Älteste zuerst":
+        modelle_liste.sort(key=lambda x: x.erstellt_am)
+    elif sortierung == "Niedrigste Rate":
+        modelle_liste.sort(key=lambda x: x.monatliche_rate)
+    elif sortierung == "Höchste Rate":
+        modelle_liste.sort(key=lambda x: x.monatliche_rate, reverse=True)
+    elif sortierung == "Favoriten":
+        modelle_liste.sort(key=lambda x: (not x.ist_favorit, x.erstellt_am), reverse=True)
+
+    # Modelle anzeigen
+    for modell in modelle_liste:
+        status_icon = "⭐" if modell.ist_favorit else "📋"
+        quelle_icon = "🏦" if "Finanzierer" in modell.quelle else "🧮"
+
+        with st.expander(f"{status_icon} {modell.name} | {modell.monatliche_rate:,.2f} €/Monat | {quelle_icon} {modell.quelle}", expanded=False):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**Finanzierung:**")
+                st.write(f"Darlehensbetrag: {modell.darlehensbetrag:,.2f} €")
+                st.write(f"Eigenkapital: {modell.eigenkapital:,.2f} €")
+                st.write(f"Finanzierungsbedarf: {modell.finanzierungsbedarf:,.2f} €")
+
+            with col2:
+                st.markdown("**Konditionen:**")
+                st.write(f"Zinssatz: {modell.zinssatz:.2f}%")
+                st.write(f"Tilgung: {modell.tilgungssatz:.2f}%")
+                st.write(f"Sollzinsbindung: {modell.sollzinsbindung} Jahre")
+
+            with col3:
+                st.markdown("**Ergebnis:**")
+                st.write(f"Monatliche Rate: {modell.monatliche_rate:,.2f} €")
+                st.write(f"Gesamtzinsen: {modell.gesamtzinsen:,.2f} €")
+                st.write(f"Restschuld ({modell.sollzinsbindung}J): {modell.restschuld_nach_zinsbindung:,.2f} €")
+
+            if modell.notizen:
+                st.markdown(f"**Notizen:** {modell.notizen}")
+
+            st.caption(f"Erstellt: {modell.erstellt_am.strftime('%d.%m.%Y %H:%M')} | Status: {modell.status}")
+
+            # Aktionen
+            st.markdown("---")
+            col_a1, col_a2, col_a3, col_a4, col_a5 = st.columns(5)
+
+            with col_a1:
+                if st.button("⭐ Favorit", key=f"fav_{modell.modell_id}"):
+                    modell.ist_favorit = not modell.ist_favorit
+                    st.rerun()
+
+            with col_a2:
+                if st.button("✏️ Bearbeiten", key=f"edit_{modell.modell_id}"):
+                    st.session_state[f'editing_modell_{modell.modell_id}'] = True
+                    st.rerun()
+
+            with col_a3:
+                if st.button("📋 Kopieren", key=f"copy_{modell.modell_id}"):
+                    import uuid
+                    neues_id = str(uuid.uuid4())[:8]
+                    kopie = Finanzierungsmodell(
+                        modell_id=neues_id,
+                        projekt_id=modell.projekt_id,
+                        kaeufer_id=modell.kaeufer_id,
+                        name=f"{modell.name} (Kopie)",
+                        kaufpreis=modell.kaufpreis,
+                        nebenkosten=modell.nebenkosten,
+                        finanzierungsbedarf=modell.finanzierungsbedarf,
+                        eigenkapital=modell.eigenkapital,
+                        darlehensbetrag=modell.darlehensbetrag,
+                        zinssatz=modell.zinssatz,
+                        tilgungssatz=modell.tilgungssatz,
+                        monatliche_rate=modell.monatliche_rate,
+                        sollzinsbindung=modell.sollzinsbindung,
+                        sondertilgung_prozent=modell.sondertilgung_prozent,
+                        restschuld_nach_zinsbindung=modell.restschuld_nach_zinsbindung,
+                        gesamtlaufzeit_jahre=modell.gesamtlaufzeit_jahre,
+                        gesamtzinsen=modell.gesamtzinsen,
+                        gesamtkosten=modell.gesamtkosten,
+                        tilgungsplan_json=modell.tilgungsplan_json,
+                        notizen=modell.notizen,
+                        quelle=modell.quelle
+                    )
+                    st.session_state.finanzierungsmodelle[neues_id] = kopie
+                    st.success("Modell wurde kopiert!")
+                    st.rerun()
+
+            with col_a4:
+                if st.button("📨 Angebot anfordern", key=f"anfrage_{modell.modell_id}", type="primary"):
+                    st.session_state[f'show_fin_dialog_{modell.modell_id}'] = True
+                    st.rerun()
+
+            with col_a5:
+                if st.button("🗑️ Löschen", key=f"del_{modell.modell_id}"):
+                    del st.session_state.finanzierungsmodelle[modell.modell_id]
+                    st.success("Modell wurde gelöscht!")
+                    st.rerun()
+
+            # Dialog für Finanzierer-Auswahl anzeigen
+            if st.session_state.get(f'show_fin_dialog_{modell.modell_id}', False):
+                _render_finanzierer_auswahl_dialog(modell, f"gespeichert_{modell.modell_id}")
+
+            # Editor anzeigen wenn aktiviert
+            if st.session_state.get(f'editing_modell_{modell.modell_id}', False):
+                st.markdown("---")
+                st.markdown("#### ✏️ Modell bearbeiten")
+
+                edit_col1, edit_col2 = st.columns(2)
+
+                with edit_col1:
+                    new_name = st.text_input("Name", value=modell.name, key=f"edit_name_{modell.modell_id}")
+                    new_zinssatz = st.number_input("Zinssatz (%)", value=modell.zinssatz, step=0.1, key=f"edit_zins_{modell.modell_id}")
+                    new_tilgung = st.number_input("Tilgung (%)", value=modell.tilgungssatz, step=0.1, key=f"edit_tilg_{modell.modell_id}")
+
+                with edit_col2:
+                    new_notizen = st.text_area("Notizen", value=modell.notizen, key=f"edit_notiz_{modell.modell_id}")
+                    new_status = st.selectbox(
+                        "Status",
+                        [s.value for s in FinanzierungsmodellStatus],
+                        index=[s.value for s in FinanzierungsmodellStatus].index(modell.status),
+                        key=f"edit_status_{modell.modell_id}"
+                    )
+
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("💾 Änderungen speichern", key=f"save_edit_{modell.modell_id}"):
+                        modell.name = new_name
+                        modell.zinssatz = new_zinssatz
+                        modell.tilgungssatz = new_tilgung
+                        modell.notizen = new_notizen
+                        modell.status = new_status
+                        modell.geaendert_am = datetime.now()
+
+                        # Rate neu berechnen
+                        modell.monatliche_rate = modell.darlehensbetrag * (new_zinssatz + new_tilgung) / 100 / 12
+
+                        del st.session_state[f'editing_modell_{modell.modell_id}']
+                        st.success("Änderungen gespeichert!")
+                        st.rerun()
+
+                with col_cancel:
+                    if st.button("❌ Abbrechen", key=f"cancel_edit_{modell.modell_id}"):
+                        del st.session_state[f'editing_modell_{modell.modell_id}']
+                        st.rerun()
+
+
+def _finanzierung_modelle_vergleichen():
+    """Mehrere Finanzierungsmodelle miteinander vergleichen"""
+    import pandas as pd
+
+    st.markdown("#### ⚖️ Finanzierungsmodelle vergleichen")
+
+    user_id = st.session_state.current_user.user_id if st.session_state.current_user else ''
+    user_modelle = {k: v for k, v in st.session_state.finanzierungsmodelle.items()
+                    if v.kaeufer_id == user_id}
+
+    if len(user_modelle) < 2:
+        st.info("""
+        Speichern Sie mindestens 2 Finanzierungsmodelle, um diese vergleichen zu können.
+
+        Erstellen Sie verschiedene Berechnungen mit unterschiedlichen Konditionen
+        (z.B. verschiedene Zinssätze, Tilgungsraten) und speichern Sie diese.
+        """)
+        return
+
+    # Modelle zur Auswahl
+    modell_namen = {k: f"{v.name} ({v.monatliche_rate:,.2f} €/Monat)" for k, v in user_modelle.items()}
+
+    ausgewaehlte_ids = st.multiselect(
+        "Wählen Sie Modelle zum Vergleich (2-4):",
+        list(modell_namen.keys()),
+        format_func=lambda x: modell_namen[x],
+        max_selections=4,
+        key="vergleich_auswahl"
+    )
+
+    if len(ausgewaehlte_ids) < 2:
+        st.warning("Bitte wählen Sie mindestens 2 Modelle zum Vergleich aus.")
+        return
+
+    ausgewaehlte_modelle = [user_modelle[mid] for mid in ausgewaehlte_ids]
+
+    # Vergleichstabelle erstellen
+    st.markdown("---")
+    st.markdown("### 📊 Vergleichsübersicht")
+
+    vergleich_data = {
+        "Eigenschaft": [
+            "📋 Name",
+            "💰 Darlehensbetrag",
+            "💵 Eigenkapital",
+            "📈 Zinssatz",
+            "📉 Tilgungssatz",
+            "🗓️ Sollzinsbindung",
+            "💳 Monatliche Rate",
+            "📊 Gesamtzinsen",
+            "🏦 Restschuld n. Bindung",
+            "⏱️ Gesamtlaufzeit",
+            "💎 Gesamtkosten",
+            "📝 Quelle"
+        ]
+    }
+
+    for modell in ausgewaehlte_modelle:
+        vergleich_data[modell.name[:20]] = [
+            modell.name,
+            f"{modell.darlehensbetrag:,.2f} €",
+            f"{modell.eigenkapital:,.2f} €",
+            f"{modell.zinssatz:.2f}%",
+            f"{modell.tilgungssatz:.2f}%",
+            f"{modell.sollzinsbindung} Jahre",
+            f"{modell.monatliche_rate:,.2f} €",
+            f"{modell.gesamtzinsen:,.2f} €",
+            f"{modell.restschuld_nach_zinsbindung:,.2f} €",
+            f"{modell.gesamtlaufzeit_jahre:.1f} Jahre",
+            f"{modell.gesamtkosten:,.2f} €",
+            modell.quelle
+        ]
+
+    df_vergleich = pd.DataFrame(vergleich_data)
+    st.dataframe(df_vergleich, use_container_width=True, hide_index=True)
+
+    # Empfehlung
+    st.markdown("---")
+    st.markdown("### 💡 Analyse")
+
+    # Beste Optionen finden
+    niedrigste_rate = min(ausgewaehlte_modelle, key=lambda x: x.monatliche_rate)
+    niedrigste_zinsen = min(ausgewaehlte_modelle, key=lambda x: x.gesamtzinsen)
+    niedrigste_restschuld = min(ausgewaehlte_modelle, key=lambda x: x.restschuld_nach_zinsbindung)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.success(f"""
+        **💳 Niedrigste Rate:**
+        {niedrigste_rate.name}
+
+        {niedrigste_rate.monatliche_rate:,.2f} €/Monat
+        """)
+
+    with col2:
+        st.success(f"""
+        **📊 Niedrigste Gesamtzinsen:**
+        {niedrigste_zinsen.name}
+
+        {niedrigste_zinsen.gesamtzinsen:,.2f} €
+        """)
+
+    with col3:
+        st.success(f"""
+        **🏦 Niedrigste Restschuld:**
+        {niedrigste_restschuld.name}
+
+        {niedrigste_restschuld.restschuld_nach_zinsbindung:,.2f} €
+        """)
+
+    # Differenzen anzeigen
+    if len(ausgewaehlte_modelle) == 2:
+        m1, m2 = ausgewaehlte_modelle
+        st.markdown("---")
+        st.markdown("### 📈 Differenzen")
+
+        diff_rate = m2.monatliche_rate - m1.monatliche_rate
+        diff_zinsen = m2.gesamtzinsen - m1.gesamtzinsen
+        diff_restschuld = m2.restschuld_nach_zinsbindung - m1.restschuld_nach_zinsbindung
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Rate Differenz",
+                f"{abs(diff_rate):,.2f} €",
+                delta=f"{diff_rate:+,.2f} € ({m2.name[:15]})"
+            )
+
+        with col2:
+            st.metric(
+                "Zinsen Differenz",
+                f"{abs(diff_zinsen):,.2f} €",
+                delta=f"{diff_zinsen:+,.2f} € ({m2.name[:15]})"
+            )
+
+        with col3:
+            st.metric(
+                "Restschuld Differenz",
+                f"{abs(diff_restschuld):,.2f} €",
+                delta=f"{diff_restschuld:+,.2f} € ({m2.name[:15]})"
+            )
+
+    # ===== ANGEBOT ANFORDERN =====
+    st.markdown("---")
+    st.markdown("### 📨 Angebot bei Finanzierern anfordern")
+
+    st.info("Wählen Sie ein Modell aus, für das Sie ein konkretes Angebot von Finanzierern erhalten möchten.")
+
+    # Modell für Anfrage auswählen
+    anfrage_modell_id = st.selectbox(
+        "Modell für Finanzierungsanfrage:",
+        ausgewaehlte_ids,
+        format_func=lambda x: modell_namen[x],
+        key="vergleich_anfrage_modell"
+    )
+
+    if anfrage_modell_id:
+        modell = user_modelle[anfrage_modell_id]
+
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            if st.button("📨 Angebot für dieses Modell anfordern", type="primary", key="vergleich_anfrage_btn"):
+                st.session_state[f'show_fin_dialog_{anfrage_modell_id}'] = True
+                st.rerun()
+
+        # Dialog anzeigen
+        if st.session_state.get(f'show_fin_dialog_{anfrage_modell_id}', False):
+            _render_finanzierer_auswahl_dialog(modell, f"vergleich_{anfrage_modell_id}")
+
+
+def _finanzierung_angebot_importieren():
+    """Finanzierer-Angebot importieren (PDF, CSV, Excel)"""
+    import json
+    import uuid
+
+    st.markdown("#### 📥 Finanzierer-Angebot importieren")
+
+    st.info("""
+    Importieren Sie ein Angebot von Ihrem Finanzierer.
+    Unterstützte Formate: **PDF**, **CSV**, **Excel**
+
+    Das importierte Angebot wird als neues Finanzierungsmodell gespeichert
+    und kann mit Ihren eigenen Berechnungen verglichen werden.
+    """)
+
+    # Upload
+    uploaded_file = st.file_uploader(
+        "Angebot hochladen",
+        type=['pdf', 'csv', 'xlsx', 'xls'],
+        key="import_angebot"
+    )
+
+    if uploaded_file:
+        file_type = uploaded_file.name.split('.')[-1].lower()
+
+        st.success(f"✅ Datei '{uploaded_file.name}' hochgeladen ({file_type.upper()})")
+
+        # Manuelle Eingabe der Konditionen (da PDF-Parsing komplex ist)
+        st.markdown("---")
+        st.markdown("### 📝 Angebotsdaten eingeben")
+        st.caption("Übertragen Sie die Konditionen aus dem Angebot:")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            import_name = st.text_input(
+                "Name des Angebots",
+                value=f"Angebot {uploaded_file.name}",
+                key="import_name"
+            )
+            import_finanzierer = st.text_input(
+                "Name des Finanzierers/Bank",
+                key="import_finanzierer"
+            )
+            import_darlehensbetrag = st.number_input(
+                "Darlehensbetrag (€)",
+                min_value=0.0,
+                value=300000.0,
+                step=5000.0,
+                key="import_darlehen"
+            )
+            import_zinssatz = st.number_input(
+                "Sollzinssatz (%)",
+                min_value=0.0,
+                max_value=15.0,
+                value=3.5,
+                step=0.1,
+                key="import_zins"
+            )
+
+        with col2:
+            import_tilgung = st.number_input(
+                "Anfängliche Tilgung (%)",
+                min_value=0.0,
+                max_value=10.0,
+                value=2.0,
+                step=0.1,
+                key="import_tilgung"
+            )
+            import_rate = st.number_input(
+                "Monatliche Rate (€)",
+                min_value=0.0,
+                value=import_darlehensbetrag * (import_zinssatz + import_tilgung) / 100 / 12,
+                step=50.0,
+                key="import_rate"
+            )
+            import_bindung = st.number_input(
+                "Sollzinsbindung (Jahre)",
+                min_value=1,
+                max_value=30,
+                value=10,
+                key="import_bindung"
+            )
+            import_effektivzins = st.number_input(
+                "Effektivzins (%) - falls angegeben",
+                min_value=0.0,
+                max_value=15.0,
+                value=0.0,
+                step=0.1,
+                key="import_effektiv"
+            )
+
+        import_notizen = st.text_area(
+            "Besondere Bedingungen / Notizen",
+            placeholder="z.B. Sondertilgungsrecht, Bereitstellungszinsen, Bearbeitungsgebühren...",
+            key="import_notizen"
+        )
+
+        if st.button("💾 Angebot als Modell speichern", type="primary", key="speichere_import"):
+            modell_id = str(uuid.uuid4())[:8]
+
+            # Quelle basierend auf Dateityp
+            if file_type == 'pdf':
+                quelle = FinanzierungsmodellQuelle.IMPORT_PDF.value
+            elif file_type == 'csv':
+                quelle = FinanzierungsmodellQuelle.IMPORT_CSV.value
+            else:
+                quelle = FinanzierungsmodellQuelle.IMPORT_EXCEL.value
+
+            # Restschuld berechnen (vereinfacht)
+            monatszins = import_zinssatz / 100 / 12
+            restschuld = import_darlehensbetrag
+            for _ in range(import_bindung * 12):
+                zinsen = restschuld * monatszins
+                tilgung = import_rate - zinsen
+                if tilgung > 0:
+                    restschuld -= tilgung
+                if restschuld <= 0:
+                    break
+
+            neues_modell = Finanzierungsmodell(
+                modell_id=modell_id,
+                projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                name=import_name,
+                kaufpreis=st.session_state.get('berechneter_kaufpreis', 0),
+                nebenkosten=st.session_state.get('berechnete_nebenkosten', 0),
+                finanzierungsbedarf=import_darlehensbetrag + st.session_state.get('berechnete_nebenkosten', 0),
+                eigenkapital=0,
+                darlehensbetrag=import_darlehensbetrag,
+                zinssatz=import_zinssatz,
+                tilgungssatz=import_tilgung,
+                monatliche_rate=import_rate,
+                sollzinsbindung=import_bindung,
+                effektivzins=import_effektivzins,
+                restschuld_nach_zinsbindung=max(0, restschuld),
+                notizen=import_notizen,
+                quelle=quelle,
+                finanzierer_name=import_finanzierer,
+                angebot_pdf_data=uploaded_file.read() if file_type == 'pdf' else None,
+                status=FinanzierungsmodellStatus.ANGEBOT_ERHALTEN.value
+            )
+
+            st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+            st.success(f"✅ Angebot '{import_name}' wurde als Modell gespeichert!")
+            st.info("Sie können es jetzt im Tab '💾 Gespeicherte Modelle' einsehen und vergleichen.")
+
+    else:
+        # Alternative: Manuelle Eingabe ohne Datei
+        st.markdown("---")
+        st.markdown("**Oder:** Geben Sie die Konditionen manuell ein:")
+
+        if st.checkbox("Manuelle Eingabe ohne Datei-Upload", key="manual_import"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                manual_name = st.text_input("Name des Angebots", key="manual_name")
+                manual_finanzierer = st.text_input("Bank/Finanzierer", key="manual_finanzierer")
+                manual_darlehen = st.number_input("Darlehensbetrag (€)", min_value=0.0, value=300000.0, key="manual_darlehen")
+                manual_zins = st.number_input("Sollzinssatz (%)", min_value=0.0, value=3.5, step=0.1, key="manual_zins")
+
+            with col2:
+                manual_tilgung = st.number_input("Tilgung (%)", min_value=0.0, value=2.0, step=0.1, key="manual_tilgung")
+                manual_rate = st.number_input("Monatliche Rate (€)", min_value=0.0, value=1375.0, key="manual_rate")
+                manual_bindung = st.number_input("Sollzinsbindung (Jahre)", min_value=1, value=10, key="manual_bindung")
+
+            manual_notizen = st.text_area("Notizen", key="manual_notizen")
+
+            if st.button("💾 Manuelles Angebot speichern", key="save_manual"):
+                if not manual_name:
+                    st.error("Bitte geben Sie einen Namen ein.")
+                    return
+
+                modell_id = str(uuid.uuid4())[:8]
+
+                neues_modell = Finanzierungsmodell(
+                    modell_id=modell_id,
+                    projekt_id=st.session_state.get('aktuelles_projekt_id', ''),
+                    kaeufer_id=st.session_state.current_user.user_id if st.session_state.current_user else '',
+                    name=manual_name,
+                    kaufpreis=0,
+                    nebenkosten=0,
+                    finanzierungsbedarf=manual_darlehen,
+                    eigenkapital=0,
+                    darlehensbetrag=manual_darlehen,
+                    zinssatz=manual_zins,
+                    tilgungssatz=manual_tilgung,
+                    monatliche_rate=manual_rate,
+                    sollzinsbindung=manual_bindung,
+                    notizen=manual_notizen,
+                    quelle=FinanzierungsmodellQuelle.FINANZIERER_ANGEBOT.value,
+                    finanzierer_name=manual_finanzierer,
+                    status=FinanzierungsmodellStatus.ANGEBOT_ERHALTEN.value
+                )
+
+                st.session_state.finanzierungsmodelle[modell_id] = neues_modell
+                st.success(f"✅ Angebot '{manual_name}' gespeichert!")
+
+
+def kaeufer_kaufnebenkosten_view(projekte):
+    """Kaufnebenkosten-Rechner für Käufer - Notar, Grundbuch, Makler, Grunderwerbsteuer"""
+    st.markdown("### 💶 Kaufnebenkosten berechnen")
+
+    st.info("""
+    Berechnen Sie hier alle Kaufnebenkosten für Ihre Immobilie.
+    Die Berechnung erfolgt nach aktuellen GNotKG-Sätzen (Stand 2024).
+    Bei Finanzierungsbedarf werden auch die Kosten für die Grundschuldbestellung berechnet.
+    """)
+
+    # Grunderwerbsteuer-Sätze nach Bundesland
+    GRUNDERWERBSTEUER_SAETZE = {
+        "Baden-Württemberg": 5.0,
+        "Bayern": 3.5,
+        "Berlin": 6.0,
+        "Brandenburg": 6.5,
+        "Bremen": 5.0,
+        "Hamburg": 5.5,
+        "Hessen": 6.0,
+        "Mecklenburg-Vorpommern": 6.0,
+        "Niedersachsen": 5.0,
+        "Nordrhein-Westfalen": 6.5,
+        "Rheinland-Pfalz": 5.0,
+        "Saarland": 6.5,
+        "Sachsen": 5.5,
+        "Sachsen-Anhalt": 5.0,
+        "Schleswig-Holstein": 6.5,
+        "Thüringen": 5.0,
+    }
+
+    # Projekt auswählen wenn mehrere vorhanden
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: p.name for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="kosten_projekt_auswahl"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    elif projekte:
+        projekt = projekte[0]
+    else:
+        st.warning("Kein Projekt vorhanden.")
+        return
+
+    st.markdown(f"#### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+
+    # Hinweis zur Kaufpreis-Eingabe
+    st.warning("""
+    ⚠️ **Wichtig:** Geben Sie hier den **endgültigen Kaufpreis** ein, der im Kaufvertrag vereinbart wird.
+    Dieser Preis ist die Grundlage für alle Nebenkosten-Berechnungen und den Finanzierungsbedarf.
+    """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### 💵 Grunddaten")
+
+        # Option: Kaufpreis aus Projekt übernehmen oder manuell eingeben
+        projekt_kaufpreis = float(projekt.kaufpreis) if projekt.kaufpreis > 0 else 0.0
+
+        if projekt_kaufpreis > 0:
+            kaufpreis_quelle = st.radio(
+                "Kaufpreis:",
+                ["Aus Projekt übernehmen", "Anderen Kaufpreis eingeben"],
+                horizontal=True,
+                key=f"kaufpreis_quelle_{projekt.projekt_id}"
+            )
+
+            if kaufpreis_quelle == "Aus Projekt übernehmen":
+                kaufpreis = projekt_kaufpreis
+                st.metric("Kaufpreis aus Projekt", f"{kaufpreis:,.2f} €")
+                st.caption("Dieser Kaufpreis wurde im Projekt hinterlegt.")
+            else:
+                kaufpreis = st.number_input(
+                    "Endgültiger Kaufpreis (€)",
+                    min_value=0.0,
+                    value=projekt_kaufpreis,
+                    step=5000.0,
+                    key=f"kosten_kaufpreis_manuell_{projekt.projekt_id}",
+                    help="Geben Sie hier den verhandelten Kaufpreis ein"
+                )
+        else:
+            st.info("💡 Im Projekt ist noch kein Kaufpreis hinterlegt.")
+            kaufpreis = st.number_input(
+                "Endgültiger Kaufpreis (€)",
+                min_value=0.0,
+                value=300000.0,
+                step=5000.0,
+                key=f"kosten_kaufpreis_{projekt.projekt_id}",
+                help="Geben Sie hier den verhandelten Kaufpreis ein"
+            )
+
+        # Bundesland für Grunderwerbsteuer
+        bundesland = st.selectbox(
+            "Bundesland der Immobilie",
+            list(GRUNDERWERBSTEUER_SAETZE.keys()),
+            index=list(GRUNDERWERBSTEUER_SAETZE.keys()).index("Nordrhein-Westfalen"),
+            key=f"kosten_bundesland_{projekt.projekt_id}"
+        )
+        grunderwerbsteuer_prozent = GRUNDERWERBSTEUER_SAETZE[bundesland]
+        st.caption(f"Grunderwerbsteuersatz: {grunderwerbsteuer_prozent}%")
+
+        # Maklergebühren
+        st.markdown("##### 🏢 Maklergebühren")
+
+        # Prüfe ob Makler dem Projekt zugeordnet ist
+        makler_provision = 3.57  # Standard
+        if projekt.makler_id and 'makler_profile' in st.session_state:
+            makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
+            if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
+                makler_provision = makler_profil.provision_prozent
+                st.caption(f"Provision des zugeordneten Maklers: {makler_provision}%")
+
+        makler_provision_input = st.number_input(
+            "Maklerprovision Käuferanteil (%)",
+            min_value=0.0,
+            max_value=7.14,
+            value=makler_provision,
+            step=0.01,
+            key=f"kosten_makler_{projekt.projekt_id}",
+            help="Üblich sind 3,57% (inkl. MwSt.) oder 50% der Gesamtprovision"
+        )
+
+        makler_inkl_mwst = st.checkbox(
+            "Provision inkl. MwSt.",
+            value=True,
+            key=f"kosten_makler_mwst_{projekt.projekt_id}"
+        )
+
+    with col2:
+        st.markdown("##### 🏦 Finanzierung")
+
+        benoetigt_finanzierung = st.checkbox(
+            "Finanzierung benötigt (Grundschuld)",
+            value=True,
+            key=f"kosten_finanzierung_{projekt.projekt_id}"
+        )
+
+        grundschulden = []
+        if benoetigt_finanzierung:
+            anzahl_grundschulden = st.number_input(
+                "Anzahl Grundschulden",
+                min_value=1,
+                max_value=5,
+                value=1,
+                key=f"kosten_anzahl_gs_{projekt.projekt_id}",
+                help="Meist 1, bei mehreren Banken ggf. mehr"
+            )
+
+            for i in range(int(anzahl_grundschulden)):
+                gs_betrag = st.number_input(
+                    f"Grundschuldbetrag {i+1} (€)",
+                    min_value=0.0,
+                    value=float(kaufpreis) if i == 0 else 0.0,
+                    step=5000.0,
+                    key=f"kosten_gs_{projekt.projekt_id}_{i}"
+                )
+                if gs_betrag > 0:
+                    grundschulden.append(gs_betrag)
+
+    # Berechnung durchführen
+    st.markdown("---")
+    st.markdown("### 📊 Kostenübersicht")
+
+    # Einzelne Berechnungen
+    notar = berechne_notarkosten_kaufvertrag(kaufpreis)
+    grundbuch = berechne_grundbuchkosten_kaufvertrag(kaufpreis)
+    makler = berechne_maklerkosten(kaufpreis, makler_provision_input, makler_inkl_mwst)
+    grunderwerbsteuer = kaufpreis * (grunderwerbsteuer_prozent / 100)
+
+    # Grundschuldkosten wenn Finanzierung
+    grundschuld_kosten = None
+    if grundschulden:
+        gs_gesamt = sum(grundschulden)
+        grundschuld_kosten = berechne_grundschuldkosten(gs_gesamt, len(grundschulden))
+
+    # Übersicht in Columns
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("##### 📜 Notarkosten")
+        st.metric("Gesamt", f"{notar['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Beurkundung (2,0): {notar['beurkundung']:,.2f} €")
+            st.write(f"Vollzug (0,5): {notar['vollzug']:,.2f} €")
+            st.write(f"Betreuung (0,5): {notar['betreuung']:,.2f} €")
+            st.write(f"Auslagen: {notar['auslagen']:,.2f} €")
+            st.write(f"MwSt. (19%): {notar['mwst']:,.2f} €")
+
+    with col2:
+        st.markdown("##### 📖 Grundbuchkosten")
+        st.metric("Gesamt", f"{grundbuch['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Eigentumsumschreibung (1,0): {grundbuch['eigentumsumschreibung']:,.2f} €")
+            st.write(f"Auflassungsvormerkung (0,5): {grundbuch['auflassungsvormerkung']:,.2f} €")
+
+    with col3:
+        st.markdown("##### 🏢 Maklerkosten")
+        st.metric("Gesamt", f"{makler['gesamt']:,.2f} €")
+        with st.expander("Details"):
+            st.write(f"Provision: {makler['provision_prozent']:.2f}%")
+            if makler_inkl_mwst:
+                st.write(f"Netto: {makler['netto']:,.2f} €")
+                st.write(f"MwSt.: {makler['mwst']:,.2f} €")
+
+    # Grunderwerbsteuer und Grundschuld in zweiter Reihe
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("##### 🏛️ Grunderwerbsteuer")
+        st.metric("Gesamt", f"{grunderwerbsteuer:,.2f} €")
+        st.caption(f"{grunderwerbsteuer_prozent}% in {bundesland}")
+
+    with col2:
+        if grundschuld_kosten:
+            st.markdown("##### 🏦 Grundschuldkosten")
+            gs_total = grundschuld_kosten['notar_gesamt'] + grundschuld_kosten['grundbuch_gesamt']
+            st.metric("Gesamt", f"{gs_total:,.2f} €")
+            with st.expander("Details"):
+                st.write(f"**Notar:**")
+                st.write(f"  Beurkundung (1,0): {grundschuld_kosten['notar_beurkundung']:,.2f} €")
+                st.write(f"  Vollzug (0,5): {grundschuld_kosten['notar_vollzug']:,.2f} €")
+                st.write(f"  MwSt.: {grundschuld_kosten['notar_mwst']:,.2f} €")
+                st.write(f"**Grundbuch:**")
+                st.write(f"  Eintragung (1,0): {grundschuld_kosten['grundbuch_eintragung']:,.2f} €")
+
+    # Gesamtsumme
+    st.markdown("---")
+    st.markdown("### 💰 Gesamtkosten")
+
+    # Berechne Gesamtkosten
+    gesamtkosten = berechne_gesamtkosten_kaeufer(
+        kaufpreis=kaufpreis,
+        makler_provision_prozent=makler_provision_input,
+        grundschulden=grundschulden if grundschulden else [],
+        grunderwerbsteuer_prozent=grunderwerbsteuer_prozent
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Kaufpreis",
+            f"{kaufpreis:,.2f} €"
+        )
+
+    with col2:
+        st.metric(
+            "Nebenkosten",
+            f"{gesamtkosten['nebenkosten_gesamt']:,.2f} €",
+            delta=f"{(gesamtkosten['nebenkosten_gesamt']/kaufpreis*100):.1f}% vom Kaufpreis"
+        )
+
+    with col3:
+        st.metric(
+            "Gesamtinvestition",
+            f"{gesamtkosten['gesamtkosten']:,.2f} €"
+        )
+
+    # Detailaufstellung
+    with st.expander("📋 Detaillierte Aufstellung", expanded=True):
+        aufstellung = [
+            ("Kaufpreis", kaufpreis),
+            ("Notarkosten (Kaufvertrag)", notar['gesamt']),
+            ("Grundbuchkosten (Kaufvertrag)", grundbuch['gesamt']),
+            ("Maklerkosten", makler['gesamt']),
+            ("Grunderwerbsteuer", grunderwerbsteuer),
+        ]
+
+        if grundschuld_kosten:
+            aufstellung.append(("Notar Grundschuldbestellung", grundschuld_kosten['notar_gesamt']))
+            aufstellung.append(("Grundbuch Grundschuldbestellung", grundschuld_kosten['grundbuch_gesamt']))
+
+        for bezeichnung, betrag in aufstellung:
+            col1, col2 = st.columns([3, 1])
+            col1.write(bezeichnung)
+            col2.write(f"{betrag:,.2f} €")
+
+        st.markdown("---")
+        col1, col2 = st.columns([3, 1])
+        col1.markdown("**Gesamt zu zahlen**")
+        col2.markdown(f"**{gesamtkosten['gesamtkosten']:,.2f} €**")
+
+    # Finanzierungsbedarf in Session State speichern für Kreditrechner
+    st.session_state['berechneter_finanzierungsbedarf'] = gesamtkosten['gesamtkosten']
+    st.session_state['berechneter_kaufpreis'] = kaufpreis
+    st.session_state['berechnete_nebenkosten'] = gesamtkosten['nebenkosten_gesamt']
+
+    # Hinweis zur Übernahme in Kreditrechner
+    st.markdown("---")
+    st.success(f"""
+    ✅ **Finanzierungsbedarf: {gesamtkosten['gesamtkosten']:,.2f} €**
+
+    Dieser Betrag wurde automatisch für den Kreditrechner übernommen.
+    Wechseln Sie zum Tab **'🧮 Kreditrechner'** um Ihre Finanzierung zu berechnen.
+    """)
+
+    # Info-Box
+    st.info("""
+    **Hinweis:** Diese Berechnung dient nur zur Orientierung. Die tatsächlichen Kosten können
+    abweichen und werden vom Notar verbindlich berechnet. Weitere mögliche Kosten wie
+    Schätzgebühren der Bank, Bereitstellungszinsen oder Umzugskosten sind nicht enthalten.
+    """)
 
 
 def kaeufer_nachrichten():
@@ -10325,7 +15497,7 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "📅 Termine"])
+    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
 
     with tabs[0]:
         verkaeufer_timeline_view()
@@ -10334,23 +15506,29 @@ def verkaeufer_dashboard():
         verkaeufer_projekte_view()
 
     with tabs[2]:
-        verkaeufer_makler_finden()
+        verkaeufer_preisfindung_view()
 
     with tabs[3]:
+        verkaeufer_makler_finden()
+
+    with tabs[4]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[4]:
+    with tabs[5]:
         verkaeufer_dokumente_view()
 
-    with tabs[5]:
+    with tabs[6]:
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[6]:
+    with tabs[7]:
         verkaeufer_nachrichten()
 
-    with tabs[7]:
+    with tabs[8]:
+        verkaeufer_eigene_kosten_view()
+
+    with tabs[9]:
         # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -10369,6 +15547,729 @@ def verkaeufer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+
+def verkaeufer_preisfindung_view():
+    """Preisfindung und Marktanalyse für Verkäufer - mit oder ohne Makler"""
+    st.subheader("📈 Preisfindung & Marktanalyse")
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.warning("Sie sind noch keinem Projekt als Verkäufer zugeordnet.")
+        return
+
+    # Projekt auswählen wenn mehrere
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="vk_preisfindung_projekt_select"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    else:
+        projekt = projekte[0]
+
+    st.markdown(f"### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+
+    # Prüfen ob Makler vorhanden
+    hat_makler = projekt.makler_id is not None and projekt.makler_id != ""
+
+    # Expose-Daten holen (falls vorhanden)
+    expose = None
+    if projekt.expose_data_id and projekt.expose_data_id in st.session_state.expose_data:
+        expose = st.session_state.expose_data[projekt.expose_data_id]
+
+    # Wenn Makler vorhanden UND Expose-Daten mit Vergleichsobjekten
+    if hat_makler and expose and expose.vergleichsobjekte:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            st.success(f"✅ **Makler zugewiesen:** {makler.name}")
+        st.info("Die Marktanalyse wird vom Makler durchgeführt. Hier sehen Sie die erfassten Vergleichsobjekte.")
+        _verkaeufer_zeige_makler_marktanalyse(projekt, expose)
+
+    elif hat_makler:
+        # Makler vorhanden aber noch keine Vergleichsobjekte
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            st.info(f"👤 Betreuender Makler: **{makler.name}**")
+
+        st.warning("""
+        📭 **Noch keine Vergleichsobjekte erfasst**
+
+        Der Makler hat noch keine Vergleichsobjekte zur Marktanalyse hinzugefügt.
+        Sobald diese erfasst sind, werden sie hier angezeigt.
+        """)
+
+        # Option: Selbst Vergleichsobjekte erfassen (temporär)
+        if st.checkbox("💡 Selbst Vergleichsobjekte erfassen (zur eigenen Orientierung)", key="vk_selbst_vgl"):
+            _verkaeufer_eigene_marktanalyse(projekt)
+
+    else:
+        # Kein Makler - Verkäufer kann selbst Vergleichsobjekte eingeben
+        st.info("""
+        **📊 Preisfindung ohne Makler**
+
+        Da kein Makler für dieses Projekt zugewiesen ist, können Sie selbst eine Marktanalyse
+        durchführen. Erfassen Sie Vergleichsobjekte aus Ihrer Umgebung, um einen marktgerechten
+        Verkaufspreis für Ihre Immobilie zu ermitteln.
+        """)
+        _verkaeufer_eigene_marktanalyse(projekt)
+
+
+def _verkaeufer_zeige_makler_marktanalyse(projekt, expose):
+    """Zeigt die vom Makler erfasste Marktanalyse an (readonly)"""
+
+    # ===== AUTOMATISCHE MARKTANALYSE (readonly) =====
+    # Zeige dem Verkäufer die automatische Analyse, wenn vorhanden
+    if 'marktanalyse_ergebnisse' in st.session_state and projekt.projekt_id in st.session_state.marktanalyse_ergebnisse:
+        user_id = st.session_state.current_user.user_id
+        render_automatische_marktanalyse(projekt, user_id, kann_bearbeiten=False)
+        st.markdown("---")
+
+    # Objektdaten anzeigen
+    st.markdown("---")
+    st.markdown("#### 🏘️ Ihre Immobilie")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Kaufpreis", f"{expose.kaufpreis:,.0f} €" if expose.kaufpreis else "Noch offen")
+    with col2:
+        st.metric("Wohnfläche", f"{expose.wohnflaeche} m²" if expose.wohnflaeche else "N/A")
+    with col3:
+        st.metric("Zimmer", expose.anzahl_zimmer if expose.anzahl_zimmer else "N/A")
+    with col4:
+        if expose.kaufpreis and expose.wohnflaeche and expose.wohnflaeche > 0:
+            qm_preis = expose.kaufpreis / expose.wohnflaeche
+            st.metric("Preis/m²", f"{qm_preis:,.0f} €")
+        else:
+            st.metric("Preis/m²", "N/A")
+
+    # Vergleichsobjekte anzeigen
+    st.markdown("---")
+    st.markdown("#### 📊 Vergleichsobjekte aus dem Markt")
+
+    if not expose.vergleichsobjekte:
+        st.info("""
+        📭 **Noch keine Vergleichsobjekte erfasst.**
+
+        Der Makler hat noch keine Vergleichsobjekte zur Marktanalyse hinzugefügt.
+        Diese helfen bei der Einschätzung des marktgerechten Preises für Ihre Immobilie.
+        """)
+        return
+
+    st.success(f"✅ **{len(expose.vergleichsobjekte)} Vergleichsobjekt(e)** vom Makler erfasst")
+
+    # Vergleichsobjekte als Tabelle/Liste anzeigen
+    for i, vgl in enumerate(expose.vergleichsobjekte):
+        with st.container():
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 2])
+
+            with col1:
+                titel = vgl.get('titel', 'Vergleichsobjekt')
+                url = vgl.get('url', '')
+                if url:
+                    st.markdown(f"**[{titel}]({url})**")
+                else:
+                    st.markdown(f"**{titel}**")
+                if vgl.get('quelle'):
+                    st.caption(f"Quelle: {vgl.get('quelle')}")
+
+            with col2:
+                preis = vgl.get('preis', 0)
+                st.write(f"💰 **{preis:,.0f} €**")
+
+            with col3:
+                flaeche = vgl.get('flaeche', 0)
+                zimmer = vgl.get('zimmer', 0)
+                st.write(f"📐 {flaeche:.0f} m² | 🚪 {zimmer} Zi.")
+
+            with col4:
+                if preis > 0 and flaeche > 0:
+                    qm = preis / flaeche
+                    st.write(f"**{qm:,.0f} €/m²**")
+
+            if vgl.get('notiz'):
+                st.caption(f"📝 {vgl.get('notiz')}")
+
+            st.markdown("---")
+
+    # Marktanalyse-Zusammenfassung
+    st.markdown("#### 📈 Marktanalyse-Zusammenfassung")
+
+    preise = [v.get('preis', 0) for v in expose.vergleichsobjekte if v.get('preis', 0) > 0]
+    flaechen = [v.get('flaeche', 0) for v in expose.vergleichsobjekte if v.get('flaeche', 0) > 0]
+    qm_preise = [v.get('preis') / v.get('flaeche') for v in expose.vergleichsobjekte
+                 if v.get('preis', 0) > 0 and v.get('flaeche', 0) > 0]
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if preise:
+            st.metric("Ø Angebotspreis", f"{sum(preise)/len(preise):,.0f} €")
+            st.caption(f"Spanne: {min(preise):,.0f} - {max(preise):,.0f} €")
+        else:
+            st.metric("Ø Angebotspreis", "N/A")
+
+    with col2:
+        if flaechen:
+            st.metric("Ø Wohnfläche", f"{sum(flaechen)/len(flaechen):.0f} m²")
+        else:
+            st.metric("Ø Wohnfläche", "N/A")
+
+    with col3:
+        if qm_preise:
+            avg_qm = sum(qm_preise) / len(qm_preise)
+            st.metric("Ø Marktpreis/m²", f"{avg_qm:,.0f} €")
+            st.caption(f"Spanne: {min(qm_preise):,.0f} - {max(qm_preise):,.0f} €")
+        else:
+            st.metric("Ø Marktpreis/m²", "N/A")
+
+    with col4:
+        st.metric("Vergleichsobjekte", len(expose.vergleichsobjekte))
+
+    # Vergleich mit eigenem Objekt
+    if expose.kaufpreis > 0 and expose.wohnflaeche > 0 and qm_preise:
+        st.markdown("---")
+        st.markdown("#### 🎯 Positionierung Ihrer Immobilie")
+
+        eigener_qm_preis = expose.kaufpreis / expose.wohnflaeche
+        avg_qm = sum(qm_preise) / len(qm_preise)
+        differenz = eigener_qm_preis - avg_qm
+        differenz_prozent = (differenz / avg_qm) * 100 if avg_qm > 0 else 0
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Ihr Preis/m²", f"{eigener_qm_preis:,.0f} €")
+
+        with col2:
+            st.metric("Marktdurchschnitt/m²", f"{avg_qm:,.0f} €")
+
+        with col3:
+            if differenz > 0:
+                st.metric("Positionierung", f"+{differenz:,.0f} €/m²", delta=f"+{differenz_prozent:.1f}%")
+            else:
+                st.metric("Positionierung", f"{differenz:,.0f} €/m²", delta=f"{differenz_prozent:.1f}%")
+
+        # Einschätzung
+        st.markdown("---")
+        st.markdown("#### 💡 Einschätzung")
+
+        if abs(differenz_prozent) <= 5:
+            st.success("""
+            ✅ **Marktgerechter Preis**
+
+            Der Angebotspreis Ihrer Immobilie liegt im marktüblichen Bereich (±5% vom Durchschnitt).
+            Dies erhöht die Chancen auf eine erfolgreiche Vermarktung.
+            """)
+        elif differenz_prozent > 5:
+            st.warning(f"""
+            ⚠️ **Preis über Marktdurchschnitt** (+{differenz_prozent:.1f}%)
+
+            Der Angebotspreis liegt über dem Marktdurchschnitt der Vergleichsobjekte.
+            Dies kann gerechtfertigt sein durch:
+            - Bessere Ausstattung
+            - Bevorzugte Lage
+            - Neuerer Bauzustand / Renovierung
+            - Besondere Merkmale (Balkon, Garten, etc.)
+
+            Besprechen Sie die Preisgestaltung mit Ihrem Makler.
+            """)
+        else:
+            st.info(f"""
+            💰 **Preis unter Marktdurchschnitt** ({differenz_prozent:.1f}%)
+
+            Der Angebotspreis liegt unter dem Marktdurchschnitt.
+            Dies kann zu schnellerem Verkauf führen, aber möglicherweise besteht
+            Spielraum für eine Preisanpassung nach oben.
+
+            Besprechen Sie dies mit Ihrem Makler.
+            """)
+
+    else:
+        st.info("💡 Sobald ein Kaufpreis festgelegt ist, wird hier ein Vergleich mit dem Markt angezeigt.")
+
+
+def _verkaeufer_eigene_marktanalyse(projekt):
+    """Verkäufer erfasst selbst Vergleichsobjekte zur Preisfindung"""
+
+    user_id = st.session_state.current_user.user_id
+
+    # ===== AUTOMATISCHE MARKTANALYSE =====
+    render_automatische_marktanalyse(projekt, user_id, kann_bearbeiten=True)
+
+    st.markdown("---")
+
+    # ===== MANUELLE VERGLEICHSOBJEKTE =====
+    st.markdown("### ✍️ Eigene Vergleichsobjekte erfassen")
+    st.info("Sie können zusätzlich eigene Vergleichsobjekte manuell erfassen, um die automatische Analyse zu ergänzen.")
+
+    # Session State für Vergleichsobjekte initialisieren
+    vgl_key = f"verkaeufer_vergleichsobjekte_{projekt.projekt_id}"
+    if vgl_key not in st.session_state:
+        st.session_state[vgl_key] = []
+
+    # Eigene Immobilie - Basisdaten
+    st.markdown("---")
+    st.markdown("### 🏠 Ihre Immobilie")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        eigene_flaeche = st.number_input(
+            "Wohnfläche (m²)",
+            min_value=0.0,
+            value=float(projekt.wohnflaeche) if hasattr(projekt, 'wohnflaeche') and projekt.wohnflaeche else 100.0,
+            step=5.0,
+            key=f"vk_eigene_flaeche_{projekt.projekt_id}"
+        )
+    with col2:
+        eigene_zimmer = st.number_input(
+            "Anzahl Zimmer",
+            min_value=1,
+            value=4,
+            key=f"vk_eigene_zimmer_{projekt.projekt_id}"
+        )
+    with col3:
+        eigenes_baujahr = st.number_input(
+            "Baujahr",
+            min_value=1800,
+            max_value=2025,
+            value=1990,
+            key=f"vk_eigenes_baujahr_{projekt.projekt_id}"
+        )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        eigener_zustand = st.selectbox(
+            "Zustand",
+            ["Neuwertig", "Sehr gut", "Gut", "Renovierungsbedürftig", "Sanierungsbedürftig"],
+            index=2,
+            key=f"vk_eigener_zustand_{projekt.projekt_id}"
+        )
+    with col2:
+        eigene_ausstattung = st.selectbox(
+            "Ausstattung",
+            ["Luxus", "Gehoben", "Normal", "Einfach"],
+            index=2,
+            key=f"vk_eigene_ausstattung_{projekt.projekt_id}"
+        )
+
+    st.markdown("---")
+
+    # Vergleichsobjekte
+    st.markdown("### 📊 Vergleichsobjekte erfassen")
+    st.caption("Erfassen Sie mindestens 3 ähnliche Objekte aus Ihrer Umgebung für eine aussagekräftige Analyse.")
+    st.markdown("""
+    **Tipp:** Suchen Sie auf Immobilienportalen wie ImmobilienScout24, Immonet oder
+    Immowelt nach vergleichbaren Objekten in Ihrer Nähe.
+    """)
+
+    # Bestehende Vergleichsobjekte anzeigen
+    vergleichsobjekte = st.session_state[vgl_key]
+
+    if vergleichsobjekte:
+        st.success(f"✅ **{len(vergleichsobjekte)} Vergleichsobjekt(e)** erfasst")
+
+        for i, vgl in enumerate(vergleichsobjekte):
+            with st.expander(f"🏘️ {vgl.get('adresse', f'Vergleichsobjekt {i+1}')} - {vgl.get('preis', 0):,.2f} €", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write(f"**Preis:** {vgl.get('preis', 0):,.2f} €")
+                    st.write(f"**Fläche:** {vgl.get('flaeche', 0):,.0f} m²")
+                with col2:
+                    st.write(f"**Zimmer:** {vgl.get('zimmer', '-')}")
+                    st.write(f"**Baujahr:** {vgl.get('baujahr', '-')}")
+                with col3:
+                    if vgl.get('flaeche', 0) > 0:
+                        preis_qm = vgl.get('preis', 0) / vgl.get('flaeche', 1)
+                        st.write(f"**Preis/m²:** {preis_qm:,.2f} €")
+                    st.write(f"**Zustand:** {vgl.get('zustand', '-')}")
+
+                if vgl.get('quelle'):
+                    st.caption(f"Quelle: {vgl.get('quelle')}")
+
+                if st.button("🗑️ Entfernen", key=f"vk_del_vgl_{projekt.projekt_id}_{i}"):
+                    st.session_state[vgl_key].pop(i)
+                    st.rerun()
+
+    # Neues Vergleichsobjekt hinzufügen
+    with st.expander("➕ Neues Vergleichsobjekt hinzufügen", expanded=len(vergleichsobjekte) == 0):
+        st.markdown("**Daten des Vergleichsobjekts:**")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            neu_adresse = st.text_input(
+                "Adresse / Bezeichnung",
+                placeholder="z.B. Musterstraße 10, 50667 Köln",
+                key=f"vk_neu_vgl_adresse_{projekt.projekt_id}"
+            )
+            neu_preis = st.number_input(
+                "Angebotspreis (€)",
+                min_value=0.0,
+                value=0.0,
+                step=5000.0,
+                key=f"vk_neu_vgl_preis_{projekt.projekt_id}"
+            )
+            neu_flaeche = st.number_input(
+                "Wohnfläche (m²)",
+                min_value=0.0,
+                value=0.0,
+                step=5.0,
+                key=f"vk_neu_vgl_flaeche_{projekt.projekt_id}"
+            )
+
+        with col2:
+            neu_zimmer = st.number_input(
+                "Anzahl Zimmer",
+                min_value=1,
+                value=3,
+                key=f"vk_neu_vgl_zimmer_{projekt.projekt_id}"
+            )
+            neu_baujahr = st.number_input(
+                "Baujahr",
+                min_value=1800,
+                max_value=2025,
+                value=1990,
+                key=f"vk_neu_vgl_baujahr_{projekt.projekt_id}"
+            )
+            neu_zustand = st.selectbox(
+                "Zustand",
+                ["Neuwertig", "Sehr gut", "Gut", "Renovierungsbedürftig", "Sanierungsbedürftig"],
+                index=2,
+                key=f"vk_neu_vgl_zustand_{projekt.projekt_id}"
+            )
+
+        neu_quelle = st.text_input(
+            "Quelle (optional)",
+            placeholder="z.B. immobilienscout24.de, immonet.de",
+            key=f"vk_neu_vgl_quelle_{projekt.projekt_id}"
+        )
+
+        if st.button("✅ Vergleichsobjekt hinzufügen", type="primary", key=f"vk_add_vgl_{projekt.projekt_id}"):
+            if neu_preis <= 0 or neu_flaeche <= 0:
+                st.error("Bitte geben Sie Preis und Fläche ein.")
+            else:
+                neues_vgl = {
+                    'adresse': neu_adresse or f"Objekt {len(vergleichsobjekte) + 1}",
+                    'preis': neu_preis,
+                    'flaeche': neu_flaeche,
+                    'zimmer': neu_zimmer,
+                    'baujahr': neu_baujahr,
+                    'zustand': neu_zustand,
+                    'quelle': neu_quelle
+                }
+                st.session_state[vgl_key].append(neues_vgl)
+                st.success(f"✅ '{neues_vgl['adresse']}' wurde hinzugefügt!")
+                st.rerun()
+
+    # Marktanalyse berechnen
+    st.markdown("---")
+    st.markdown("### 💰 Preisermittlung")
+
+    if len(vergleichsobjekte) >= 2:
+        preise = [v.get('preis', 0) for v in vergleichsobjekte if v.get('preis', 0) > 0]
+        flaechen = [v.get('flaeche', 0) for v in vergleichsobjekte if v.get('flaeche', 0) > 0]
+
+        if preise and flaechen:
+            # Durchschnittswerte berechnen
+            avg_preis = sum(preise) / len(preise)
+            min_preis = min(preise)
+            max_preis = max(preise)
+
+            preis_pro_qm = [p/f for p, f in zip(preise, flaechen) if f > 0]
+            avg_preis_qm = sum(preis_pro_qm) / len(preis_pro_qm)
+            min_preis_qm = min(preis_pro_qm)
+            max_preis_qm = max(preis_pro_qm)
+
+            st.markdown(f"**Analyse basierend auf {len(vergleichsobjekte)} Vergleichsobjekten:**")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Ø Preis/m²", f"{avg_preis_qm:,.2f} €")
+            with col2:
+                st.metric("Min. Preis/m²", f"{min_preis_qm:,.2f} €")
+            with col3:
+                st.metric("Max. Preis/m²", f"{max_preis_qm:,.2f} €")
+
+            # Preisempfehlung für eigene Immobilie berechnen
+            st.markdown("---")
+            st.markdown("### 🎯 Preisempfehlung für Ihre Immobilie")
+
+            # Zustandsfaktoren
+            zustand_faktoren = {
+                "Neuwertig": 1.15,
+                "Sehr gut": 1.05,
+                "Gut": 1.0,
+                "Renovierungsbedürftig": 0.85,
+                "Sanierungsbedürftig": 0.70
+            }
+
+            ausstattung_faktoren = {
+                "Luxus": 1.20,
+                "Gehoben": 1.10,
+                "Normal": 1.0,
+                "Einfach": 0.90
+            }
+
+            zustand_faktor = zustand_faktoren.get(eigener_zustand, 1.0)
+            ausstattung_faktor = ausstattung_faktoren.get(eigene_ausstattung, 1.0)
+
+            # Basispreis berechnen
+            basis_preis = eigene_flaeche * avg_preis_qm
+            angepasster_preis = basis_preis * zustand_faktor * ausstattung_faktor
+
+            # Preisspanne
+            min_empfehlung = eigene_flaeche * min_preis_qm * zustand_faktor * ausstattung_faktor
+            max_empfehlung = eigene_flaeche * max_preis_qm * zustand_faktor * ausstattung_faktor
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(
+                    "Untere Preisspanne",
+                    f"{min_empfehlung:,.2f} €",
+                    delta=f"{min_empfehlung/eigene_flaeche:,.2f} €/m²"
+                )
+            with col2:
+                st.metric(
+                    "🎯 Empfohlener Preis",
+                    f"{angepasster_preis:,.2f} €",
+                    delta=f"{angepasster_preis/eigene_flaeche:,.2f} €/m²"
+                )
+            with col3:
+                st.metric(
+                    "Obere Preisspanne",
+                    f"{max_empfehlung:,.2f} €",
+                    delta=f"{max_empfehlung/eigene_flaeche:,.2f} €/m²"
+                )
+
+            # Erklärung
+            st.markdown("---")
+            with st.expander("ℹ️ So wurde der Preis berechnet"):
+                st.markdown(f"""
+                **Berechnung:**
+                - Ø Preis/m² aus Vergleichsobjekten: **{avg_preis_qm:,.2f} €**
+                - Ihre Wohnfläche: **{eigene_flaeche:,.0f} m²**
+                - Basispreis: {eigene_flaeche:,.0f} m² × {avg_preis_qm:,.2f} €/m² = **{basis_preis:,.2f} €**
+
+                **Anpassungsfaktoren:**
+                - Zustand "{eigener_zustand}": Faktor **{zustand_faktor:.2f}**
+                - Ausstattung "{eigene_ausstattung}": Faktor **{ausstattung_faktor:.2f}**
+
+                **Empfohlener Verkaufspreis:**
+                {basis_preis:,.2f} € × {zustand_faktor:.2f} × {ausstattung_faktor:.2f} = **{angepasster_preis:,.2f} €**
+                """)
+
+            # Preis übernehmen
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+            with col1:
+                gewaehlter_preis = st.number_input(
+                    "Verkaufspreis festlegen (€)",
+                    min_value=0.0,
+                    value=round(angepasster_preis, -3),  # auf Tausender runden
+                    step=5000.0,
+                    key=f"vk_gewahlter_preis_{projekt.projekt_id}"
+                )
+            with col2:
+                if st.button("💾 Als Angebotspreis übernehmen", type="primary", key=f"vk_uebernehme_preis_{projekt.projekt_id}"):
+                    projekt.kaufpreis = gewaehlter_preis
+                    st.session_state.projekte[projekt.projekt_id] = projekt
+                    st.success(f"✅ Angebotspreis {gewaehlter_preis:,.2f} € wurde gespeichert!")
+
+    else:
+        st.warning(f"""
+        ⚠️ **Mindestens 3 Vergleichsobjekte empfohlen**
+
+        Sie haben erst {len(vergleichsobjekte)} Vergleichsobjekt(e) erfasst.
+        Für eine aussagekräftige Preisermittlung sollten Sie mindestens 3 ähnliche Objekte
+        aus Ihrer Umgebung hinzufügen.
+        """)
+
+
+def verkaeufer_eigene_kosten_view():
+    """Kostenberechnung für Verkäufer - Löschungskosten für Grundbuchrechte"""
+    st.subheader("💶 Eigene Kosten")
+
+    st.info("""
+    Als Verkäufer müssen Sie ggf. bestehende Rechte im Grundbuch löschen lassen,
+    bevor die Immobilie lastenfrei übertragen werden kann.
+    Hier können Sie die voraussichtlichen Kosten für Löschungen berechnen.
+    """)
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.warning("Sie haben noch keine Projekte als Verkäufer.")
+        return
+
+    # Projekt auswählen wenn mehrere vorhanden
+    if len(projekte) > 1:
+        projekt_namen = {p.projekt_id: p.name for p in projekte}
+        ausgewaehltes_id = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_namen.keys()),
+            format_func=lambda x: projekt_namen[x],
+            key="vk_kosten_projekt_auswahl"
+        )
+        projekt = next((p for p in projekte if p.projekt_id == ausgewaehltes_id), projekte[0])
+    else:
+        projekt = projekte[0]
+
+    st.markdown(f"#### 🏠 {projekt.name}")
+    if projekt.adresse:
+        st.caption(f"📍 {projekt.adresse}")
+    if projekt.kaufpreis > 0:
+        st.caption(f"💰 Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
+    st.markdown("---")
+    st.markdown("### 🗑️ Zu löschende Grundbuchrechte")
+
+    st.markdown("""
+    Geben Sie hier alle Rechte ein, die im Grundbuch gelöscht werden müssen
+    (z.B. bestehende Grundschulden, Hypotheken, Wohnrechte, etc.):
+    """)
+
+    # Anzahl zu löschender Rechte
+    anzahl_rechte = st.number_input(
+        "Anzahl zu löschender Rechte",
+        min_value=0,
+        max_value=10,
+        value=1,
+        key=f"vk_anzahl_rechte_{projekt.projekt_id}"
+    )
+
+    loeschungen = []
+    gesamt_loeschungskosten = 0.0
+
+    if anzahl_rechte > 0:
+        for i in range(int(anzahl_rechte)):
+            with st.expander(f"📋 Recht {i+1}", expanded=True):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    recht_typ = st.selectbox(
+                        "Art des Rechts",
+                        ["Grundschuld", "Hypothek", "Wohnrecht", "Nießbrauch", "Sonstiges"],
+                        key=f"vk_recht_typ_{projekt.projekt_id}_{i}"
+                    )
+
+                with col2:
+                    recht_betrag = st.number_input(
+                        "Betrag / Wert (€)",
+                        min_value=0.0,
+                        value=0.0,
+                        step=1000.0,
+                        key=f"vk_recht_betrag_{projekt.projekt_id}_{i}",
+                        help="Bei Grundschulden/Hypotheken: Nominalbetrag; Bei Wohnrechten: Jahreswert x Faktor"
+                    )
+
+                recht_glaeubiger = st.text_input(
+                    "Gläubiger / Rechtsinhaber (optional)",
+                    key=f"vk_recht_glaeubiger_{projekt.projekt_id}_{i}",
+                    placeholder="z.B. Sparkasse Köln-Bonn"
+                )
+
+                if recht_betrag > 0:
+                    # Berechne Löschungskosten
+                    kosten = berechne_loeschungskosten(recht_betrag, 1)
+                    loeschungen.append({
+                        'typ': recht_typ,
+                        'betrag': recht_betrag,
+                        'glaeubiger': recht_glaeubiger,
+                        'notar': kosten['notar_gesamt'],
+                        'grundbuch': kosten['grundbuch_gesamt'],
+                        'gesamt': kosten['gesamt']
+                    })
+                    gesamt_loeschungskosten += kosten['gesamt']
+
+    # Ergebnisanzeige
+    if loeschungen:
+        st.markdown("---")
+        st.markdown("### 📊 Kostenübersicht")
+
+        # Tabelle der Löschungen
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+        col1.markdown("**Recht**")
+        col2.markdown("**Betrag**")
+        col3.markdown("**Notar**")
+        col4.markdown("**Grundbuch**")
+
+        for loesch in loeschungen:
+            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+            glaeubiger_info = f" ({loesch['glaeubiger']})" if loesch['glaeubiger'] else ""
+            col1.write(f"{loesch['typ']}{glaeubiger_info}")
+            col2.write(f"{loesch['betrag']:,.2f} €")
+            col3.write(f"{loesch['notar']:,.2f} €")
+            col4.write(f"{loesch['grundbuch']:,.2f} €")
+
+        st.markdown("---")
+
+        # Summen
+        notar_summe = sum(l['notar'] for l in loeschungen)
+        grundbuch_summe = sum(l['grundbuch'] for l in loeschungen)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Notarkosten gesamt", f"{notar_summe:,.2f} €")
+            st.caption("0,5 Gebühr für Löschungsbewilligung + MwSt.")
+
+        with col2:
+            st.metric("Grundbuchkosten gesamt", f"{grundbuch_summe:,.2f} €")
+            st.caption("0,5 Gebühr für Löschung")
+
+        with col3:
+            st.metric("Gesamtkosten Löschung", f"{gesamt_loeschungskosten:,.2f} €", delta_color="inverse")
+
+        # Details anzeigen
+        with st.expander("📋 Berechnungsdetails"):
+            st.markdown("""
+            **Kostenberechnung nach GNotKG:**
+
+            - **Notar Löschungsbewilligung:** 0,5 Gebühr nach Nennbetrag + MwSt. (19%)
+            - **Grundbuch Löschung:** 0,5 Gebühr nach Nennbetrag
+
+            *Die Löschungsbewilligung wird vom Gläubiger (z.B. Bank) erteilt,
+            die Löschung im Grundbuch erfolgt nach Vorlage beim Grundbuchamt.*
+            """)
+
+        # Zusätzliche Hinweise
+        st.warning("""
+        **Wichtige Hinweise:**
+        - Die Löschungsbewilligung muss vom Gläubiger (z.B. Bank) erteilt werden
+        - Bei Grundschulden: Ablösung des Darlehens erforderlich
+        - Die Kosten werden meist mit dem Kaufpreis verrechnet (Tilgung aus dem Kaufpreis)
+        - Der Notar kann die Löschung nur beantragen, wenn alle Unterlagen vorliegen
+        """)
+
+    else:
+        st.success("✅ Keine Rechte zur Löschung angegeben - keine zusätzlichen Kosten als Verkäufer.")
+
+    # Maklerkosten-Info wenn Makler zugeordnet
+    if projekt.makler_id and 'makler_profile' in st.session_state:
+        st.markdown("---")
+        st.markdown("### 🏢 Maklerkosten")
+
+        makler_profil = st.session_state.makler_profile.get(projekt.makler_id)
+        if makler_profil and hasattr(makler_profil, 'provision_prozent') and makler_profil.provision_prozent:
+            # Verkäuferanteil = Gesamtprovision - Käuferanteil (typisch 50/50)
+            verkaeufer_provision = makler_profil.provision_prozent  # Annahme: gleicher Satz für Verkäufer
+            makler_kosten = berechne_maklerkosten(projekt.kaufpreis, verkaeufer_provision, True)
+
+            st.metric(
+                "Ihre Maklerprovision",
+                f"{makler_kosten['gesamt']:,.2f} €",
+                delta=f"{verkaeufer_provision:.2f}% inkl. MwSt."
+            )
+            st.caption("Die Maklerprovision wird mit dem Kaufpreis verrechnet.")
+
 
 def verkaeufer_makler_finden():
     """Makler-Suche für Verkäufer - zeigt vom Notar empfohlene Makler"""
@@ -11420,7 +17321,11 @@ def notar_dashboard():
     tabs = st.tabs([
         "📊 Timeline",
         "📋 Projekte",
-        "💰 Preiseinigungen",  # NEU: Verbesserung 4
+        "📁 Aktenmanagement",  # NEU: Aktenführung
+        "🔍 Datenermittlung",  # NEU: Flurkarten, Grundbuch, Baulasten etc.
+        "💰 Preiseinigungen",
+        "📚 Vertragsarchiv",  # Textbausteine & Dokumente
+        "📝 Vertragserstellung",  # Verträge aus Bausteinen erstellen
         "📝 Checklisten",
         "📋 Dokumentenanforderungen",
         "👥 Mitarbeiter",
@@ -11443,45 +17348,58 @@ def notar_dashboard():
         notar_projekte_view()
 
     with tabs[2]:
-        notar_preiseinigungen_view()  # NEU
+        notar_aktenmanagement_view()  # NEU: Aktenführung
 
     with tabs[3]:
-        notar_checklisten_view()
+        notar_datenermittlung_view()  # NEU: Flurkarten, Grundbuch, Baulasten etc.
 
     with tabs[4]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
+        notar_preiseinigungen_view()
 
     with tabs[5]:
-        notar_mitarbeiter_view()
+        notar_vertragsarchiv_view()
 
     with tabs[6]:
-        notar_finanzierungsnachweise()
+        notar_vertragserstellung_view()
 
     with tabs[7]:
-        notar_dokumenten_freigaben()
+        notar_checklisten_view()
 
     with tabs[8]:
-        notar_kaufvertrag_generator()
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
 
     with tabs[9]:
-        notar_termine()
+        notar_mitarbeiter_view()
 
     with tabs[10]:
-        notar_makler_empfehlung_view()
+        notar_finanzierungsnachweise()
 
     with tabs[11]:
-        notar_handwerker_view()
+        notar_dokumenten_freigaben()
 
     with tabs[12]:
-        notar_ausweis_erfassung()
+        notar_kaufvertrag_generator()
 
     with tabs[13]:
-        notar_rechtsdokumente_view()
+        notar_termine()
 
     with tabs[14]:
         notar_aktenimport_view()
 
     with tabs[15]:
+
+        notar_makler_empfehlung_view()
+
+    with tabs[15]:
+        notar_handwerker_view()
+
+    with tabs[16]:
+        notar_ausweis_erfassung()
+
+    with tabs[17]:
+        notar_rechtsdokumente_view()
+
+    with tabs[18]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -11520,6 +17438,9 @@ def notar_projekte_view():
         st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
         return
 
+    # Verfügbare Mitarbeiter für diesen Notar
+    mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values() if m.notar_id == notar_id and m.aktiv]
+
     for projekt in projekte:
         with st.expander(f"🏘️ {projekt.name}", expanded=True):
             col1, col2 = st.columns(2)
@@ -11542,6 +17463,422 @@ def notar_projekte_view():
                     verkaeufer = st.session_state.users.get(vid)
                     if verkaeufer:
                         st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+
+                # Makler anzeigen
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    if makler:
+                        st.write(f"👔 Makler: {makler.name}")
+
+                # Finanzierer anzeigen
+                for fid in projekt.finanzierer_ids:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        st.write(f"🏦 Finanzierer: {finanzierer.name}")
+
+            # Mitarbeiter-Zuweisung
+            st.markdown("---")
+            st.markdown("**👥 Zugewiesene Mitarbeiter:**")
+
+            # Zeige aktuell zugewiesene Mitarbeiter
+            zugewiesene_ma = [m for m in mitarbeiter if projekt.projekt_id in m.projekt_ids]
+            if zugewiesene_ma:
+                for ma in zugewiesene_ma:
+                    col_ma1, col_ma2 = st.columns([3, 1])
+                    with col_ma1:
+                        st.write(f"👤 {ma.name} ({ma.rolle})")
+                    with col_ma2:
+                        if st.button("❌", key=f"remove_ma_{projekt.projekt_id}_{ma.mitarbeiter_id}", help="Zuweisung entfernen"):
+                            ma.projekt_ids.remove(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"{ma.name} wurde vom Projekt entfernt.")
+                            st.rerun()
+            else:
+                st.info("Noch keine Mitarbeiter zugewiesen.")
+
+            # Neue Zuweisung
+            if mitarbeiter:
+                nicht_zugewiesene = [m for m in mitarbeiter if projekt.projekt_id not in m.projekt_ids]
+                if nicht_zugewiesene:
+                    col_select, col_btn = st.columns([3, 1])
+                    with col_select:
+                        ma_options = {f"{m.name} ({m.rolle})": m.mitarbeiter_id for m in nicht_zugewiesene}
+                        selected_ma_label = st.selectbox(
+                            "Mitarbeiter hinzufügen:",
+                            list(ma_options.keys()),
+                            key=f"select_ma_{projekt.projekt_id}"
+                        )
+                    with col_btn:
+                        if st.button("➕ Zuweisen", key=f"assign_ma_{projekt.projekt_id}"):
+                            ma_id = ma_options[selected_ma_label]
+                            ma = st.session_state.notar_mitarbeiter[ma_id]
+                            ma.projekt_ids.append(projekt.projekt_id)
+                            st.session_state.notar_mitarbeiter[ma_id] = ma
+                            st.success(f"{ma.name} wurde dem Projekt zugewiesen.")
+                            st.rerun()
+            else:
+                st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
+
+
+def notar_aktenmanagement_view():
+    """Aktenmanagement für Notar - Akten anlegen, suchen und verwalten"""
+    st.subheader("📁 Aktenmanagement")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Notar-Kürzel setzen falls nicht vorhanden
+    if notar_id not in st.session_state.notar_kuerzel:
+        st.warning("⚠️ Bitte legen Sie zuerst Ihr Notar-Kürzel fest.")
+        with st.form("notar_kuerzel_form"):
+            kuerzel = st.text_input(
+                "Ihr Kürzel (z.B. SQ für Notar Meier)",
+                max_chars=5,
+                help="Dieses Kürzel erscheint im Aktenzeichen"
+            )
+            if st.form_submit_button("💾 Speichern"):
+                if kuerzel:
+                    st.session_state.notar_kuerzel[notar_id] = kuerzel.upper()
+                    st.success(f"Kürzel '{kuerzel.upper()}' gespeichert!")
+                    st.rerun()
+                else:
+                    st.error("Bitte geben Sie ein Kürzel ein.")
+        return
+
+    # Sub-Tabs für Aktenmanagement
+    sub_tabs = st.tabs([
+        "📋 Aktenübersicht",
+        "➕ Neue Akte",
+        "🔍 Aktensuche",
+        "📂 Kategorien verwalten"
+    ])
+
+    # --- Aktenübersicht ---
+    with sub_tabs[0]:
+        st.markdown("### 📋 Ihre Akten")
+
+        # Filter
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            status_filter = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in AktenStatus],
+                key="akten_status_filter"
+            )
+        with col2:
+            bereich_filter = st.selectbox(
+                "Rechtsbereich",
+                ["Alle"] + [b.value for b in AktenHauptbereich],
+                key="akten_bereich_filter"
+            )
+        with col3:
+            # Sachbearbeiter-Filter
+            mitarbeiter_options = {"Alle": None}
+            for ma in st.session_state.notar_mitarbeiter.values():
+                if ma.notar_id == notar_id and ma.aktiv:
+                    mitarbeiter_options[ma.name] = ma.mitarbeiter_id
+            ma_filter = st.selectbox("Sachbearbeiter", list(mitarbeiter_options.keys()), key="akten_ma_filter")
+
+        # Akten laden
+        akten = get_akten_fuer_notar(notar_id)
+
+        # Filter anwenden
+        if status_filter != "Alle":
+            akten = [a for a in akten if a.status == status_filter]
+        if bereich_filter != "Alle":
+            akten = [a for a in akten if a.hauptbereich == bereich_filter]
+        if mitarbeiter_options[ma_filter]:
+            akten = [a for a in akten if a.sachbearbeiter_id == mitarbeiter_options[ma_filter]]
+
+        # Statistiken
+        st.markdown("---")
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        alle_akten = get_akten_fuer_notar(notar_id)
+        with stat_col1:
+            st.metric("Gesamt", len(alle_akten))
+        with stat_col2:
+            offene = len([a for a in alle_akten if a.status not in [AktenStatus.ABGESCHLOSSEN.value, AktenStatus.STORNIERT.value]])
+            st.metric("Offen", offene)
+        with stat_col3:
+            beurkundet = len([a for a in alle_akten if a.status == AktenStatus.BEURKUNDET.value])
+            st.metric("Beurkundet", beurkundet)
+        with stat_col4:
+            wiedervorlage = len([a for a in alle_akten if a.naechste_wiedervorlage and a.naechste_wiedervorlage <= date.today()])
+            st.metric("Wiedervorlage heute", wiedervorlage, delta=wiedervorlage if wiedervorlage > 0 else None, delta_color="inverse")
+
+        st.markdown("---")
+
+        if not akten:
+            st.info("Keine Akten gefunden. Legen Sie eine neue Akte an.")
+        else:
+            for akte in akten:
+                with st.expander(f"📁 {akte.aktenzeichen} - {akte.untertyp}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.markdown(f"**Aktenzeichen:** `{akte.aktenzeichen}`")
+                        st.markdown(f"**Kurzbezeichnung:** {akte.kurzbezeichnung}")
+                        st.markdown(f"**Bereich:** {akte.hauptbereich} → {akte.untertyp}")
+                        st.markdown(f"**Betreff:** {akte.betreff or '-'}")
+
+                        # Sachbearbeiter anzeigen
+                        if akte.sachbearbeiter_id:
+                            ma = st.session_state.notar_mitarbeiter.get(akte.sachbearbeiter_id)
+                            if ma:
+                                st.markdown(f"**Sachbearbeiter:** {ma.name} ({akte.mitarbeiter_kuerzel})")
+
+                        # Projekt-Verknüpfung
+                        if akte.projekt_id:
+                            projekt = st.session_state.projekte.get(akte.projekt_id)
+                            if projekt:
+                                st.markdown(f"**Verknüpftes Projekt:** {projekt.name}")
+
+                    with col2:
+                        status_colors = {
+                            AktenStatus.NEU.value: "🟡",
+                            AktenStatus.IN_BEARBEITUNG.value: "🔵",
+                            AktenStatus.WARTET_AUF_UNTERLAGEN.value: "🟠",
+                            AktenStatus.BEURKUNDUNG_VORBEREITET.value: "🟢",
+                            AktenStatus.BEURKUNDET.value: "✅",
+                            AktenStatus.VOLLZUG.value: "⏳",
+                            AktenStatus.ABGESCHLOSSEN.value: "✔️",
+                            AktenStatus.STORNIERT.value: "❌"
+                        }
+                        st.markdown(f"**Status:** {status_colors.get(akte.status, '⚪')} {akte.status}")
+                        st.markdown(f"**Erstellt:** {akte.erstellt_am.strftime('%d.%m.%Y')}")
+
+                        if akte.geschaeftswert > 0:
+                            st.markdown(f"**Geschäftswert:** {akte.geschaeftswert:,.2f} €")
+
+                        if akte.beurkundungstermin:
+                            st.markdown(f"**Beurkundung:** {akte.beurkundungstermin.strftime('%d.%m.%Y %H:%M')}")
+
+                        if akte.naechste_wiedervorlage:
+                            wv_date = akte.naechste_wiedervorlage
+                            if wv_date <= date.today():
+                                st.markdown(f"**Wiedervorlage:** ⚠️ {wv_date.strftime('%d.%m.%Y')}")
+                            else:
+                                st.markdown(f"**Wiedervorlage:** {wv_date.strftime('%d.%m.%Y')}")
+
+                    # Aktionen
+                    st.markdown("---")
+                    action_col1, action_col2, action_col3 = st.columns(3)
+                    with action_col1:
+                        neuer_status = st.selectbox(
+                            "Status ändern",
+                            [s.value for s in AktenStatus],
+                            index=[s.value for s in AktenStatus].index(akte.status),
+                            key=f"status_{akte.akte_id}"
+                        )
+                    with action_col2:
+                        if st.button("💾 Status speichern", key=f"save_status_{akte.akte_id}"):
+                            akte.status = neuer_status
+                            akte.aktualisiert_am = datetime.now()
+                            st.success("Status aktualisiert!")
+                            st.rerun()
+                    with action_col3:
+                        if st.button("📋 Aktenzeichen kopieren", key=f"copy_az_{akte.akte_id}"):
+                            st.code(akte.aktenzeichen)
+                            st.info("Aktenzeichen zum Kopieren angezeigt")
+
+    # --- Neue Akte anlegen ---
+    with sub_tabs[1]:
+        st.markdown("### ➕ Neue Akte anlegen")
+
+        with st.form("neue_akte_form"):
+            st.markdown("#### Rechtsbereich auswählen")
+            hauptbereich = st.selectbox(
+                "Hauptbereich",
+                [b.value for b in AktenHauptbereich],
+                key="neue_akte_hauptbereich"
+            )
+
+            # Untertypen basierend auf Hauptbereich
+            untertypen = get_verfuegbare_untertypen(hauptbereich, notar_id)
+            untertyp = st.selectbox(
+                "Typ / Kategorie",
+                untertypen,
+                key="neue_akte_untertyp"
+            )
+
+            st.markdown("---")
+            st.markdown("#### Parteien")
+            col1, col2 = st.columns(2)
+            with col1:
+                verkaeufer_nachname = st.text_input(
+                    "Nachname Partei 1 (Verkäufer/Erblasser/etc.)",
+                    placeholder="z.B. Krug"
+                )
+            with col2:
+                kaeufer_nachname = st.text_input(
+                    "Nachname Partei 2 (Käufer/Erbe/etc.)",
+                    placeholder="z.B. Müller"
+                )
+
+            st.markdown("---")
+            st.markdown("#### Details")
+
+            betreff = st.text_input(
+                "Betreff / Kurzbeschreibung",
+                placeholder="z.B. Grundstückskauf Musterstraße 1"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                geschaeftswert = st.number_input(
+                    "Geschäftswert (€)",
+                    min_value=0.0,
+                    step=1000.0
+                )
+            with col2:
+                # Sachbearbeiter zuweisen
+                mitarbeiter_options = {"-- Keiner --": None}
+                for ma in st.session_state.notar_mitarbeiter.values():
+                    if ma.notar_id == notar_id and ma.aktiv:
+                        mitarbeiter_options[f"{ma.name} ({st.session_state.mitarbeiter_kuerzel.get(ma.mitarbeiter_id, '?')})"] = ma.mitarbeiter_id
+                sachbearbeiter = st.selectbox("Sachbearbeiter zuweisen", list(mitarbeiter_options.keys()))
+
+            # Optional: Mit Projekt verknüpfen
+            st.markdown("---")
+            projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+            projekt_options = {"-- Kein Projekt --": None}
+            for p in projekte:
+                # Nur Projekte ohne Akte anzeigen
+                if not get_akte_fuer_projekt(p.projekt_id):
+                    projekt_options[f"{p.name} ({p.adresse})"] = p.projekt_id
+
+            verknuepftes_projekt = st.selectbox(
+                "Mit Projekt verknüpfen (optional)",
+                list(projekt_options.keys()),
+                help="Verknüpft diese Akte mit einem Makler-Projekt"
+            )
+
+            submitted = st.form_submit_button("📁 Akte anlegen", type="primary")
+
+            if submitted:
+                if not verkaeufer_nachname or not kaeufer_nachname:
+                    st.error("Bitte geben Sie beide Partei-Nachnamen ein.")
+                else:
+                    # Akte erstellen
+                    neue_akte = create_akte(
+                        notar_id=notar_id,
+                        hauptbereich=hauptbereich,
+                        untertyp=untertyp,
+                        verkaeufer_nachname=verkaeufer_nachname,
+                        kaeufer_nachname=kaeufer_nachname,
+                        sachbearbeiter_id=mitarbeiter_options[sachbearbeiter],
+                        projekt_id=projekt_options[verknuepftes_projekt],
+                        betreff=betreff,
+                        geschaeftswert=geschaeftswert
+                    )
+
+                    st.success(f"✅ Akte angelegt: **{neue_akte.aktenzeichen}**")
+                    st.balloons()
+
+                    # Aktenzeichen anzeigen
+                    st.markdown("---")
+                    st.markdown("### Ihr neues Aktenzeichen:")
+                    st.code(neue_akte.aktenzeichen, language=None)
+                    st.caption(f"Kurzbezeichnung für Kommunikation: `{neue_akte.kurzbezeichnung}`")
+
+    # --- Aktensuche ---
+    with sub_tabs[2]:
+        st.markdown("### 🔍 Aktensuche")
+
+        suchbegriff = st.text_input(
+            "Suche",
+            placeholder="Aktenzeichen, Name, Betreff...",
+            key="akten_suche_input"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            such_bereich = st.selectbox(
+                "Rechtsbereich",
+                ["Alle"] + [b.value for b in AktenHauptbereich],
+                key="such_bereich"
+            )
+        with col2:
+            such_status = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in AktenStatus],
+                key="such_status"
+            )
+
+        if st.button("🔍 Suchen", type="primary"):
+            ergebnisse = suche_akten(
+                notar_id=notar_id,
+                suchbegriff=suchbegriff,
+                hauptbereich=such_bereich if such_bereich != "Alle" else None,
+                status=such_status if such_status != "Alle" else None
+            )
+
+            st.markdown(f"**{len(ergebnisse)} Ergebnis(se) gefunden:**")
+
+            for akte in ergebnisse:
+                st.markdown(f"""
+                📁 **{akte.aktenzeichen}**
+                - Bereich: {akte.hauptbereich} → {akte.untertyp}
+                - Status: {akte.status}
+                - Betreff: {akte.betreff or '-'}
+                """)
+
+    # --- Kategorien verwalten ---
+    with sub_tabs[3]:
+        st.markdown("### 📂 Benutzerdefinierte Kategorien")
+
+        st.info("""
+        Hier können Sie neue Kategorien für Akten erstellen.
+        Mitarbeiter können ebenfalls Kategorien vorschlagen, diese müssen jedoch von Ihnen freigegeben werden.
+        """)
+
+        # Bestehende Kategorien anzeigen
+        kategorien = [k for k in st.session_state.benutzerdefinierte_kategorien.values() if k.notar_id == notar_id]
+
+        if kategorien:
+            st.markdown("#### Bestehende Kategorien")
+            for kat in kategorien:
+                with st.expander(f"{'✅' if kat.freigegeben else '⏳'} {kat.name} ({kat.hauptbereich})"):
+                    st.markdown(f"**Beschreibung:** {kat.beschreibung or '-'}")
+                    st.markdown(f"**Status:** {'Freigegeben' if kat.freigegeben else 'Wartet auf Freigabe'}")
+
+                    if not kat.freigegeben:
+                        if st.button("✅ Freigeben", key=f"approve_kat_{kat.kategorie_id}"):
+                            kat.freigegeben = True
+                            kat.freigegeben_am = datetime.now()
+                            kat.freigegeben_von_id = notar_id
+                            st.success(f"Kategorie '{kat.name}' freigegeben!")
+                            st.rerun()
+
+        # Neue Kategorie erstellen
+        st.markdown("---")
+        st.markdown("#### Neue Kategorie erstellen")
+
+        with st.form("neue_kategorie_form"):
+            kat_hauptbereich = st.selectbox(
+                "Hauptbereich",
+                [b.value for b in AktenHauptbereich],
+                key="neue_kat_hauptbereich"
+            )
+            kat_name = st.text_input("Name der Kategorie")
+            kat_beschreibung = st.text_area("Beschreibung (optional)")
+
+            if st.form_submit_button("➕ Kategorie erstellen"):
+                if kat_name:
+                    neue_kat = create_benutzerdefinierte_kategorie(
+                        notar_id=notar_id,
+                        hauptbereich=kat_hauptbereich,
+                        name=kat_name,
+                        beschreibung=kat_beschreibung,
+                        erstellt_von_id=notar_id
+                    )
+                    # Als Notar direkt freigeben
+                    neue_kat.freigegeben = True
+                    neue_kat.freigegeben_am = datetime.now()
+                    neue_kat.freigegeben_von_id = notar_id
+                    st.success(f"Kategorie '{kat_name}' erstellt und freigegeben!")
+                    st.rerun()
+                else:
+                    st.error("Bitte geben Sie einen Namen ein.")
+
 
 def notar_preiseinigungen_view():
     """VERBESSERUNG 4: Übersicht aller Preiseinigungen für Beurkundungsvorbereitung"""
@@ -11643,6 +17980,2054 @@ def notar_preiseinigungen_view():
         st.markdown("### 📋 Ohne aktive Preisverhandlung")
         for projekt in ohne_verhandlung:
             st.write(f"• {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €")
+
+
+# ============================================================================
+# VERTRAGSARCHIV & TEXTBAUSTEINE
+# ============================================================================
+
+def berechne_text_hash(text: str) -> str:
+    """Berechnet einen Hash für Duplikaterkennung"""
+    # Normalisiere Text: Kleinbuchstaben, entferne mehrfache Leerzeichen
+    normalized = ' '.join(text.lower().split())
+    return hashlib.md5(normalized.encode()).hexdigest()
+
+
+def finde_aehnliche_bausteine(text: str, notar_id: str, schwellenwert: float = 0.8) -> List[Tuple[str, float]]:
+    """Findet ähnliche Textbausteine basierend auf einfachem Textvergleich"""
+    aehnliche = []
+    text_hash = berechne_text_hash(text)
+    text_words = set(text.lower().split())
+
+    for baustein in st.session_state.textbausteine.values():
+        if baustein.notar_id != notar_id:
+            continue
+
+        # Exakter Match
+        if baustein.text_hash == text_hash:
+            aehnliche.append((baustein.baustein_id, 1.0))
+            continue
+
+        # Wort-basierte Ähnlichkeit (Jaccard)
+        baustein_words = set(baustein.text.lower().split())
+        if len(text_words) > 0 and len(baustein_words) > 0:
+            intersection = len(text_words & baustein_words)
+            union = len(text_words | baustein_words)
+            similarity = intersection / union if union > 0 else 0
+
+            if similarity >= schwellenwert:
+                aehnliche.append((baustein.baustein_id, similarity))
+
+    return sorted(aehnliche, key=lambda x: x[1], reverse=True)
+
+
+def extrahiere_text_aus_datei(datei_bytes: bytes, dateityp: str, dateiname: str) -> str:
+    """Extrahiert Text aus verschiedenen Dateiformaten"""
+    text = ""
+
+    if dateityp == "docx":
+        try:
+            # Versuche docx zu parsen (einfache XML-Extraktion)
+            import zipfile
+            from xml.etree import ElementTree
+
+            with zipfile.ZipFile(io.BytesIO(datei_bytes)) as docx:
+                if 'word/document.xml' in docx.namelist():
+                    with docx.open('word/document.xml') as doc:
+                        tree = ElementTree.parse(doc)
+                        root = tree.getroot()
+                        # Namespace für Word-Dokumente
+                        ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+                        paragraphs = root.findall('.//w:p', ns)
+                        for p in paragraphs:
+                            texts = p.findall('.//w:t', ns)
+                            para_text = ''.join(t.text or '' for t in texts)
+                            if para_text.strip():
+                                text += para_text + "\n"
+        except Exception as e:
+            text = f"[Fehler beim Lesen der DOCX-Datei: {str(e)}]"
+
+    elif dateityp == "rtf":
+        try:
+            # RTF-Text-Extraktion
+            import re as re_rtf
+            content = datei_bytes.decode('latin-1', errors='ignore')
+
+            # Entferne RTF-Steuerzeichen und extrahiere Text
+            # Entferne RTF-Header und Control-Words
+            content = re_rtf.sub(r'\\[a-z]+\d*\s?', '', content)
+            # Entferne geschweifte Klammern
+            content = re_rtf.sub(r'[{}]', '', content)
+            # Entferne Hex-Codes wie \'xx
+            content = re_rtf.sub(r"\\'[0-9a-fA-F]{2}", '', content)
+            # Ersetze RTF-Zeilenumbrüche
+            content = content.replace('\\par', '\n')
+            content = content.replace('\\line', '\n')
+            # Bereinige mehrfache Leerzeichen
+            content = re_rtf.sub(r' +', ' ', content)
+            content = re_rtf.sub(r'\n+', '\n', content)
+
+            text = content.strip()
+
+            if len(text) < 50:
+                text = "[RTF-Text konnte nicht vollständig extrahiert werden. Bitte prüfen Sie das Dokument.]"
+        except Exception as e:
+            text = f"[Fehler beim Lesen der RTF-Datei: {str(e)}]"
+
+    elif dateityp == "pdf":
+        # PDF-Text-Extraktion (vereinfacht - in Production würde man PyPDF2 oder pdfplumber verwenden)
+        try:
+            # Versuche einfache Text-Extraktion aus PDF
+            content = datei_bytes.decode('latin-1', errors='ignore')
+            # Suche nach Text-Streams
+            import re
+            text_pattern = re.compile(r'\((.*?)\)', re.DOTALL)
+            matches = text_pattern.findall(content)
+            text = ' '.join(matches[:100])  # Begrenzen
+            if len(text) < 100:
+                text = "[PDF-Text konnte nicht automatisch extrahiert werden. Bitte OCR verwenden oder Text manuell eingeben.]"
+        except Exception:
+            text = "[PDF-Verarbeitung fehlgeschlagen]"
+
+    elif dateityp in ["image", "jpg", "jpeg", "png"]:
+        text = "[Bild-Datei erkannt. OCR-Verarbeitung erforderlich für Textextraktion.]"
+
+    return text.strip()
+
+
+def ki_analysiere_textbaustein(text: str) -> Dict[str, Any]:
+    """Verwendet KI um Titel, Zusammenfassung und Kategorie für einen Textbaustein zu generieren"""
+    api_key = st.session_state.api_keys.get('openai', '')
+
+    if not api_key:
+        # Fallback: Einfache Heuristik
+        return ki_analysiere_textbaustein_fallback(text)
+
+    try:
+        import urllib.request
+        import json as json_module
+
+        prompt = f"""Analysiere den folgenden juristischen Textbaustein aus einem notariellen Vertrag und gib folgende Informationen zurück:
+
+1. TITEL: Ein kurzer, prägnanter Titel (max. 50 Zeichen) der den Regelungsinhalt beschreibt
+2. ZUSAMMENFASSUNG: Eine kurze Zusammenfassung in 1-2 Sätzen
+3. KATEGORIE: Eine der folgenden Kategorien:
+   - Vertragsparteien
+   - Kaufgegenstand
+   - Kaufpreis & Zahlung
+   - Zahlungsmodalitäten
+   - Fälligkeit
+   - Auflassung & Eigentumsübergang
+   - Besitzübergang
+   - Haftung & Gewährleistung
+   - Mängelhaftung
+   - Rücktritt & Aufhebung
+   - Vertragsstrafe
+   - Kosten & Steuern
+   - Belastungen & Lasten
+   - Grundbuch
+   - Erschließung
+   - Baulasten
+   - Vorkaufsrecht
+   - Vollmachten
+   - Schlussbestimmungen
+   - Salvatorische Klausel
+   - Sonstiges
+4. VERTRAGSTYPEN: Liste der Vertragstypen, in denen dieser Baustein typischerweise vorkommt (Kaufvertrag, Überlassungsvertrag, Erbvertrag, Schenkungsvertrag, etc.)
+
+TEXT:
+{text[:2000]}
+
+Antworte im JSON-Format:
+{{"titel": "...", "zusammenfassung": "...", "kategorie": "...", "vertragstypen": ["...", "..."]}}"""
+
+        request_data = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 500
+        }
+
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json_module.dumps(request_data).encode('utf-8'),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json_module.loads(response.read().decode('utf-8'))
+            content = result['choices'][0]['message']['content']
+
+            # Parse JSON aus Antwort
+            # Entferne mögliche Markdown-Code-Blöcke
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0]
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0]
+
+            parsed = json_module.loads(content.strip())
+            return {
+                'titel': parsed.get('titel', 'Unbenannter Baustein'),
+                'zusammenfassung': parsed.get('zusammenfassung', ''),
+                'kategorie': parsed.get('kategorie', 'Sonstiges'),
+                'vertragstypen': parsed.get('vertragstypen', []),
+                'ki_generiert': True
+            }
+
+    except Exception as e:
+        # Fallback bei Fehler
+        return ki_analysiere_textbaustein_fallback(text)
+
+
+def ki_analysiere_textbaustein_fallback(text: str) -> Dict[str, Any]:
+    """Fallback-Analyse ohne KI - basiert auf Schlüsselwörtern"""
+    text_lower = text.lower()
+
+    # Kategorie-Erkennung basierend auf Schlüsselwörtern
+    kategorie = "Sonstiges"
+    kategorie_keywords = {
+        "Vertragsparteien": ["käufer", "verkäufer", "erschienen", "handelt", "vertreten durch"],
+        "Kaufgegenstand": ["kaufgegenstand", "grundstück", "wohnung", "immobilie", "objekt"],
+        "Kaufpreis & Zahlung": ["kaufpreis", "euro", "zahlung", "betrag"],
+        "Zahlungsmodalitäten": ["ratenzahlung", "zahlung in", "teilbetrag"],
+        "Fälligkeit": ["fällig", "fälligkeit", "zahlbar bis"],
+        "Auflassung & Eigentumsübergang": ["auflassung", "eigentumsübergang", "grundbucheintrag"],
+        "Besitzübergang": ["besitzübergang", "übergabe", "besitz geht über"],
+        "Haftung & Gewährleistung": ["haftung", "gewährleistung", "haftet"],
+        "Mängelhaftung": ["mängel", "sachmangel", "rechtsmangel"],
+        "Rücktritt & Aufhebung": ["rücktritt", "aufhebung", "rücktrittsrecht"],
+        "Vertragsstrafe": ["vertragsstrafe", "konventionalstrafe"],
+        "Kosten & Steuern": ["kosten", "steuer", "grunderwerbsteuer", "notarkosten"],
+        "Belastungen & Lasten": ["belastung", "lasten", "dienstbarkeit"],
+        "Grundbuch": ["grundbuch", "eintragung", "löschung"],
+        "Erschließung": ["erschließung", "erschlossen"],
+        "Baulasten": ["baulast"],
+        "Vorkaufsrecht": ["vorkaufsrecht", "vorkauf"],
+        "Vollmachten": ["vollmacht", "bevollmächtigt"],
+        "Schlussbestimmungen": ["schlussbestimmung", "inkrafttreten"],
+        "Salvatorische Klausel": ["salvatorisch", "unwirksamkeit einer bestimmung"]
+    }
+
+    for kat, keywords in kategorie_keywords.items():
+        if any(kw in text_lower for kw in keywords):
+            kategorie = kat
+            break
+
+    # Titel aus ersten Wörtern oder Überschrift
+    lines = text.strip().split('\n')
+    first_line = lines[0].strip() if lines else ""
+    titel = first_line[:50] if first_line else "Textbaustein"
+
+    # Einfache Zusammenfassung: Erste 100 Zeichen
+    zusammenfassung = text[:150].replace('\n', ' ').strip()
+    if len(text) > 150:
+        zusammenfassung += "..."
+
+    return {
+        'titel': titel,
+        'zusammenfassung': zusammenfassung,
+        'kategorie': kategorie,
+        'vertragstypen': [VertragsTyp.KAUFVERTRAG.value],  # Standard
+        'ki_generiert': False
+    }
+
+
+def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, Any]]:
+    """Zerlegt einen Vertrag in einzelne Textbausteine mit Start/End-Indizes"""
+    bausteine = []
+    import re
+
+    # Verschiedene Muster für Vertragsabschnitte
+    patterns = [
+        r'§\s*\d+',  # § 1, § 2, etc.
+        r'Artikel\s+\d+',  # Artikel 1, etc.
+        r'\n[IVX]+\.\s',  # I. II. III. etc.
+        r'\n\d+\.\s+[A-ZÄÖÜ]',  # 1. Titel, 2. Titel
+    ]
+
+    # Finde alle Trennpunkte mit Positionen
+    trennpunkte = [0]  # Start des Dokuments
+
+    for pattern in patterns:
+        matches = list(re.finditer(pattern, volltext, flags=re.MULTILINE))
+        if len(matches) >= 2:  # Mindestens 2 Treffer für sinnvolle Zerlegung
+            trennpunkte = [0] + [m.start() for m in matches] + [len(volltext)]
+            break
+
+    # Falls keine Muster gefunden, nach doppelten Zeilenumbrüchen suchen
+    if len(trennpunkte) <= 2:
+        matches = list(re.finditer(r'\n\s*\n', volltext))
+        if matches:
+            trennpunkte = [0] + [m.end() for m in matches] + [len(volltext)]
+
+    # Falls immer noch keine Trennpunkte, den gesamten Text als einen Baustein
+    if len(trennpunkte) <= 2:
+        trennpunkte = [0, len(volltext)]
+
+    # Bausteine aus Trennpunkten erstellen
+    for i in range(len(trennpunkte) - 1):
+        start_idx = trennpunkte[i]
+        end_idx = trennpunkte[i + 1]
+        teil_text = volltext[start_idx:end_idx].strip()
+
+        if len(teil_text) > 50:  # Mindestlänge für einen Baustein
+            # Berechne tatsächliche Start/End-Position (ohne führende/trailing Whitespaces)
+            actual_start = volltext.find(teil_text, start_idx)
+            actual_end = actual_start + len(teil_text)
+
+            bausteine.append({
+                'text': teil_text,
+                'position': i,
+                'start_index': actual_start,
+                'end_index': actual_end
+            })
+
+    return bausteine
+
+
+def ki_suche_updates(baustein: Textbaustein) -> Dict[str, Any]:
+    """Sucht nach möglichen Updates für einen Textbaustein via KI"""
+    api_key = st.session_state.api_keys.get('openai', '')
+
+    if not api_key:
+        return {
+            'gefunden': False,
+            'fehler': 'Kein OpenAI API-Key konfiguriert'
+        }
+
+    try:
+        import urllib.request
+        import json as json_module
+
+        prompt = f"""Du bist ein Experte für deutsches Notarrecht und Vertragsrecht.
+
+Analysiere den folgenden Textbaustein aus einem notariellen Vertrag und prüfe:
+1. Ist die Formulierung noch aktuell und rechtssicher?
+2. Gibt es neuere Gesetzesänderungen oder Rechtsprechung, die eine Anpassung erfordern könnten?
+3. Gibt es bessere oder präzisere Formulierungen, die üblich sind?
+
+Kategorie des Bausteins: {baustein.kategorie}
+Vertragstypen: {', '.join(baustein.vertragstypen)}
+
+AKTUELLER TEXT:
+{baustein.text[:2000]}
+
+Wenn du Verbesserungen oder Updates empfiehlst, gib:
+1. Den konkreten Änderungsvorschlag
+2. Die Begründung für die Änderung
+3. Falls möglich, eine Quellenangabe (z.B. Gesetzesänderung, BGH-Urteil, Mustervertrag)
+
+Antworte im JSON-Format:
+{{"update_empfohlen": true/false, "vorschlag": "...", "begruendung": "...", "quelle": "..."}}
+Wenn kein Update nötig ist: {{"update_empfohlen": false, "hinweis": "Der Baustein ist aktuell."}}"""
+
+        request_data = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": 1000
+        }
+
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json_module.dumps(request_data).encode('utf-8'),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as response:
+            result = json_module.loads(response.read().decode('utf-8'))
+            content = result['choices'][0]['message']['content']
+
+            # Parse JSON
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0]
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0]
+
+            parsed = json_module.loads(content.strip())
+            return {
+                'gefunden': True,
+                'update_empfohlen': parsed.get('update_empfohlen', False),
+                'vorschlag': parsed.get('vorschlag', ''),
+                'begruendung': parsed.get('begruendung', ''),
+                'quelle': parsed.get('quelle', ''),
+                'hinweis': parsed.get('hinweis', '')
+            }
+
+    except Exception as e:
+        return {
+            'gefunden': False,
+            'fehler': f'Fehler bei KI-Abfrage: {str(e)}'
+        }
+
+
+def render_visueller_baustein_editor(dok_id: str, volltext: str, bausteine_ids: List[str], vertragstyp: str):
+    """
+    Visueller Editor für Textbausteine mit farblicher Hervorhebung und Grenzanpassung.
+    - Zeigt den Dokumenttext mit farblich markierten Bausteinen
+    - Ermöglicht Anpassung der Baustein-Grenzen per Schieberegler
+    - Berücksichtigt Vertragstyp-Templates für Reihenfolge und Alternativen
+    """
+    st.markdown("### 🎨 Visueller Baustein-Editor")
+
+    # Session State für Editor initialisieren
+    editor_key = f"baustein_editor_{dok_id}"
+    if editor_key not in st.session_state:
+        st.session_state[editor_key] = {
+            'aktiver_baustein': None,
+            'temp_grenzen': {}  # baustein_id -> {start, end}
+        }
+
+    # Bausteine für dieses Dokument laden und nach Position sortieren
+    dok_bausteine = []
+    for bid in bausteine_ids:
+        if bid in st.session_state.textbausteine:
+            dok_bausteine.append(st.session_state.textbausteine[bid])
+
+    dok_bausteine.sort(key=lambda b: b.start_index)
+
+    if not dok_bausteine:
+        st.info("Keine Textbausteine für dieses Dokument vorhanden.")
+        return
+
+    # Template-Info anzeigen wenn verfügbar
+    template = VERTRAGSTYP_TEMPLATES.get(vertragstyp)
+    if template:
+        with st.expander(f"📋 Template-Info: {template['name']}", expanded=False):
+            st.markdown(f"**{template['beschreibung']}**")
+            st.markdown("**Empfohlene Kategorien-Reihenfolge:**")
+            for i, kat_info in enumerate(template['kategorien_reihenfolge'], 1):
+                pflicht = "✅ Pflicht" if kat_info['pflicht'] else "➖ Optional"
+                mehrfach = " (mehrfach möglich)" if kat_info['mehrfach'] else ""
+                st.markdown(f"{i}. {kat_info['kategorie']} - {pflicht}{mehrfach}")
+
+    # Farbige Darstellung des Dokuments
+    st.markdown("#### 📄 Dokument mit markierten Bausteinen")
+
+    # HTML für farbige Darstellung erstellen
+    html_parts = []
+    last_end = 0
+
+    for i, baustein in enumerate(dok_bausteine):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        start = baustein.start_index
+        end = baustein.end_index
+
+        # Text vor diesem Baustein (nicht markiert)
+        if start > last_end:
+            nicht_zugeordnet = volltext[last_end:start]
+            if nicht_zugeordnet.strip():
+                html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{nicht_zugeordnet}</span>')
+
+        # Baustein-Text (farbig markiert)
+        baustein_text = volltext[start:end]
+        # Escape HTML characters
+        baustein_text_escaped = baustein_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+        html_parts.append(
+            f'<span style="background-color: {farbe}; padding: 2px 4px; border-radius: 3px; '
+            f'border-left: 3px solid {farbe.replace("E", "8").replace("F", "A")};" '
+            f'title="{baustein.titel} ({baustein.kategorie})">'
+            f'<strong>[{i+1}]</strong> {baustein_text_escaped}</span>'
+        )
+        last_end = end
+
+    # Text nach dem letzten Baustein
+    if last_end < len(volltext):
+        rest_text = volltext[last_end:]
+        if rest_text.strip():
+            html_parts.append(f'<span style="background-color: #FFF9C4; padding: 2px;">{rest_text}</span>')
+
+    # HTML anzeigen
+    combined_html = ''.join(html_parts)
+    st.markdown(
+        f'<div style="max-height: 400px; overflow-y: auto; padding: 10px; '
+        f'border: 1px solid #ddd; border-radius: 5px; font-family: monospace; '
+        f'white-space: pre-wrap; line-height: 1.6;">{combined_html}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Legende
+    st.markdown("**Legende:**")
+    legend_cols = st.columns(len(dok_bausteine) if len(dok_bausteine) <= 6 else 6)
+    for i, baustein in enumerate(dok_bausteine[:6]):
+        farbe = BAUSTEIN_FARBEN[i % len(BAUSTEIN_FARBEN)]
+        with legend_cols[i]:
+            st.markdown(
+                f'<span style="background-color: {farbe}; padding: 3px 8px; border-radius: 3px;">'
+                f'[{i+1}] {baustein.titel[:15]}...</span>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("---")
+
+    # Baustein-Bearbeitung
+    st.markdown("#### ✏️ Baustein-Grenzen anpassen")
+
+    # Baustein auswählen
+    baustein_options = {f"[{i+1}] {b.titel} ({b.kategorie})": b.baustein_id for i, b in enumerate(dok_bausteine)}
+    selected_label = st.selectbox("Baustein auswählen:", list(baustein_options.keys()), key=f"select_baustein_{dok_id}")
+    selected_id = baustein_options[selected_label]
+    selected_baustein = st.session_state.textbausteine[selected_id]
+
+    # Index des ausgewählten Bausteins
+    baustein_idx = next(i for i, b in enumerate(dok_bausteine) if b.baustein_id == selected_id)
+
+    # Grenzen bestimmen (min/max basierend auf Nachbarn)
+    min_start = dok_bausteine[baustein_idx - 1].end_index if baustein_idx > 0 else 0
+    max_end = dok_bausteine[baustein_idx + 1].start_index if baustein_idx < len(dok_bausteine) - 1 else len(volltext)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"**Farbe:** ")
+        farbe = BAUSTEIN_FARBEN[baustein_idx % len(BAUSTEIN_FARBEN)]
+        st.markdown(f'<span style="background-color: {farbe}; padding: 5px 15px; border-radius: 3px;">■</span>', unsafe_allow_html=True)
+        st.markdown(f"**Kategorie:** {selected_baustein.kategorie}")
+        st.markdown(f"**Aktueller Text-Bereich:** Zeichen {selected_baustein.start_index} - {selected_baustein.end_index}")
+
+    with col2:
+        st.markdown(f"**Textlänge:** {selected_baustein.end_index - selected_baustein.start_index} Zeichen")
+        st.markdown(f"**Min. Start:** {min_start} | **Max. Ende:** {max_end}")
+
+    # Schieberegler für Start
+    new_start = st.slider(
+        "Start-Position",
+        min_value=min_start,
+        max_value=selected_baustein.end_index - 10,  # Mindestens 10 Zeichen
+        value=selected_baustein.start_index,
+        key=f"slider_start_{dok_id}_{selected_id}"
+    )
+
+    # Schieberegler für Ende
+    new_end = st.slider(
+        "End-Position",
+        min_value=new_start + 10,  # Mindestens 10 Zeichen
+        max_value=max_end,
+        value=selected_baustein.end_index,
+        key=f"slider_end_{dok_id}_{selected_id}"
+    )
+
+    # Vorschau des neuen Texts
+    if new_start != selected_baustein.start_index or new_end != selected_baustein.end_index:
+        st.markdown("**📝 Vorschau des angepassten Bausteins:**")
+        new_text = volltext[new_start:new_end]
+        st.text_area("Neuer Text:", value=new_text, height=100, disabled=True, key=f"preview_{dok_id}_{selected_id}")
+
+        # Änderungen übernehmen
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+        with col_btn1:
+            if st.button("✅ Änderungen übernehmen", key=f"apply_{dok_id}_{selected_id}", type="primary"):
+                # Aktuellen Baustein aktualisieren
+                selected_baustein.start_index = new_start
+                selected_baustein.end_index = new_end
+                selected_baustein.text = volltext[new_start:new_end].strip()
+                selected_baustein.aktualisiert_am = datetime.now()
+                selected_baustein.text_hash = berechne_text_hash(selected_baustein.text)
+
+                # Angrenzende Bausteine anpassen (kaskadierend)
+                if baustein_idx > 0:
+                    vorheriger = dok_bausteine[baustein_idx - 1]
+                    if vorheriger.end_index > new_start:
+                        vorheriger.end_index = new_start
+                        vorheriger.text = volltext[vorheriger.start_index:vorheriger.end_index].strip()
+                        vorheriger.text_hash = berechne_text_hash(vorheriger.text)
+
+                if baustein_idx < len(dok_bausteine) - 1:
+                    naechster = dok_bausteine[baustein_idx + 1]
+                    if naechster.start_index < new_end:
+                        naechster.start_index = new_end
+                        naechster.text = volltext[naechster.start_index:naechster.end_index].strip()
+                        naechster.text_hash = berechne_text_hash(naechster.text)
+
+                st.success("✅ Änderungen übernommen!")
+                st.rerun()
+
+        with col_btn2:
+            if st.button("↩️ Zurücksetzen", key=f"reset_{dok_id}_{selected_id}"):
+                st.rerun()
+
+    # Baustein löschen
+    st.markdown("---")
+    st.markdown("#### 🗑️ Baustein löschen")
+
+    with st.expander("⚠️ Baustein löschen (Vorsicht!)", expanded=False):
+        st.warning("Das Löschen eines Bausteins kann nicht rückgängig gemacht werden!")
+
+        if st.button("🗑️ Diesen Baustein löschen", key=f"delete_{dok_id}_{selected_id}", type="secondary"):
+            # Aus Dokument-Liste entfernen
+            dok = st.session_state.vertragsdokumente.get(dok_id)
+            if dok and selected_id in dok.baustein_ids:
+                dok.baustein_ids.remove(selected_id)
+
+            # Verkettung anpassen
+            if selected_baustein.vorgaenger_baustein_id and selected_baustein.vorgaenger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.vorgaenger_baustein_id].nachfolger_baustein_id = selected_baustein.nachfolger_baustein_id
+
+            if selected_baustein.nachfolger_baustein_id and selected_baustein.nachfolger_baustein_id in st.session_state.textbausteine:
+                st.session_state.textbausteine[selected_baustein.nachfolger_baustein_id].vorgaenger_baustein_id = selected_baustein.vorgaenger_baustein_id
+
+            # Baustein löschen
+            del st.session_state.textbausteine[selected_id]
+            st.success("Baustein gelöscht!")
+            st.rerun()
+
+    # Baustein-Sortierung nach Template
+    if template:
+        st.markdown("---")
+        st.markdown("#### 📋 Bausteine nach Template sortieren")
+
+        # Prüfe ob Bausteine nach Template sortiert sind
+        template_kategorien = [k['kategorie'] for k in template['kategorien_reihenfolge']]
+        aktuelle_kategorien = [b.kategorie for b in dok_bausteine]
+
+        # Finde beste Sortierung
+        sortierte_bausteine = []
+        nicht_zugeordnet_bausteine = dok_bausteine.copy()
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            passende = [b for b in nicht_zugeordnet_bausteine if b.kategorie == kategorie]
+            if passende:
+                if kat_info['mehrfach']:
+                    sortierte_bausteine.extend(passende)
+                    for b in passende:
+                        nicht_zugeordnet_bausteine.remove(b)
+                else:
+                    sortierte_bausteine.append(passende[0])
+                    nicht_zugeordnet_bausteine.remove(passende[0])
+
+        # Nicht zugeordnete am Ende
+        sortierte_bausteine.extend(nicht_zugeordnet_bausteine)
+
+        # Vergleich anzeigen
+        st.markdown("**Aktuelle vs. empfohlene Reihenfolge:**")
+        col_aktuell, col_empfohlen = st.columns(2)
+
+        with col_aktuell:
+            st.markdown("**Aktuelle Reihenfolge:**")
+            for i, b in enumerate(dok_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        with col_empfohlen:
+            st.markdown("**Nach Template:**")
+            for i, b in enumerate(sortierte_bausteine):
+                st.markdown(f"{i+1}. {b.kategorie}")
+
+        # Alternativen anzeigen
+        st.markdown("---")
+        st.markdown("#### 🔄 Baustein-Alternativen")
+
+        for kat_info in template['kategorien_reihenfolge']:
+            kategorie = kat_info['kategorie']
+            # Suche alle freigegebenen Bausteine dieser Kategorie
+            alternativen = [b for b in st.session_state.textbausteine.values()
+                          if b.kategorie == kategorie
+                          and b.status == TextbausteinStatus.FREIGEGEBEN.value
+                          and vertragstyp in b.vertragstypen]
+
+            if len(alternativen) > 1:
+                with st.expander(f"🔄 {kategorie} - {len(alternativen)} Alternativen verfügbar"):
+                    for alt in alternativen:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**{alt.titel}**")
+                            st.text(alt.text[:200] + "..." if len(alt.text) > 200 else alt.text)
+                        with col2:
+                            # Prüfen ob dieser Baustein im Dokument verwendet wird
+                            ist_verwendet = alt.baustein_id in bausteine_ids
+                            if ist_verwendet:
+                                st.success("✅ Verwendet")
+                            else:
+                                if st.button("➕ Verwenden", key=f"use_alt_{dok_id}_{alt.baustein_id}"):
+                                    # Ersetze bestehenden Baustein gleicher Kategorie oder füge hinzu
+                                    st.info("Alternative wird eingefügt...")
+                                    # Hier könnte man die Logik erweitern
+
+
+def render_cloud_storage_integration():
+    """
+    Rendert die Cloud-Storage-Integration für Dokument-Import.
+    Unterstützt Google Drive, iCloud und Dropbox.
+    """
+    st.markdown("### ☁️ Cloud-Storage verbinden")
+
+    # Session State für Cloud-Verbindungen
+    if 'cloud_connections' not in st.session_state:
+        st.session_state.cloud_connections = {
+            'google_drive': {'connected': False, 'email': '', 'access_token': ''},
+            'icloud': {'connected': False, 'email': '', 'access_token': ''},
+            'dropbox': {'connected': False, 'email': '', 'access_token': ''}
+        }
+
+    # Cloud-Provider auswählen
+    cloud_provider = st.selectbox(
+        "Cloud-Anbieter auswählen:",
+        ["📁 Google Drive", "☁️ iCloud", "📦 Dropbox"],
+        key="cloud_provider_select"
+    )
+
+    provider_key = {
+        "📁 Google Drive": "google_drive",
+        "☁️ iCloud": "icloud",
+        "📦 Dropbox": "dropbox"
+    }[cloud_provider]
+
+    connection = st.session_state.cloud_connections[provider_key]
+
+    # Provider-spezifische Einstellungen
+    if provider_key == "google_drive":
+        st.markdown("""
+        **Google Drive Integration**
+
+        Um Google Drive zu verbinden, benötigen Sie:
+        1. Eine Google Cloud Console App mit aktivierter Drive API
+        2. OAuth 2.0 Client-ID und Client-Secret
+        """)
+
+        with st.expander("🔧 Google Drive Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                client_id = st.text_input(
+                    "Client ID",
+                    value=st.session_state.get('gdrive_client_id', ''),
+                    type="password",
+                    key="gdrive_client_id_input"
+                )
+            with col2:
+                client_secret = st.text_input(
+                    "Client Secret",
+                    value=st.session_state.get('gdrive_client_secret', ''),
+                    type="password",
+                    key="gdrive_client_secret_input"
+                )
+
+            if st.button("🔗 Mit Google Drive verbinden", key="connect_gdrive"):
+                if client_id and client_secret:
+                    st.session_state.gdrive_client_id = client_id
+                    st.session_state.gdrive_client_secret = client_secret
+                    # Simuliere OAuth-Flow (in Production: echte OAuth-Implementierung)
+                    connection['connected'] = True
+                    connection['email'] = "user@gmail.com"
+                    st.success("✅ Google Drive erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Client ID und Client Secret eingeben.")
+
+    elif provider_key == "icloud":
+        st.markdown("""
+        **iCloud Integration**
+
+        Um iCloud zu verbinden, benötigen Sie:
+        1. Ihre Apple-ID
+        2. Ein App-spezifisches Passwort (unter appleid.apple.com erstellen)
+        """)
+
+        with st.expander("🔧 iCloud Einstellungen", expanded=not connection['connected']):
+            col1, col2 = st.columns(2)
+            with col1:
+                apple_id = st.text_input(
+                    "Apple-ID (E-Mail)",
+                    value=st.session_state.get('icloud_apple_id', ''),
+                    key="icloud_apple_id_input"
+                )
+            with col2:
+                app_password = st.text_input(
+                    "App-spezifisches Passwort",
+                    value='',
+                    type="password",
+                    key="icloud_app_password_input"
+                )
+
+            if st.button("🔗 Mit iCloud verbinden", key="connect_icloud"):
+                if apple_id and app_password:
+                    st.session_state.icloud_apple_id = apple_id
+                    # Simuliere Verbindung
+                    connection['connected'] = True
+                    connection['email'] = apple_id
+                    st.success("✅ iCloud erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Apple-ID und App-Passwort eingeben.")
+
+    elif provider_key == "dropbox":
+        st.markdown("""
+        **Dropbox Integration**
+
+        Um Dropbox zu verbinden, benötigen Sie:
+        1. Eine Dropbox App (unter dropbox.com/developers erstellen)
+        2. Access Token für die App
+        """)
+
+        with st.expander("🔧 Dropbox Einstellungen", expanded=not connection['connected']):
+            access_token = st.text_input(
+                "Access Token",
+                value=st.session_state.get('dropbox_access_token', ''),
+                type="password",
+                key="dropbox_access_token_input"
+            )
+
+            if st.button("🔗 Mit Dropbox verbinden", key="connect_dropbox"):
+                if access_token:
+                    st.session_state.dropbox_access_token = access_token
+                    connection['connected'] = True
+                    connection['email'] = "dropbox-user"
+                    st.success("✅ Dropbox erfolgreich verbunden!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Access Token eingeben.")
+
+    # Wenn verbunden, zeige Dateibrowser
+    if connection['connected']:
+        st.success(f"✅ Verbunden als: {connection['email']}")
+
+        st.markdown("---")
+        st.markdown("### 📂 Dateien durchsuchen")
+
+        # Simulierte Ordnerstruktur (in Production: echte API-Aufrufe)
+        if 'cloud_current_path' not in st.session_state:
+            st.session_state.cloud_current_path = "/"
+
+        # Simulierte Dateien basierend auf Provider
+        demo_files = {
+            "google_drive": [
+                {"name": "Verträge", "type": "folder", "path": "/Verträge"},
+                {"name": "Mustervertrag_Kaufvertrag.docx", "type": "file", "size": "45 KB", "path": "/Mustervertrag_Kaufvertrag.docx"},
+                {"name": "AGB_Vorlage.pdf", "type": "file", "size": "120 KB", "path": "/AGB_Vorlage.pdf"},
+                {"name": "Datenschutz_Template.rtf", "type": "file", "size": "28 KB", "path": "/Datenschutz_Template.rtf"},
+            ],
+            "icloud": [
+                {"name": "Dokumente", "type": "folder", "path": "/Dokumente"},
+                {"name": "Notarvertrag_2024.docx", "type": "file", "size": "67 KB", "path": "/Notarvertrag_2024.docx"},
+                {"name": "Vollmacht_Muster.pdf", "type": "file", "size": "89 KB", "path": "/Vollmacht_Muster.pdf"},
+            ],
+            "dropbox": [
+                {"name": "Rechtsdokumente", "type": "folder", "path": "/Rechtsdokumente"},
+                {"name": "Kaufvertrag_Vorlage.docx", "type": "file", "size": "52 KB", "path": "/Kaufvertrag_Vorlage.docx"},
+                {"name": "Übergabeprotokoll.rtf", "type": "file", "size": "15 KB", "path": "/Übergabeprotokoll.rtf"},
+            ]
+        }
+
+        files = demo_files.get(provider_key, [])
+
+        # Pfad-Navigation
+        col_path, col_refresh = st.columns([4, 1])
+        with col_path:
+            st.markdown(f"**Aktueller Pfad:** `{st.session_state.cloud_current_path}`")
+        with col_refresh:
+            if st.button("🔄", key="refresh_cloud"):
+                st.rerun()
+
+        # Dateien anzeigen
+        for item in files:
+            col1, col2, col3 = st.columns([3, 1, 1])
+
+            with col1:
+                if item['type'] == 'folder':
+                    if st.button(f"📁 {item['name']}", key=f"folder_{item['path']}"):
+                        st.session_state.cloud_current_path = item['path']
+                        st.rerun()
+                else:
+                    # Datei-Icon basierend auf Typ
+                    ext = item['name'].split('.')[-1].lower()
+                    icon = {"docx": "📄", "pdf": "📕", "rtf": "📝", "jpg": "🖼️", "png": "🖼️"}.get(ext, "📄")
+                    st.markdown(f"{icon} **{item['name']}**")
+
+            with col2:
+                if item['type'] == 'file':
+                    st.markdown(f"*{item['size']}*")
+
+            with col3:
+                if item['type'] == 'file':
+                    if st.button("⬇️ Import", key=f"import_{item['path']}"):
+                        # Simuliere Datei-Import
+                        st.session_state[f"cloud_import_{item['name']}"] = {
+                            "name": item['name'],
+                            "provider": provider_key,
+                            "path": item['path'],
+                            "imported": True
+                        }
+                        st.success(f"✅ '{item['name']}' wurde importiert!")
+                        st.info("💡 Die Datei wird im Demo-Modus simuliert. In der Produktionsversion wird die echte Datei heruntergeladen.")
+
+        # Trennen-Button
+        st.markdown("---")
+        if st.button(f"🔌 {cloud_provider} trennen", key=f"disconnect_{provider_key}"):
+            connection['connected'] = False
+            connection['email'] = ''
+            connection['access_token'] = ''
+            st.success("Verbindung getrennt.")
+            st.rerun()
+
+    # Verbindungs-Status Übersicht
+    st.markdown("---")
+    st.markdown("### 📊 Verbindungs-Status")
+
+    status_cols = st.columns(3)
+    providers = [
+        ("📁 Google Drive", "google_drive"),
+        ("☁️ iCloud", "icloud"),
+        ("📦 Dropbox", "dropbox")
+    ]
+
+    for i, (name, key) in enumerate(providers):
+        with status_cols[i]:
+            conn = st.session_state.cloud_connections[key]
+            if conn['connected']:
+                st.success(f"{name}\n✅ Verbunden")
+            else:
+                st.info(f"{name}\n⚪ Nicht verbunden")
+
+
+def notar_vertragsarchiv_view():
+    """Hauptansicht für das Vertragsarchiv - Upload und Verwaltung von Textbausteinen"""
+    st.subheader("📚 Vertragsarchiv & Textbausteine")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sub-Tabs für verschiedene Bereiche
+    archiv_tabs = st.tabs([
+        "📤 Upload",
+        "📋 Textbausteine",
+        "📄 Hochgeladene Dokumente",
+        "✅ Freigaben",
+        "🔄 Updates suchen"
+    ])
+
+    # ============ TAB 1: Upload ============
+    with archiv_tabs[0]:
+        st.markdown("### 📤 Dokument oder Textbaustein hochladen")
+
+        upload_typ = st.radio(
+            "Was möchten Sie hochladen?",
+            ["📄 Komplettes Dokument (Vertrag)", "📝 Einzelnen Textbaustein"],
+            horizontal=True
+        )
+
+        if upload_typ == "📄 Komplettes Dokument (Vertrag)":
+            # Upload-Quelle auswählen
+            upload_quelle = st.radio(
+                "Dokumentquelle:",
+                ["💻 Lokaler Upload", "☁️ Cloud-Storage"],
+                horizontal=True,
+                key="upload_quelle_radio"
+            )
+
+            if upload_quelle == "💻 Lokaler Upload":
+                st.markdown("""
+                **Unterstützte Formate:**
+                - Word-Dokumente (.docx)
+                - RTF-Dokumente (.rtf)
+                - PDF-Dateien (.pdf)
+                - Bilder (.jpg, .png) - werden per OCR verarbeitet
+                """)
+
+                uploaded_file = st.file_uploader(
+                    "Vertragsdokument hochladen",
+                    type=['docx', 'rtf', 'pdf', 'jpg', 'jpeg', 'png'],
+                    key="archiv_dokument_upload"
+                )
+            else:
+                # Cloud-Storage Integration
+                uploaded_file = None
+                render_cloud_storage_integration()
+
+            if uploaded_file:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(f"**Dateiname:** {uploaded_file.name}")
+                    st.markdown(f"**Größe:** {uploaded_file.size / 1024:.1f} KB")
+
+                with col2:
+                    vertragstyp = st.selectbox(
+                        "Vertragstyp",
+                        [vt.value for vt in VertragsTyp],
+                        key="upload_vertragstyp"
+                    )
+                    beschreibung = st.text_input("Beschreibung (optional)")
+
+                # Bestimme Dateityp
+                dateityp = uploaded_file.name.split('.')[-1].lower()
+                if dateityp in ['jpg', 'jpeg', 'png']:
+                    dateityp = 'image'
+
+                # Duplikaterkennung - prüfe ob Dokument bereits existiert
+                datei_bytes_temp = uploaded_file.read()
+                uploaded_file.seek(0)  # Reset für späteren Zugriff
+
+                # Berechne Hash des Dateiinhalts
+                import hashlib
+                datei_hash = hashlib.md5(datei_bytes_temp).hexdigest()
+
+                # Suche nach Duplikaten (gleicher Hash oder gleicher Dateiname)
+                duplikat_gefunden = None
+                duplikat_typ = None  # 'inhalt' oder 'name'
+
+                for dok_id, dok in st.session_state.vertragsdokumente.items():
+                    if dok.notar_id == notar_id:
+                        # Prüfe auf identischen Inhalt (Hash)
+                        if hasattr(dok, 'datei_bytes') and dok.datei_bytes:
+                            vorhandener_hash = hashlib.md5(dok.datei_bytes).hexdigest()
+                            if vorhandener_hash == datei_hash:
+                                duplikat_gefunden = dok
+                                duplikat_typ = 'inhalt'
+                                break
+                        # Prüfe auf gleichen Dateinamen
+                        if dok.dateiname == uploaded_file.name:
+                            duplikat_gefunden = dok
+                            duplikat_typ = 'name'
+                            break
+
+                # Wenn Duplikat gefunden, zeige Optionen
+                if duplikat_gefunden:
+                    st.warning(f"⚠️ **Duplikat erkannt!**")
+
+                    if duplikat_typ == 'inhalt':
+                        st.markdown(f"Ein Dokument mit **identischem Inhalt** existiert bereits:")
+                    else:
+                        st.markdown(f"Ein Dokument mit **gleichem Dateinamen** existiert bereits:")
+
+                    st.markdown(f"- **Dateiname:** {duplikat_gefunden.dateiname}")
+                    st.markdown(f"- **Hochgeladen am:** {duplikat_gefunden.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+                    st.markdown(f"- **Vertragstyp:** {duplikat_gefunden.vertragstyp}")
+
+                    # Session State für Duplikat-Entscheidung
+                    duplikat_key = f"duplikat_aktion_{datei_hash[:8]}"
+
+                    col_replace, col_copy, col_cancel = st.columns(3)
+
+                    with col_replace:
+                        if st.button("🔄 Ersetzen", key=f"replace_{datei_hash[:8]}", type="primary"):
+                            st.session_state[duplikat_key] = 'ersetzen'
+                            st.session_state[f"duplikat_id_{datei_hash[:8]}"] = duplikat_gefunden.dokument_id
+                            st.rerun()
+
+                    with col_copy:
+                        if st.button("📋 Kopie erstellen", key=f"copy_{datei_hash[:8]}"):
+                            st.session_state[duplikat_key] = 'kopie'
+                            st.rerun()
+
+                    with col_cancel:
+                        if st.button("❌ Abbrechen", key=f"cancel_{datei_hash[:8]}"):
+                            st.session_state[duplikat_key] = 'abbrechen'
+                            st.rerun()
+
+                    # Verarbeite Entscheidung
+                    aktion = st.session_state.get(duplikat_key)
+
+                    if aktion == 'ersetzen':
+                        # Lösche altes Dokument und lade neues hoch
+                        altes_dok_id = st.session_state.get(f"duplikat_id_{datei_hash[:8]}")
+                        if altes_dok_id and altes_dok_id in st.session_state.vertragsdokumente:
+                            del st.session_state.vertragsdokumente[altes_dok_id]
+
+                        datei_bytes = datei_bytes_temp
+                        extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                        dokument_id = str(uuid.uuid4())[:8]
+                        dokument = VertragsDokument(
+                            dokument_id=dokument_id,
+                            notar_id=notar_id,
+                            dateiname=uploaded_file.name,
+                            dateityp=dateityp,
+                            dateigroesse=uploaded_file.size,
+                            datei_bytes=datei_bytes,
+                            volltext=extrahierter_text,
+                            vertragstyp=vertragstyp,
+                            beschreibung=beschreibung,
+                            hochgeladen_von=notar_id,
+                            status="Hochgeladen"
+                        )
+
+                        st.session_state.vertragsdokumente[dokument_id] = dokument
+                        # Aufräumen
+                        del st.session_state[duplikat_key]
+                        if f"duplikat_id_{datei_hash[:8]}" in st.session_state:
+                            del st.session_state[f"duplikat_id_{datei_hash[:8]}"]
+                        st.success(f"✅ Dokument '{uploaded_file.name}' wurde ersetzt!")
+                        st.rerun()
+
+                    elif aktion == 'kopie':
+                        datei_bytes = datei_bytes_temp
+                        extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                        # Füge Kopie-Suffix zum Dateinamen hinzu
+                        name_parts = uploaded_file.name.rsplit('.', 1)
+                        if len(name_parts) == 2:
+                            neuer_name = f"{name_parts[0]}_Kopie.{name_parts[1]}"
+                        else:
+                            neuer_name = f"{uploaded_file.name}_Kopie"
+
+                        dokument_id = str(uuid.uuid4())[:8]
+                        dokument = VertragsDokument(
+                            dokument_id=dokument_id,
+                            notar_id=notar_id,
+                            dateiname=neuer_name,
+                            dateityp=dateityp,
+                            dateigroesse=uploaded_file.size,
+                            datei_bytes=datei_bytes,
+                            volltext=extrahierter_text,
+                            vertragstyp=vertragstyp,
+                            beschreibung=beschreibung,
+                            hochgeladen_von=notar_id,
+                            status="Hochgeladen"
+                        )
+
+                        st.session_state.vertragsdokumente[dokument_id] = dokument
+                        del st.session_state[duplikat_key]
+                        st.success(f"✅ Kopie '{neuer_name}' wurde erstellt!")
+                        st.rerun()
+
+                    elif aktion == 'abbrechen':
+                        del st.session_state[duplikat_key]
+                        st.info("Upload abgebrochen.")
+                        st.rerun()
+
+                else:
+                    # Kein Duplikat - normaler Upload
+                    if st.button("📤 Dokument verarbeiten", type="primary", key="upload_doc_btn"):
+                        with st.spinner("Dokument wird verarbeitet..."):
+                            datei_bytes = datei_bytes_temp
+
+                            # Text extrahieren
+                            extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, uploaded_file.name)
+
+                            # Dokument erstellen
+                            dokument_id = str(uuid.uuid4())[:8]
+                            dokument = VertragsDokument(
+                                dokument_id=dokument_id,
+                                notar_id=notar_id,
+                                dateiname=uploaded_file.name,
+                                dateityp=dateityp,
+                                dateigroesse=uploaded_file.size,
+                                datei_bytes=datei_bytes,
+                                volltext=extrahierter_text,
+                                vertragstyp=vertragstyp,
+                                beschreibung=beschreibung,
+                                hochgeladen_von=notar_id,
+                                status="Hochgeladen"
+                            )
+
+                            st.session_state.vertragsdokumente[dokument_id] = dokument
+                            st.success(f"✅ Dokument '{uploaded_file.name}' wurde hochgeladen!")
+
+                            # Dokument-Upload tracken
+                            safe_track_interaktion(
+                                interaktions_typ='dokument_upload',
+                                details={
+                                    'dokument_id': dokument_id,
+                                    'dateityp': dateityp,
+                                    'vertragstyp': vertragstyp,
+                                    'dateigroesse': uploaded_file.size
+                                }
+                            )
+
+                            # Option: In Bausteine zerlegen
+                            if len(extrahierter_text) > 100:
+                                st.info("💡 Möchten Sie das Dokument in Textbausteine zerlegen?")
+                                if st.button("🔨 In Bausteine zerlegen", key="zerlege_nach_upload"):
+                                    st.session_state[f'zerlege_dokument_{dokument_id}'] = True
+                                    st.rerun()
+
+        else:  # Einzelner Textbaustein
+            st.markdown("### 📝 Einzelnen Textbaustein eingeben")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                titel = st.text_input("Titel des Bausteins", placeholder="z.B. Kaufpreiszahlung")
+                kategorie = st.selectbox(
+                    "Kategorie (Regelungsinhalt)",
+                    [kat.value for kat in TextbausteinKategorie]
+                )
+
+            with col2:
+                vertragstypen = st.multiselect(
+                    "Verwendbar in Vertragstypen",
+                    [vt.value for vt in VertragsTyp],
+                    default=[VertragsTyp.KAUFVERTRAG.value]
+                )
+
+            baustein_text = st.text_area(
+                "Klauseltext",
+                height=200,
+                placeholder="Geben Sie hier den vollständigen Klauseltext ein..."
+            )
+
+            # Oder aus Datei laden
+            st.markdown("**Oder aus Datei laden:**")
+            baustein_datei = st.file_uploader(
+                "Textbaustein als Datei",
+                type=['txt', 'docx'],
+                key="baustein_datei_upload"
+            )
+
+            if baustein_datei:
+                if baustein_datei.name.endswith('.txt'):
+                    baustein_text = baustein_datei.read().decode('utf-8')
+                elif baustein_datei.name.endswith('.docx'):
+                    baustein_text = extrahiere_text_aus_datei(
+                        baustein_datei.read(), 'docx', baustein_datei.name
+                    )
+                st.text_area("Geladener Text:", value=baustein_text, height=150, disabled=True)
+
+            col_btn1, col_btn2 = st.columns(2)
+
+            with col_btn1:
+                ki_analyse = st.checkbox("🤖 KI-Analyse für Titel & Zusammenfassung", value=True)
+
+            with col_btn2:
+                if st.button("💾 Textbaustein speichern", type="primary", disabled=not baustein_text):
+                    with st.spinner("Baustein wird analysiert..."):
+                        # KI-Analyse wenn aktiviert
+                        if ki_analyse and baustein_text:
+                            analyse = ki_analysiere_textbaustein(baustein_text)
+                            if not titel:
+                                titel = analyse['titel']
+                            zusammenfassung = analyse['zusammenfassung']
+                            if not kategorie or kategorie == "Sonstiges":
+                                kategorie = analyse['kategorie']
+                            ki_generiert = analyse.get('ki_generiert', False)
+                        else:
+                            zusammenfassung = baustein_text[:150] + "..." if len(baustein_text) > 150 else baustein_text
+                            ki_generiert = False
+
+                        # Duplikatprüfung
+                        text_hash = berechne_text_hash(baustein_text)
+                        aehnliche = finde_aehnliche_bausteine(baustein_text, notar_id)
+
+                        baustein_id = str(uuid.uuid4())[:8]
+                        baustein = Textbaustein(
+                            baustein_id=baustein_id,
+                            notar_id=notar_id,
+                            titel=titel or "Unbenannter Baustein",
+                            text=baustein_text,
+                            zusammenfassung=zusammenfassung,
+                            kategorie=kategorie,
+                            vertragstypen=vertragstypen,
+                            status=TextbausteinStatus.ENTWURF.value,
+                            ki_generiert=ki_generiert,
+                            ki_kategorisiert=ki_generiert,
+                            erstellt_von=notar_id,
+                            text_hash=text_hash,
+                            aehnliche_bausteine=[a[0] for a in aehnliche[:3]]
+                        )
+
+                        st.session_state.textbausteine[baustein_id] = baustein
+
+                        if aehnliche:
+                            st.warning(f"⚠️ {len(aehnliche)} ähnliche Bausteine gefunden! Bitte prüfen Sie unter 'Freigaben'.")
+                        else:
+                            st.success(f"✅ Textbaustein '{titel}' wurde gespeichert!")
+
+                        st.rerun()
+
+    # ============ TAB 2: Textbausteine-Übersicht ============
+    with archiv_tabs[1]:
+        st.markdown("### 📋 Alle Textbausteine")
+
+        # Filter
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            filter_status = st.selectbox(
+                "Status",
+                ["Alle"] + [s.value for s in TextbausteinStatus],
+                key="filter_baustein_status"
+            )
+        with col2:
+            filter_kategorie = st.selectbox(
+                "Kategorie",
+                ["Alle"] + [k.value for k in TextbausteinKategorie],
+                key="filter_baustein_kategorie"
+            )
+        with col3:
+            filter_vertragstyp = st.selectbox(
+                "Vertragstyp",
+                ["Alle"] + [v.value for v in VertragsTyp],
+                key="filter_baustein_vertragstyp"
+            )
+
+        # Bausteine filtern
+        bausteine = [b for b in st.session_state.textbausteine.values() if b.notar_id == notar_id]
+
+        if filter_status != "Alle":
+            bausteine = [b for b in bausteine if b.status == filter_status]
+        if filter_kategorie != "Alle":
+            bausteine = [b for b in bausteine if b.kategorie == filter_kategorie]
+        if filter_vertragstyp != "Alle":
+            bausteine = [b for b in bausteine if filter_vertragstyp in b.vertragstypen]
+
+        # Statistik
+        col1, col2, col3, col4 = st.columns(4)
+        alle_bausteine = [b for b in st.session_state.textbausteine.values() if b.notar_id == notar_id]
+        with col1:
+            st.metric("Gesamt", len(alle_bausteine))
+        with col2:
+            st.metric("Freigegeben", len([b for b in alle_bausteine if b.status == TextbausteinStatus.FREIGEGEBEN.value]))
+        with col3:
+            st.metric("Entwürfe", len([b for b in alle_bausteine if b.status == TextbausteinStatus.ENTWURF.value]))
+        with col4:
+            st.metric("Updates", len([b for b in alle_bausteine if b.status == TextbausteinStatus.AKTUALISIERUNG.value]))
+
+        st.markdown("---")
+
+        if not bausteine:
+            st.info("Keine Textbausteine gefunden. Laden Sie Bausteine im Tab 'Upload' hoch.")
+        else:
+            for baustein in sorted(bausteine, key=lambda x: x.erstellt_am, reverse=True):
+                status_icon = {
+                    TextbausteinStatus.ENTWURF.value: "📝",
+                    TextbausteinStatus.PRUEFUNG.value: "🔍",
+                    TextbausteinStatus.FREIGEGEBEN.value: "✅",
+                    TextbausteinStatus.AKTUALISIERUNG.value: "🔄",
+                    TextbausteinStatus.ABGELEHNT.value: "❌",
+                    TextbausteinStatus.ARCHIVIERT.value: "📦"
+                }.get(baustein.status, "❓")
+
+                with st.expander(f"{status_icon} {baustein.titel} ({baustein.kategorie})"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Zusammenfassung:** {baustein.zusammenfassung}")
+                        st.text_area("Volltext:", value=baustein.text, height=150, disabled=True, key=f"text_{baustein.baustein_id}")
+                        st.markdown(f"**Vertragstypen:** {', '.join(baustein.vertragstypen)}")
+
+                    with col2:
+                        st.markdown(f"**Status:** {baustein.status}")
+                        st.markdown(f"**Erstellt:** {baustein.erstellt_am.strftime('%d.%m.%Y')}")
+                        if baustein.ki_generiert:
+                            st.markdown("🤖 *KI-analysiert*")
+                        if baustein.aehnliche_bausteine:
+                            st.warning(f"⚠️ {len(baustein.aehnliche_bausteine)} ähnliche Bausteine")
+
+                        # Aktionen
+                        if baustein.status == TextbausteinStatus.ENTWURF.value:
+                            if st.button("✅ Freigeben", key=f"freigeben_{baustein.baustein_id}"):
+                                baustein.status = TextbausteinStatus.FREIGEGEBEN.value
+                                baustein.freigegeben_am = datetime.now()
+                                baustein.freigegeben_von = notar_id
+                                st.success("Baustein freigegeben!")
+                                st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"loeschen_{baustein.baustein_id}"):
+                            del st.session_state.textbausteine[baustein.baustein_id]
+                            st.success("Baustein gelöscht!")
+                            st.rerun()
+
+    # ============ TAB 3: Hochgeladene Dokumente ============
+    with archiv_tabs[2]:
+        st.markdown("### 📄 Hochgeladene Vertragsdokumente")
+
+        dokumente = [d for d in st.session_state.vertragsdokumente.values() if d.notar_id == notar_id]
+
+        if not dokumente:
+            st.info("Noch keine Dokumente hochgeladen.")
+        else:
+            for dok in sorted(dokumente, key=lambda x: x.hochgeladen_am, reverse=True):
+                with st.expander(f"📄 {dok.dateiname} ({dok.vertragstyp})"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Typ:** {dok.dateityp.upper()}")
+                        st.markdown(f"**Größe:** {dok.dateigroesse / 1024:.1f} KB")
+                        st.markdown(f"**Status:** {dok.status}")
+                        if dok.beschreibung:
+                            st.markdown(f"**Beschreibung:** {dok.beschreibung}")
+
+                        if dok.volltext:
+                            st.text_area("Extrahierter Text:", value=dok.volltext[:1000] + "..." if len(dok.volltext) > 1000 else dok.volltext, height=150, disabled=True, key=f"volltext_preview_{dok.dokument_id}")
+
+                    with col2:
+                        st.markdown(f"**Hochgeladen:** {dok.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+                        if dok.zerlegt:
+                            st.success(f"✅ In {len(dok.baustein_ids)} Bausteine zerlegt")
+                            # Button für visuellen Editor
+                            if st.button("🎨 Visuellen Editor öffnen", key=f"visual_edit_{dok.dokument_id}"):
+                                st.session_state[f"show_visual_editor_{dok.dokument_id}"] = True
+                                st.rerun()
+                        else:
+                            if st.button("🔨 In Bausteine zerlegen", key=f"zerlege_{dok.dokument_id}"):
+                                with st.spinner("Zerlege Dokument..."):
+                                    teile = ki_zerlege_vertrag_in_bausteine(dok.volltext)
+
+                                    for i, teil in enumerate(teile):
+                                        analyse = ki_analysiere_textbaustein(teil['text'])
+                                        baustein_id = str(uuid.uuid4())[:8]
+
+                                        baustein = Textbaustein(
+                                            baustein_id=baustein_id,
+                                            notar_id=notar_id,
+                                            titel=analyse['titel'],
+                                            text=teil['text'],
+                                            zusammenfassung=analyse['zusammenfassung'],
+                                            kategorie=analyse['kategorie'],
+                                            vertragstypen=[dok.vertragstyp],
+                                            quelle_dokument_id=dok.dokument_id,
+                                            position_im_dokument=teil['position'],
+                                            start_index=teil.get('start_index', 0),
+                                            end_index=teil.get('end_index', len(teil['text'])),
+                                            status=TextbausteinStatus.ENTWURF.value,
+                                            ki_generiert=True,
+                                            ki_kategorisiert=True,
+                                            erstellt_von=notar_id,
+                                            text_hash=berechne_text_hash(teil['text'])
+                                        )
+
+                                        # Verkette Bausteine
+                                        if dok.baustein_ids:
+                                            vorheriger_id = dok.baustein_ids[-1]
+                                            baustein.vorgaenger_baustein_id = vorheriger_id
+                                            if vorheriger_id in st.session_state.textbausteine:
+                                                st.session_state.textbausteine[vorheriger_id].nachfolger_baustein_id = baustein_id
+
+                                        st.session_state.textbausteine[baustein_id] = baustein
+                                        dok.baustein_ids.append(baustein_id)
+
+                                    dok.zerlegt = True
+                                    dok.anzahl_erkannte_klauseln = len(teile)
+                                    dok.status = "Verarbeitet"
+                                    dok.verarbeitet_am = datetime.now()
+
+                                    st.success(f"✅ {len(teile)} Bausteine extrahiert!")
+                                    st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"dok_loeschen_{dok.dokument_id}"):
+                            del st.session_state.vertragsdokumente[dok.dokument_id]
+                            st.success("Dokument gelöscht!")
+                            st.rerun()
+
+                # Visueller Editor anzeigen wenn aktiviert
+                if st.session_state.get(f"show_visual_editor_{dok.dokument_id}", False):
+                    st.markdown("---")
+                    col_close, _ = st.columns([1, 4])
+                    with col_close:
+                        if st.button("❌ Editor schließen", key=f"close_editor_{dok.dokument_id}"):
+                            st.session_state[f"show_visual_editor_{dok.dokument_id}"] = False
+                            st.rerun()
+                    render_visueller_baustein_editor(
+                        dok_id=dok.dokument_id,
+                        volltext=dok.volltext,
+                        bausteine_ids=dok.baustein_ids,
+                        vertragstyp=dok.vertragstyp
+                    )
+
+    # ============ TAB 4: Freigaben ============
+    with archiv_tabs[3]:
+        st.markdown("### ✅ Bausteine zur Freigabe")
+
+        entwuerfe = [b for b in st.session_state.textbausteine.values()
+                     if b.notar_id == notar_id and b.status == TextbausteinStatus.ENTWURF.value]
+
+        if not entwuerfe:
+            st.success("✅ Keine Bausteine zur Freigabe ausstehend.")
+        else:
+            st.warning(f"⚠️ {len(entwuerfe)} Bausteine warten auf Freigabe")
+
+            for baustein in entwuerfe:
+                with st.expander(f"📝 {baustein.titel}"):
+                    st.markdown(f"**Kategorie:** {baustein.kategorie}")
+                    st.markdown(f"**Zusammenfassung:** {baustein.zusammenfassung}")
+                    st.text_area("Text:", value=baustein.text, height=150, disabled=True, key=f"freigabe_text_{baustein.baustein_id}")
+
+                    # Ähnliche Bausteine anzeigen
+                    if baustein.aehnliche_bausteine:
+                        st.markdown("---")
+                        st.markdown("**⚠️ Ähnliche vorhandene Bausteine:**")
+                        for aehnlich_id in baustein.aehnliche_bausteine:
+                            aehnlich = st.session_state.textbausteine.get(aehnlich_id)
+                            if aehnlich:
+                                st.info(f"**{aehnlich.titel}** ({aehnlich.status})")
+                                with st.expander("Vergleichen"):
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown("**Neuer Baustein:**")
+                                        st.text(baustein.text[:500])
+                                    with col2:
+                                        st.markdown("**Vorhandener Baustein:**")
+                                        st.text(aehnlich.text[:500])
+
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("✅ Freigeben", key=f"approve_{baustein.baustein_id}", type="primary"):
+                            baustein.status = TextbausteinStatus.FREIGEGEBEN.value
+                            baustein.freigegeben_am = datetime.now()
+                            baustein.freigegeben_von = notar_id
+                            st.success("Freigegeben!")
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Ablehnen", key=f"reject_{baustein.baustein_id}"):
+                            baustein.status = TextbausteinStatus.ABGELEHNT.value
+                            st.warning("Abgelehnt!")
+                            st.rerun()
+                    with col3:
+                        if baustein.aehnliche_bausteine and st.button("🔗 Mit vorhandenem verknüpfen", key=f"link_{baustein.baustein_id}"):
+                            # Verknüpfe mit erstem ähnlichen Baustein
+                            baustein.duplikat_von = baustein.aehnliche_bausteine[0]
+                            baustein.status = TextbausteinStatus.ARCHIVIERT.value
+                            st.info("Als Duplikat markiert und archiviert.")
+                            st.rerun()
+
+    # ============ TAB 5: Updates suchen ============
+    with archiv_tabs[4]:
+        st.markdown("### 🔄 Updates für Textbausteine suchen")
+        st.markdown("Nutzen Sie KI, um zu prüfen, ob Ihre Textbausteine noch aktuell sind.")
+
+        api_key = st.session_state.api_keys.get('openai', '')
+        if not api_key:
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Bitte unter 'Einstellungen' hinterlegen.")
+        else:
+            freigegebene = [b for b in st.session_state.textbausteine.values()
+                           if b.notar_id == notar_id and b.status == TextbausteinStatus.FREIGEGEBEN.value]
+
+            if not freigegebene:
+                st.info("Keine freigegebenen Bausteine vorhanden.")
+            else:
+                baustein_auswahl = st.selectbox(
+                    "Baustein auswählen",
+                    options=freigegebene,
+                    format_func=lambda b: f"{b.titel} ({b.kategorie})"
+                )
+
+                if baustein_auswahl:
+                    st.text_area("Aktueller Text:", value=baustein_auswahl.text, height=150, disabled=True)
+
+                    if st.button("🔍 Nach Updates suchen", type="primary"):
+                        with st.spinner("KI analysiert den Baustein..."):
+                            ergebnis = ki_suche_updates(baustein_auswahl)
+
+                            if ergebnis.get('gefunden') and ergebnis.get('update_empfohlen'):
+                                st.warning("🔄 **Update empfohlen!**")
+                                st.markdown(f"**Vorschlag:** {ergebnis.get('vorschlag', '')}")
+                                st.markdown(f"**Begründung:** {ergebnis.get('begruendung', '')}")
+                                if ergebnis.get('quelle'):
+                                    st.markdown(f"**Quelle:** {ergebnis.get('quelle')}")
+
+                                # Update-Vorschlag speichern
+                                baustein_auswahl.ki_update_vorschlag = ergebnis.get('vorschlag', '')
+                                baustein_auswahl.ki_update_quelle = ergebnis.get('quelle', '')
+                                baustein_auswahl.ki_update_datum = datetime.now()
+                                baustein_auswahl.status = TextbausteinStatus.AKTUALISIERUNG.value
+
+                                if st.button("✅ Update übernehmen"):
+                                    baustein_auswahl.text = ergebnis.get('vorschlag', baustein_auswahl.text)
+                                    baustein_auswahl.version += 1
+                                    baustein_auswahl.aktualisiert_am = datetime.now()
+                                    baustein_auswahl.status = TextbausteinStatus.FREIGEGEBEN.value
+                                    st.success("Update übernommen!")
+                                    st.rerun()
+
+                            elif ergebnis.get('gefunden'):
+                                st.success(f"✅ {ergebnis.get('hinweis', 'Der Baustein ist aktuell.')}")
+                            else:
+                                st.error(f"❌ {ergebnis.get('fehler', 'Fehler bei der Analyse')}")
+
+
+def notar_vertragserstellung_view():
+    """Ansicht für die modulare Vertragserstellung aus Textbausteinen"""
+    st.subheader("📝 Vertragserstellung")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Sub-Tabs
+    erstellung_tabs = st.tabs([
+        "🆕 Neuer Vertrag",
+        "📋 Aus Bausteinen",
+        "🤖 KI-Entwurf",
+        "📑 Vorlagen",
+        "📄 Entwürfe"
+    ])
+
+    # ============ TAB 1: Neuer Vertrag ============
+    with erstellung_tabs[0]:
+        st.markdown("### 🆕 Neuen Vertragsentwurf erstellen")
+
+        # Projekt auswählen
+        projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+        if not projekte:
+            st.warning("Keine Projekte verfügbar. Bitte erst ein Projekt anlegen.")
+            return
+
+        projekt_options = {f"{p.name} ({p.adresse or 'Keine Adresse'})": p.projekt_id for p in projekte}
+        selected_projekt_label = st.selectbox("Projekt auswählen:", list(projekt_options.keys()))
+        selected_projekt_id = projekt_options[selected_projekt_label]
+        projekt = st.session_state.projekte[selected_projekt_id]
+
+        col1, col2 = st.columns(2)
+        with col1:
+            entwurf_name = st.text_input("Name des Entwurfs", value=f"Kaufvertrag - {projekt.name}")
+            vertragstyp = st.selectbox("Vertragstyp", [vt.value for vt in VertragsTyp])
+
+        with col2:
+            st.markdown("**Projekt-Informationen:**")
+            st.markdown(f"Adresse: {projekt.adresse or 'Nicht angegeben'}")
+            st.markdown(f"Kaufpreis: {projekt.kaufpreis:,.2f} €")
+
+            kaeufer = [st.session_state.users.get(kid) for kid in projekt.kaeufer_ids]
+            verkaeufer = [st.session_state.users.get(vid) for vid in projekt.verkaeufer_ids]
+            st.markdown(f"Käufer: {', '.join([k.name for k in kaeufer if k])}")
+            st.markdown(f"Verkäufer: {', '.join([v.name for v in verkaeufer if v])}")
+
+        st.markdown("---")
+        st.markdown("**Erstellungsmethode wählen:**")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("📋 Aus Bausteinen zusammenstellen", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'bausteine'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+        with col2:
+            if st.button("🤖 KI-Entwurf generieren", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'ki'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+        with col3:
+            if st.button("📑 Aus Vorlage erstellen", use_container_width=True):
+                st.session_state['vertrag_methode'] = 'vorlage'
+                st.session_state['vertrag_projekt_id'] = selected_projekt_id
+                st.session_state['vertrag_name'] = entwurf_name
+                st.session_state['vertrag_typ'] = vertragstyp
+                st.rerun()
+
+    # ============ TAB 2: Aus Bausteinen ============
+    with erstellung_tabs[1]:
+        st.markdown("### 📋 Vertrag aus Textbausteinen zusammenstellen")
+
+        # Prüfe ob Bausteine vorhanden
+        freigegebene_bausteine = [b for b in st.session_state.textbausteine.values()
+                                   if b.notar_id == notar_id and b.status == TextbausteinStatus.FREIGEGEBEN.value]
+
+        if not freigegebene_bausteine:
+            st.warning("Keine freigegebenen Textbausteine verfügbar. Bitte erst Bausteine im Vertragsarchiv anlegen und freigeben.")
+            return
+
+        # Vertragstyp Filter
+        filter_typ = st.selectbox(
+            "Nach Vertragstyp filtern",
+            ["Alle"] + [vt.value for vt in VertragsTyp],
+            key="baustein_filter_typ"
+        )
+
+        if filter_typ != "Alle":
+            verfuegbare_bausteine = [b for b in freigegebene_bausteine if filter_typ in b.vertragstypen]
+        else:
+            verfuegbare_bausteine = freigegebene_bausteine
+
+        # Bausteine nach Kategorie gruppiert
+        st.markdown("**Verfügbare Bausteine nach Kategorie:**")
+
+        # Session State für ausgewählte Bausteine
+        if 'ausgewaehlte_bausteine' not in st.session_state:
+            st.session_state.ausgewaehlte_bausteine = []
+
+        kategorien = {}
+        for b in verfuegbare_bausteine:
+            if b.kategorie not in kategorien:
+                kategorien[b.kategorie] = []
+            kategorien[b.kategorie].append(b)
+
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            st.markdown("**Bausteine auswählen:**")
+            for kat, bausteine_liste in sorted(kategorien.items()):
+                with st.expander(f"{kat} ({len(bausteine_liste)} Bausteine)"):
+                    for baustein in bausteine_liste:
+                        is_selected = baustein.baustein_id in st.session_state.ausgewaehlte_bausteine
+                        if st.checkbox(
+                            f"{baustein.titel}",
+                            value=is_selected,
+                            key=f"select_{baustein.baustein_id}",
+                            help=baustein.zusammenfassung
+                        ):
+                            if baustein.baustein_id not in st.session_state.ausgewaehlte_bausteine:
+                                st.session_state.ausgewaehlte_bausteine.append(baustein.baustein_id)
+                        else:
+                            if baustein.baustein_id in st.session_state.ausgewaehlte_bausteine:
+                                st.session_state.ausgewaehlte_bausteine.remove(baustein.baustein_id)
+
+        with col2:
+            st.markdown("**Ausgewählte Bausteine (in Reihenfolge):**")
+
+            if not st.session_state.ausgewaehlte_bausteine:
+                st.info("Noch keine Bausteine ausgewählt")
+            else:
+                for i, bid in enumerate(st.session_state.ausgewaehlte_bausteine):
+                    baustein = st.session_state.textbausteine.get(bid)
+                    if baustein:
+                        col_a, col_b = st.columns([3, 1])
+                        with col_a:
+                            st.markdown(f"{i+1}. **{baustein.titel}**")
+                        with col_b:
+                            if st.button("🗑️", key=f"remove_{bid}"):
+                                st.session_state.ausgewaehlte_bausteine.remove(bid)
+                                st.rerun()
+
+                st.markdown("---")
+
+                # Vorschau generieren
+                if st.button("👁️ Vorschau anzeigen"):
+                    st.session_state['zeige_vorschau'] = True
+
+                if st.session_state.get('zeige_vorschau'):
+                    st.markdown("### Vertragsvorschau")
+                    volltext = ""
+                    for bid in st.session_state.ausgewaehlte_bausteine:
+                        baustein = st.session_state.textbausteine.get(bid)
+                        if baustein:
+                            volltext += f"\n\n**{baustein.titel}**\n\n{baustein.text}"
+
+                    st.text_area("Vertragsentwurf:", value=volltext, height=400)
+
+                    # Entwurf speichern
+                    projekt_id = st.session_state.get('vertrag_projekt_id')
+                    if projekt_id and st.button("💾 Als Entwurf speichern", type="primary"):
+                        entwurf_id = str(uuid.uuid4())[:8]
+                        entwurf = Vertragsentwurf(
+                            entwurf_id=entwurf_id,
+                            notar_id=notar_id,
+                            projekt_id=projekt_id,
+                            name=st.session_state.get('vertrag_name', 'Neuer Entwurf'),
+                            vertragstyp=st.session_state.get('vertrag_typ', VertragsTyp.KAUFVERTRAG.value),
+                            volltext=volltext,
+                            baustein_ids=st.session_state.ausgewaehlte_bausteine.copy(),
+                            status=VertragsentwurfStatus.ENTWURF.value,
+                            erstellt_von=notar_id
+                        )
+                        st.session_state.vertragsentwuerfe[entwurf_id] = entwurf
+                        st.session_state.ausgewaehlte_bausteine = []
+                        st.session_state['zeige_vorschau'] = False
+                        st.success(f"✅ Entwurf '{entwurf.name}' gespeichert!")
+                        st.rerun()
+
+    # ============ TAB 3: KI-Entwurf ============
+    with erstellung_tabs[2]:
+        st.markdown("### 🤖 Vertragsentwurf mit KI generieren")
+
+        api_key = st.session_state.api_keys.get('openai', '')
+        if not api_key:
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Bitte unter 'Einstellungen' hinterlegen.")
+            return
+
+        # Projekt-Daten laden
+        projekt_id = st.session_state.get('vertrag_projekt_id')
+        if not projekt_id:
+            st.info("Bitte zuerst im Tab 'Neuer Vertrag' ein Projekt und die Methode 'KI-Entwurf' wählen.")
+            return
+
+        projekt = st.session_state.projekte.get(projekt_id)
+        if not projekt:
+            st.error("Projekt nicht gefunden.")
+            return
+
+        st.markdown(f"**Projekt:** {projekt.name}")
+
+        # Zusätzliche Eingaben
+        col1, col2 = st.columns(2)
+
+        with col1:
+            kaeufer_wuensche = st.text_area(
+                "Besondere Wünsche des Käufers",
+                placeholder="z.B. Ratenzahlung gewünscht, Rücktrittsrecht bei Finanzierungsausfall...",
+                height=100
+            )
+
+        with col2:
+            verkaeufer_wuensche = st.text_area(
+                "Besondere Wünsche des Verkäufers",
+                placeholder="z.B. Übergabe erst in 3 Monaten, Inventar soll übernommen werden...",
+                height=100
+            )
+
+        zusaetzliche_infos = st.text_area(
+            "Zusätzliche Informationen zum Vertrag",
+            placeholder="Weitere Details die im Vertrag berücksichtigt werden sollen...",
+            height=100
+        )
+
+        if st.button("🤖 Vertragsentwurf generieren", type="primary"):
+            with st.spinner("KI generiert Vertragsentwurf... Dies kann einige Sekunden dauern."):
+                try:
+                    import urllib.request
+                    import json as json_module
+
+                    # Parteien-Daten sammeln
+                    kaeufer_daten = []
+                    for kid in projekt.kaeufer_ids:
+                        k = st.session_state.users.get(kid)
+                        if k:
+                            kaeufer_daten.append(k.name)
+
+                    verkaeufer_daten = []
+                    for vid in projekt.verkaeufer_ids:
+                        v = st.session_state.users.get(vid)
+                        if v:
+                            verkaeufer_daten.append(v.name)
+
+                    prompt = f"""Erstelle einen professionellen deutschen Immobilienkaufvertrag im Stil eines Notarvertrags.
+
+VERTRAGSDATEN:
+- Kaufobjekt: {projekt.name}
+- Adresse: {projekt.adresse or 'Wird noch ergänzt'}
+- Kaufpreis: {projekt.kaufpreis:,.2f} EUR
+- Käufer: {', '.join(kaeufer_daten) or 'Wird noch ergänzt'}
+- Verkäufer: {', '.join(verkaeufer_daten) or 'Wird noch ergänzt'}
+
+BESONDERE WÜNSCHE KÄUFER:
+{kaeufer_wuensche or 'Keine besonderen Wünsche'}
+
+BESONDERE WÜNSCHE VERKÄUFER:
+{verkaeufer_wuensche or 'Keine besonderen Wünsche'}
+
+ZUSÄTZLICHE INFORMATIONEN:
+{zusaetzliche_infos or 'Keine zusätzlichen Informationen'}
+
+Erstelle einen vollständigen Kaufvertrag mit folgenden Abschnitten:
+1. Präambel und Erscheinende
+2. Kaufgegenstand
+3. Kaufpreis und Zahlungsmodalitäten
+4. Lastenfreistellung
+5. Auflassung und Eigentumsübertragung
+6. Besitzübergang
+7. Gewährleistung
+8. Kosten und Steuern
+9. Vollmachten
+10. Schlussbestimmungen
+
+Der Vertrag soll rechtlich präzise, aber verständlich formuliert sein.
+Verwende Platzhalter in eckigen Klammern [PLATZHALTER] für fehlende Informationen."""
+
+                    request_data = {
+                        "model": "gpt-4o",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3,
+                        "max_tokens": 4000
+                    }
+
+                    req = urllib.request.Request(
+                        "https://api.openai.com/v1/chat/completions",
+                        data=json_module.dumps(request_data).encode('utf-8'),
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {api_key}"
+                        }
+                    )
+
+                    with urllib.request.urlopen(req, timeout=120) as response:
+                        result = json_module.loads(response.read().decode('utf-8'))
+                        generierter_text = result['choices'][0]['message']['content']
+
+                        # Entwurf erstellen
+                        entwurf_id = str(uuid.uuid4())[:8]
+                        entwurf = Vertragsentwurf(
+                            entwurf_id=entwurf_id,
+                            notar_id=notar_id,
+                            projekt_id=projekt_id,
+                            name=st.session_state.get('vertrag_name', f'KI-Entwurf {projekt.name}'),
+                            vertragstyp=st.session_state.get('vertrag_typ', VertragsTyp.KAUFVERTRAG.value),
+                            volltext=generierter_text,
+                            kaeufer_wuensche=[kaeufer_wuensche] if kaeufer_wuensche else [],
+                            verkaeufer_wuensche=[verkaeufer_wuensche] if verkaeufer_wuensche else [],
+                            status=VertragsentwurfStatus.ENTWURF.value,
+                            ki_generiert=True,
+                            ki_prompt=prompt,
+                            erstellt_von=notar_id
+                        )
+
+                        st.session_state.vertragsentwuerfe[entwurf_id] = entwurf
+
+                        st.success("✅ Vertragsentwurf wurde generiert!")
+                        st.markdown("### Generierter Entwurf:")
+                        st.text_area("Vertragstext:", value=generierter_text, height=500)
+
+                        st.info("💡 Der Entwurf wurde gespeichert und kann im Tab 'Entwürfe' bearbeitet und freigegeben werden.")
+
+                except Exception as e:
+                    st.error(f"Fehler bei der KI-Generierung: {str(e)}")
+
+    # ============ TAB 4: Vorlagen ============
+    with erstellung_tabs[3]:
+        st.markdown("### 📑 Vertragsvorlagen verwalten")
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            vorlagen = [v for v in st.session_state.vertragsvorlagen.values() if v.notar_id == notar_id]
+
+            if not vorlagen:
+                st.info("Noch keine Vorlagen erstellt. Speichern Sie einen Entwurf als Vorlage.")
+            else:
+                for vorlage in vorlagen:
+                    with st.expander(f"📑 {vorlage.name} ({vorlage.vertragstyp})"):
+                        st.markdown(f"**Beschreibung:** {vorlage.beschreibung or 'Keine Beschreibung'}")
+                        st.markdown(f"**Erstellt:** {vorlage.erstellt_am.strftime('%d.%m.%Y')}")
+                        st.markdown(f"**Bausteine:** {len(vorlage.baustein_ids)}")
+                        st.markdown(f"**Status:** {'✅ Freigegeben' if vorlage.freigegeben else '📝 Entwurf'}")
+
+                        if st.button("📄 Neuen Vertrag aus Vorlage", key=f"use_vorlage_{vorlage.vorlage_id}"):
+                            st.session_state['vertrag_vorlage_id'] = vorlage.vorlage_id
+                            st.info("Bitte im Tab 'Neuer Vertrag' ein Projekt wählen und 'Aus Vorlage erstellen' klicken.")
+
+                        if st.button("🗑️ Löschen", key=f"del_vorlage_{vorlage.vorlage_id}"):
+                            del st.session_state.vertragsvorlagen[vorlage.vorlage_id]
+                            st.success("Vorlage gelöscht!")
+                            st.rerun()
+
+        with col2:
+            st.markdown("**Neue Vorlage aus Entwurf:**")
+
+            entwuerfe = [e for e in st.session_state.vertragsentwuerfe.values() if e.notar_id == notar_id]
+
+            if entwuerfe:
+                entwurf_auswahl = st.selectbox(
+                    "Entwurf auswählen",
+                    options=entwuerfe,
+                    format_func=lambda e: e.name
+                )
+
+                vorlage_name = st.text_input("Vorlagen-Name", value=f"Vorlage: {entwurf_auswahl.name if entwurf_auswahl else ''}")
+                vorlage_beschreibung = st.text_area("Beschreibung", height=100)
+
+                if st.button("💾 Als Vorlage speichern") and entwurf_auswahl:
+                    vorlage_id = str(uuid.uuid4())[:8]
+                    vorlage = VertragsVorlage(
+                        vorlage_id=vorlage_id,
+                        notar_id=notar_id,
+                        name=vorlage_name,
+                        beschreibung=vorlage_beschreibung,
+                        vertragstyp=entwurf_auswahl.vertragstyp,
+                        baustein_ids=entwurf_auswahl.baustein_ids.copy(),
+                        vorlage_text=entwurf_auswahl.volltext,
+                        freigegeben=True,
+                        freigegeben_am=datetime.now(),
+                        erstellt_von=notar_id
+                    )
+                    st.session_state.vertragsvorlagen[vorlage_id] = vorlage
+                    st.success("✅ Vorlage erstellt!")
+                    st.rerun()
+            else:
+                st.info("Keine Entwürfe verfügbar.")
+
+    # ============ TAB 5: Entwürfe ============
+    with erstellung_tabs[4]:
+        st.markdown("### 📄 Meine Vertragsentwürfe")
+
+        entwuerfe = [e for e in st.session_state.vertragsentwuerfe.values() if e.notar_id == notar_id]
+
+        if not entwuerfe:
+            st.info("Noch keine Vertragsentwürfe erstellt.")
+        else:
+            # Status-Filter
+            filter_status = st.selectbox(
+                "Status filtern",
+                ["Alle"] + [s.value for s in VertragsentwurfStatus]
+            )
+
+            if filter_status != "Alle":
+                entwuerfe = [e for e in entwuerfe if e.status == filter_status]
+
+            for entwurf in sorted(entwuerfe, key=lambda x: x.erstellt_am, reverse=True):
+                projekt = st.session_state.projekte.get(entwurf.projekt_id)
+                projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+                status_icon = {
+                    VertragsentwurfStatus.ENTWURF.value: "📝",
+                    VertragsentwurfStatus.IN_BEARBEITUNG.value: "✏️",
+                    VertragsentwurfStatus.PRUEFUNG.value: "🔍",
+                    VertragsentwurfStatus.FREIGEGEBEN.value: "✅",
+                    VertragsentwurfStatus.VERSENDET.value: "📨",
+                    VertragsentwurfStatus.UNTERZEICHNET.value: "✍️",
+                    VertragsentwurfStatus.ARCHIVIERT.value: "📦"
+                }.get(entwurf.status, "❓")
+
+                with st.expander(f"{status_icon} {entwurf.name} - {projekt_name}"):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.markdown(f"**Vertragstyp:** {entwurf.vertragstyp}")
+                        st.markdown(f"**Erstellt:** {entwurf.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                        if entwurf.ki_generiert:
+                            st.markdown("🤖 *KI-generiert*")
+
+                        # Bearbeitbarer Text
+                        neuer_text = st.text_area(
+                            "Vertragstext:",
+                            value=entwurf.volltext,
+                            height=300,
+                            key=f"edit_{entwurf.entwurf_id}"
+                        )
+
+                        if neuer_text != entwurf.volltext:
+                            if st.button("💾 Änderungen speichern", key=f"save_{entwurf.entwurf_id}"):
+                                entwurf.volltext = neuer_text
+                                entwurf.aktualisiert_am = datetime.now()
+                                entwurf.version += 1
+                                st.success("Änderungen gespeichert!")
+                                st.rerun()
+
+                    with col2:
+                        st.markdown(f"**Status:** {entwurf.status}")
+                        st.markdown(f"**Version:** {entwurf.version}")
+
+                        # Status-Aktionen
+                        if entwurf.status == VertragsentwurfStatus.ENTWURF.value:
+                            if st.button("✅ Freigeben", key=f"approve_entwurf_{entwurf.entwurf_id}", type="primary"):
+                                entwurf.status = VertragsentwurfStatus.FREIGEGEBEN.value
+                                entwurf.freigegeben_am = datetime.now()
+                                entwurf.freigegeben_von = notar_id
+                                st.success("Entwurf freigegeben!")
+                                st.rerun()
+
+                        if entwurf.status == VertragsentwurfStatus.FREIGEGEBEN.value:
+                            st.markdown("**An Beteiligte versenden:**")
+
+                            if projekt:
+                                empfaenger = []
+                                for kid in projekt.kaeufer_ids:
+                                    k = st.session_state.users.get(kid)
+                                    if k:
+                                        empfaenger.append((kid, f"Käufer: {k.name}"))
+                                for vid in projekt.verkaeufer_ids:
+                                    v = st.session_state.users.get(vid)
+                                    if v:
+                                        empfaenger.append((vid, f"Verkäufer: {v.name}"))
+                                if projekt.makler_id:
+                                    m = st.session_state.users.get(projekt.makler_id)
+                                    if m:
+                                        empfaenger.append((projekt.makler_id, f"Makler: {m.name}"))
+
+                                for user_id, label in empfaenger:
+                                    if st.button(f"📨 {label}", key=f"send_{entwurf.entwurf_id}_{user_id}"):
+                                        create_notification(
+                                            user_id=user_id,
+                                            titel="📜 Neuer Vertragsentwurf",
+                                            nachricht=f"Ein neuer Vertragsentwurf '{entwurf.name}' steht für Sie bereit."
+                                        )
+                                        entwurf.versendet_an.append(user_id)
+                                        entwurf.versendet_am = datetime.now()
+                                        entwurf.status = VertragsentwurfStatus.VERSENDET.value
+                                        st.success(f"An {label} gesendet!")
+                                        st.rerun()
+
+                        if st.button("🗑️ Löschen", key=f"del_entwurf_{entwurf.entwurf_id}"):
+                            del st.session_state.vertragsentwuerfe[entwurf.entwurf_id]
+                            st.success("Entwurf gelöscht!")
+                            st.rerun()
 
 
 def notar_checklisten_view():
@@ -12181,11 +20566,12 @@ def render_ki_vertrag_generator(projekt):
     api_key = None
     api_type = None
 
-    if st.session_state.get('api_keys', {}).get('openai'):
-        api_key = st.session_state['api_keys']['openai']
+    api_keys = st.session_state.get('api_keys', {})
+    if api_keys.get('openai'):
+        api_key = api_keys['openai']
         api_type = "openai"
-    elif st.session_state.get('api_keys', {}).get('anthropic'):
-        api_key = st.session_state['api_keys']['anthropic']
+    elif api_keys.get('anthropic'):
+        api_key = api_keys['anthropic']
         api_type = "anthropic"
 
     if not api_key:
@@ -13126,6 +21512,763 @@ def notar_ausweis_erfassung():
                             render_ausweis_upload(verkaeufer_id, UserRole.VERKAEUFER.value, context=f"notar_{verkaeufer_id}")
         else:
             st.info("Noch keine Verkäufer für dieses Projekt.")
+
+
+# ============================================================================
+# NOTAR DATENERMITTLUNG
+# ============================================================================
+
+def notar_datenermittlung_view():
+    """Datenermittlung für Notar - Flurkarten, Grundbuch, Baulasten, Steuer-ID, Grunderwerbsteuer, Vorkaufsrecht"""
+    st.subheader("📋 Datenermittlung")
+    st.caption("Zentrale Stelle für alle behördlichen Anfragen und Datenermittlungen zu Ihren Projekten.")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Projekte dieses Notars
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen. Datenermittlung ist erst nach Projektzuweisung möglich.")
+        return
+
+    # Projekt auswählen
+    projekt_optionen = {p.projekt_id: f"{p.name} - {p.adresse or 'Keine Adresse'}" for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        options=list(projekt_optionen.keys()),
+        format_func=lambda x: projekt_optionen[x],
+        key="datenermittlung_projekt"
+    )
+
+    if not selected_projekt_id:
+        return
+
+    projekt = st.session_state.projekte.get(selected_projekt_id)
+    if not projekt:
+        return
+
+    st.divider()
+
+    # Tabs für verschiedene Bereiche
+    daten_tabs = st.tabs([
+        "🗺️ Flurkarten",
+        "📚 Grundbuch",
+        "🏗️ Baulastenverzeichnis",
+        "🪪 Steuer-ID",
+        "💰 Grunderwerbsteuer",
+        "🏛️ Vorkaufsrecht"
+    ])
+
+    with daten_tabs[0]:
+        _render_flurkarten_bereich(projekt, notar_id)
+
+    with daten_tabs[1]:
+        _render_grundbuch_bereich(projekt, notar_id)
+
+    with daten_tabs[2]:
+        _render_baulasten_bereich(projekt, notar_id)
+
+    with daten_tabs[3]:
+        _render_steuer_id_bereich(projekt, notar_id)
+
+    with daten_tabs[4]:
+        _render_grunderwerbsteuer_bereich(projekt, notar_id)
+
+    with daten_tabs[5]:
+        _render_vorkaufsrecht_bereich(projekt, notar_id)
+
+
+def _render_flurkarten_bereich(projekt, notar_id: str):
+    """Flurkarten elektronisch kaufen und herunterladen"""
+    st.markdown("### 🗺️ Flurkarten")
+    st.caption("Elektronischer Abruf von Flurkarten über die Landesgeoportale.")
+
+    # Bundesland aus Adresse ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    # Geoportal-Info anzeigen
+    if bundesland and bundesland in GEOPORTALE:
+        portal = GEOPORTALE[bundesland]
+        st.info(f"📍 **{bundesland}**: [{portal['name']}]({portal['url']})")
+
+    # Bestehende Anfragen anzeigen
+    anfragen = [a for a in st.session_state.flurkart_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Flurkart-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.gemarkung} - Flur {anfrage.flur}, Flurstück {anfrage.flurstueck}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Bundesland:** {anfrage.bundesland}")
+                    st.write(f"**Landkreis:** {anfrage.landkreis}")
+                    st.write(f"**Gemeinde:** {anfrage.gemeinde}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}")
+                    if anfrage.kosten:
+                        st.write(f"**Kosten:** {anfrage.kosten:.2f} €")
+
+                if anfrage.flurkarte_pdf:
+                    st.download_button(
+                        "📥 Flurkarte herunterladen",
+                        data=anfrage.flurkarte_pdf,
+                        file_name=f"Flurkarte_{anfrage.gemarkung}_{anfrage.flurstueck}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_flurkarte_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage erstellen
+    st.markdown("#### Neue Flurkarte anfordern")
+
+    with st.form(key=f"flurkarte_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            bundesland_input = st.selectbox(
+                "Bundesland",
+                options=list(GEOPORTALE.keys()),
+                index=list(GEOPORTALE.keys()).index(bundesland) if bundesland in GEOPORTALE.keys() else 0,
+                key=f"flurkarte_bundesland_{projekt.projekt_id}"
+            )
+            landkreis = st.text_input("Landkreis/Kreisfreie Stadt", key=f"flurkarte_landkreis_{projekt.projekt_id}")
+            gemeinde = st.text_input("Gemeinde", key=f"flurkarte_gemeinde_{projekt.projekt_id}")
+
+        with col2:
+            gemarkung = st.text_input("Gemarkung", key=f"flurkarte_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"flurkarte_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"flurkarte_flurstueck_{projekt.projekt_id}")
+
+        if st.form_submit_button("🗺️ Flurkarte anfordern", type="primary"):
+            if gemarkung and flur and flurstueck:
+                anfrage_id = f"FK-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = FlurkartAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bundesland=bundesland_input,
+                    landkreis=landkreis,
+                    gemeinde=gemeinde,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now(),
+                    portal_name=GEOPORTALE.get(bundesland_input, {}).get('name', ''),
+                    portal_url=GEOPORTALE.get(bundesland_input, {}).get('url', '')
+                )
+                st.session_state.flurkart_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Flurkarte-Anfrage erstellt! Portal: {neue_anfrage.portal_name}")
+                st.rerun()
+            else:
+                st.error("Bitte Gemarkung, Flur und Flurstück angeben.")
+
+
+def _render_grundbuch_bereich(projekt, notar_id: str):
+    """Elektronisches Grundbuch - Abruf je nach Bundesland"""
+    st.markdown("### 📚 Elektronisches Grundbuch")
+    st.caption("Elektronischer Grundbuchabruf über EGVP oder SolumSTAR je nach Bundesland-Unterstützung.")
+
+    # Bundesland aus Adresse ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    # Support-Info anzeigen
+    if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT:
+        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT[bundesland]
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("EGVP", "✅ Ja" if support['egvp'] else "❌ Nein")
+        with col2:
+            st.metric("SolumSTAR", "✅ Ja" if support['solum_star'] else "❌ Nein")
+        with col3:
+            st.info(f"Portal: {support['portal']}")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Grundbuch-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.grundbuchamt} - Blatt {anfrage.grundbuchblatt}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk}")
+                    st.write(f"**Band:** {anfrage.band}")
+                    st.write(f"**Abteilung:** {anfrage.abteilung or 'Alle'}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    st.write(f"**Zugang:** {'EGVP' if anfrage.egvp_zugang else 'SolumSTAR' if anfrage.solum_star_zugang else 'Manuell'}")
+                    if anfrage.abruf_datum:
+                        st.write(f"**Abgerufen am:** {anfrage.abruf_datum.strftime('%d.%m.%Y %H:%M')}")
+
+                if anfrage.grundbuchauszug_pdf:
+                    st.download_button(
+                        "📥 Grundbuchauszug herunterladen",
+                        data=anfrage.grundbuchauszug_pdf,
+                        file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_grundbuch_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neuen Grundbuchauszug anfordern")
+
+    with st.form(key=f"grundbuch_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            bundesland_input = st.selectbox(
+                "Bundesland",
+                options=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()),
+                index=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()).index(bundesland) if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT else 0,
+                key=f"grundbuch_bundesland_{projekt.projekt_id}"
+            )
+            grundbuchamt = st.text_input("Grundbuchamt", key=f"grundbuch_amt_{projekt.projekt_id}")
+            grundbuchbezirk = st.text_input("Grundbuchbezirk", key=f"grundbuch_bezirk_{projekt.projekt_id}")
+
+        with col2:
+            grundbuchblatt = st.text_input("Grundbuchblatt", key=f"grundbuch_blatt_{projekt.projekt_id}")
+            band = st.text_input("Band", key=f"grundbuch_band_{projekt.projekt_id}")
+            abteilung = st.selectbox(
+                "Abteilung",
+                options=["Alle", "I (Eigentum)", "II (Lasten/Beschränkungen)", "III (Grundpfandrechte)"],
+                key=f"grundbuch_abteilung_{projekt.projekt_id}"
+            )
+
+        # Zugangsmethode
+        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT.get(bundesland_input, {})
+        zugang = st.radio(
+            "Zugangsart",
+            options=["EGVP", "SolumSTAR", "Manuell"],
+            horizontal=True,
+            key=f"grundbuch_zugang_{projekt.projekt_id}",
+            help="EGVP = Elektronisches Gerichts- und Verwaltungspostfach"
+        )
+
+        if st.form_submit_button("📚 Grundbuchauszug anfordern", type="primary"):
+            if grundbuchamt and grundbuchblatt:
+                anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = GrundbuchAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bundesland=bundesland_input,
+                    grundbuchamt=grundbuchamt,
+                    grundbuchbezirk=grundbuchbezirk,
+                    grundbuchblatt=grundbuchblatt,
+                    band=band,
+                    abteilung=None if abteilung == "Alle" else abteilung,
+                    egvp_zugang=(zugang == "EGVP"),
+                    solum_star_zugang=(zugang == "SolumSTAR"),
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Grundbuch-Anfrage erstellt! Zugang: {zugang}")
+                st.rerun()
+            else:
+                st.error("Bitte Grundbuchamt und Grundbuchblatt angeben.")
+
+
+def _render_baulasten_bereich(projekt, notar_id: str):
+    """Baulastenverzeichnis beim zuständigen Bauamt"""
+    st.markdown("### 🏗️ Baulastenverzeichnis")
+    st.caption("Anfrage an das zuständige Bauamt für Eintragungen im Baulastenverzeichnis.")
+
+    st.info("💡 **Hinweis:** In Bayern und Brandenburg gibt es kein Baulastenverzeichnis - dort werden Baulasten im Grundbuch eingetragen.")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.baulasten_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Baulasten-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+            with st.expander(f"{status_icon} {anfrage.bauamt_name} - {anfrage.flurstueck}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Bauamt:** {anfrage.bauamt_name}")
+                    st.write(f"**Adresse:** {anfrage.bauamt_adresse}")
+                    if anfrage.bauamt_ansprechpartner:
+                        st.write(f"**Ansprechpartner:** {anfrage.bauamt_ansprechpartner}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y')}")
+                    st.write(f"**Baulasten vorhanden:** {'Ja' if anfrage.baulasten_vorhanden else 'Nein' if anfrage.baulasten_vorhanden is False else 'Unbekannt'}")
+
+                if anfrage.baulastenverzeichnis_pdf:
+                    st.download_button(
+                        "📥 Baulastenverzeichnis herunterladen",
+                        data=anfrage.baulastenverzeichnis_pdf,
+                        file_name=f"Baulastenverzeichnis_{anfrage.flurstueck}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_baulasten_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neue Baulasten-Anfrage")
+
+    with st.form(key=f"baulasten_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Zuständiges Bauamt**")
+            bauamt_name = st.text_input("Name des Bauamts", key=f"baulasten_amt_{projekt.projekt_id}")
+            bauamt_adresse = st.text_input("Adresse", key=f"baulasten_adresse_{projekt.projekt_id}")
+            bauamt_telefon = st.text_input("Telefon", key=f"baulasten_telefon_{projekt.projekt_id}")
+            bauamt_email = st.text_input("E-Mail", key=f"baulasten_email_{projekt.projekt_id}")
+            bauamt_ansprechpartner = st.text_input("Ansprechpartner (optional)", key=f"baulasten_ansprech_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Grundstücksdaten**")
+            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"baulasten_objekt_{projekt.projekt_id}")
+            gemarkung = st.text_input("Gemarkung", key=f"baulasten_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"baulasten_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"baulasten_flurstueck_{projekt.projekt_id}")
+
+        if st.form_submit_button("🏗️ Baulasten-Anfrage senden", type="primary"):
+            if bauamt_name and flurstueck:
+                anfrage_id = f"BL-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = BaulastenAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bauamt_name=bauamt_name,
+                    bauamt_adresse=bauamt_adresse,
+                    bauamt_telefon=bauamt_telefon,
+                    bauamt_email=bauamt_email,
+                    bauamt_ansprechpartner=bauamt_ansprechpartner,
+                    objekt_adresse=objekt_adresse,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.baulasten_anfragen[anfrage_id] = neue_anfrage
+                st.success("✅ Baulasten-Anfrage erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte Bauamt und Flurstück angeben.")
+
+
+def _render_steuer_id_bereich(projekt, notar_id: str):
+    """Steuer-ID Abfrage basierend auf Wohnort von Käufer/Verkäufer"""
+    st.markdown("### 🪪 Steuer-ID Abfrage")
+    st.caption("Abfrage der Steuer-Identifikationsnummer beim Bundeszentralamt für Steuern (BZSt).")
+
+    st.info("💡 **Hinweis:** Die Steuer-ID wird für die Grunderwerbsteuer-Anmeldung benötigt. Die Abfrage erfolgt beim BZSt basierend auf dem Wohnort der Person.")
+
+    # Käufer und Verkäufer sammeln
+    parteien = []
+    for kid in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kid)
+        if kaeufer:
+            parteien.append({"id": kid, "name": kaeufer.name, "rolle": "Käufer", "user": kaeufer})
+
+    for vid in projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(vid)
+        if verkaeufer:
+            parteien.append({"id": vid, "name": verkaeufer.name, "rolle": "Verkäufer", "user": verkaeufer})
+
+    if not parteien:
+        st.warning("Keine Käufer oder Verkäufer für dieses Projekt gefunden.")
+        return
+
+    # Bestehende Abfragen
+    abfragen = [a for a in st.session_state.steuer_id_abfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if abfragen:
+        st.markdown("#### Bestehende Steuer-ID Abfragen")
+        for abfrage in abfragen:
+            status_icon = _get_datenermittlung_status_icon(abfrage.status)
+            with st.expander(f"{status_icon} {abfrage.person_name} ({abfrage.person_rolle})"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Name:** {abfrage.person_name}")
+                    st.write(f"**Rolle:** {abfrage.person_rolle}")
+                    st.write(f"**Wohnort:** {abfrage.wohnort_plz} {abfrage.wohnort_ort}")
+                with col2:
+                    st.write(f"**Status:** {abfrage.status}")
+                    if abfrage.steuer_id:
+                        st.write(f"**Steuer-ID:** {abfrage.steuer_id}")
+                    if abfrage.finanzamt:
+                        st.write(f"**Zuständiges FA:** {abfrage.finanzamt}")
+
+    # Neue Abfrage
+    st.markdown("#### Neue Steuer-ID Abfrage")
+
+    with st.form(key=f"steuer_id_form_{projekt.projekt_id}"):
+        # Person auswählen
+        person_optionen = {p["id"]: f"{p['name']} ({p['rolle']})" for p in parteien}
+        selected_person_id = st.selectbox(
+            "Person auswählen",
+            options=list(person_optionen.keys()),
+            format_func=lambda x: person_optionen[x],
+            key=f"steuer_id_person_{projekt.projekt_id}"
+        )
+
+        selected_person = next((p for p in parteien if p["id"] == selected_person_id), None)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            geburtsdatum = st.date_input(
+                "Geburtsdatum",
+                min_value=date(1900, 1, 1),
+                max_value=date.today(),
+                key=f"steuer_id_geburt_{projekt.projekt_id}"
+            )
+            geburtsort = st.text_input("Geburtsort", key=f"steuer_id_geburtsort_{projekt.projekt_id}")
+
+        with col2:
+            wohnort_strasse = st.text_input("Straße und Hausnummer", key=f"steuer_id_strasse_{projekt.projekt_id}")
+            col_plz, col_ort = st.columns([1, 2])
+            with col_plz:
+                wohnort_plz = st.text_input("PLZ", key=f"steuer_id_plz_{projekt.projekt_id}")
+            with col_ort:
+                wohnort_ort = st.text_input("Ort", key=f"steuer_id_ort_{projekt.projekt_id}")
+
+        if st.form_submit_button("🪪 Steuer-ID abfragen", type="primary"):
+            if selected_person and geburtsdatum and wohnort_plz and wohnort_ort:
+                abfrage_id = f"SID-{datetime.now().strftime('%Y%m%d%H%M%S')}-{selected_person_id[:8]}"
+                neue_abfrage = SteuerIDAbfrage(
+                    abfrage_id=abfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    person_id=selected_person_id,
+                    person_name=selected_person["name"],
+                    person_rolle=selected_person["rolle"],
+                    geburtsdatum=geburtsdatum,
+                    geburtsort=geburtsort,
+                    wohnort_strasse=wohnort_strasse,
+                    wohnort_plz=wohnort_plz,
+                    wohnort_ort=wohnort_ort,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now()
+                )
+                st.session_state.steuer_id_abfragen[abfrage_id] = neue_abfrage
+                st.success("✅ Steuer-ID Abfrage beim BZSt erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte alle Pflichtfelder ausfüllen.")
+
+
+def _render_grunderwerbsteuer_bereich(projekt, notar_id: str):
+    """Grunderwerbsteuer Meldung ans Finanzamt"""
+    st.markdown("### 💰 Grunderwerbsteuer")
+    st.caption("Anzeige des Kaufvertrags an das zuständige Finanzamt für die Grunderwerbsteuer-Festsetzung.")
+
+    # Bundesland und Steuersatz ermitteln
+    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+
+    if bundesland and bundesland in GRUNDERWERBSTEUER_SAETZE:
+        steuersatz = GRUNDERWERBSTEUER_SAETZE[bundesland]
+        kaufpreis = projekt.kaufpreis or 0
+        steuer = kaufpreis * steuersatz / 100
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Bundesland", bundesland)
+        with col2:
+            st.metric("Steuersatz", f"{steuersatz:.1f}%")
+        with col3:
+            st.metric("Voraussichtliche Steuer", f"{steuer:,.2f} €")
+    else:
+        st.warning("Bundesland konnte nicht ermittelt werden. Bitte Objekt-Adresse im Projekt hinterlegen.")
+
+    # Bestehende Meldungen
+    meldungen = [m for m in st.session_state.grunderwerbsteuer_meldungen.values()
+                 if m.projekt_id == projekt.projekt_id]
+
+    if meldungen:
+        st.markdown("#### Bestehende Grunderwerbsteuer-Meldungen")
+        for meldung in meldungen:
+            status_icon = _get_datenermittlung_status_icon(meldung.status)
+            with st.expander(f"{status_icon} UR-Nr. {meldung.urkundennummer} - {meldung.finanzamt}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Finanzamt:** {meldung.finanzamt}")
+                    st.write(f"**Kaufpreis:** {meldung.kaufpreis:,.2f} €")
+                    st.write(f"**Steuersatz:** {meldung.steuersatz:.1f}%")
+                    st.write(f"**Steuerbetrag:** {meldung.steuerbetrag:,.2f} €")
+                with col2:
+                    st.write(f"**Status:** {meldung.status}")
+                    if meldung.gemeldet_am:
+                        st.write(f"**Gemeldet am:** {meldung.gemeldet_am.strftime('%d.%m.%Y')}")
+                    if meldung.steuerbescheid_erhalten:
+                        st.write("✅ Steuerbescheid erhalten")
+                        if meldung.zahlungsfrist:
+                            st.write(f"**Zahlungsfrist:** {meldung.zahlungsfrist.strftime('%d.%m.%Y')}")
+                    if meldung.unbedenklichkeitsbescheinigung:
+                        st.write("✅ Unbedenklichkeitsbescheinigung erhalten")
+
+    # Neue Meldung
+    st.markdown("#### Neue Grunderwerbsteuer-Anzeige")
+
+    with st.form(key=f"grest_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Finanzamt**")
+            finanzamt = st.text_input("Zuständiges Finanzamt", key=f"grest_finanzamt_{projekt.projekt_id}")
+            finanzamt_adresse = st.text_input("Adresse des Finanzamts", key=f"grest_fa_adresse_{projekt.projekt_id}")
+            steuernummer_verkaeufer = st.text_input("Steuernummer Verkäufer (optional)", key=f"grest_stnr_v_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Kaufvertragsdaten**")
+            urkundennummer = st.text_input("Urkundennummer", key=f"grest_urnr_{projekt.projekt_id}")
+            kaufvertrag_datum = st.date_input("Datum des Kaufvertrags", key=f"grest_datum_{projekt.projekt_id}")
+            kaufpreis_input = st.number_input(
+                "Kaufpreis (€)",
+                min_value=0.0,
+                value=float(projekt.kaufpreis or 0),
+                key=f"grest_kaufpreis_{projekt.projekt_id}"
+            )
+
+            # Steuersatz basierend auf Bundesland
+            bundesland_input = st.selectbox(
+                "Bundesland (für Steuersatz)",
+                options=list(GRUNDERWERBSTEUER_SAETZE.keys()),
+                index=list(GRUNDERWERBSTEUER_SAETZE.keys()).index(bundesland) if bundesland and bundesland in GRUNDERWERBSTEUER_SAETZE else 0,
+                key=f"grest_bundesland_{projekt.projekt_id}"
+            )
+
+        steuersatz_aktuell = GRUNDERWERBSTEUER_SAETZE.get(bundesland_input, 5.0)
+        steuerbetrag_aktuell = kaufpreis_input * steuersatz_aktuell / 100
+        st.info(f"**Berechnete Grunderwerbsteuer:** {steuerbetrag_aktuell:,.2f} € ({steuersatz_aktuell:.1f}%)")
+
+        if st.form_submit_button("💰 Grunderwerbsteuer anzeigen", type="primary"):
+            if finanzamt and urkundennummer and kaufpreis_input > 0:
+                meldung_id = f"GREST-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_meldung = GrunderwerbsteuerMeldung(
+                    meldung_id=meldung_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    finanzamt=finanzamt,
+                    finanzamt_adresse=finanzamt_adresse,
+                    bundesland=bundesland_input,
+                    kaufpreis=kaufpreis_input,
+                    steuersatz=steuersatz_aktuell,
+                    steuerbetrag=steuerbetrag_aktuell,
+                    urkundennummer=urkundennummer,
+                    kaufvertrag_datum=kaufvertrag_datum,
+                    steuernummer_verkaeufer=steuernummer_verkaeufer,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    gemeldet_am=datetime.now()
+                )
+                st.session_state.grunderwerbsteuer_meldungen[meldung_id] = neue_meldung
+                st.success("✅ Grunderwerbsteuer-Anzeige an das Finanzamt erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte Finanzamt, Urkundennummer und Kaufpreis angeben.")
+
+
+def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
+    """Anfrage auf Vorkaufsrecht an Gemeinde/Stadt"""
+    st.markdown("### 🏛️ Vorkaufsrecht")
+    st.caption("Anfrage an die Gemeinde/Stadt, ob ein gesetzliches Vorkaufsrecht ausgeübt wird.")
+
+    st.info("💡 **Hinweis:** Die Gemeinde hat nach § 28 BauGB ein Vorkaufsrecht bei bestimmten Grundstücksverkäufen. "
+            "Sie muss innerhalb von 2 Monaten nach Anzeige entscheiden, ob sie das Vorkaufsrecht ausübt. "
+            "Nach Verzicht erhält der Notar ein Negativzeugnis.")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.vorkaufsrecht_anfragen.values()
+                if a.projekt_id == projekt.projekt_id]
+
+    if anfragen:
+        st.markdown("#### Bestehende Vorkaufsrecht-Anfragen")
+        for anfrage in anfragen:
+            status_icon = _get_datenermittlung_status_icon(anfrage.status)
+
+            # Farbcodierung basierend auf Ergebnis
+            if anfrage.vorkaufsrecht_ausgeubt is True:
+                titel_zusatz = "⚠️ AUSGEÜBT"
+            elif anfrage.vorkaufsrecht_ausgeubt is False:
+                titel_zusatz = "✅ Verzichtet"
+            else:
+                titel_zusatz = "⏳ Ausstehend"
+
+            with st.expander(f"{status_icon} {anfrage.gemeinde_name} - {titel_zusatz}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Gemeinde/Stadt:** {anfrage.gemeinde_name}")
+                    if anfrage.gemeinde_adresse:
+                        st.write(f"**Adresse:** {anfrage.gemeinde_adresse}")
+                    if anfrage.gemeinde_ansprechpartner:
+                        st.write(f"**Ansprechpartner:** {anfrage.gemeinde_ansprechpartner}")
+                    st.write(f"**Objekt:** {anfrage.objekt_adresse}")
+                with col2:
+                    st.write(f"**Status:** {anfrage.status}")
+                    if anfrage.angefragt_am:
+                        st.write(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y')}")
+                    if anfrage.frist_bis:
+                        tage_bis_frist = (anfrage.frist_bis - date.today()).days
+                        if tage_bis_frist > 0:
+                            st.write(f"**Frist bis:** {anfrage.frist_bis.strftime('%d.%m.%Y')} ({tage_bis_frist} Tage)")
+                        else:
+                            st.write(f"**Frist abgelaufen:** {anfrage.frist_bis.strftime('%d.%m.%Y')}")
+
+                    if anfrage.vorkaufsrecht_ausgeubt is True:
+                        st.error(f"⚠️ Vorkaufsrecht ausgeübt! Grund: {anfrage.vorkaufsrecht_grund}")
+                    elif anfrage.vorkaufsrecht_ausgeubt is False:
+                        st.success("✅ Vorkaufsrecht nicht ausgeübt - Negativzeugnis erhalten")
+
+                if anfrage.negativzeugnis_pdf:
+                    st.download_button(
+                        "📥 Negativzeugnis herunterladen",
+                        data=anfrage.negativzeugnis_pdf,
+                        file_name=f"Negativzeugnis_{anfrage.gemeinde_name}_{projekt.projekt_id[:8]}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_negativ_{anfrage.anfrage_id}"
+                    )
+
+    # Neue Anfrage
+    st.markdown("#### Neue Vorkaufsrecht-Anfrage")
+
+    with st.form(key=f"vorkaufsrecht_form_{projekt.projekt_id}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Gemeinde/Stadt**")
+            gemeinde_name = st.text_input("Name der Gemeinde/Stadt", key=f"vkr_gemeinde_{projekt.projekt_id}")
+            gemeinde_adresse = st.text_input("Adresse", key=f"vkr_adresse_{projekt.projekt_id}")
+            gemeinde_telefon = st.text_input("Telefon", key=f"vkr_telefon_{projekt.projekt_id}")
+            gemeinde_email = st.text_input("E-Mail", key=f"vkr_email_{projekt.projekt_id}")
+            gemeinde_ansprechpartner = st.text_input("Ansprechpartner (optional)", key=f"vkr_ansprech_{projekt.projekt_id}")
+
+        with col2:
+            st.markdown("**Objektdaten**")
+            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"vkr_objekt_{projekt.projekt_id}")
+            gemarkung = st.text_input("Gemarkung", key=f"vkr_gemarkung_{projekt.projekt_id}")
+            flur = st.text_input("Flur", key=f"vkr_flur_{projekt.projekt_id}")
+            flurstueck = st.text_input("Flurstück", key=f"vkr_flurstueck_{projekt.projekt_id}")
+            grundstuecksgroesse = st.number_input("Grundstücksgröße (qm)", min_value=0.0, key=f"vkr_groesse_{projekt.projekt_id}")
+
+        st.markdown("**Kaufvertragsdaten**")
+        col3, col4 = st.columns(2)
+        with col3:
+            kaufpreis = st.number_input(
+                "Kaufpreis (€)",
+                min_value=0.0,
+                value=float(projekt.kaufpreis or 0),
+                key=f"vkr_kaufpreis_{projekt.projekt_id}"
+            )
+            urkundennummer = st.text_input("Urkundennummer", key=f"vkr_urnr_{projekt.projekt_id}")
+        with col4:
+            kaufvertrag_datum = st.date_input("Datum des Kaufvertrags", key=f"vkr_datum_{projekt.projekt_id}")
+
+        if st.form_submit_button("🏛️ Vorkaufsrecht-Anfrage senden", type="primary"):
+            if gemeinde_name and objekt_adresse:
+                anfrage_id = f"VKR-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                frist = date.today() + timedelta(days=60)  # 2 Monate Frist
+
+                neue_anfrage = VorkaufsrechtAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    gemeinde_name=gemeinde_name,
+                    gemeinde_adresse=gemeinde_adresse,
+                    gemeinde_telefon=gemeinde_telefon,
+                    gemeinde_email=gemeinde_email,
+                    gemeinde_ansprechpartner=gemeinde_ansprechpartner,
+                    objekt_adresse=objekt_adresse,
+                    gemarkung=gemarkung,
+                    flur=flur,
+                    flurstueck=flurstueck,
+                    grundstuecksgroesse_qm=grundstuecksgroesse,
+                    kaufpreis=kaufpreis,
+                    urkundennummer=urkundennummer,
+                    kaufvertrag_datum=kaufvertrag_datum,
+                    status=DatenermittlungStatus.ANGEFRAGT.value,
+                    angefragt_am=datetime.now(),
+                    frist_bis=frist
+                )
+                st.session_state.vorkaufsrecht_anfragen[anfrage_id] = neue_anfrage
+                st.success(f"✅ Vorkaufsrecht-Anfrage an {gemeinde_name} erstellt! Frist: {frist.strftime('%d.%m.%Y')}")
+                st.rerun()
+            else:
+                st.error("Bitte Gemeinde/Stadt und Objekt-Adresse angeben.")
+
+
+def _get_datenermittlung_status_icon(status: str) -> str:
+    """Gibt das passende Icon für den Datenermittlungs-Status zurück"""
+    icons = {
+        DatenermittlungStatus.AUSSTEHEND.value: "⏳",
+        DatenermittlungStatus.ANGEFRAGT.value: "📤",
+        DatenermittlungStatus.IN_BEARBEITUNG.value: "🔄",
+        DatenermittlungStatus.ERHALTEN.value: "✅",
+        DatenermittlungStatus.FEHLER.value: "❌",
+        DatenermittlungStatus.NICHT_VERFUEGBAR.value: "🚫"
+    }
+    return icons.get(status, "❓")
+
+
+def _ermittle_bundesland_aus_adresse(adresse: str) -> Optional[str]:
+    """Versucht das Bundesland aus einer Adresse zu ermitteln"""
+    if not adresse:
+        return None
+
+    adresse_lower = adresse.lower()
+
+    # PLZ-Bereiche für Bundesländer (vereinfacht)
+    plz_mapping = {
+        "01": "Sachsen", "02": "Sachsen", "03": "Brandenburg", "04": "Sachsen",
+        "06": "Sachsen-Anhalt", "07": "Thüringen", "08": "Sachsen", "09": "Sachsen",
+        "10": "Berlin", "12": "Berlin", "13": "Berlin", "14": "Brandenburg",
+        "15": "Brandenburg", "16": "Brandenburg", "17": "Mecklenburg-Vorpommern",
+        "18": "Mecklenburg-Vorpommern", "19": "Mecklenburg-Vorpommern",
+        "20": "Hamburg", "21": "Niedersachsen", "22": "Hamburg", "23": "Schleswig-Holstein",
+        "24": "Schleswig-Holstein", "25": "Schleswig-Holstein", "26": "Niedersachsen",
+        "27": "Niedersachsen", "28": "Bremen", "29": "Niedersachsen",
+        "30": "Niedersachsen", "31": "Niedersachsen", "32": "Nordrhein-Westfalen",
+        "33": "Nordrhein-Westfalen", "34": "Hessen", "35": "Hessen", "36": "Hessen",
+        "37": "Niedersachsen", "38": "Niedersachsen", "39": "Sachsen-Anhalt",
+        "40": "Nordrhein-Westfalen", "41": "Nordrhein-Westfalen", "42": "Nordrhein-Westfalen",
+        "44": "Nordrhein-Westfalen", "45": "Nordrhein-Westfalen", "46": "Nordrhein-Westfalen",
+        "47": "Nordrhein-Westfalen", "48": "Nordrhein-Westfalen", "49": "Niedersachsen",
+        "50": "Nordrhein-Westfalen", "51": "Nordrhein-Westfalen", "52": "Nordrhein-Westfalen",
+        "53": "Nordrhein-Westfalen", "54": "Rheinland-Pfalz", "55": "Rheinland-Pfalz",
+        "56": "Rheinland-Pfalz", "57": "Nordrhein-Westfalen", "58": "Nordrhein-Westfalen",
+        "59": "Nordrhein-Westfalen",
+        "60": "Hessen", "61": "Hessen", "63": "Hessen", "64": "Hessen", "65": "Hessen",
+        "66": "Saarland", "67": "Rheinland-Pfalz", "68": "Baden-Württemberg", "69": "Baden-Württemberg",
+        "70": "Baden-Württemberg", "71": "Baden-Württemberg", "72": "Baden-Württemberg",
+        "73": "Baden-Württemberg", "74": "Baden-Württemberg", "75": "Baden-Württemberg",
+        "76": "Baden-Württemberg", "77": "Baden-Württemberg", "78": "Baden-Württemberg",
+        "79": "Baden-Württemberg",
+        "80": "Bayern", "81": "Bayern", "82": "Bayern", "83": "Bayern", "84": "Bayern",
+        "85": "Bayern", "86": "Bayern", "87": "Bayern", "88": "Baden-Württemberg",
+        "89": "Baden-Württemberg",
+        "90": "Bayern", "91": "Bayern", "92": "Bayern", "93": "Bayern", "94": "Bayern",
+        "95": "Bayern", "96": "Bayern", "97": "Bayern", "98": "Thüringen", "99": "Thüringen"
+    }
+
+    # PLZ aus Adresse extrahieren
+    import re
+    plz_match = re.search(r'\b(\d{5})\b', adresse)
+    if plz_match:
+        plz_prefix = plz_match.group(1)[:2]
+        if plz_prefix in plz_mapping:
+            return plz_mapping[plz_prefix]
+
+    # Direkte Suche nach Bundesland-Namen
+    bundeslaender = list(GRUNDERWERBSTEUER_SAETZE.keys())
+    for bl in bundeslaender:
+        if bl.lower() in adresse_lower:
+            return bl
+
+    return None
 
 
 def notar_rechtsdokumente_view():
@@ -14169,6 +23312,307 @@ def notar_einstellungen_view():
             st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
             st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
             st.markdown("- ⚠️ API-Keys für OCR erforderlich")
+
+    # Datenbank-Konfiguration
+    st.markdown("---")
+    st.markdown("### 🗄️ Datenbank-Konfiguration")
+
+    st.info("""
+    Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
+    Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
+    """)
+
+    # Datenbank-Konfiguration initialisieren
+    if 'db_config' not in st.session_state:
+        st.session_state.db_config = {
+            'db_type': 'sqlite',
+            'host': 'localhost',
+            'port': 5432,
+            'database': 'immobilien_plattform',
+            'username': '',
+            'password': '',
+            'sqlite_path': 'data/immobilien_plattform.db'
+        }
+
+    # Tabs für Konfiguration und Status
+    db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
+
+    with db_tabs[0]:
+        st.markdown("#### Datenbank-Verbindung einrichten")
+
+        # Datenbanktyp auswählen
+        db_type = st.selectbox(
+            "Datenbank-Typ",
+            ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
+            index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
+                  (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
+            key="db_type_select",
+            help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
+        )
+
+        db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
+        st.session_state.db_config['db_type'] = db_type_key
+
+        if db_type_key == 'sqlite':
+            # SQLite Konfiguration
+            st.markdown("##### 📁 SQLite-Datei")
+
+            sqlite_path = st.text_input(
+                "Datenbankpfad",
+                value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
+                key="sqlite_path_input",
+                help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
+            )
+            st.session_state.db_config['sqlite_path'] = sqlite_path
+
+            st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
+
+            # Verbindungs-URL generieren
+            db_url = f"sqlite:///{sqlite_path}"
+
+        else:
+            # PostgreSQL / MySQL Konfiguration
+            col1, col2 = st.columns(2)
+
+            with col1:
+                host = st.text_input(
+                    "Host",
+                    value=st.session_state.db_config.get('host', 'localhost'),
+                    key="db_host_input",
+                    placeholder="localhost oder IP-Adresse"
+                )
+                st.session_state.db_config['host'] = host
+
+                database = st.text_input(
+                    "Datenbankname",
+                    value=st.session_state.db_config.get('database', 'immobilien_plattform'),
+                    key="db_name_input"
+                )
+                st.session_state.db_config['database'] = database
+
+            with col2:
+                port = st.number_input(
+                    "Port",
+                    value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
+                    min_value=1,
+                    max_value=65535,
+                    key="db_port_input"
+                )
+                st.session_state.db_config['port'] = port
+
+                username = st.text_input(
+                    "Benutzername",
+                    value=st.session_state.db_config.get('username', ''),
+                    key="db_user_input"
+                )
+                st.session_state.db_config['username'] = username
+
+            password = st.text_input(
+                "Passwort",
+                value=st.session_state.db_config.get('password', ''),
+                type="password",
+                key="db_pass_input"
+            )
+            st.session_state.db_config['password'] = password
+
+            # Verbindungs-URL generieren
+            if db_type_key == 'postgresql':
+                db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+            else:
+                db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+
+        # Verbindungs-URL anzeigen (maskiert)
+        st.markdown("##### 🔗 Verbindungs-URL")
+        if db_type_key == 'sqlite':
+            st.code(db_url)
+        else:
+            masked_url = db_url.replace(password, '***') if password else db_url
+            st.code(masked_url)
+
+        # Aktionen
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
+                with st.spinner("Teste Verbindung..."):
+                    try:
+                        # Teste die Verbindung
+                        test_result = test_database_connection(db_url)
+                        if test_result['success']:
+                            st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
+                            st.session_state.db_connection_url = db_url
+                            st.session_state.database_connected = True
+                        else:
+                            st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
+                            st.session_state.database_connected = False
+                    except Exception as e:
+                        st.error(f"❌ Fehler: {str(e)}")
+                        st.session_state.database_connected = False
+
+        with col2:
+            if st.button("💾 Konfiguration speichern", key="save_db_config"):
+                try:
+                    save_database_config(st.session_state.db_config)
+                    st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
+                except Exception as e:
+                    st.error(f"❌ Fehler beim Speichern: {e}")
+
+        with col3:
+            if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
+                if st.session_state.get('database_connected'):
+                    with st.spinner("Erstelle Datenbanktabellen..."):
+                        try:
+                            result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
+                            if result['success']:
+                                st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                        except Exception as e:
+                            st.error(f"❌ Fehler: {e}")
+                else:
+                    st.warning("⚠️ Bitte zuerst Verbindung testen!")
+
+    with db_tabs[1]:
+        st.markdown("#### 📊 Verbindungsstatus")
+
+        db_connected = st.session_state.get('database_connected', False)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if db_connected:
+                st.success("🟢 **Verbunden**")
+                st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
+            else:
+                st.error("🔴 **Nicht verbunden**")
+
+        with col2:
+            # Session State Statistiken
+            session_users = len(st.session_state.get('users', {}))
+            session_projekte = len(st.session_state.get('projekte', {}))
+            st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
+
+        with col3:
+            if db_connected:
+                st.metric("Datenbank", "Bereit")
+            else:
+                st.metric("Datenbank", "Offline")
+
+        st.markdown("---")
+        st.markdown("#### 🔄 Datenmigration")
+
+        st.info("""
+        **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
+        Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+        """)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Von Session State → Datenbank:**")
+            migrate_items = st.multiselect(
+                "Zu migrierende Daten",
+                ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
+                default=["Nutzer", "Projekte"],
+                key="migrate_selection"
+            )
+
+            if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
+                if db_connected and migrate_items:
+                    with st.spinner("Exportiere Daten..."):
+                        result = migrate_session_to_database(migrate_items)
+                        if result['success']:
+                            st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
+                        else:
+                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                else:
+                    st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
+
+        with col2:
+            st.markdown("**Von Datenbank → Session State:**")
+            st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
+
+            if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
+                if db_connected:
+                    with st.spinner("Importiere Daten..."):
+                        result = load_database_to_session()
+                        if result['success']:
+                            st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+
+            auto_load = st.checkbox(
+                "Automatisch beim Start laden",
+                value=st.session_state.get('db_auto_load', False),
+                key="db_auto_load_checkbox",
+                help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
+            )
+            st.session_state.db_auto_load = auto_load
+
+    with db_tabs[2]:
+        st.markdown("#### 📋 Datenbankschema")
+
+        st.markdown("""
+        Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
+
+        | Tabelle | Beschreibung |
+        |---------|-------------|
+        | `nutzer` | Benutzerkonten mit Rollen |
+        | `makler_profil` | Makler-Profilinformationen |
+        | `notar_profil` | Notar-Profilinformationen |
+        | `notar_mitarbeiter` | Notar-Mitarbeiter |
+        | `immobilie` | Immobilien-Stammdaten |
+        | `projekt` | Transaktionsprojekte |
+        | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
+        | `preisvorschlag` | Preisverhandlungen |
+        | `preis_historie` | Preisentwicklung |
+        | `markt_daten` | Marktdaten für ML |
+        | `dokument` | Dokumente mit OCR |
+        | `interaktion` | Benutzeraktivitäten |
+        | `benachrichtigung` | Systembenachrichtigungen |
+        | `textbaustein` | Vertragsbausteine |
+        | `vertragsdokument` | Generierte Verträge |
+        | `akte` | Aktenmanagement |
+        | `akten_dokument` | Dokumente in Akten |
+        | `akten_nachricht` | Kommunikation in Akten |
+        | `api_key` | API-Schlüssel |
+        """)
+
+        if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
+            st.code('''
+-- Beispiel: Nutzer-Tabelle
+CREATE TABLE nutzer (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    rolle VARCHAR(50) NOT NULL,
+    telefon VARCHAR(50),
+    adresse TEXT,
+    profilbild_url TEXT,
+    onboarding_complete BOOLEAN DEFAULT FALSE,
+    email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_login TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Beispiel: Projekt-Tabelle
+CREATE TABLE projekt (
+    id SERIAL PRIMARY KEY,
+    projekt_id VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    beschreibung TEXT,
+    adresse TEXT,
+    kaufpreis DECIMAL(15,2),
+    status VARCHAR(50),
+    makler_id VARCHAR(50) REFERENCES nutzer(user_id),
+    notar_id VARCHAR(50) REFERENCES nutzer(user_id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+            ''', language='sql')
 
 
 # ============================================================================

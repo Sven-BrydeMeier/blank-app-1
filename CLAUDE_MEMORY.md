@@ -1,8 +1,8 @@
 # Claude Code Memory File - Immobilien-Transaktionsplattform
 
-**Letzte Aktualisierung:** 2025-12-06
+**Letzte Aktualisierung:** 2025-12-08
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `e6612d1` - Add financing/legal gating features for Käufer/Verkäufer
+**Letzter Commit:** `d2eccfe` - Implement improvement suggestions: price adoption, Makler view, ratings
 
 ---
 
@@ -23,7 +23,7 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 
 ```
 /home/user/blank-app-1/
-├── streamlit_app.py      # Hauptanwendung (~12600 Zeilen)
+├── streamlit_app.py      # Hauptanwendung (~13200 Zeilen)
 ├── requirements.txt      # Python-Abhängigkeiten
 ├── CLAUDE_MEMORY.md      # Diese Datei
 └── .gitignore
@@ -39,7 +39,9 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 |---------|--------|--------------|
 | Imports & Enums | 1-130 | UserRole, ProjektStatus, PropertyType, NotificationType |
 | **RESPONSIVE DESIGN** | 19-920 | DeviceType, inject_responsive_css, Helper-Funktionen |
-| **SESSION PERSISTENZ** | ~1696-1820 | Cookies/localStorage, inject_session_persistence() |
+| **VERTRAGSARCHIV ENUMS** | ~1732-1782 | VertragsTyp, TextbausteinKategorie, TextbausteinStatus |
+| **VERTRAGSARCHIV DATACLASSES** | ~1783-1957 | Textbaustein, VertragsDokument, VertragsVorlage, Vertragsentwurf |
+| **SESSION PERSISTENZ** | ~1959-2030 | Cookies/localStorage, inject_session_persistence() |
 | TodoKategorie/TodoPrioritaet | ~1220-1235 | Enums für Käufer-Todos |
 | KaeuferTodo | ~1235-1250 | Dataclass für Käufer-Aufgaben |
 | HandwerkerKategorie | ~1253-1270 | Enum für Handwerker-Kategorien |
@@ -62,7 +64,12 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 | Käufer-Aufgaben | ~6550-6750 | Todos, Ideenboard, System-Todos |
 | Käufer-Finanzierungsrechner | ~7000-7300 | Umfassender Kreditrechner |
 | **Verkäufer-Dashboard** | ~8123-8170 | Mit Pflicht-Akzeptanz Check |
-| **Notar-Dashboard** | ~9064-9121 | Mit 14 Tabs inkl. Ausweisdaten & Rechtsdokumente |
+| **Notar-Dashboard** | ~10398-10478 | Mit 17 Tabs inkl. Vertragsarchiv & Vertragserstellung |
+| **VERTRAGSTYP_TEMPLATES** | ~1783-1869 | Templates für Kaufvertrag, Überlassungsvertrag, etc. |
+| **BAUSTEIN_FARBEN** | ~1861-1869 | Farben für visuelle Baustein-Hervorhebung |
+| **VISUELLER BAUSTEIN-EDITOR** | ~11169-11451 | render_visueller_baustein_editor() mit Schiebereglern |
+| **VERTRAGSARCHIV FUNKTIONEN** | ~11453-11830 | notar_vertragsarchiv_view() mit 5 Sub-Tabs |
+| **VERTRAGSERSTELLUNG FUNKTIONEN** | ~11832-12200 | notar_vertragserstellung_view() mit 5 Sub-Tabs |
 | **KI-Kaufvertragsentwurf** | ~9200-9750 | notar_kaufvertrag_generator() mit 4 Sub-Tabs |
 | Notar-Handwerker | ~10200-10400 | Handwerker-Verwaltung für Notar |
 | **Notar Ausweis-Erfassung** | ~10566-10646 | notar_ausweis_erfassung() |
@@ -78,6 +85,47 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform**, die die K
 ---
 
 ## Implementierte Features
+
+### Vertragsarchiv & Textbausteine (NEU - 2025-12-08)
+- [x] **Vertragsarchiv-Tab im Notar-Dashboard** mit 5 Sub-Tabs
+  - Upload: DOCX, PDF, Bilder mit Text-Extraktion
+  - Textbausteine: Übersicht aller Klauseln mit Filter
+  - Hochgeladene Dokumente: Zerlegung in Bausteine
+  - Freigaben: Notar-Workflow für neue Bausteine
+  - Updates suchen: KI-gestützte Aktualisierungsprüfung
+- [x] **Visueller Baustein-Editor** (NEU)
+  - Farbliche Hervorhebung: Wechselnde Farben (Hellblau, Hellgrün, Hellrot, etc.)
+  - Schieberegler für Start/End-Position jedes Bausteins
+  - Kaskadierende Anpassung angrenzender Bausteine
+  - Baustein-Löschfunktion mit Verkettungsanpassung
+  - Vertragstyp-Templates mit Kategorien-Reihenfolge und Alternativen
+- [x] **Vertragstyp-Templates** (`VERTRAGSTYP_TEMPLATES`)
+  - Kaufvertrag: 16 Kategorien in korrekter Reihenfolge (Pflicht/Optional markiert)
+  - Überlassungsvertrag: 9 Kategorien
+  - Erbvertrag: 4 Kategorien
+  - Schenkungsvertrag: 9 Kategorien
+  - Teilungserklärung: 5 Kategorien
+- [x] **Datenstrukturen:**
+  - `VertragsTyp` Enum (Kaufvertrag, Erbvertrag, Schenkungsvertrag, etc.)
+  - `TextbausteinKategorie` Enum (21 Kategorien: Vertragsparteien, Kaufpreis, Auflassung, etc.)
+  - `TextbausteinStatus` Enum (Entwurf, Freigegeben, Update verfügbar, etc.)
+  - `Textbaustein` Dataclass mit KI-Metadaten, Versionierung, Duplikaterkennung, **start_index/end_index** für Positionierung
+  - `VertragsDokument` Dataclass für hochgeladene Verträge
+  - `VertragsVorlage` Dataclass für wiederverwendbare Vorlagen
+  - `Vertragsentwurf` Dataclass für konkrete Entwürfe mit Workflow
+- [x] **KI-Funktionen:**
+  - `ki_analysiere_textbaustein()`: Titel, Zusammenfassung, Kategorie automatisch
+  - `ki_zerlege_vertrag_in_bausteine()`: Vertrag in einzelne Klauseln splitten **mit Start/End-Indizes**
+  - `ki_suche_updates()`: Updates für Klauseln via ChatGPT
+- [x] **Vertragserstellung-Tab im Notar-Dashboard** mit 5 Sub-Tabs
+  - Neuer Vertrag: Projekt wählen, Methode auswählen
+  - Aus Bausteinen: Modulare Zusammenstellung
+  - KI-Entwurf: Automatische Vertragsgenerierung mit Käufer/Verkäufer-Wünschen
+  - Vorlagen: Vertragsvorlagen verwalten
+  - Entwürfe: Bearbeiten, freigeben, versenden
+- [x] **Duplikaterkennung** mit Text-Hash und Jaccard-Ähnlichkeit
+- [x] **Freigabe-Workflow:** Notar prüft alle neuen Bausteine
+- [x] **Versand an Beteiligte:** Per Notification an Käufer, Verkäufer, Makler
 
 ### Preisverhandlung zwischen Käufer/Verkäufer (NEU - 2025-12-06)
 - [x] **Preisangebot-System** mit Status: Offen, Angenommen, Abgelehnt, Gegenangebot, Zurückgezogen
@@ -308,6 +356,11 @@ st.session_state = {
     # NEU: Rechtsdokumente
     'rechtsdokument_akzeptanzen': Dict[str, Dict[str, Dict[str, Any]]],  # user_id -> notar_id -> doc_type -> {akzeptiert_am, version}
     'notar_rechtsdokumente': Dict[str, Dict[str, Dict]],  # notar_id -> doc_type -> {titel, inhalt, version, pflicht, ...}
+    # NEU: Vertragsarchiv & Textbausteine (2025-12-08)
+    'textbausteine': Dict[str, Textbaustein],      # baustein_id -> Textbaustein
+    'vertragsdokumente': Dict[str, VertragsDokument],  # dokument_id -> VertragsDokument
+    'vertragsvorlagen': Dict[str, VertragsVorlage],   # vorlage_id -> VertragsVorlage
+    'vertragsentwuerfe': Dict[str, Vertragsentwurf],  # entwurf_id -> Vertragsentwurf
 }
 ```
 
@@ -382,13 +435,13 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Commit | Beschreibung |
 |--------|--------------|
+| (neu) | Add contract archive and text building blocks system (Vertragsarchiv) |
+| d2eccfe | Implement improvement suggestions: price adoption, Makler view, ratings |
+| 391643e | Fix: RangeError Invalid time value in Ausweis date parsing |
 | 473ba6b | Add price negotiation, notifications, print functions, and demo mode |
 | e6612d1 | Add financing/legal gating features for Käufer/Verkäufer |
 | 1015ebd | Add session persistence and API key improvements |
 | 6f8e544 | Fix AttributeError: projekt.verkaeufer_id changed to verkaeufer_ids |
-| 859075a | Improve ID card OCR and camera handling |
-| f6be46d | Add AI contract generator and fix duplicate key error |
-| 07d64c1 | Fix sidebar visibility on mobile devices |
 
 ---
 
