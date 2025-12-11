@@ -434,6 +434,26 @@ def load_database_config_on_startup():
 
 
 # ============================================================================
+# DEUTSCHE ZAHLENFORMATIERUNG
+# ============================================================================
+
+def format_euro(betrag: float, dezimalstellen: int = 2) -> str:
+    """
+    Formatiert einen Betrag im deutschen Format.
+    - Punkt (.) als Tausendertrennzeichen
+    - Komma (,) als Dezimaltrennzeichen
+
+    Beispiel: 100000.50 -> "100.000,50"
+    """
+    if dezimalstellen == 0:
+        formatted = f"{betrag:,.0f}"
+    else:
+        formatted = f"{betrag:,.{dezimalstellen}f}"
+    # Konvertiere US-Format zu deutschem Format
+    # Erst Komma durch Platzhalter ersetzen, dann Punkt durch Komma, dann Platzhalter durch Punkt
+    return formatted.replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ============================================================================
 # RESPONSIVE DESIGN SYSTEM
 # ============================================================================
 
@@ -1329,6 +1349,486 @@ def render_avatar(name: str, size: str = ""):
     initials = "".join([n[0].upper() for n in name.split()[:2]]) if name else "?"
     size_class = f"avatar-{size}" if size else ""
     return f'<div class="avatar {size_class}">{initials}</div>'
+
+# ============================================================================
+# AKTENTASCHE - UI FUNKTIONEN
+# ============================================================================
+
+def get_or_create_aktentasche(user_id: str) -> 'Aktentasche':
+    """Holt oder erstellt die Aktentasche eines Benutzers"""
+    if 'aktentaschen' not in st.session_state:
+        st.session_state.aktentaschen = {}
+
+    if user_id not in st.session_state.aktentaschen:
+        from dataclasses import dataclass, field
+        st.session_state.aktentaschen[user_id] = Aktentasche(user_id=user_id)
+
+    return st.session_state.aktentaschen[user_id]
+
+def add_to_aktentasche(
+    user_id: str,
+    inhalt_typ: str,
+    titel: str,
+    beschreibung: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    dateiname: str = "",
+    dateigröße: int = 0,
+    pdf_data: bytes = None,
+    projekt_id: str = "",
+    projekt_name: str = ""
+) -> str:
+    """Fügt ein Element zur Aktentasche hinzu"""
+    aktentasche = get_or_create_aktentasche(user_id)
+
+    inhalt_id = f"akt_{user_id}_{len(aktentasche.inhalte)}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    inhalt = AktentascheInhalt(
+        inhalt_id=inhalt_id,
+        inhalt_typ=inhalt_typ,
+        titel=titel,
+        beschreibung=beschreibung,
+        referenz_id=referenz_id,
+        referenz_typ=referenz_typ,
+        dateiname=dateiname,
+        dateigröße=dateigröße,
+        pdf_data=pdf_data,
+        projekt_id=projekt_id,
+        projekt_name=projekt_name
+    )
+
+    aktentasche.inhalte[inhalt_id] = inhalt
+    aktentasche.zuletzt_geaendert = datetime.now()
+
+    return inhalt_id
+
+def remove_from_aktentasche(user_id: str, inhalt_id: str) -> bool:
+    """Entfernt ein Element aus der Aktentasche"""
+    aktentasche = get_or_create_aktentasche(user_id)
+
+    if inhalt_id in aktentasche.inhalte:
+        del aktentasche.inhalte[inhalt_id]
+        aktentasche.zuletzt_geaendert = datetime.now()
+        return True
+    return False
+
+def get_projekt_beteiligte(projekt_id: str) -> List[Dict[str, str]]:
+    """Holt alle Beteiligten eines Projekts für die Freigabe"""
+    beteiligte = []
+    projekt = st.session_state.projekte.get(projekt_id)
+
+    if not projekt:
+        return beteiligte
+
+    # Makler
+    if projekt.makler_id:
+        makler = st.session_state.users.get(projekt.makler_id)
+        if makler:
+            beteiligte.append({
+                "user_id": makler.user_id,
+                "name": makler.name,
+                "rolle": "Makler",
+                "email": makler.email
+            })
+
+    # Käufer
+    for kid in projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(kid)
+        if kaeufer:
+            beteiligte.append({
+                "user_id": kaeufer.user_id,
+                "name": kaeufer.name,
+                "rolle": "Käufer",
+                "email": kaeufer.email
+            })
+
+    # Verkäufer
+    for vid in projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(vid)
+        if verkaeufer:
+            beteiligte.append({
+                "user_id": verkaeufer.user_id,
+                "name": verkaeufer.name,
+                "rolle": "Verkäufer",
+                "email": verkaeufer.email
+            })
+
+    # Finanzierer
+    for fid in projekt.finanzierer_ids:
+        finanzierer = st.session_state.users.get(fid)
+        if finanzierer:
+            beteiligte.append({
+                "user_id": finanzierer.user_id,
+                "name": finanzierer.name,
+                "rolle": "Finanzierer",
+                "email": finanzierer.email
+            })
+
+    # Notar
+    if projekt.notar_id:
+        notar = st.session_state.users.get(projekt.notar_id)
+        if notar:
+            beteiligte.append({
+                "user_id": notar.user_id,
+                "name": notar.name,
+                "rolle": "Notar",
+                "email": notar.email
+            })
+
+    return beteiligte
+
+def render_aktentasche_sidebar(user_id: str, aktives_projekt_id: str = ""):
+    """Rendert die Aktentasche in der Sidebar"""
+    aktentasche = get_or_create_aktentasche(user_id)
+    anzahl_inhalte = len(aktentasche.inhalte)
+
+    # Aktentasche-Button mit Badge
+    with st.sidebar:
+        st.markdown("---")
+
+        # Expander für die Aktentasche
+        with st.expander(f"💼 Aktentasche ({anzahl_inhalte})", expanded=False):
+            if anzahl_inhalte == 0:
+                st.info("Ihre Aktentasche ist leer.\n\nFügen Sie Dokumente, Angebote oder andere Inhalte hinzu, um sie später zu teilen oder herunterzuladen.")
+            else:
+                # Filter-Optionen
+                filter_typ = st.selectbox(
+                    "Filter",
+                    options=["Alle", "Dokumente", "Angebote", "Finanzierungsangebote", "Exposés", "Sonstiges"],
+                    key="aktentasche_filter"
+                )
+
+                # Inhalte filtern
+                inhalte_liste = list(aktentasche.inhalte.values())
+
+                if filter_typ != "Alle":
+                    typ_mapping = {
+                        "Dokumente": AktentascheInhaltTyp.DOKUMENT.value,
+                        "Angebote": AktentascheInhaltTyp.ANGEBOT.value,
+                        "Finanzierungsangebote": AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value,
+                        "Exposés": AktentascheInhaltTyp.EXPOSE.value,
+                        "Sonstiges": AktentascheInhaltTyp.SONSTIGES.value
+                    }
+                    inhalte_liste = [i for i in inhalte_liste if i.inhalt_typ == typ_mapping.get(filter_typ, "")]
+
+                # Sortieren nach Datum (neueste zuerst)
+                inhalte_liste.sort(key=lambda x: x.hinzugefuegt_am, reverse=True)
+
+                # Checkbox für Mehrfachauswahl
+                if 'aktentasche_auswahl' not in st.session_state:
+                    st.session_state.aktentasche_auswahl = []
+
+                st.markdown("##### Inhalte")
+
+                for inhalt in inhalte_liste:
+                    col1, col2 = st.columns([0.15, 0.85])
+
+                    with col1:
+                        selected = st.checkbox(
+                            "",
+                            key=f"akt_sel_{inhalt.inhalt_id}",
+                            value=inhalt.inhalt_id in st.session_state.aktentasche_auswahl
+                        )
+                        if selected and inhalt.inhalt_id not in st.session_state.aktentasche_auswahl:
+                            st.session_state.aktentasche_auswahl.append(inhalt.inhalt_id)
+                        elif not selected and inhalt.inhalt_id in st.session_state.aktentasche_auswahl:
+                            st.session_state.aktentasche_auswahl.remove(inhalt.inhalt_id)
+
+                    with col2:
+                        # Icon basierend auf Typ
+                        typ_icons = {
+                            AktentascheInhaltTyp.DOKUMENT.value: "📄",
+                            AktentascheInhaltTyp.ANGEBOT.value: "💰",
+                            AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value: "🏦",
+                            AktentascheInhaltTyp.EXPOSE.value: "🏠",
+                            AktentascheInhaltTyp.VERTRAG.value: "📜",
+                            AktentascheInhaltTyp.NACHRICHT.value: "✉️",
+                            AktentascheInhaltTyp.SONSTIGES.value: "📎"
+                        }
+                        icon = typ_icons.get(inhalt.inhalt_typ, "📎")
+
+                        st.markdown(f"**{icon} {inhalt.titel}**")
+                        if inhalt.projekt_name:
+                            st.caption(f"{inhalt.projekt_name}")
+                        st.caption(f"{inhalt.hinzugefuegt_am.strftime('%d.%m.%Y %H:%M')}")
+
+                # Aktionen für ausgewählte Elemente
+                if st.session_state.aktentasche_auswahl:
+                    st.markdown("---")
+                    st.markdown(f"**{len(st.session_state.aktentasche_auswahl)} ausgewählt**")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        if st.button("📤 Teilen", key="akt_teilen", use_container_width=True):
+                            st.session_state.aktentasche_teilen_dialog = True
+
+                    with col2:
+                        if st.button("⬇️ Download", key="akt_download", use_container_width=True):
+                            st.session_state.aktentasche_download = True
+
+                    with col3:
+                        if st.button("🗑️ Entfernen", key="akt_entfernen", use_container_width=True):
+                            for inhalt_id in st.session_state.aktentasche_auswahl:
+                                remove_from_aktentasche(user_id, inhalt_id)
+                            st.session_state.aktentasche_auswahl = []
+                            st.rerun()
+
+def render_aktentasche_teilen_dialog(user_id: str):
+    """Rendert den Dialog zum Teilen von Aktentasche-Inhalten"""
+    if not st.session_state.get('aktentasche_teilen_dialog', False):
+        return
+
+    aktentasche = get_or_create_aktentasche(user_id)
+    ausgewaehlte_ids = st.session_state.get('aktentasche_auswahl', [])
+
+    if not ausgewaehlte_ids:
+        st.session_state.aktentasche_teilen_dialog = False
+        return
+
+    st.markdown("### 📤 Inhalte teilen")
+
+    # Ausgewählte Inhalte anzeigen
+    st.markdown("**Ausgewählte Inhalte:**")
+    for inhalt_id in ausgewaehlte_ids:
+        inhalt = aktentasche.inhalte.get(inhalt_id)
+        if inhalt:
+            st.markdown(f"- {inhalt.titel}")
+
+    st.markdown("---")
+
+    # Versand-Methode wählen
+    versand_methode = st.radio(
+        "Versand an",
+        options=["👥 Projektbeteiligte", "📧 E-Mail an Dritte", "🔗 Download-Link erstellen"],
+        key="teilen_methode"
+    )
+
+    if versand_methode == "👥 Projektbeteiligte":
+        # Projekt auswählen falls mehrere
+        user = st.session_state.users.get(user_id)
+        projekte = [st.session_state.projekte.get(pid) for pid in user.projekt_ids if st.session_state.projekte.get(pid)]
+
+        if projekte:
+            projekt_auswahl = st.selectbox(
+                "Projekt",
+                options=[p.name for p in projekte],
+                key="teilen_projekt"
+            )
+
+            ausgewaehltes_projekt = next((p for p in projekte if p.name == projekt_auswahl), None)
+
+            if ausgewaehltes_projekt:
+                beteiligte = get_projekt_beteiligte(ausgewaehltes_projekt.projekt_id)
+                # Eigenen User ausschließen
+                beteiligte = [b for b in beteiligte if b['user_id'] != user_id]
+
+                if beteiligte:
+                    st.markdown("**Empfänger auswählen:**")
+                    empfaenger_auswahl = []
+
+                    for b in beteiligte:
+                        if st.checkbox(f"{b['name']} ({b['rolle']})", key=f"empf_{b['user_id']}"):
+                            empfaenger_auswahl.append(b['user_id'])
+
+                    nachricht = st.text_area(
+                        "Nachricht (optional)",
+                        placeholder="Fügen Sie eine persönliche Nachricht hinzu...",
+                        key="teilen_nachricht"
+                    )
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("📤 Senden", type="primary", use_container_width=True):
+                            if empfaenger_auswahl:
+                                # Benachrichtigungen erstellen
+                                absender = st.session_state.users.get(user_id)
+                                for emp_id in empfaenger_auswahl:
+                                    titel_liste = [aktentasche.inhalte[i].titel for i in ausgewaehlte_ids if i in aktentasche.inhalte]
+                                    create_notification(
+                                        user_id=emp_id,
+                                        titel="💼 Dokumente aus Aktentasche erhalten",
+                                        nachricht=f"{absender.name} hat Ihnen {len(titel_liste)} Dokument(e) gesendet: {', '.join(titel_liste[:3])}{'...' if len(titel_liste) > 3 else ''}",
+                                        typ=NotificationType.INFO.value
+                                    )
+
+                                    # Inhalte zur Aktentasche des Empfängers kopieren
+                                    for inhalt_id in ausgewaehlte_ids:
+                                        original = aktentasche.inhalte.get(inhalt_id)
+                                        if original:
+                                            add_to_aktentasche(
+                                                user_id=emp_id,
+                                                inhalt_typ=original.inhalt_typ,
+                                                titel=f"{original.titel} (von {absender.name})",
+                                                beschreibung=original.beschreibung,
+                                                referenz_id=original.referenz_id,
+                                                referenz_typ=original.referenz_typ,
+                                                dateiname=original.dateiname,
+                                                dateigröße=original.dateigröße,
+                                                pdf_data=original.pdf_data,
+                                                projekt_id=original.projekt_id,
+                                                projekt_name=original.projekt_name
+                                            )
+
+                                st.success(f"✅ An {len(empfaenger_auswahl)} Empfänger gesendet!")
+                                st.session_state.aktentasche_teilen_dialog = False
+                                st.session_state.aktentasche_auswahl = []
+                                st.rerun()
+                            else:
+                                st.warning("Bitte wählen Sie mindestens einen Empfänger.")
+
+                    with col2:
+                        if st.button("❌ Abbrechen", use_container_width=True):
+                            st.session_state.aktentasche_teilen_dialog = False
+                            st.rerun()
+                else:
+                    st.info("Keine anderen Projektbeteiligten gefunden.")
+        else:
+            st.info("Sie sind an keinem Projekt beteiligt.")
+
+    elif versand_methode == "📧 E-Mail an Dritte":
+        empfaenger_email = st.text_input(
+            "E-Mail-Adresse",
+            placeholder="empfaenger@beispiel.de",
+            key="teilen_email"
+        )
+        empfaenger_name = st.text_input(
+            "Name des Empfängers",
+            placeholder="Max Mustermann",
+            key="teilen_email_name"
+        )
+        betreff = st.text_input(
+            "Betreff",
+            value="Dokumente aus der Immobilien-Transaktionsplattform",
+            key="teilen_betreff"
+        )
+        nachricht = st.text_area(
+            "Nachricht",
+            placeholder="Sehr geehrte/r...",
+            key="teilen_email_nachricht"
+        )
+
+        # Gültigkeitsdauer
+        gueltigkeit = st.selectbox(
+            "Link gültig für",
+            options=["7 Tage", "14 Tage", "30 Tage", "Unbegrenzt"],
+            key="teilen_gueltigkeit"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📧 E-Mail senden", type="primary", use_container_width=True):
+                if empfaenger_email and "@" in empfaenger_email:
+                    # Hier würde die E-Mail-Versand-Logik implementiert
+                    st.success(f"✅ E-Mail wurde an {empfaenger_email} gesendet!")
+                    st.info("💡 Hinweis: In der Demo-Version wird keine echte E-Mail versendet.")
+                    st.session_state.aktentasche_teilen_dialog = False
+                    st.session_state.aktentasche_auswahl = []
+                    st.rerun()
+                else:
+                    st.warning("Bitte geben Sie eine gültige E-Mail-Adresse ein.")
+
+        with col2:
+            if st.button("❌ Abbrechen", use_container_width=True, key="email_abbrechen"):
+                st.session_state.aktentasche_teilen_dialog = False
+                st.rerun()
+
+    else:  # Download-Link erstellen
+        st.info("Ein Download-Link wird erstellt, den Sie kopieren und teilen können.")
+
+        gueltigkeit = st.selectbox(
+            "Link gültig für",
+            options=["24 Stunden", "7 Tage", "14 Tage", "30 Tage"],
+            key="download_gueltigkeit"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔗 Link erstellen", type="primary", use_container_width=True):
+                # Generiere einen simulierten Download-Link
+                link_id = uuid.uuid4().hex[:12]
+                download_link = f"https://immo-plattform.de/download/{link_id}"
+
+                st.success("✅ Download-Link erstellt!")
+                st.code(download_link)
+                st.info("💡 Kopieren Sie den Link und teilen Sie ihn mit dem Empfänger.")
+
+        with col2:
+            if st.button("❌ Abbrechen", use_container_width=True, key="link_abbrechen"):
+                st.session_state.aktentasche_teilen_dialog = False
+                st.rerun()
+
+def render_aktentasche_download(user_id: str):
+    """Rendert den Download-Dialog für Aktentasche-Inhalte"""
+    if not st.session_state.get('aktentasche_download', False):
+        return
+
+    aktentasche = get_or_create_aktentasche(user_id)
+    ausgewaehlte_ids = st.session_state.get('aktentasche_auswahl', [])
+
+    if not ausgewaehlte_ids:
+        st.session_state.aktentasche_download = False
+        return
+
+    st.markdown("### ⬇️ Inhalte herunterladen")
+
+    # Sammle alle Download-fähigen Inhalte
+    downloadable = []
+    for inhalt_id in ausgewaehlte_ids:
+        inhalt = aktentasche.inhalte.get(inhalt_id)
+        if inhalt and inhalt.pdf_data:
+            downloadable.append(inhalt)
+
+    if downloadable:
+        st.markdown(f"**{len(downloadable)} Dokument(e) zum Download verfügbar:**")
+
+        for inhalt in downloadable:
+            st.download_button(
+                label=f"📥 {inhalt.dateiname or inhalt.titel}",
+                data=inhalt.pdf_data,
+                file_name=inhalt.dateiname or f"{inhalt.titel}.pdf",
+                mime="application/pdf",
+                key=f"dl_{inhalt.inhalt_id}"
+            )
+    else:
+        st.info("Die ausgewählten Elemente enthalten keine herunterladbaren Dateien.")
+
+    if st.button("✅ Fertig", use_container_width=True):
+        st.session_state.aktentasche_download = False
+        st.session_state.aktentasche_auswahl = []
+        st.rerun()
+
+def render_zur_aktentasche_button(
+    user_id: str,
+    inhalt_typ: str,
+    titel: str,
+    beschreibung: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    dateiname: str = "",
+    dateigröße: int = 0,
+    pdf_data: bytes = None,
+    projekt_id: str = "",
+    projekt_name: str = "",
+    key_suffix: str = ""
+):
+    """Rendert einen Button zum Hinzufügen zur Aktentasche"""
+    if st.button(f"💼 Zur Aktentasche", key=f"zur_akt_{referenz_id}_{key_suffix}", help="In die Aktentasche legen"):
+        add_to_aktentasche(
+            user_id=user_id,
+            inhalt_typ=inhalt_typ,
+            titel=titel,
+            beschreibung=beschreibung,
+            referenz_id=referenz_id,
+            referenz_typ=referenz_typ,
+            dateiname=dateiname,
+            dateigröße=dateigröße,
+            pdf_data=pdf_data,
+            projekt_id=projekt_id,
+            projekt_name=projekt_name
+        )
+        st.success(f"✅ '{titel}' zur Aktentasche hinzugefügt!")
+        st.rerun()
 
 # ============================================================================
 # ENUMS UND KONSTANTEN
@@ -2815,6 +3315,13 @@ class TerminTyp(Enum):
     BESICHTIGUNG = "Besichtigung"
     UEBERGABE = "Übergabe"
     BEURKUNDUNG = "Beurkundung"
+    KAUFPREISFAELLIGKEIT = "Kaufpreisfälligkeit"
+    SCHLUESSELUEBERGABE = "Schlüsselübergabe"
+    DATENEINREICHUNG_FRIST = "Frist Dateneinreichung"
+    FINANZIERUNGSZUSAGE = "Finanzierungszusage"
+    GRUNDBUCHEINTRAG = "Grundbucheintrag"
+    NOTARTERMIN_VORBESPRECHUNG = "Notartermin Vorbesprechung"
+    WIDERRUFSENDE = "Ende Widerrufsfrist"
     SONSTIGES = "Sonstiges"
 
 class TerminStatus(Enum):
@@ -2861,6 +3368,19 @@ class Termin:
     # Erinnerungen
     erinnerung_gesendet: bool = False
     erinnerung_gesendet_am: Optional[datetime] = None
+
+    # Erweiterte Erinnerungen
+    erinnerung_tage_vorher: List[int] = field(default_factory=lambda: [1])  # Standard: 1 Tag vorher
+    alle_erinnerungen_gesendet: Dict[int, datetime] = field(default_factory=dict)  # Tage -> Zeitpunkt
+
+    # Wer hat den Termin gesetzt
+    gesetzt_von_rolle: str = ""  # "Notar", "Makler", "Finanzierer", "Käufer", "Verkäufer"
+
+    # Sichtbarkeit für Rollen
+    sichtbar_fuer: List[str] = field(default_factory=lambda: ["Makler", "Käufer", "Verkäufer", "Notar", "Finanzierer"])
+
+    # Farbe für Kalenderanzeige (basierend auf Typ)
+    farbe: str = "#3498db"  # Standard: Blau
 
 @dataclass
 class TerminVorschlag:
@@ -3154,6 +3674,209 @@ class VerkäuferDokument:
     status: str = "Hochgeladen"  # Hochgeladen, Geprüft, Freigegeben, Abgelehnt
 
 # ============================================================================
+# AKTENIMPORT - NOTAR AKTENÜBERNAHME
+# ============================================================================
+
+class AktenDokumentTyp(Enum):
+    """Standard-Dokumenttypen in einer Notarakte"""
+    KAUFVERTRAG = "Kaufvertrag"
+    KAUFVERTRAG_ENTWURF = "Kaufvertragsentwurf"
+    GRUNDBUCHAUSZUG = "Grundbuchauszug"
+    FLURKARTE = "Flurkarte"
+    TEILUNGSERKLAERUNG = "Teilungserklärung"
+    BAULASTENVERZEICHNIS = "Baulastenverzeichnis"
+    VOLLMACHT = "Vollmacht"
+    PERSONALAUSWEIS = "Personalausweis/Pass"
+    FINANZIERUNGSBESTAETIGUNG = "Finanzierungsbestätigung"
+    GRUNDSCHULDBESTELLUNG = "Grundschuldbestellung"
+    LOESCHUNGSBEWILLIGUNG = "Löschungsbewilligung"
+    VORKAUFSRECHTSVERZICHT = "Vorkaufsrechtsverzicht"
+    UNBEDENKLICHKEITSBESCHEINIGUNG = "Unbedenklichkeitsbescheinigung"
+    ERBSCHEIN = "Erbschein"
+    HANDELSREGISTERAUSZUG = "Handelsregisterauszug"
+    GESELLSCHAFTERBESCHLUSS = "Gesellschafterbeschluss"
+    KORRESPONDENZ = "Korrespondenz"
+    NOTIZEN = "Notizen/Vermerke"
+    SONSTIGES = "Sonstiges"
+
+class AktenStatus(Enum):
+    """Status einer importierten Akte"""
+    IMPORTIERT = "Importiert"
+    IN_BEARBEITUNG = "In Bearbeitung"
+    VOLLSTAENDIG = "Vollständig"
+    BEURKUNDET = "Beurkundet"
+    ABGESCHLOSSEN = "Abgeschlossen"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class AktenDokument:
+    """Ein Dokument innerhalb einer importierten Akte"""
+    dokument_id: str
+    akte_id: str
+    ordner_name: str  # Zugehöriger Ordner in der Akte
+    ordner_id: str = ""  # ID des zugehörigen Ordners
+
+    # Dokumentdaten
+    titel: str
+    dokument_typ: str = AktenDokumentTyp.SONSTIGES.value
+    dateiname: str = ""
+    dateigröße: int = 0
+    pdf_data: Optional[bytes] = None
+
+    # Aus der Original-PDF extrahiert
+    seiten_von: int = 0  # Startseite im Original-PDF
+    seiten_bis: int = 0  # Endseite im Original-PDF
+
+    # Metadaten
+    beschreibung: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    geaendert_am: datetime = field(default_factory=datetime.now)
+
+    # Status
+    geprueft: bool = False
+    geprueft_von: str = ""
+    geprueft_am: Optional[datetime] = None
+    notizen: str = ""
+
+@dataclass
+class AktenOrdner:
+    """Ein Ordner/Kategorie innerhalb einer Akte"""
+    ordner_id: str
+    akte_id: str
+    name: str
+    beschreibung: str = ""
+    reihenfolge: int = 0  # Für Sortierung
+    dokument_ids: List[str] = field(default_factory=list)
+
+    # Standard-Ordner für Notarakten
+    ist_standard_ordner: bool = False
+
+@dataclass
+class ImportierteAkte:
+    """Eine aus PDF importierte Notarakte"""
+    akte_id: str
+    notar_id: str  # Welcher Notar hat importiert
+
+    # Aktenbezeichnung
+    aktenzeichen: str  # z.B. "UR 123/2024"
+    bezeichnung: str  # z.B. "Kaufvertrag Müller/Schmidt"
+
+    # Original-PDF
+    original_pdf_name: str = ""
+    original_pdf_größe: int = 0
+    original_pdf_data: Optional[bytes] = None
+    original_seitenanzahl: int = 0
+
+    # Struktur
+    ordner: Dict[str, AktenOrdner] = field(default_factory=dict)
+    dokumente: Dict[str, AktenDokument] = field(default_factory=dict)
+
+    # Verknüpfung mit Projekt (optional)
+    projekt_id: str = ""  # Falls mit bestehendem Projekt verknüpft
+    als_projekt_erstellt: bool = False
+
+    # Beteiligte (aus Akte extrahiert)
+    kaeufer_namen: List[str] = field(default_factory=list)
+    verkaeufer_namen: List[str] = field(default_factory=list)
+    objekt_adresse: str = ""
+    kaufpreis: float = 0.0
+
+    # Status und Timestamps
+    status: str = AktenStatus.IMPORTIERT.value
+    importiert_am: datetime = field(default_factory=datetime.now)
+    zuletzt_bearbeitet: datetime = field(default_factory=datetime.now)
+
+    # Import-Analyse
+    erkannte_struktur: Dict[str, Any] = field(default_factory=dict)  # Erkannte Inhaltsverzeichnis-Struktur
+    import_protokoll: List[str] = field(default_factory=list)  # Log des Imports
+
+# Standard-Ordnerstruktur für Notarakten
+STANDARD_AKTEN_ORDNER = [
+    {"name": "Vertragsentwürfe", "beschreibung": "Kaufvertragsentwürfe und Änderungen"},
+    {"name": "Grundbuch", "beschreibung": "Grundbuchauszüge und -unterlagen"},
+    {"name": "Flurkarten & Pläne", "beschreibung": "Flurkarten, Lagepläne, Teilungspläne"},
+    {"name": "Finanzierung", "beschreibung": "Finanzierungsbestätigungen, Grundschulden"},
+    {"name": "Personalien Käufer", "beschreibung": "Ausweise, Vollmachten Käufer"},
+    {"name": "Personalien Verkäufer", "beschreibung": "Ausweise, Vollmachten Verkäufer"},
+    {"name": "Behördliche Unterlagen", "beschreibung": "Vorkaufsrecht, Unbedenklichkeit, etc."},
+    {"name": "Korrespondenz", "beschreibung": "Schriftverkehr und E-Mails"},
+    {"name": "Abrechnung", "beschreibung": "Kostenrechnungen und Zahlungsnachweise"},
+    {"name": "Sonstiges", "beschreibung": "Weitere Unterlagen"},
+]
+
+# ============================================================================
+# AKTENTASCHE - MOBILER DOKUMENTENORDNER
+# ============================================================================
+
+class AktentascheInhaltTyp(Enum):
+    """Typen von Inhalten in der Aktentasche"""
+    DOKUMENT = "Dokument"
+    ANGEBOT = "Angebot"
+    FINANZIERUNGSANGEBOT = "Finanzierungsangebot"
+    EXPOSE = "Exposé"
+    VERTRAG = "Vertrag"
+    NACHRICHT = "Nachricht"
+    SONSTIGES = "Sonstiges"
+
+@dataclass
+class AktentascheInhalt:
+    """Ein Element in der Aktentasche"""
+    inhalt_id: str
+    inhalt_typ: str  # AktentascheInhaltTyp
+    titel: str
+    beschreibung: str = ""
+
+    # Referenz zum Original-Objekt
+    referenz_id: str = ""  # ID des Originaldokuments/Angebots
+    referenz_typ: str = ""  # z.B. "VerkäuferDokument", "Preisangebot", "FinancingOffer"
+
+    # Datei-Daten (falls Dokument)
+    dateiname: str = ""
+    dateigröße: int = 0
+    pdf_data: Optional[bytes] = None
+
+    # Projekt-Bezug
+    projekt_id: str = ""
+    projekt_name: str = ""
+
+    hinzugefuegt_am: datetime = field(default_factory=datetime.now)
+    notizen: str = ""
+
+@dataclass
+class AktentascheFreigabe:
+    """Protokolliert eine Freigabe/Versand aus der Aktentasche"""
+    freigabe_id: str
+    aktentasche_user_id: str
+    inhalt_ids: List[str]  # Liste der freigegebenen Inhalte
+
+    # Empfänger
+    empfaenger_typ: str  # "projektbeteiligter", "email", "download"
+    empfaenger_user_ids: List[str] = field(default_factory=list)  # Bei Projektbeteiligten
+    empfaenger_email: str = ""  # Bei Email-Versand
+    empfaenger_name: str = ""  # Name des externen Empfängers
+
+    betreff: str = ""
+    nachricht: str = ""
+
+    freigabe_datum: datetime = field(default_factory=datetime.now)
+    abgelaufen_am: Optional[datetime] = None  # Optional: Ablaufdatum für Zugriff
+    download_link: str = ""  # Generierter Download-Link
+
+@dataclass
+class Aktentasche:
+    """Die persönliche Aktentasche eines Benutzers"""
+    user_id: str
+    inhalte: Dict[str, AktentascheInhalt] = field(default_factory=dict)
+    freigaben: List[AktentascheFreigabe] = field(default_factory=list)
+
+    # Einstellungen
+    sortierung: str = "datum_absteigend"  # datum_absteigend, datum_aufsteigend, name, typ
+    filter_typ: str = "alle"  # alle, dokumente, angebote, etc.
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+
+
 # VERTRAGSARCHIV & TEXTBAUSTEINE
 # ============================================================================
 
@@ -3828,6 +4551,12 @@ def init_session_state():
         # Ideenboard für Käufer
         st.session_state.ideenboard = {}  # ID -> IdeenboardEintrag
 
+        # Aktentaschen für alle Benutzer
+        st.session_state.aktentaschen = {}  # User-ID -> Aktentasche
+
+        # Importierte Akten (Notar)
+        st.session_state.importierte_akten = {}  # Akte-ID -> ImportierteAkte
+
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
         st.session_state.api_keys = {
@@ -4394,7 +5123,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
                 create_notification(
                     user_id=vk_id,
                     titel="💰 Neues Preisangebot erhalten",
-                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    nachricht=f"{von_name} bietet {format_euro(betrag)} € für {projekt.name}",
                     typ=NotificationType.INFO.value
                 )
         else:
@@ -4403,7 +5132,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
                 create_notification(
                     user_id=kf_id,
                     titel="💰 Neues Preisangebot vom Verkäufer",
-                    nachricht=f"{von_name} bietet {betrag:,.2f} € für {projekt.name}",
+                    nachricht=f"{von_name} bietet {format_euro(betrag)} € für {projekt.name}",
                     typ=NotificationType.INFO.value
                 )
 
@@ -4412,7 +5141,7 @@ def create_preisangebot(projekt_id: str, von_user_id: str, von_rolle: str, betra
             create_notification(
                 user_id=projekt.makler_id,
                 titel="💰 Preisangebot in Ihrem Projekt",
-                nachricht=f"{von_name} ({von_rolle}) hat ein Angebot über {betrag:,.2f} € für {projekt.name} gemacht.",
+                nachricht=f"{von_name} ({von_rolle}) hat ein Angebot über {format_euro(betrag)} € für {projekt.name} gemacht.",
                 typ=NotificationType.INFO.value
             )
 
@@ -4457,7 +5186,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="✅ Preisangebot angenommen!",
-                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde angenommen! Der Kaufpreis wurde aktualisiert.",
+                nachricht=f"Ihr Angebot über {format_euro(angebot.betrag)} € für {projekt.name} wurde angenommen! Der Kaufpreis wurde aktualisiert.",
                 typ=NotificationType.SUCCESS.value
             )
 
@@ -4466,7 +5195,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
                 create_notification(
                     user_id=projekt.makler_id,
                     titel="✅ Preiseinigung erzielt",
-                    nachricht=f"Käufer und Verkäufer haben sich auf {angebot.betrag:,.2f} € für {projekt.name} geeinigt. Kaufpreis wurde von {alter_preis:,.2f} € aktualisiert.",
+                    nachricht=f"Käufer und Verkäufer haben sich auf {format_euro(angebot.betrag)} € für {projekt.name} geeinigt. Kaufpreis wurde von {format_euro(alter_preis)} € aktualisiert.",
                     typ=NotificationType.SUCCESS.value
                 )
 
@@ -4475,7 +5204,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
                 create_notification(
                     user_id=projekt.notar_id,
                     titel="💰 Preiseinigung für Beurkundung",
-                    nachricht=f"Für {projekt.name} wurde eine Preiseinigung über {angebot.betrag:,.2f} € erzielt. Bitte Beurkundungstermin vorbereiten.",
+                    nachricht=f"Für {projekt.name} wurde eine Preiseinigung über {format_euro(angebot.betrag)} € erzielt. Bitte Beurkundungstermin vorbereiten.",
                     typ=NotificationType.INFO.value
                 )
 
@@ -4490,7 +5219,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="❌ Preisangebot abgelehnt",
-                nachricht=f"Ihr Angebot über {angebot.betrag:,.2f} € für {projekt.name} wurde abgelehnt. {antwort_nachricht}",
+                nachricht=f"Ihr Angebot über {format_euro(angebot.betrag)} € für {projekt.name} wurde abgelehnt. {antwort_nachricht}",
                 typ=NotificationType.WARNING.value
             )
         elif neuer_status == PreisangebotStatus.GEGENANGEBOT.value and gegenangebot_betrag:
@@ -4511,7 +5240,7 @@ def respond_to_preisangebot(angebot_id: str, neuer_status: str, antwort_nachrich
             create_notification(
                 user_id=angebot.von_user_id,
                 titel="💬 Gegenangebot erhalten",
-                nachricht=f"Auf Ihr Angebot über {angebot.betrag:,.2f} € wurde ein Gegenangebot von {gegenangebot_betrag:,.2f} € gemacht.",
+                nachricht=f"Auf Ihr Angebot über {format_euro(angebot.betrag)} € wurde ein Gegenangebot von {format_euro(gegenangebot_betrag)} € gemacht.",
                 typ=NotificationType.INFO.value
             )
 
@@ -8544,6 +9273,378 @@ def render_neuer_termin_form(projekt: 'Projekt', termin_typ: str, user_rolle: st
         st.rerun()
 
 
+# ============================================================================
+# KALENDER-ANSICHT FÜR TERMINE
+# ============================================================================
+
+def get_termin_farbe(termin_typ: str) -> str:
+    """Gibt die Farbe für einen Termin-Typ zurück"""
+    farben = {
+        TerminTyp.BEURKUNDUNG.value: "#e74c3c",  # Rot - wichtig
+        TerminTyp.BESICHTIGUNG.value: "#3498db",  # Blau
+        TerminTyp.UEBERGABE.value: "#2ecc71",  # Grün
+        TerminTyp.KAUFPREISFAELLIGKEIT.value: "#9b59b6",  # Lila
+        TerminTyp.SCHLUESSELUEBERGABE.value: "#27ae60",  # Dunkelgrün
+        TerminTyp.DATENEINREICHUNG_FRIST.value: "#f39c12",  # Orange - Warnung
+        TerminTyp.FINANZIERUNGSZUSAGE.value: "#1abc9c",  # Türkis
+        TerminTyp.GRUNDBUCHEINTRAG.value: "#34495e",  # Dunkelgrau
+        TerminTyp.NOTARTERMIN_VORBESPRECHUNG.value: "#e67e22",  # Orange
+        TerminTyp.WIDERRUFSENDE.value: "#c0392b",  # Dunkelrot
+        TerminTyp.SONSTIGES.value: "#95a5a6",  # Grau
+    }
+    return farben.get(termin_typ, "#3498db")
+
+def get_termin_icon(termin_typ: str) -> str:
+    """Gibt das Icon für einen Termin-Typ zurück"""
+    icons = {
+        TerminTyp.BEURKUNDUNG.value: "📜",
+        TerminTyp.BESICHTIGUNG.value: "🏠",
+        TerminTyp.UEBERGABE.value: "🔑",
+        TerminTyp.KAUFPREISFAELLIGKEIT.value: "💰",
+        TerminTyp.SCHLUESSELUEBERGABE.value: "🗝️",
+        TerminTyp.DATENEINREICHUNG_FRIST.value: "📋",
+        TerminTyp.FINANZIERUNGSZUSAGE.value: "🏦",
+        TerminTyp.GRUNDBUCHEINTRAG.value: "📖",
+        TerminTyp.NOTARTERMIN_VORBESPRECHUNG.value: "⚖️",
+        TerminTyp.WIDERRUFSENDE.value: "⏰",
+        TerminTyp.SONSTIGES.value: "📅",
+    }
+    return icons.get(termin_typ, "📅")
+
+def check_und_sende_erinnerungen(user_id: str, user_rolle: str):
+    """Prüft und sendet automatische Erinnerungen für anstehende Termine"""
+    heute = date.today()
+
+    for termin_id, termin in st.session_state.termine.items():
+        # Prüfe ob User für diesen Termin relevant ist
+        projekt = st.session_state.projekte.get(termin.projekt_id)
+        if not projekt:
+            continue
+
+        # Prüfe Sichtbarkeit
+        if user_rolle not in termin.sichtbar_fuer:
+            continue
+
+        # Berechne Tage bis zum Termin
+        tage_bis_termin = (termin.datum - heute).days
+
+        # Prüfe für jeden Erinnerungstag
+        for tage_vorher in termin.erinnerung_tage_vorher:
+            if tage_bis_termin == tage_vorher and tage_vorher not in termin.alle_erinnerungen_gesendet:
+                # Sende Erinnerung
+                if termin.termin_typ == TerminTyp.BEURKUNDUNG.value:
+                    titel = f"🔔 Reminder: Beurkundung in {tage_vorher} Tag{'en' if tage_vorher > 1 else ''}!"
+                    nachricht = f"Morgen findet die Beurkundung für '{projekt.name}' statt. Bitte bereiten Sie alle erforderlichen Unterlagen vor."
+                else:
+                    titel = f"🔔 Terminerinnerung: {termin.termin_typ}"
+                    nachricht = f"In {tage_vorher} Tag{'en' if tage_vorher > 1 else ''}: {termin.termin_typ} für '{projekt.name}' am {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr."
+
+                # Erstelle Benachrichtigung für alle relevanten User
+                empfaenger_ids = []
+
+                if "Käufer" in termin.sichtbar_fuer:
+                    empfaenger_ids.extend(projekt.kaeufer_ids)
+                if "Verkäufer" in termin.sichtbar_fuer:
+                    empfaenger_ids.extend(projekt.verkaeufer_ids)
+                if "Makler" in termin.sichtbar_fuer and projekt.makler_id:
+                    empfaenger_ids.append(projekt.makler_id)
+                if "Notar" in termin.sichtbar_fuer and projekt.notar_id:
+                    empfaenger_ids.append(projekt.notar_id)
+                if "Finanzierer" in termin.sichtbar_fuer:
+                    empfaenger_ids.extend(projekt.finanzierer_ids)
+
+                for emp_id in set(empfaenger_ids):
+                    create_notification(
+                        user_id=emp_id,
+                        titel=titel,
+                        nachricht=nachricht,
+                        typ=NotificationType.WARNING.value if tage_vorher <= 1 else NotificationType.INFO.value
+                    )
+
+                # Markiere als gesendet
+                termin.alle_erinnerungen_gesendet[tage_vorher] = datetime.now()
+
+def get_alle_termine_fuer_user(user_id: str, user_rolle: str) -> List['Termin']:
+    """Holt alle relevanten Termine für einen User"""
+    termine = []
+
+    # Hole alle Projekte des Users
+    user = st.session_state.users.get(user_id)
+    if not user:
+        return termine
+
+    for projekt_id in user.projekt_ids:
+        projekt = st.session_state.projekte.get(projekt_id)
+        if not projekt:
+            continue
+
+        for termin_id in projekt.termine:
+            termin = st.session_state.termine.get(termin_id)
+            if termin and user_rolle in termin.sichtbar_fuer:
+                termine.append(termin)
+
+    # Sortiere nach Datum
+    termine.sort(key=lambda t: (t.datum, t.uhrzeit_start))
+    return termine
+
+def render_kalender_monatsansicht(termine: List['Termin'], user_rolle: str, monat: int, jahr: int):
+    """Rendert eine Monatsansicht des Kalenders"""
+    import calendar
+
+    # Kalender für den Monat
+    cal = calendar.Calendar(firstweekday=0)  # Montag als erster Tag
+    monatstage = cal.monthdayscalendar(jahr, monat)
+
+    monatsnamen = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
+                   "Juli", "August", "September", "Oktober", "November", "Dezember"]
+
+    st.markdown(f"### 📅 {monatsnamen[monat]} {jahr}")
+
+    # Wochentags-Header
+    wochentage = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+    # CSS für Kalender
+    st.markdown("""
+    <style>
+    .kalender-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        margin-bottom: 20px;
+    }
+    .kalender-header {
+        background: #2c3e50;
+        color: white;
+        padding: 8px;
+        text-align: center;
+        font-weight: bold;
+        font-size: 12px;
+    }
+    .kalender-tag {
+        background: #f8f9fa;
+        min-height: 80px;
+        padding: 5px;
+        border: 1px solid #e0e0e0;
+        font-size: 11px;
+    }
+    .kalender-tag.leer {
+        background: #f0f0f0;
+    }
+    .kalender-tag.heute {
+        background: #e3f2fd;
+        border: 2px solid #2196f3;
+    }
+    .kalender-tag-nummer {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .kalender-termin {
+        padding: 2px 4px;
+        border-radius: 3px;
+        margin-bottom: 2px;
+        font-size: 10px;
+        color: white;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Header
+    header_html = '<div class="kalender-grid">'
+    for tag in wochentage:
+        header_html += f'<div class="kalender-header">{tag}</div>'
+    header_html += '</div>'
+    st.markdown(header_html, unsafe_allow_html=True)
+
+    # Termine nach Datum gruppieren
+    termine_nach_datum = {}
+    for termin in termine:
+        if termin.datum.month == monat and termin.datum.year == jahr:
+            tag = termin.datum.day
+            if tag not in termine_nach_datum:
+                termine_nach_datum[tag] = []
+            termine_nach_datum[tag].append(termin)
+
+    # Kalender-Tage
+    heute = date.today()
+    kalender_html = '<div class="kalender-grid">'
+
+    for woche in monatstage:
+        for tag in woche:
+            if tag == 0:
+                kalender_html += '<div class="kalender-tag leer"></div>'
+            else:
+                ist_heute = (tag == heute.day and monat == heute.month and jahr == heute.year)
+                klasse = "kalender-tag heute" if ist_heute else "kalender-tag"
+
+                kalender_html += f'<div class="{klasse}">'
+                kalender_html += f'<div class="kalender-tag-nummer">{tag}</div>'
+
+                # Termine für diesen Tag
+                if tag in termine_nach_datum:
+                    for termin in termine_nach_datum[tag][:3]:  # Max 3 anzeigen
+                        farbe = get_termin_farbe(termin.termin_typ)
+                        icon = get_termin_icon(termin.termin_typ)
+                        kalender_html += f'<div class="kalender-termin" style="background:{farbe};">{icon} {termin.uhrzeit_start}</div>'
+
+                    if len(termine_nach_datum[tag]) > 3:
+                        kalender_html += f'<div style="font-size:10px;color:#666;">+{len(termine_nach_datum[tag]) - 3} weitere</div>'
+
+                kalender_html += '</div>'
+
+    kalender_html += '</div>'
+    st.markdown(kalender_html, unsafe_allow_html=True)
+
+def render_kalender_listenansicht(termine: List['Termin'], user_rolle: str):
+    """Rendert eine Listenansicht der kommenden Termine"""
+    heute = date.today()
+
+    # Filtere zukünftige Termine
+    zukunft = [t for t in termine if t.datum >= heute]
+    vergangen = [t for t in termine if t.datum < heute]
+
+    if zukunft:
+        st.markdown("### 📆 Kommende Termine")
+
+        for termin in zukunft[:10]:  # Max 10 anzeigen
+            tage_bis = (termin.datum - heute).days
+            projekt = st.session_state.projekte.get(termin.projekt_id)
+            projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+
+            farbe = get_termin_farbe(termin.termin_typ)
+            icon = get_termin_icon(termin.termin_typ)
+
+            # Dringlichkeits-Badge
+            if tage_bis == 0:
+                badge = "🔴 HEUTE"
+            elif tage_bis == 1:
+                badge = "🟠 MORGEN"
+            elif tage_bis <= 7:
+                badge = f"🟡 in {tage_bis} Tagen"
+            else:
+                badge = f"in {tage_bis} Tagen"
+
+            with st.container():
+                col1, col2, col3 = st.columns([0.1, 0.6, 0.3])
+
+                with col1:
+                    st.markdown(f"""
+                    <div style="background:{farbe}; color:white; padding:10px; border-radius:8px; text-align:center;">
+                        <div style="font-size:24px;">{termin.datum.day}</div>
+                        <div style="font-size:10px;">{termin.datum.strftime('%b')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col2:
+                    st.markdown(f"**{icon} {termin.termin_typ}**")
+                    st.caption(f"🏠 {projekt_name}")
+                    st.caption(f"🕐 {termin.uhrzeit_start} - {termin.uhrzeit_ende} Uhr")
+                    if termin.ort:
+                        st.caption(f"📍 {termin.ort}")
+
+                with col3:
+                    st.markdown(f"**{badge}**")
+                    if termin.gesetzt_von_rolle:
+                        st.caption(f"Von: {termin.gesetzt_von_rolle}")
+
+                st.markdown("---")
+    else:
+        st.info("Keine kommenden Termine vorhanden.")
+
+    # Vergangene Termine (eingeklappt)
+    if vergangen:
+        with st.expander(f"📜 Vergangene Termine ({len(vergangen)})", expanded=False):
+            for termin in vergangen[-5:]:  # Letzte 5
+                projekt = st.session_state.projekte.get(termin.projekt_id)
+                projekt_name = projekt.name if projekt else "Unbekanntes Projekt"
+                icon = get_termin_icon(termin.termin_typ)
+                st.markdown(f"- {icon} **{termin.datum.strftime('%d.%m.%Y')}** - {termin.termin_typ} ({projekt_name})")
+
+def render_termin_kalender(user_id: str, user_rolle: str, projekt_filter: str = "alle"):
+    """Rendert den vollständigen Termin-Kalender"""
+
+    # Erinnerungen prüfen
+    check_und_sende_erinnerungen(user_id, user_rolle)
+
+    # Alle Termine holen
+    alle_termine = get_alle_termine_fuer_user(user_id, user_rolle)
+
+    # Projekt-Filter
+    if projekt_filter != "alle":
+        alle_termine = [t for t in alle_termine if t.projekt_id == projekt_filter]
+
+    # Ansichts-Tabs
+    ansicht = st.radio(
+        "Ansicht",
+        options=["📋 Liste", "📅 Monatskalender"],
+        horizontal=True,
+        key=f"kalender_ansicht_{user_id}"
+    )
+
+    if ansicht == "📅 Monatskalender":
+        # Monat/Jahr Auswahl
+        col1, col2 = st.columns(2)
+        heute = date.today()
+
+        with col1:
+            monat = st.selectbox(
+                "Monat",
+                options=list(range(1, 13)),
+                format_func=lambda m: ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
+                                       "Juli", "August", "September", "Oktober", "November", "Dezember"][m],
+                index=heute.month - 1,
+                key=f"kalender_monat_{user_id}"
+            )
+        with col2:
+            jahr = st.selectbox(
+                "Jahr",
+                options=[heute.year - 1, heute.year, heute.year + 1],
+                index=1,
+                key=f"kalender_jahr_{user_id}"
+            )
+
+        render_kalender_monatsansicht(alle_termine, user_rolle, monat, jahr)
+
+        # Legende
+        with st.expander("🎨 Legende", expanded=False):
+            col1, col2 = st.columns(2)
+            termin_typen = list(TerminTyp)
+            mitte = len(termin_typen) // 2
+
+            with col1:
+                for typ in termin_typen[:mitte]:
+                    farbe = get_termin_farbe(typ.value)
+                    icon = get_termin_icon(typ.value)
+                    st.markdown(f'<span style="background:{farbe};color:white;padding:2px 8px;border-radius:4px;">{icon} {typ.value}</span>', unsafe_allow_html=True)
+            with col2:
+                for typ in termin_typen[mitte:]:
+                    farbe = get_termin_farbe(typ.value)
+                    icon = get_termin_icon(typ.value)
+                    st.markdown(f'<span style="background:{farbe};color:white;padding:2px 8px;border-radius:4px;">{icon} {typ.value}</span>', unsafe_allow_html=True)
+
+    else:
+        render_kalender_listenansicht(alle_termine, user_rolle)
+
+    # Termine an diesem Tag Details
+    st.markdown("---")
+    st.markdown("### 📝 Termin-Details")
+
+    if alle_termine:
+        termin_auswahl = st.selectbox(
+            "Termin auswählen",
+            options=alle_termine,
+            format_func=lambda t: f"{t.datum.strftime('%d.%m.%Y')} - {get_termin_icon(t.termin_typ)} {t.termin_typ}",
+            key=f"termin_detail_{user_id}"
+        )
+
+        if termin_auswahl:
+            projekt = st.session_state.projekte.get(termin_auswahl.projekt_id)
+            render_termin_card(termin_auswahl, projekt, user_rolle, context="kalender") if projekt else None
+    else:
+        st.info("Keine Termine zum Anzeigen vorhanden.")
+
 def render_alle_termine(projekt: 'Projekt', user_rolle: str):
     """Zeigt alle Termine eines Projekts"""
 
@@ -8689,7 +9790,7 @@ def generate_expose_druckversion(expose: 'ExposeData') -> str:
         <div class="header">
             <h1>{expose.objekttitel}</h1>
             <p>{expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}</p>
-            <div class="preis">{expose.kaufpreis:,.2f} €</div>
+            <div class="preis">{format_euro(expose.kaufpreis)} €</div>
         </div>
 
         <div class="content">
@@ -8757,15 +9858,15 @@ def generate_expose_druckversion(expose: 'ExposeData') -> str:
                 <table class="kosten-tabelle">
                     <tr>
                         <td>Kaufpreis</td>
-                        <td>{expose.kaufpreis:,.2f} €</td>
+                        <td>{format_euro(expose.kaufpreis)} €</td>
                     </tr>
                     <tr>
                         <td>Hausgeld (monatlich)</td>
-                        <td>{expose.hausgeld:,.2f} €</td>
+                        <td>{format_euro(expose.hausgeld)} €</td>
                     </tr>
                     <tr>
                         <td>Grundsteuer (jährlich)</td>
-                        <td>{expose.grundsteuer:,.2f} €</td>
+                        <td>{format_euro(expose.grundsteuer)} €</td>
                     </tr>
                     <tr>
                         <td>Provision</td>
@@ -8970,11 +10071,11 @@ def render_expose_editor(projekt: Projekt):
             diff = kaufpreis - preis_vorschlag
             diff_prozent = (diff / preis_vorschlag * 100) if preis_vorschlag > 0 else 0
             if diff_prozent > 10:
-                st.warning(f"Vorschlag: {preis_vorschlag:,.0f} € (+{diff_prozent:.1f}% über Markt)")
+                st.warning(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € (+{diff_prozent:.1f}% über Markt)")
             elif diff_prozent < -10:
-                st.info(f"Vorschlag: {preis_vorschlag:,.0f} € ({diff_prozent:.1f}% unter Markt)")
+                st.info(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € ({diff_prozent:.1f}% unter Markt)")
             else:
-                st.success(f"Vorschlag: {preis_vorschlag:,.0f} € (marktgerecht)")
+                st.success(f"Vorschlag: {format_euro(preis_vorschlag, 0)} € (marktgerecht)")
     with col2:
         provision = st.text_input("Provision", value=expose.provision, placeholder="z.B. 3,57% inkl. MwSt.", key=f"expose_prov_{expose.expose_id}")
     with col3:
@@ -9061,7 +10162,7 @@ def render_expose_editor(projekt: Projekt):
             with col1:
                 st.markdown(f"[{vgl.get('titel', 'Vergleichsobjekt')}]({vgl.get('url', '#')})")
             with col2:
-                st.write(f"{vgl.get('preis', 0):,.0f} €")
+                st.write(f"{format_euro(vgl.get('preis', 0), 0)} €")
             with col3:
                 st.write(f"{vgl.get('flaeche', 0)} m² • {vgl.get('zimmer', 0)} Zi.")
             with col4:
@@ -9118,9 +10219,9 @@ def render_expose_editor(projekt: Projekt):
 
             st.info(f"""
             **Marktvergleich ({len(expose.vergleichsobjekte)} Objekte):**
-            - Ø Preis: {avg_preis:,.0f} €
+            - Ø Preis: {format_euro(avg_preis, 0)} €
             - Ø Fläche: {avg_flaeche:.0f} m²
-            - Ø Preis/m²: {avg_qm_preis:,.0f} €
+            - Ø Preis/m²: {format_euro(avg_qm_preis, 0)} €
             """)
 
             # Vergleich mit eigenem Objekt
@@ -9129,11 +10230,11 @@ def render_expose_editor(projekt: Projekt):
                 diff_prozent = ((eigener_qm_preis - avg_qm_preis) / avg_qm_preis * 100) if avg_qm_preis > 0 else 0
 
                 if diff_prozent > 5:
-                    st.warning(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² (+{diff_prozent:.1f}% über Markt)")
+                    st.warning(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² (+{diff_prozent:.1f}% über Markt)")
                 elif diff_prozent < -5:
-                    st.success(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² ({diff_prozent:.1f}% unter Markt)")
+                    st.success(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² ({diff_prozent:.1f}% unter Markt)")
                 else:
-                    st.success(f"Ihr Objekt: {eigener_qm_preis:,.0f} €/m² (marktgerecht)")
+                    st.success(f"Ihr Objekt: {format_euro(eigener_qm_preis, 0)} €/m² (marktgerecht)")
 
     # Bilder
     st.markdown("#### Bilder und Dokumente")
@@ -9272,7 +10373,7 @@ def render_expose_editor(projekt: Projekt):
         preview_html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: white; border: 1px solid #ddd;">
             <h1 style="color: #333;">{expose.objekttitel}</h1>
-            <p style="font-size: 1.2em; color: #e74c3c;"><strong>Kaufpreis: {expose.kaufpreis:,.2f} €</strong></p>
+            <p style="font-size: 1.2em; color: #e74c3c;"><strong>Kaufpreis: {format_euro(expose.kaufpreis)} €</strong></p>
 
             <h2>Objektbeschreibung</h2>
             <p>{expose.objektbeschreibung}</p>
@@ -9669,6 +10770,16 @@ def makler_dashboard():
     """Dashboard für Makler"""
     st.title("📊 Makler-Dashboard")
 
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("makler")
     if search_term:
@@ -9684,7 +10795,8 @@ def makler_dashboard():
         "👥 Teilnehmer-Status",
         "✉️ Einladungen",
         "💬 Kommentare",
-        "🪪 Ausweisdaten erfassen"
+        "🪪 Ausweisdaten erfassen",
+        "📅 Termine"
     ])
 
     with tabs[0]:
@@ -9716,6 +10828,26 @@ def makler_dashboard():
 
     with tabs[9]:
         makler_ausweis_erfassung()
+
+    with tabs[9]:
+        # Termin-Übersicht für Makler mit Kalender
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.MAKLER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -10058,7 +11190,7 @@ def makler_projekte_view():
                 if projekt.adresse:
                     st.markdown(f"**Adresse:** {projekt.adresse}")
                 if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
                 st.markdown(f"**Status:** {projekt.status}")
                 st.markdown(f"**Erstellt:** {projekt.created_at.strftime('%d.%m.%Y')}")
 
@@ -10103,11 +11235,11 @@ def makler_projekte_view():
 
                     if angenommene:
                         einigung = angenommene[0]
-                        st.success(f"✅ **Preiseinigung erzielt:** {einigung.betrag:,.2f} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
+                        st.success(f"✅ **Preiseinigung erzielt:** {format_euro(einigung.betrag)} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
                     elif letztes_angebot and letztes_angebot.status == PreisangebotStatus.OFFEN.value:
                         von_user = st.session_state.users.get(letztes_angebot.von_user_id)
                         von_name = von_user.name if von_user else "Unbekannt"
-                        st.info(f"⏳ **Offenes Angebot:** {letztes_angebot.betrag:,.2f} € von {von_name} ({letztes_angebot.von_rolle})")
+                        st.info(f"⏳ **Offenes Angebot:** {format_euro(letztes_angebot.betrag)} € von {von_name} ({letztes_angebot.von_rolle})")
 
                     # Vollständiger Verlauf
                     st.markdown("**Verhandlungsverlauf:**")
@@ -10123,7 +11255,7 @@ def makler_projekte_view():
                         }.get(angebot.status, "❓")
 
                         st.markdown(f"""
-                        {status_icon} **{angebot.betrag:,.2f} €** - {von_name} ({angebot.von_rolle})
+                        {status_icon} **{format_euro(angebot.betrag)} €** - {von_name} ({angebot.von_rolle})
                         - Status: {angebot.status} | {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                         {"- *" + angebot.nachricht + "*" if angebot.nachricht else ""}
                         """)
@@ -10143,7 +11275,7 @@ def makler_projekte_view():
                         st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
                     with col2:
                         st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
-                        st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €")
+                        st.write(f"**Kaufpreis:** {format_euro(expose.kaufpreis)} €")
                     with col3:
                         st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y %H:%M')}")
                         if expose.adresse_validiert:
@@ -10811,6 +11943,15 @@ def kaeufer_dashboard():
         # User muss erst Dokumente akzeptieren
         return
 
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("kaeufer")
     if search_term:
@@ -10857,16 +11998,26 @@ def kaeufer_dashboard():
         kaeufer_dokumente_view()
 
     with tabs[8]:
-        # Termin-Übersicht für Käufer
+        # Termin-Übersicht für Käufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            # Vollständiger Kalender mit allen Terminen
+            render_termin_kalender(user_id, UserRole.KAEUFER.value)
+
+        with termin_ansicht[1]:
+            # Projekt-basierte Ansicht
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -10910,15 +12061,33 @@ def kaeufer_projekte_view():
             if projekt.adresse:
                 st.markdown(f"**Adresse:** {projekt.adresse}")
             if projekt.kaufpreis > 0:
-                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
             if projekt.expose_pdf:
-                st.download_button(
-                    "📥 Exposé herunterladen",
-                    projekt.expose_pdf,
-                    file_name=f"Expose_{projekt.name}.pdf",
-                    mime="application/pdf"
-                )
+                col_dl, col_akt = st.columns(2)
+                with col_dl:
+                    st.download_button(
+                        "📥 Exposé herunterladen",
+                        projekt.expose_pdf,
+                        file_name=f"Expose_{projekt.name}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with col_akt:
+                    render_zur_aktentasche_button(
+                        user_id=user_id,
+                        inhalt_typ=AktentascheInhaltTyp.EXPOSE.value,
+                        titel=f"Exposé {projekt.name}",
+                        beschreibung=projekt.adresse or "",
+                        referenz_id=projekt.projekt_id,
+                        referenz_typ="Projekt",
+                        dateiname=f"Expose_{projekt.name}.pdf",
+                        dateigröße=len(projekt.expose_pdf) if projekt.expose_pdf else 0,
+                        pdf_data=projekt.expose_pdf,
+                        projekt_id=projekt.projekt_id,
+                        projekt_name=projekt.name,
+                        key_suffix=f"expose_{projekt.projekt_id}"
+                    )
             else:
                 st.info("Exposé wird vom Makler noch bereitgestellt.")
 
@@ -10937,7 +12106,7 @@ def kaeufer_projekte_view():
 
                     if letztes_offenes.von_user_id == user_id:
                         # Eigenes offenes Angebot
-                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Verkäufers.")
+                        st.info(f"⏳ Ihr Angebot über **{format_euro(letztes_offenes.betrag)} €** wartet auf Antwort des Verkäufers.")
                         if letztes_offenes.nachricht:
                             st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
 
@@ -10947,7 +12116,7 @@ def kaeufer_projekte_view():
                             st.rerun()
                     else:
                         # Offenes Angebot vom Verkäufer
-                        st.warning(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        st.warning(f"📬 **{von_name}** bietet **{format_euro(letztes_offenes.betrag)} €**")
                         if letztes_offenes.nachricht:
                             st.caption(f"Nachricht: {letztes_offenes.nachricht}")
 
@@ -11005,7 +12174,7 @@ def kaeufer_projekte_view():
                             betrag=angebot_betrag,
                             nachricht=angebot_nachricht
                         )
-                        st.success(f"Angebot über {angebot_betrag:,.2f} € gesendet!")
+                        st.success(f"Angebot über {format_euro(angebot_betrag)} € gesendet!")
                         st.rerun()
 
                 # Zeige Verhandlungsverlauf
@@ -11023,7 +12192,7 @@ def kaeufer_projekte_view():
                             }.get(angebot.status, "❓")
 
                             st.markdown(f"""
-                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            {status_icon} **{format_euro(angebot.betrag)} €** von {von_name} ({angebot.von_rolle})
                             - Status: {angebot.status}
                             - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                             {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
@@ -11897,7 +13066,7 @@ def render_idee_item(idee: IdeenboardEintrag):
             st.caption(idee.beschreibung)
 
         if idee.geschaetzte_kosten > 0:
-            st.caption(f"💰 Geschätzte Kosten: {idee.geschaetzte_kosten:,.2f} €")
+            st.caption(f"💰 Geschätzte Kosten: {format_euro(idee.geschaetzte_kosten)} €")
 
     with col2:
         if idee.bild_url:
@@ -12072,7 +13241,7 @@ def kaeufer_finanzierung_anfragen(projekte):
         st.markdown("---")
 
     for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €", expanded=True):
+        with st.expander(f"🏘️ {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €", expanded=True):
             # Prüfe ob bereits Finanzierungsanfrage existiert
             bestehende_anfrage = None
             for anfrage in st.session_state.finanzierungsanfragen.values():
@@ -12087,9 +13256,9 @@ def kaeufer_finanzierung_anfragen(projekte):
 
                 if bestehende_anfrage:
                     st.success("✅ Finanzierungsanfrage gestellt")
-                    st.write(f"**Kaufpreis:** {bestehende_anfrage.kaufpreis:,.2f} €")
-                    st.write(f"**Eigenkapital:** {bestehende_anfrage.eigenkapital:,.2f} €")
-                    st.write(f"**Finanzierungsbetrag:** {bestehende_anfrage.finanzierungsbetrag:,.2f} €")
+                    st.write(f"**Kaufpreis:** {format_euro(bestehende_anfrage.kaufpreis)} €")
+                    st.write(f"**Eigenkapital:** {format_euro(bestehende_anfrage.eigenkapital)} €")
+                    st.write(f"**Finanzierungsbetrag:** {format_euro(bestehende_anfrage.finanzierungsbetrag)} €")
                     if bestehende_anfrage.dokumente_freigegeben:
                         st.info("📄 Dokumente für Finanzierer freigegeben")
                 else:
@@ -12110,7 +13279,7 @@ def kaeufer_finanzierung_anfragen(projekte):
                         )
                         finanzierungsbetrag = kaufpreis - eigenkapital
 
-                        st.metric("Zu finanzierender Betrag", f"{finanzierungsbetrag:,.2f} €")
+                        st.metric("Zu finanzierender Betrag", f"{format_euro(finanzierungsbetrag)} €")
 
                         dokumente_freigeben = st.checkbox(
                             "Meine Unterlagen für Finanzierer freigeben",
@@ -12245,14 +13414,14 @@ def kaeufer_finanzierungsangebote():
             # Haupt-Konditionen
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
                 st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
                 if offer.effektivzins > 0:
                     st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
 
             with col2:
                 st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
-                st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
                 st.metric("Sollzinsbindung", f"{offer.sollzinsbindung} Jahre")
 
             with col3:
@@ -12284,13 +13453,32 @@ def kaeufer_finanzierungsangebote():
                     st.warning(f"⏰ Gültig bis: {offer.gueltig_bis.strftime('%d.%m.%Y %H:%M')}")
 
             if offer.pdf_data:
-                st.download_button(
-                    "📥 Angebot als PDF herunterladen",
-                    offer.pdf_data,
-                    file_name=f"Finanzierungsangebot_{offer.offer_id}.pdf",
-                    mime="application/pdf",
-                    key=f"dl_offer_{offer.offer_id}"
-                )
+                col_dl, col_akt = st.columns(2)
+                with col_dl:
+                    st.download_button(
+                        "📥 Angebot als PDF herunterladen",
+                        offer.pdf_data,
+                        file_name=f"Finanzierungsangebot_{offer.offer_id}.pdf",
+                        mime="application/pdf",
+                        key=f"dl_offer_{offer.offer_id}",
+                        use_container_width=True
+                    )
+                with col_akt:
+                    projekt = st.session_state.projekte.get(offer.projekt_id)
+                    render_zur_aktentasche_button(
+                        user_id=user_id,
+                        inhalt_typ=AktentascheInhaltTyp.FINANZIERUNGSANGEBOT.value,
+                        titel=f"Finanzierungsangebot {finanzierer_name}",
+                        beschreibung=f"{offer.zinssatz}% Zinsen, {format_euro(offer.monatliche_rate)} €/Monat",
+                        referenz_id=offer.offer_id,
+                        referenz_typ="FinancingOffer",
+                        dateiname=f"Finanzierungsangebot_{offer.offer_id}.pdf",
+                        dateigröße=len(offer.pdf_data) if offer.pdf_data else 0,
+                        pdf_data=offer.pdf_data,
+                        projekt_id=offer.projekt_id,
+                        projekt_name=projekt.name if projekt else "",
+                        key_suffix=f"fin_{offer.offer_id}"
+                    )
 
             if offer.status == FinanzierungsStatus.GESENDET.value:
                 st.markdown("---")
@@ -12386,11 +13574,11 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
         # Zusammenfassung
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Monatliche Rate", f"{anfaengliche_rate:,.2f} €")
+            st.metric("Monatliche Rate", f"{format_euro(anfaengliche_rate)} €")
         with col2:
-            st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+            st.metric("Gesamtzinsen", f"{format_euro(gesamt_zinsen)} €")
         with col3:
-            st.metric("Restschuld nach Laufzeit", f"{tilgungsplan[-1]['Restschuld']:,.2f} €")
+            st.metric("Restschuld nach Laufzeit", f"{format_euro(tilgungsplan[-1]['Restschuld'])} €")
 
         # Jährliche Zusammenfassung
         anzeige_option = st.radio(
@@ -12410,9 +13598,9 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
 
             st.dataframe(
                 df_jaehrlich.style.format({
-                    'Zinsen (€)': '{:,.2f}',
-                    'Tilgung (€)': '{:,.2f}',
-                    'Restschuld (€)': '{:,.2f}'
+                    'Zinsen (€)': lambda x: format_euro(x),
+                    'Tilgung (€)': lambda x: format_euro(x),
+                    'Restschuld (€)': lambda x: format_euro(x)
                 }),
                 use_container_width=True,
                 height=400
@@ -12423,10 +13611,10 @@ def render_tilgungsplan(darlehensbetrag: float, zinssatz: float, tilgungssatz: f
 
             st.dataframe(
                 df_monatlich.style.format({
-                    'Rate (€)': '{:,.2f}',
-                    'Zinsen (€)': '{:,.2f}',
-                    'Tilgung (€)': '{:,.2f}',
-                    'Restschuld (€)': '{:,.2f}'
+                    'Rate (€)': lambda x: format_euro(x),
+                    'Zinsen (€)': lambda x: format_euro(x),
+                    'Tilgung (€)': lambda x: format_euro(x),
+                    'Restschuld (€)': lambda x: format_euro(x)
                 }),
                 use_container_width=True,
                 height=400
@@ -12767,7 +13955,7 @@ def _finanzierung_neue_berechnung():
         )
 
         darlehensbetrag = finanzierungsbetrag - eigenkapital
-        st.metric("Darlehensbetrag", f"{darlehensbetrag:,.2f} €")
+        st.metric("Darlehensbetrag", f"{format_euro(darlehensbetrag)} €")
 
     with col2:
         st.markdown("#### 📊 Konditionen")
@@ -12968,21 +14156,24 @@ def _finanzierung_neue_berechnung():
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Monatliche Rate", f"{monatliche_rate:,.2f} €")
+                st.metric("Monatliche Rate", f"{format_euro(monatliche_rate)} €")
             with col2:
-                st.metric("Gesamtzinsen", f"{gesamt_zinsen:,.2f} €")
+                st.metric("Gesamtzinsen", f"{format_euro(gesamt_zinsen)} €")
             with col3:
-                st.metric("Restschuld", f"{letzte_restschuld:,.2f} €")
+                st.metric("Restschuld", f"{format_euro(letzte_restschuld)} €")
             with col4:
                 st.metric("Laufzeit", f"{laufzeit_effektiv // 12} J. {laufzeit_effektiv % 12} M.")
 
             # Zusätzliche Infos
+            gesamtkosten = gesamt_zinsen + darlehensbetrag
+            st.info(f"💰 **Gesamtkosten des Kredits:** {format_euro(gesamtkosten)} € (Darlehensbetrag + Zinsen)")
+
             st.info(f"💰 **Gesamtkosten des Kredits:** {gesamtkosten:,.2f} € (Darlehensbetrag + Zinsen)")
 
             if sollzinsbindung * 12 < laufzeit_effektiv and not vollltilger:
                 restschuld_bei_bindung = df[df['Monat'] == sollzinsbindung * 12]['Restschuld'].values
                 if len(restschuld_bei_bindung) > 0:
-                    st.warning(f"⚠️ **Restschuld nach {sollzinsbindung} Jahren Sollzinsbindung:** {restschuld_bei_bindung[0]:,.2f} €")
+                    st.warning(f"⚠️ **Restschuld nach {sollzinsbindung} Jahren Sollzinsbindung:** {format_euro(restschuld_bei_bindung[0])} €")
 
             # Tilgungsplan anzeigen
             st.markdown("---")
@@ -13005,9 +14196,9 @@ def _finanzierung_neue_berechnung():
 
                 st.dataframe(
                     df_jaehrlich.style.format({
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -13019,10 +14210,10 @@ def _finanzierung_neue_berechnung():
 
                 st.dataframe(
                     df_display.style.format({
-                        'Rate (€)': '{:,.2f}',
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Rate (€)': lambda x: format_euro(x),
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -13034,10 +14225,10 @@ def _finanzierung_neue_berechnung():
 
                 st.dataframe(
                     df_24.style.format({
-                        'Rate (€)': '{:,.2f}',
-                        'Zinsen (€)': '{:,.2f}',
-                        'Tilgung (€)': '{:,.2f}',
-                        'Restschuld (€)': '{:,.2f}'
+                        'Rate (€)': lambda x: format_euro(x),
+                        'Zinsen (€)': lambda x: format_euro(x),
+                        'Tilgung (€)': lambda x: format_euro(x),
+                        'Restschuld (€)': lambda x: format_euro(x)
                     }),
                     use_container_width=True,
                     height=400
@@ -14290,6 +15481,15 @@ def verkaeufer_dashboard():
         # User muss erst Dokumente akzeptieren
         return
 
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("verkaeufer")
     if search_term:
@@ -14329,16 +15529,24 @@ def verkaeufer_dashboard():
         verkaeufer_eigene_kosten_view()
 
     with tabs[9]:
-        # Termin-Übersicht für Verkäufer
+        # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
 
 def verkaeufer_preisfindung_view():
@@ -15271,7 +16479,7 @@ def verkaeufer_projekte_view():
             if projekt.adresse:
                 st.markdown(f"**Adresse:** {projekt.adresse}")
             if projekt.kaufpreis > 0:
-                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
             st.markdown(f"**Status:** {projekt.status}")
 
             # === PREISVERHANDLUNG ===
@@ -15289,7 +16497,7 @@ def verkaeufer_projekte_view():
 
                     if letztes_offenes.von_user_id == user_id:
                         # Eigenes offenes Angebot
-                        st.info(f"⏳ Ihr Angebot über **{letztes_offenes.betrag:,.2f} €** wartet auf Antwort des Käufers.")
+                        st.info(f"⏳ Ihr Angebot über **{format_euro(letztes_offenes.betrag)} €** wartet auf Antwort des Käufers.")
                         if letztes_offenes.nachricht:
                             st.caption(f"Ihre Nachricht: {letztes_offenes.nachricht}")
 
@@ -15299,7 +16507,7 @@ def verkaeufer_projekte_view():
                             st.rerun()
                     else:
                         # Offenes Angebot vom Käufer
-                        st.success(f"📬 **{von_name}** bietet **{letztes_offenes.betrag:,.2f} €**")
+                        st.success(f"📬 **{von_name}** bietet **{format_euro(letztes_offenes.betrag)} €**")
                         if letztes_offenes.nachricht:
                             st.caption(f"Nachricht: {letztes_offenes.nachricht}")
 
@@ -15357,7 +16565,7 @@ def verkaeufer_projekte_view():
                             betrag=angebot_betrag,
                             nachricht=angebot_nachricht
                         )
-                        st.success(f"Preisvorschlag über {angebot_betrag:,.2f} € gesendet!")
+                        st.success(f"Preisvorschlag über {format_euro(angebot_betrag)} € gesendet!")
                         st.rerun()
 
                 # Zeige Verhandlungsverlauf
@@ -15375,7 +16583,7 @@ def verkaeufer_projekte_view():
                             }.get(angebot.status, "❓")
 
                             st.markdown(f"""
-                            {status_icon} **{angebot.betrag:,.2f} €** von {von_name} ({angebot.von_rolle})
+                            {status_icon} **{format_euro(angebot.betrag)} €** von {von_name} ({angebot.von_rolle})
                             - Status: {angebot.status}
                             - Datum: {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
                             {"- Nachricht: " + angebot.nachricht if angebot.nachricht else ""}
@@ -15625,6 +16833,16 @@ def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
     st.title("💼 Finanzierer-Dashboard")
 
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("finanzierer")
     if search_term:
@@ -15636,7 +16854,8 @@ def finanzierer_dashboard():
         "📊 Timeline",
         "📋 Wirtschaftsdaten Käufer",
         "💰 Finanzierungsangebote erstellen",
-        "📜 Meine Angebote"
+        "📜 Meine Angebote",
+        "📅 Termine"
     ])
 
     with tabs[0]:
@@ -15650,6 +16869,26 @@ def finanzierer_dashboard():
 
     with tabs[3]:
         finanzierer_angebote_liste()
+
+    with tabs[4]:
+        # Termin-Übersicht für Finanzierer mit Kalender
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.FINANZIERER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -15968,16 +17207,16 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
         elif verbleibend <= 3:
             ablauf_info = f" ⚠️ {verbleibend}T"
 
-    with st.expander(f"{icon} {projekt_name} - {titel} | {offer.darlehensbetrag:,.0f} € | {offer.zinssatz}%{ablauf_info}"):
+    with st.expander(f"{icon} {projekt_name} - {titel} | {format_euro(offer.darlehensbetrag, 0)} € | {offer.zinssatz}%{ablauf_info}"):
         # Konditionen
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+            st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
             st.metric("Zinssatz (nom.)", f"{offer.zinssatz:.2f} %")
             if offer.effektivzins > 0:
                 st.metric("Effektivzins", f"{offer.effektivzins:.2f} %")
         with col2:
-            st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+            st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
             st.metric("Tilgungssatz", f"{offer.tilgungssatz:.2f} %")
             st.metric("Laufzeit", f"{offer.gesamtlaufzeit} Jahre")
         with col3:
@@ -16062,6 +17301,16 @@ def notar_dashboard():
     """Dashboard für Notar"""
     st.title("⚖️ Notar-Dashboard")
 
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
     # Suchleiste
     search_term = render_dashboard_search("notar")
     if search_term:
@@ -16088,6 +17337,7 @@ def notar_dashboard():
         "🔧 Handwerker",
         "🪪 Ausweisdaten",
         "📜 Rechtsdokumente",
+        "📁 Aktenimport",  # NEU: PDF-Akten importieren
         "⚙️ Einstellungen"
     ])
 
@@ -16134,6 +17384,10 @@ def notar_dashboard():
         notar_termine()
 
     with tabs[14]:
+        notar_aktenimport_view()
+
+    with tabs[15]:
+
         notar_makler_empfehlung_view()
 
     with tabs[15]:
@@ -16196,7 +17450,7 @@ def notar_projekte_view():
                 if projekt.adresse:
                     st.markdown(f"**Adresse:** {projekt.adresse}")
                 if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
             with col2:
                 st.markdown("**Parteien:**")
@@ -16672,10 +17926,10 @@ def notar_preiseinigungen_view():
             kaeufer_namen = [st.session_state.users.get(kid).name for kid in projekt.kaeufer_ids if st.session_state.users.get(kid)]
             verkaeufer_namen = [st.session_state.users.get(vid).name for vid in projekt.verkaeufer_ids if st.session_state.users.get(vid)]
 
-            with st.expander(f"🏠 {projekt.name} - {einigung.betrag:,.2f} €", expanded=True):
+            with st.expander(f"🏠 {projekt.name} - {format_euro(einigung.betrag)} €", expanded=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown(f"**Kaufpreis:** {einigung.betrag:,.2f} €")
+                    st.markdown(f"**Kaufpreis:** {format_euro(einigung.betrag)} €")
                     st.markdown(f"**Einigung am:** {einigung.beantwortet_am.strftime('%d.%m.%Y %H:%M') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
                     st.markdown(f"**Adresse:** {projekt.adresse or 'Nicht angegeben'}")
                 with col2:
@@ -16718,14 +17972,14 @@ def notar_preiseinigungen_view():
         for projekt, letztes in offene_verhandlungen:
             von_user = st.session_state.users.get(letztes.von_user_id)
             von_name = von_user.name if von_user else "Unbekannt"
-            st.info(f"**{projekt.name}**: Offenes Angebot von {von_name} ({letztes.von_rolle}) über {letztes.betrag:,.2f} €")
+            st.info(f"**{projekt.name}**: Offenes Angebot von {von_name} ({letztes.von_rolle}) über {format_euro(letztes.betrag)} €")
 
     # Ohne Verhandlung
     if ohne_verhandlung:
         st.markdown("---")
         st.markdown("### 📋 Ohne aktive Preisverhandlung")
         for projekt in ohne_verhandlung:
-            st.write(f"• {projekt.name} - Kaufpreis: {projekt.kaufpreis:,.2f} €")
+            st.write(f"• {projekt.name} - Kaufpreis: {format_euro(projekt.kaufpreis)} €")
 
 
 # ============================================================================
@@ -19075,10 +20329,10 @@ def notar_finanzierungsnachweise():
                 with st.expander(f"{icon} Finanzierung von {finanzierer_name}", expanded=offer.fuer_notar_markiert):
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("Darlehensbetrag", f"{offer.darlehensbetrag:,.2f} €")
+                        st.metric("Darlehensbetrag", f"{format_euro(offer.darlehensbetrag)} €")
                         st.metric("Zinssatz", f"{offer.zinssatz:.2f} %")
                     with col2:
-                        st.metric("Monatliche Rate", f"{offer.monatliche_rate:,.2f} €")
+                        st.metric("Monatliche Rate", f"{format_euro(offer.monatliche_rate)} €")
                         st.metric("Angenommen am", offer.accepted_at.strftime("%d.%m.%Y"))
 
                     if offer.fuer_notar_markiert:
@@ -19246,7 +20500,7 @@ def render_vertrag_datenuebersicht(projekt):
             st.write(f"**Objektart:** {expose.objektart}")
             st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
         with col2:
-            st.write(f"**Kaufpreis:** {expose.kaufpreis:,.2f} €" if expose.kaufpreis else "**Kaufpreis:** N/A")
+            st.write(f"**Kaufpreis:** {format_euro(expose.kaufpreis)} €" if expose.kaufpreis else "**Kaufpreis:** N/A")
             st.write(f"**Grundstücksfläche:** {expose.grundstuecksflaeche} m²" if expose.grundstuecksflaeche else "")
             st.write(f"**Baujahr:** {expose.baujahr}" if expose.baujahr else "")
             st.write(f"**Zimmer:** {expose.anzahl_zimmer}" if expose.anzahl_zimmer else "")
@@ -19274,7 +20528,7 @@ def render_vertrag_datenuebersicht(projekt):
                 if o.projekt_id == projekt.projekt_id and o.status == "Angenommen"]
     if angebote:
         for angebot in angebote:
-            st.success(f"✅ Finanzierung gesichert: {angebot.betrag:,.2f} € bei {angebot.zinssatz}% Zinsen")
+            st.success(f"✅ Finanzierung gesichert: {format_euro(angebot.betrag)} € bei {angebot.zinssatz}% Zinsen")
     else:
         st.warning("⚠️ Keine angenommene Finanzierung")
 
@@ -19413,7 +20667,7 @@ Adresse: {kaeufer_personal.get('strasse', '')} {kaeufer_personal.get('hausnummer
         objekt_data = f"""Adresse: {expose.strasse} {expose.hausnummer}, {expose.plz} {expose.ort}
 Objektart: {expose.objektart}
 Wohnfläche: {expose.wohnflaeche} m²
-Kaufpreis: {expose.kaufpreis:,.2f} EUR"""
+Kaufpreis: {format_euro(expose.kaufpreis)} EUR"""
 
     prompt = f"""Erstelle einen professionellen deutschen Kaufvertragsentwurf.
 
@@ -19677,138 +20931,154 @@ def notar_termine():
     notar_id = st.session_state.current_user.user_id
     projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
 
-    # Outlook-Kalender-Simulation
-    st.markdown("### 📆 Mein Outlook-Kalender")
-    st.info("💡 Der Kalender zeigt Ihre anstehenden Beurkundungstermine. Termine werden automatisch mit Ihrem Outlook synchronisiert.")
+    # Kalender-Ansicht-Tabs
+    termin_tabs = st.tabs(["📅 Kalender", "📆 Outlook-Integration", "📋 Nach Projekt"])
 
-    # Alle bestätigten Termine anzeigen
-    alle_termine = []
-    for projekt in projekte:
-        for termin_id in projekt.termine:
-            termin = st.session_state.termine.get(termin_id)
-            if termin and termin.termin_typ == TerminTyp.BEURKUNDUNG.value:
-                alle_termine.append((termin, projekt))
+    with termin_tabs[0]:
+        # Vollständiger Kalender
+        render_termin_kalender(notar_id, UserRole.NOTAR.value)
 
-    if alle_termine:
-        for termin, projekt in sorted(alle_termine, key=lambda x: x[0].datum):
-            status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡" if termin.status == TerminStatus.TEILWEISE_BESTAETIGT.value else "🟠"
-            outlook_status = f"[{termin.outlook_status}]" if termin.outlook_status else ""
+    with termin_tabs[1]:
+        # Outlook-Kalender-Simulation
+        st.markdown("### 📆 Mein Outlook-Kalender")
+        st.info("💡 Der Kalender zeigt Ihre anstehenden Beurkundungstermine. Termine werden automatisch mit Ihrem Outlook synchronisiert.")
 
-            col1, col2, col3 = st.columns([3, 2, 1])
-            with col1:
-                st.write(f"{status_icon} **{termin.datum.strftime('%d.%m.%Y')}** - {termin.uhrzeit_start} Uhr")
-                st.caption(termin.beschreibung)
-            with col2:
-                st.write(f"Projekt: {projekt.name}")
-                st.write(f"Status: {termin.status} {outlook_status}")
-            with col3:
-                if termin.status == TerminStatus.BESTAETIGT.value:
-                    ics_content = generate_ics_file(termin, projekt)
-                    st.download_button("📥 .ics", data=ics_content, file_name=f"beurkundung_{projekt.projekt_id}.ics", mime="text/calendar", key=f"notar_ics_{termin.termin_id}")
-    else:
-        st.info("Keine Beurkundungstermine vorhanden.")
+        # Alle bestätigten Termine anzeigen
+        alle_termine = []
+        for projekt in projekte:
+            for termin_id in projekt.termine:
+                termin = st.session_state.termine.get(termin_id)
+                if termin and termin.termin_typ == TerminTyp.BEURKUNDUNG.value:
+                    alle_termine.append((termin, projekt))
 
-    st.markdown("---")
-    st.markdown("### 📋 Terminvorschläge für Projekte")
+        if alle_termine:
+            for termin, projekt in sorted(alle_termine, key=lambda x: x[0].datum):
+                status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡" if termin.status == TerminStatus.TEILWEISE_BESTAETIGT.value else "🟠"
+                outlook_status = f"[{termin.outlook_status}]" if termin.outlook_status else ""
 
-    if not projekte:
-        st.info("Noch keine Projekte zugewiesen.")
-        return
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.write(f"{status_icon} **{termin.datum.strftime('%d.%m.%Y')}** - {termin.uhrzeit_start} Uhr")
+                    st.caption(termin.beschreibung)
+                with col2:
+                    st.write(f"Projekt: {projekt.name}")
+                    st.write(f"Status: {termin.status} {outlook_status}")
+                with col3:
+                    if termin.status == TerminStatus.BESTAETIGT.value:
+                        ics_content = generate_ics_file(termin, projekt)
+                        st.download_button("📥 .ics", data=ics_content, file_name=f"beurkundung_{projekt.projekt_id}.ics", mime="text/calendar", key=f"notar_ics_{termin.termin_id}")
+        else:
+            st.info("Keine Beurkundungstermine vorhanden.")
 
-    for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            # Prüfe ob Kaufvertragsentwurf gesendet wurde
-            entwurf_gesendet = check_kaufvertrag_entwurf_status(projekt.projekt_id)
+        st.markdown("---")
+        st.markdown("### 📋 Terminvorschläge für Projekte")
 
-            if not entwurf_gesendet:
-                st.warning("⚠️ Kaufvertragsentwurf muss erst versendet werden, bevor Beurkundungstermine vorgeschlagen werden können.")
+        if not projekte:
+            st.info("Noch keine Projekte zugewiesen.")
+        else:
+            for projekt in projekte:
+                with st.expander(f"🏘️ {projekt.name} - Terminvorschläge"):
+                    render_termin_verwaltung(projekt, UserRole.NOTAR.value)
 
-                # Manuell als erledigt markieren
-                if st.checkbox("Kaufvertragsentwurf wurde versendet", key=f"entwurf_ok_{projekt.projekt_id}"):
-                    # Timeline-Event als erledigt markieren
-                    for event_id in projekt.timeline_events:
-                        event = st.session_state.timeline_events.get(event_id)
-                        if event and "Kaufvertrag" in event.titel and not event.completed:
-                            event.completed = True
-                            event.completed_at = datetime.now()
-                            st.session_state.timeline_events[event_id] = event
-                    st.success("Status aktualisiert!")
-                    st.rerun()
-                continue
+    with termin_tabs[2]:
+        # Projekt-basierte Ansicht mit erweiterten Terminvorschlägen
+        if not projekte:
+            st.info("Noch keine Projekte zugewiesen.")
+        else:
+            for projekt in projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                    # Prüfe ob Kaufvertragsentwurf gesendet wurde
+                    entwurf_gesendet = check_kaufvertrag_entwurf_status(projekt.projekt_id)
 
-            # Bestehende Beurkundungstermine anzeigen
-            beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
-                                   if st.session_state.termine.get(tid) and
-                                   st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value]
+                    if not entwurf_gesendet:
+                        st.warning("⚠️ Kaufvertragsentwurf muss erst versendet werden, bevor Beurkundungstermine vorgeschlagen werden können.")
 
-            if beurkundungstermine:
-                for termin in beurkundungstermine:
-                    status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡"
-                    st.markdown(f"{status_icon} **Termin:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
-                    st.write(f"Status: {termin.status}")
+                        # Manuell als erledigt markieren
+                        if st.checkbox("Kaufvertragsentwurf wurde versendet", key=f"entwurf_ok_{projekt.projekt_id}"):
+                            # Timeline-Event als erledigt markieren
+                            for event_id in projekt.timeline_events:
+                                event = st.session_state.timeline_events.get(event_id)
+                                if event and "Kaufvertrag" in event.titel and not event.completed:
+                                    event.completed = True
+                                    event.completed_at = datetime.now()
+                                    st.session_state.timeline_events[event_id] = event
+                            st.success("Status aktualisiert!")
+                            st.rerun()
+                        continue
 
-                    # Bestätigungsstatus anzeigen
-                    bestaetigung = check_termin_bestaetigung(termin, projekt)
-                    if not bestaetigung['alle_bestaetigt']:
-                        ausstehend = []
-                        if not bestaetigung['makler_bestaetigt'] and projekt.makler_id:
-                            ausstehend.append("Makler")
-                        if bestaetigung['kaeufer_ausstehend']:
-                            ausstehend.append(f"Käufer ({len(bestaetigung['kaeufer_ausstehend'])})")
-                        if bestaetigung['verkaeufer_ausstehend']:
-                            ausstehend.append(f"Verkäufer ({len(bestaetigung['verkaeufer_ausstehend'])})")
-                        st.caption(f"Ausstehende Bestätigungen: {', '.join(ausstehend)}")
-            else:
-                st.info("Noch keine Beurkundungstermine.")
+                    # Bestehende Beurkundungstermine anzeigen
+                    beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
+                                           if st.session_state.termine.get(tid) and
+                                           st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value]
 
-            # Offene Vorschläge anzeigen
-            offene_vorschlaege = [v for v in st.session_state.terminvorschlaege.values()
-                                 if v.projekt_id == projekt.projekt_id and
-                                 v.termin_typ == TerminTyp.BEURKUNDUNG.value and
-                                 v.status == "offen"]
+                    if beurkundungstermine:
+                        for termin in beurkundungstermine:
+                            status_icon = "🟢" if termin.status == TerminStatus.BESTAETIGT.value else "🟡"
+                            st.markdown(f"{status_icon} **Termin:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
+                            st.write(f"Status: {termin.status}")
 
-            if offene_vorschlaege:
-                st.markdown("##### 📨 Bereits gesendete Vorschläge")
-                for vorschlag in offene_vorschlaege:
-                    st.write(f"Gesendet am: {vorschlag.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
-                    for i, slot in enumerate(vorschlag.vorschlaege):
-                        st.write(f"  Option {i+1}: {slot['datum'].strftime('%d.%m.%Y')} ({slot['tageszeit']}) {slot['uhrzeit_start']}-{slot['uhrzeit_ende']} Uhr")
+                            # Bestätigungsstatus anzeigen
+                            bestaetigung = check_termin_bestaetigung(termin, projekt)
+                            if not bestaetigung['alle_bestaetigt']:
+                                ausstehend = []
+                                if not bestaetigung['makler_bestaetigt'] and projekt.makler_id:
+                                    ausstehend.append("Makler")
+                                if bestaetigung['kaeufer_ausstehend']:
+                                    ausstehend.append(f"Käufer ({len(bestaetigung['kaeufer_ausstehend'])})")
+                                if bestaetigung['verkaeufer_ausstehend']:
+                                    ausstehend.append(f"Verkäufer ({len(bestaetigung['verkaeufer_ausstehend'])})")
+                                st.caption(f"Ausstehende Bestätigungen: {', '.join(ausstehend)}")
+                    else:
+                        st.info("Noch keine Beurkundungstermine.")
 
-            # Button zum Erstellen neuer Vorschläge
-            st.markdown("##### ➕ Neue Terminvorschläge generieren")
-            st.caption("Basierend auf Ihrem Outlook-Kalender werden 3 verfügbare Termine vorgeschlagen.")
+                    # Offene Vorschläge anzeigen
+                    offene_vorschlaege = [v for v in st.session_state.terminvorschlaege.values()
+                                         if v.projekt_id == projekt.projekt_id and
+                                         v.termin_typ == TerminTyp.BEURKUNDUNG.value and
+                                         v.status == "offen"]
 
-            col1, col2 = st.columns(2)
-            with col1:
-                tageszeit_filter = st.selectbox("Bevorzugte Tageszeit", ["Alle", "Vormittag", "Nachmittag"], key=f"tageszeit_{projekt.projekt_id}")
+                    if offene_vorschlaege:
+                        st.markdown("##### 📨 Bereits gesendete Vorschläge")
+                        for vorschlag in offene_vorschlaege:
+                            st.write(f"Gesendet am: {vorschlag.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                            for i, slot in enumerate(vorschlag.vorschlaege):
+                                st.write(f"  Option {i+1}: {slot['datum'].strftime('%d.%m.%Y')} ({slot['tageszeit']}) {slot['uhrzeit_start']}-{slot['uhrzeit_ende']} Uhr")
 
-            if st.button("🗓️ 3 Terminvorschläge generieren", key=f"gen_vorschlag_{projekt.projekt_id}", type="primary"):
-                vorschlag = create_termin_vorschlaege(projekt.projekt_id, notar_id, TerminTyp.BEURKUNDUNG.value)
-                if vorschlag:
-                    st.success("✅ 3 Terminvorschläge wurden erstellt und an Makler/Käufer/Verkäufer gesendet!")
+                    # Button zum Erstellen neuer Vorschläge
+                    st.markdown("##### ➕ Neue Terminvorschläge generieren")
+                    st.caption("Basierend auf Ihrem Outlook-Kalender werden 3 verfügbare Termine vorgeschlagen.")
 
-                    # Benachrichtigungen senden
-                    if projekt.makler_id:
-                        create_notification(
-                            projekt.makler_id,
-                            "Neue Terminvorschläge",
-                            f"Der Notar hat 3 Terminvorschläge für die Beurkundung von '{projekt.name}' erstellt.",
-                            NotificationType.INFO.value
-                        )
-                    for kid in projekt.kaeufer_ids:
-                        create_notification(kid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
-                    for vid in projekt.verkaeufer_ids:
-                        create_notification(vid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        tageszeit_filter = st.selectbox("Bevorzugte Tageszeit", ["Alle", "Vormittag", "Nachmittag"], key=f"tageszeit_{projekt.projekt_id}")
 
-                    st.rerun()
-                else:
-                    st.error("Keine verfügbaren Termine in den nächsten 4 Wochen gefunden.")
+                    if st.button("🗓️ 3 Terminvorschläge generieren", key=f"gen_vorschlag_{projekt.projekt_id}", type="primary"):
+                        vorschlag = create_termin_vorschlaege(projekt.projekt_id, notar_id, TerminTyp.BEURKUNDUNG.value)
+                        if vorschlag:
+                            st.success("✅ 3 Terminvorschläge wurden erstellt und an Makler/Käufer/Verkäufer gesendet!")
 
-            st.markdown("---")
+                            # Benachrichtigungen senden
+                            if projekt.makler_id:
+                                create_notification(
+                                    projekt.makler_id,
+                                    "Neue Terminvorschläge",
+                                    f"Der Notar hat 3 Terminvorschläge für die Beurkundung von '{projekt.name}' erstellt.",
+                                    NotificationType.INFO.value
+                                )
+                            for kid in projekt.kaeufer_ids:
+                                create_notification(kid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
+                            for vid in projekt.verkaeufer_ids:
+                                create_notification(vid, "Neue Terminvorschläge", f"Der Notar hat Terminvorschläge für die Beurkundung erstellt.", NotificationType.INFO.value)
 
-            # Alle Termine für dieses Projekt (alle Typen)
-            st.markdown("##### 📋 Alle Termine")
-            render_termin_verwaltung(projekt, UserRole.NOTAR.value)
+                            st.rerun()
+                        else:
+                            st.error("Keine verfügbaren Termine in den nächsten 4 Wochen gefunden.")
+
+                    st.markdown("---")
+
+                    # Alle Termine für dieses Projekt (alle Typen)
+                    st.markdown("##### 📋 Alle Termine")
+                    render_termin_verwaltung(projekt, UserRole.NOTAR.value)
 
 def notar_makler_empfehlung_view():
     """Makler-Empfehlungen für Verkäufer verwalten"""
@@ -21347,6 +22617,525 @@ def render_rechtsdokumente_akzeptanz_pflicht(user_id: str, rolle: str) -> bool:
     return False
 
 
+# ============================================================================
+# AKTENIMPORT - PDF-BASIERTE AKTENVERWALTUNG
+# ============================================================================
+
+def analysiere_pdf_struktur(pdf_bytes: bytes) -> Dict:
+    """
+    Analysiert die Struktur einer PDF-Datei.
+    Sucht nach Lesezeichen/Bookmarks und Inhaltsverzeichnis.
+    """
+    import io
+
+    struktur = {
+        "seiten_anzahl": 0,
+        "lesezeichen": [],
+        "erkannte_ordner": [],
+        "erkannte_dokumente": []
+    }
+
+    try:
+        # PyPDF2 für PDF-Analyse verwenden
+        try:
+            from PyPDF2 import PdfReader
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            struktur["seiten_anzahl"] = len(reader.pages)
+
+            # Lesezeichen extrahieren (falls vorhanden)
+            def extrahiere_lesezeichen(outline, ebene=0):
+                lesezeichen = []
+                if outline:
+                    for item in outline:
+                        if isinstance(item, list):
+                            lesezeichen.extend(extrahiere_lesezeichen(item, ebene + 1))
+                        else:
+                            try:
+                                titel = item.title if hasattr(item, 'title') else str(item)
+                                seite = reader.get_destination_page_number(item) if hasattr(item, 'title') else 0
+                                lesezeichen.append({
+                                    "titel": titel,
+                                    "seite": seite,
+                                    "ebene": ebene
+                                })
+                            except:
+                                pass
+                return lesezeichen
+
+            if hasattr(reader, 'outline') and reader.outline:
+                struktur["lesezeichen"] = extrahiere_lesezeichen(reader.outline)
+
+            # Text der ersten Seiten analysieren für Inhaltsverzeichnis
+            text_seiten = []
+            for i, seite in enumerate(reader.pages[:5]):  # Erste 5 Seiten
+                try:
+                    text = seite.extract_text() or ""
+                    text_seiten.append(text)
+                except:
+                    pass
+
+            # Typische Aktenordner-Namen erkennen
+            ordner_keywords = {
+                "Kaufvertrag": ["kaufvertrag", "vertragsentwurf", "entwurf"],
+                "Grundbuch": ["grundbuch", "grundbuchauszug", "abt.", "abteilung"],
+                "Flurkarten & Pläne": ["flurkarte", "lageplan", "teilungsplan", "kataster"],
+                "Finanzierung": ["finanzierung", "grundschuld", "darlehen", "bank"],
+                "Personalien Käufer": ["käufer", "erwerber", "ausweis käufer"],
+                "Personalien Verkäufer": ["verkäufer", "veräußerer", "ausweis verkäufer"],
+                "Behördliche Unterlagen": ["vorkaufsrecht", "unbedenklichkeit", "genehmigung"],
+                "Korrespondenz": ["schreiben", "email", "brief", "korrespondenz"],
+                "Abrechnung": ["rechnung", "kostenaufstellung", "gebühren"],
+            }
+
+            gesamt_text = " ".join(text_seiten).lower()
+
+            for ordner, keywords in ordner_keywords.items():
+                for keyword in keywords:
+                    if keyword in gesamt_text:
+                        if ordner not in struktur["erkannte_ordner"]:
+                            struktur["erkannte_ordner"].append(ordner)
+                        break
+
+            # Dokument-Typen aus Lesezeichen erkennen
+            for lz in struktur["lesezeichen"]:
+                titel_lower = lz["titel"].lower()
+                for dok_typ in AktenDokumentTyp:
+                    if dok_typ.value.lower() in titel_lower:
+                        struktur["erkannte_dokumente"].append({
+                            "typ": dok_typ.value,
+                            "titel": lz["titel"],
+                            "seite": lz.get("seite", 0)
+                        })
+                        break
+
+        except ImportError:
+            struktur["fehler"] = "PyPDF2 nicht installiert"
+        except Exception as e:
+            struktur["fehler"] = str(e)
+
+    except Exception as e:
+        struktur["fehler"] = f"PDF-Analyse fehlgeschlagen: {str(e)}"
+
+    return struktur
+
+
+def erstelle_akte_aus_pdf(
+    notar_id: str,
+    pdf_bytes: bytes,
+    dateiname: str,
+    aktenzeichen: str,
+    bezeichnung: str,
+    struktur: Dict
+) -> ImportierteAkte:
+    """Erstellt eine neue Akte aus einer importierten PDF."""
+    import uuid
+
+    akte_id = str(uuid.uuid4())[:8]
+
+    # Standard-Ordner erstellen
+    ordner = {}
+    for std_ordner in STANDARD_AKTEN_ORDNER:
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner[ordner_id] = AktenOrdner(
+            ordner_id=ordner_id,
+            akte_id=akte_id,
+            name=std_ordner["name"],
+            beschreibung=std_ordner["beschreibung"]
+        )
+
+    # Dokumente aus erkannter Struktur erstellen
+    dokumente = {}
+
+    # Wenn Lesezeichen vorhanden, daraus Dokumente erstellen
+    if struktur.get("lesezeichen"):
+        ordner_map = {o.name: o.ordner_id for o in ordner.values()}
+
+        for i, lz in enumerate(struktur["lesezeichen"]):
+            if lz["ebene"] == 0:  # Hauptebene = Ordner
+                continue
+
+            dok_id = str(uuid.uuid4())[:8]
+
+            # Ordner zuweisen basierend auf Keywords
+            ziel_ordner = "Sonstiges"
+            titel_lower = lz["titel"].lower()
+
+            if any(k in titel_lower for k in ["kaufvertrag", "entwurf", "vertrag"]):
+                ziel_ordner = "Vertragsentwürfe"
+            elif any(k in titel_lower for k in ["grundbuch", "abteilung"]):
+                ziel_ordner = "Grundbuch"
+            elif any(k in titel_lower for k in ["flurkarte", "plan", "lage"]):
+                ziel_ordner = "Flurkarten & Pläne"
+            elif any(k in titel_lower for k in ["finanzierung", "grundschuld", "bank"]):
+                ziel_ordner = "Finanzierung"
+            elif any(k in titel_lower for k in ["käufer", "erwerber"]):
+                ziel_ordner = "Personalien Käufer"
+            elif any(k in titel_lower for k in ["verkäufer", "veräußerer"]):
+                ziel_ordner = "Personalien Verkäufer"
+            elif any(k in titel_lower for k in ["behörde", "genehmigung", "vorkauf"]):
+                ziel_ordner = "Behördliche Unterlagen"
+            elif any(k in titel_lower for k in ["rechnung", "kosten", "gebühr"]):
+                ziel_ordner = "Abrechnung"
+            elif any(k in titel_lower for k in ["brief", "schreiben", "mail"]):
+                ziel_ordner = "Korrespondenz"
+
+            ordner_id = ordner_map.get(ziel_ordner, list(ordner_map.values())[-1])
+
+            # Dokument-Typ ermitteln
+            dok_typ = AktenDokumentTyp.SONSTIGES.value
+            for typ in AktenDokumentTyp:
+                if typ.value.lower() in titel_lower:
+                    dok_typ = typ.value
+                    break
+
+            # Seitenbereiche schätzen
+            naechste_seite = struktur["seiten_anzahl"]
+            for j, next_lz in enumerate(struktur["lesezeichen"][i+1:]):
+                if next_lz.get("seite", 0) > lz.get("seite", 0):
+                    naechste_seite = next_lz["seite"]
+                    break
+
+            dokumente[dok_id] = AktenDokument(
+                dokument_id=dok_id,
+                akte_id=akte_id,
+                ordner_name=ziel_ordner,
+                ordner_id=ordner_id,
+                titel=lz["titel"],
+                dokument_typ=dok_typ,
+                seiten_von=lz.get("seite", 0) + 1,
+                seiten_bis=naechste_seite
+            )
+    else:
+        # Keine Lesezeichen - Ganzes PDF als ein Dokument
+        dok_id = str(uuid.uuid4())[:8]
+        ordner_id = list(ordner.keys())[0]
+
+        dokumente[dok_id] = AktenDokument(
+            dokument_id=dok_id,
+            akte_id=akte_id,
+            ordner_name="Vertragsentwürfe",
+            ordner_id=ordner_id,
+            titel=dateiname.replace(".pdf", ""),
+            dokument_typ=AktenDokumentTyp.SONSTIGES.value,
+            seiten_von=1,
+            seiten_bis=struktur.get("seiten_anzahl", 0)
+        )
+
+    # Akte erstellen
+    akte = ImportierteAkte(
+        akte_id=akte_id,
+        notar_id=notar_id,
+        aktenzeichen=aktenzeichen,
+        bezeichnung=bezeichnung,
+        original_pdf_data=pdf_bytes,
+        original_pdf_name=dateiname,
+        ordner=ordner,
+        dokumente=dokumente,
+        status=AktenStatus.IMPORTIERT.value
+    )
+
+    return akte
+
+
+def render_akten_import():
+    """Rendert die Import-Oberfläche für PDF-Akten."""
+    st.subheader("📁 Aktenimport")
+
+    st.info("""
+    **PDF-Akten importieren**
+
+    Laden Sie eine komplette Akte als PDF hoch. Das System analysiert die Struktur
+    (Lesezeichen, Inhaltsverzeichnis) und erstellt automatisch die entsprechende
+    Ordnerstruktur mit allen Dokumenten.
+    """)
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Upload-Bereich
+    uploaded_file = st.file_uploader(
+        "PDF-Akte hochladen",
+        type=["pdf"],
+        help="Ziehen Sie eine PDF-Datei hierher oder klicken Sie zum Auswählen"
+    )
+
+    if uploaded_file:
+        pdf_bytes = uploaded_file.read()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 📄 Datei-Info")
+            st.write(f"**Dateiname:** {uploaded_file.name}")
+            st.write(f"**Größe:** {len(pdf_bytes) / 1024:.1f} KB")
+
+        # PDF analysieren
+        with st.spinner("Analysiere PDF-Struktur..."):
+            struktur = analysiere_pdf_struktur(pdf_bytes)
+
+        with col2:
+            st.markdown("### 📊 Analyse-Ergebnis")
+            st.write(f"**Seiten:** {struktur.get('seiten_anzahl', 'Unbekannt')}")
+            st.write(f"**Lesezeichen:** {len(struktur.get('lesezeichen', []))}")
+            st.write(f"**Erkannte Ordner:** {len(struktur.get('erkannte_ordner', []))}")
+
+        if struktur.get("fehler"):
+            st.warning(f"⚠️ Hinweis: {struktur['fehler']}")
+
+        # Erkannte Struktur anzeigen
+        if struktur.get("lesezeichen"):
+            with st.expander("📑 Erkannte Lesezeichen", expanded=True):
+                for lz in struktur["lesezeichen"][:20]:  # Max 20 anzeigen
+                    einrueckung = "  " * lz.get("ebene", 0)
+                    st.write(f"{einrueckung}• {lz['titel']} (Seite {lz.get('seite', 0) + 1})")
+                if len(struktur["lesezeichen"]) > 20:
+                    st.write(f"... und {len(struktur['lesezeichen']) - 20} weitere")
+
+        if struktur.get("erkannte_ordner"):
+            with st.expander("📂 Erkannte Ordner-Kategorien"):
+                for ordner in struktur["erkannte_ordner"]:
+                    st.write(f"• {ordner}")
+
+        st.markdown("---")
+
+        # Formular für Akten-Details
+        st.markdown("### ✏️ Akten-Details")
+
+        with st.form("akten_import_form"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                aktenzeichen = st.text_input(
+                    "Aktenzeichen *",
+                    placeholder="z.B. UR 123/2024",
+                    help="Das offizielle Aktenzeichen des Notariats"
+                )
+
+            with col2:
+                bezeichnung = st.text_input(
+                    "Bezeichnung *",
+                    placeholder="z.B. Kaufvertrag Musterstraße 1",
+                    help="Kurze Beschreibung der Akte"
+                )
+
+            # Optional: Mit bestehendem Projekt verknüpfen
+            projekte = [p for p in st.session_state.projekte.values()
+                       if p.notar_id == notar_id or not p.notar_id]
+
+            projekt_optionen = ["-- Neues Projekt erstellen --"] + [
+                f"{p.adresse} ({p.projekt_id[:8]})" for p in projekte
+            ]
+
+            projekt_auswahl = st.selectbox(
+                "Mit Projekt verknüpfen",
+                projekt_optionen,
+                help="Optional: Verknüpfen Sie die Akte mit einem bestehenden Projekt"
+            )
+
+            submitted = st.form_submit_button("📥 Akte importieren", type="primary")
+
+            if submitted:
+                if not aktenzeichen or not bezeichnung:
+                    st.error("Bitte Aktenzeichen und Bezeichnung eingeben!")
+                else:
+                    # Akte erstellen
+                    akte = erstelle_akte_aus_pdf(
+                        notar_id=notar_id,
+                        pdf_bytes=pdf_bytes,
+                        dateiname=uploaded_file.name,
+                        aktenzeichen=aktenzeichen,
+                        bezeichnung=bezeichnung,
+                        struktur=struktur
+                    )
+
+                    # Mit Projekt verknüpfen falls ausgewählt
+                    if projekt_auswahl != "-- Neues Projekt erstellen --":
+                        projekt_index = projekt_optionen.index(projekt_auswahl) - 1
+                        if 0 <= projekt_index < len(projekte):
+                            akte.projekt_id = projekte[projekt_index].projekt_id
+
+                    # Speichern
+                    st.session_state.importierte_akten[akte.akte_id] = akte
+
+                    st.success(f"✅ Akte '{bezeichnung}' wurde erfolgreich importiert!")
+                    st.info(f"📊 {len(akte.dokumente)} Dokumente in {len(akte.ordner)} Ordnern erstellt.")
+                    st.rerun()
+
+
+def render_akten_verwaltung():
+    """Rendert die Übersicht und Verwaltung importierter Akten."""
+    st.subheader("📂 Aktenverwaltung")
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Nur Akten des aktuellen Notars
+    meine_akten = {
+        akte_id: akte
+        for akte_id, akte in st.session_state.importierte_akten.items()
+        if akte.notar_id == notar_id
+    }
+
+    if not meine_akten:
+        st.info("📭 Noch keine Akten importiert. Nutzen Sie den Tab 'Aktenimport' um Akten hochzuladen.")
+        return
+
+    # Akten-Liste
+    st.markdown(f"### 📋 Meine Akten ({len(meine_akten)})")
+
+    # Suchfilter
+    search = st.text_input("🔍 Akte suchen", placeholder="Aktenzeichen oder Bezeichnung...")
+
+    gefilterte_akten = meine_akten
+    if search:
+        search_lower = search.lower()
+        gefilterte_akten = {
+            k: v for k, v in meine_akten.items()
+            if search_lower in v.aktenzeichen.lower() or search_lower in v.bezeichnung.lower()
+        }
+
+    # Akten als Karten anzeigen
+    for akte_id, akte in gefilterte_akten.items():
+        status_farbe = {
+            AktenStatus.IMPORTIERT.value: "🔵",
+            AktenStatus.IN_BEARBEITUNG.value: "🟡",
+            AktenStatus.VOLLSTAENDIG.value: "🟢",
+            AktenStatus.BEURKUNDET.value: "✅",
+            AktenStatus.ABGESCHLOSSEN.value: "⬜",
+            AktenStatus.ARCHIVIERT.value: "📦"
+        }.get(akte.status, "⚪")
+
+        with st.expander(f"{status_farbe} **{akte.aktenzeichen}** - {akte.bezeichnung}", expanded=False):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.write(f"**Status:** {akte.status}")
+                st.write(f"**Importiert:** {akte.importiert_am.strftime('%d.%m.%Y') if akte.importiert_am else 'Unbekannt'}")
+
+            with col2:
+                st.write(f"**Dokumente:** {len(akte.dokumente)}")
+                st.write(f"**Ordner:** {len(akte.ordner)}")
+
+            with col3:
+                if akte.projekt_id:
+                    st.write(f"**Projekt:** {akte.projekt_id[:8]}")
+                else:
+                    st.write("**Projekt:** Nicht verknüpft")
+
+            # Ordner-Struktur anzeigen
+            st.markdown("---")
+            st.markdown("#### 📁 Ordner-Struktur")
+
+            ordner_tabs = st.tabs([o.name for o in akte.ordner.values()])
+
+            for i, (ordner_id, ordner) in enumerate(akte.ordner.items()):
+                with ordner_tabs[i]:
+                    # Dokumente in diesem Ordner
+                    ordner_dokumente = [
+                        d for d in akte.dokumente.values()
+                        if d.ordner_id == ordner_id or d.ordner_name == ordner.name
+                    ]
+
+                    if ordner_dokumente:
+                        for dok in ordner_dokumente:
+                            dok_icon = "📄"
+                            if "vertrag" in dok.titel.lower():
+                                dok_icon = "📜"
+                            elif "ausweis" in dok.titel.lower():
+                                dok_icon = "🪪"
+                            elif "grundbuch" in dok.titel.lower():
+                                dok_icon = "📚"
+
+                            col_dok, col_seiten, col_actions = st.columns([3, 1, 1])
+                            with col_dok:
+                                st.write(f"{dok_icon} {dok.titel}")
+                            with col_seiten:
+                                if dok.seiten_von and dok.seiten_bis:
+                                    st.write(f"S. {dok.seiten_von}-{dok.seiten_bis}")
+                            with col_actions:
+                                if st.button("📋", key=f"copy_{dok.dokument_id}", help="Zur Aktentasche"):
+                                    # Zur Aktentasche hinzufügen
+                                    add_to_aktentasche(
+                                        user_id=notar_id,
+                                        inhalt_typ=AktentascheInhaltTyp.DOKUMENT.value,
+                                        titel=dok.titel,
+                                        beschreibung=f"Aus Akte {akte.aktenzeichen}",
+                                        referenz_id=dok.dokument_id,
+                                        referenz_typ="AktenDokument"
+                                    )
+                                    st.success(f"✅ '{dok.titel}' zur Aktentasche hinzugefügt!")
+                    else:
+                        st.write("*Keine Dokumente in diesem Ordner*")
+
+            # Aktionen
+            st.markdown("---")
+            col_a1, col_a2, col_a3, col_a4 = st.columns(4)
+
+            with col_a1:
+                # Status ändern
+                neuer_status = st.selectbox(
+                    "Status ändern",
+                    [s.value for s in AktenStatus],
+                    index=[s.value for s in AktenStatus].index(akte.status),
+                    key=f"status_{akte_id}"
+                )
+                if neuer_status != akte.status:
+                    if st.button("💾 Speichern", key=f"save_status_{akte_id}"):
+                        akte.status = neuer_status
+                        st.success("Status aktualisiert!")
+                        st.rerun()
+
+            with col_a2:
+                # Original-PDF herunterladen
+                if akte.original_pdf_data:
+                    st.download_button(
+                        "📥 Original-PDF",
+                        data=akte.original_pdf_data,
+                        file_name=akte.original_pdf_name or f"{akte.aktenzeichen}.pdf",
+                        mime="application/pdf",
+                        key=f"download_{akte_id}"
+                    )
+
+            with col_a3:
+                # Mit Projekt verknüpfen
+                if not akte.projekt_id:
+                    if st.button("🔗 Projekt verknüpfen", key=f"link_{akte_id}"):
+                        st.session_state[f"link_projekt_{akte_id}"] = True
+                        st.rerun()
+
+            with col_a4:
+                # Löschen
+                if st.button("🗑️ Löschen", key=f"delete_{akte_id}"):
+                    st.session_state[f"confirm_delete_{akte_id}"] = True
+                    st.rerun()
+
+            # Lösch-Bestätigung
+            if st.session_state.get(f"confirm_delete_{akte_id}"):
+                st.warning("⚠️ Möchten Sie diese Akte wirklich löschen?")
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("✅ Ja, löschen", key=f"confirm_yes_{akte_id}"):
+                        del st.session_state.importierte_akten[akte_id]
+                        del st.session_state[f"confirm_delete_{akte_id}"]
+                        st.success("Akte gelöscht!")
+                        st.rerun()
+                with col_no:
+                    if st.button("❌ Abbrechen", key=f"confirm_no_{akte_id}"):
+                        del st.session_state[f"confirm_delete_{akte_id}"]
+                        st.rerun()
+
+
+def notar_aktenimport_view():
+    """Haupt-View für Aktenimport und -verwaltung im Notar-Dashboard."""
+
+    # Sub-Tabs für Import und Verwaltung
+    sub_tabs = st.tabs(["📥 Neue Akte importieren", "📂 Akten verwalten"])
+
+    with sub_tabs[0]:
+        render_akten_import()
+
+    with sub_tabs[1]:
+        render_akten_verwaltung()
+
+
 def notar_einstellungen_view():
     """Einstellungen für Notar - API-Keys für OCR konfigurieren"""
     st.subheader("⚙️ Einstellungen")
@@ -21886,7 +23675,7 @@ def notarmitarbeiter_dashboard():
                             if projekt.adresse:
                                 st.markdown(f"**Adresse:** {projekt.adresse}")
                             if projekt.kaufpreis > 0:
-                                st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+                                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
                         with col2:
                             st.markdown("**Parteien:**")
@@ -21998,14 +23787,14 @@ def notarmitarbeiter_dashboard():
                                     col1, col2 = st.columns(2)
 
                                     with col1:
-                                        st.write(f"**Darlehensbetrag:** {offer.darlehensbetrag:,.2f} €")
+                                        st.write(f"**Darlehensbetrag:** {format_euro(offer.darlehensbetrag)} €")
                                         st.write(f"**Zinssatz:** {offer.zinssatz}%")
                                         st.write(f"**Sollzinsbindung:** {offer.sollzinsbindung} Jahre")
                                         st.write(f"**Tilgungssatz:** {offer.tilgungssatz}%")
 
                                     with col2:
                                         st.write(f"**Gesamtlaufzeit:** {offer.gesamtlaufzeit} Jahre")
-                                        st.write(f"**Monatliche Rate:** {offer.monatliche_rate:,.2f} €")
+                                        st.write(f"**Monatliche Rate:** {format_euro(offer.monatliche_rate)} €")
                                         st.write(f"**Angenommen am:** {offer.accepted_at.strftime('%d.%m.%Y') if offer.accepted_at else 'N/A'}")
 
                                     if offer.besondere_bedingungen:
