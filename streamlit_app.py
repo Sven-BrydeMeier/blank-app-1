@@ -2290,6 +2290,7 @@ class AktenDokument:
     dokument_id: str
     akte_id: str
     ordner_name: str  # Zugehöriger Ordner in der Akte
+    ordner_id: str = ""  # ID des zugehörigen Ordners
 
     # Dokumentdaten
     titel: str
@@ -13684,7 +13685,7 @@ def erstelle_akte_aus_pdf(
         aktenzeichen=aktenzeichen,
         bezeichnung=bezeichnung,
         original_pdf_data=pdf_bytes,
-        original_dateiname=dateiname,
+        original_pdf_name=dateiname,
         ordner=ordner,
         dokumente=dokumente,
         status=AktenStatus.IMPORTIERT.value
@@ -13864,7 +13865,7 @@ def render_akten_verwaltung():
 
             with col1:
                 st.write(f"**Status:** {akte.status}")
-                st.write(f"**Importiert:** {akte.import_datum[:10] if akte.import_datum else 'Unbekannt'}")
+                st.write(f"**Importiert:** {akte.importiert_am.strftime('%d.%m.%Y') if akte.importiert_am else 'Unbekannt'}")
 
             with col2:
                 st.write(f"**Dokumente:** {len(akte.dokumente)}")
@@ -13945,7 +13946,7 @@ def render_akten_verwaltung():
                     st.download_button(
                         "📥 Original-PDF",
                         data=akte.original_pdf_data,
-                        file_name=akte.original_dateiname or f"{akte.aktenzeichen}.pdf",
+                        file_name=akte.original_pdf_name or f"{akte.aktenzeichen}.pdf",
                         mime="application/pdf",
                         key=f"download_{akte_id}"
                     )
@@ -13977,38 +13978,6 @@ def render_akten_verwaltung():
                     if st.button("❌ Abbrechen", key=f"confirm_no_{akte_id}"):
                         del st.session_state[f"confirm_delete_{akte_id}"]
                         st.rerun()
-
-
-def add_to_aktentasche(user_id: str, inhalt_typ: str, titel: str,
-                       beschreibung: str = "", referenz_id: str = "",
-                       referenz_typ: str = "", pdf_data: bytes = None,
-                       projekt_id: str = "") -> bool:
-    """Hilfsfunktion zum Hinzufügen von Inhalten zur Aktentasche."""
-    import uuid
-    from datetime import datetime
-
-    if 'aktentaschen' not in st.session_state:
-        st.session_state.aktentaschen = {}
-
-    if user_id not in st.session_state.aktentaschen:
-        st.session_state.aktentaschen[user_id] = Aktentasche(user_id=user_id)
-
-    aktentasche = st.session_state.aktentaschen[user_id]
-
-    inhalt = AktentascheInhalt(
-        inhalt_id=str(uuid.uuid4())[:8],
-        inhalt_typ=inhalt_typ,
-        titel=titel,
-        beschreibung=beschreibung,
-        referenz_id=referenz_id,
-        referenz_typ=referenz_typ,
-        pdf_data=pdf_data,
-        projekt_id=projekt_id,
-        hinzugefuegt_am=datetime.now().isoformat()
-    )
-
-    aktentasche.inhalte[inhalt.inhalt_id] = inhalt
-    return True
 
 
 def notar_aktenimport_view():
