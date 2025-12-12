@@ -17891,23 +17891,26 @@ def notar_aktenmanagement_view():
     with sub_tabs[1]:
         st.markdown("### ➕ Neue Akte anlegen")
 
+        # Hauptbereich AUSSERHALB des Formulars für dynamische Aktualisierung
+        st.markdown("#### Rechtsbereich auswählen")
+        hauptbereich = st.selectbox(
+            "Hauptbereich",
+            [b.value for b in AktenHauptbereich],
+            key="neue_akte_hauptbereich"
+        )
+
+        # Untertypen basierend auf Hauptbereich (dynamisch aktualisiert)
+        untertypen = get_verfuegbare_untertypen(hauptbereich, notar_id)
+        untertyp = st.selectbox(
+            "Unterbereich / Typ",
+            untertypen,
+            key="neue_akte_untertyp",
+            help=f"Verfügbare Untertypen für {hauptbereich}"
+        )
+
+        st.markdown("---")
+
         with st.form("neue_akte_form"):
-            st.markdown("#### Rechtsbereich auswählen")
-            hauptbereich = st.selectbox(
-                "Hauptbereich",
-                [b.value for b in AktenHauptbereich],
-                key="neue_akte_hauptbereich"
-            )
-
-            # Untertypen basierend auf Hauptbereich
-            untertypen = get_verfuegbare_untertypen(hauptbereich, notar_id)
-            untertyp = st.selectbox(
-                "Typ / Kategorie",
-                untertypen,
-                key="neue_akte_untertyp"
-            )
-
-            st.markdown("---")
             st.markdown("#### Parteien")
             col1, col2 = st.columns(2)
             with col1:
