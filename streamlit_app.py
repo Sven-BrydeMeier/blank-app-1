@@ -3862,10 +3862,12 @@ class HandelsregisterEintrag:
 class Gesellschaft:
     """Eine juristische Person/Gesellschaft als Vertragspartei"""
     gesellschaft_id: str
+    firma: str  # Vollständiger Firmenname (required)
+
+    # Optional fields
     projekt_id: str = ""  # Verknüpfung zum Projekt
 
     # Firmendaten
-    firma: str  # Vollständiger Firmenname
     firma_kurz: str = ""  # Kurzbezeichnung
     rechtsform: str = Rechtsform.GMBH.value
 
