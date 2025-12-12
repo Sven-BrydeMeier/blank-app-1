@@ -3310,6 +3310,17 @@ class Projekt:
     expose_data_id: Optional[str] = None  # Verweis auf ExposeData
     termine: List[str] = field(default_factory=list)  # Liste von Termin-IDs
 
+    # NEU: Verknüpfung zur Notar-Akte
+    akte_id: str = ""  # Verweis auf ImportierteAkte beim Notar
+    aktenzeichen: str = ""  # z.B. "123/2025 Müller / Schmidt"
+
+    # NEU: Strukturierte Parteien (ersetzt teilweise kaeufer_ids/verkaeufer_ids)
+    parteien: List[str] = field(default_factory=list)  # Liste von Partei-IDs
+    gesellschaften: List[str] = field(default_factory=list)  # Liste von Gesellschaft-IDs
+
+    # NEU: Vertragstyp für Aktenbezeichnung
+    vertragstyp: str = "Kaufvertrag"  # Kaufvertrag, Überlassungsvertrag, Schenkung, etc.
+
 class TerminTyp(Enum):
     """Termin-Typen"""
     BESICHTIGUNG = "Besichtigung"
@@ -3750,6 +3761,175 @@ class AktenOrdner:
 
     # Standard-Ordner für Notarakten
     ist_standard_ordner: bool = False
+
+# ============================================================================
+# GESELLSCHAFTEN & PARTEIEN-VERWALTUNG
+# ============================================================================
+
+class Rechtsform(Enum):
+    """Rechtsformen für Gesellschaften"""
+    NATUERLICHE_PERSON = "Natürliche Person"
+    GMBH = "GmbH"
+    UG = "UG (haftungsbeschränkt)"
+    AG = "AG"
+    KG = "KG"
+    OHG = "OHG"
+    GMBH_CO_KG = "GmbH & Co. KG"
+    EINZELUNTERNEHMEN = "Einzelunternehmen"
+    GBR = "GbR"
+    VEREIN = "Verein e.V."
+    STIFTUNG = "Stiftung"
+    ERBENGEMEINSCHAFT = "Erbengemeinschaft"
+    WEG = "WEG"
+    SONSTIGE = "Sonstige"
+
+class OrganTyp(Enum):
+    """Arten von Organen/Vertretungsberechtigten"""
+    GESCHAEFTSFUEHRER = "Geschäftsführer"
+    VORSTAND = "Vorstand"
+    PROKURIST = "Prokurist"
+    KOMPLEMENTAER = "Komplementär"
+    GESELLSCHAFTER = "Gesellschafter"
+    BEVOLLMAECHTIGTER = "Bevollmächtigter"
+    VERWALTER = "Verwalter"
+    TESTAMENTSVOLLSTRECKER = "Testamentsvollstrecker"
+    BETREUER = "Betreuer"
+    SONSTIGER = "Sonstiger Vertreter"
+
+@dataclass
+class Organ:
+    """Ein Organ/Vertretungsberechtigter einer Gesellschaft"""
+    organ_id: str
+    gesellschaft_id: str
+
+    # Persönliche Daten
+    name: str
+    vorname: str = ""
+    geburtsdatum: str = ""
+    geburtsort: str = ""
+
+    # Adresse
+    strasse: str = ""
+    hausnummer: str = ""
+    plz: str = ""
+    ort: str = ""
+    land: str = "Deutschland"
+
+    # Funktion
+    organ_typ: str = OrganTyp.GESCHAEFTSFUEHRER.value
+    einzelvertretungsberechtigt: bool = False
+    vertretungsbeschraenkung: str = ""  # z.B. "Nur mit einem weiteren GF"
+
+    # Legitimation
+    ausweis_typ: str = ""  # Personalausweis, Reisepass
+    ausweis_nummer: str = ""
+    ausweis_gueltig_bis: str = ""
+    ausweis_daten: Optional[bytes] = None  # Kopie des Ausweises
+
+    # Metadaten
+    erfasst_am: datetime = field(default_factory=datetime.now)
+    geprueft: bool = False
+
+@dataclass
+class HandelsregisterEintrag:
+    """Handelsregister-Informationen einer Gesellschaft"""
+    hr_id: str
+    gesellschaft_id: str
+
+    # Registerdaten
+    registergericht: str = ""
+    registerart: str = "HRB"  # HRA, HRB, GnR, PR, VR
+    registernummer: str = ""
+
+    # Abfragedaten
+    abfrage_datum: Optional[datetime] = None
+    abfrage_pdf: Optional[bytes] = None
+
+    # Extrahierte Daten
+    firma: str = ""
+    sitz: str = ""
+    geschaeftsanschrift: str = ""
+    gegenstand: str = ""
+    stammkapital: float = 0.0
+    waehrung: str = "EUR"
+    gruendungsdatum: str = ""
+
+    # Status
+    ist_aktuell: bool = True
+    letzte_eintragung: str = ""
+
+@dataclass
+class Gesellschaft:
+    """Eine juristische Person/Gesellschaft als Vertragspartei"""
+    gesellschaft_id: str
+    projekt_id: str = ""  # Verknüpfung zum Projekt
+
+    # Firmendaten
+    firma: str  # Vollständiger Firmenname
+    firma_kurz: str = ""  # Kurzbezeichnung
+    rechtsform: str = Rechtsform.GMBH.value
+
+    # Sitz und Anschrift
+    sitz: str = ""  # Rechtlicher Sitz
+    strasse: str = ""
+    hausnummer: str = ""
+    plz: str = ""
+    ort: str = ""
+    land: str = "Deutschland"
+
+    # Registerdaten
+    registergericht: str = ""
+    registernummer: str = ""  # z.B. "HRB 12345"
+    steuernummer: str = ""
+    ust_id: str = ""  # USt-IdNr.
+
+    # Vertretung
+    organe: List[str] = field(default_factory=list)  # Liste von Organ-IDs
+    vertretungsregelung: str = ""  # z.B. "Zwei GF gemeinsam"
+
+    # Handelsregister
+    hr_eintrag_id: str = ""  # Verweis auf HandelsregisterEintrag
+    hr_abfrage_erforderlich: bool = True
+    hr_abfrage_erfolgt: bool = False
+
+    # Metadaten
+    erfasst_am: datetime = field(default_factory=datetime.now)
+    erfasst_von: str = ""
+    notizen: str = ""
+
+@dataclass
+class Partei:
+    """Eine Vertragspartei - kann natürliche Person oder Gesellschaft sein"""
+    partei_id: str
+    projekt_id: str
+
+    # Art der Partei
+    ist_gesellschaft: bool = False
+
+    # Referenz zur Person oder Gesellschaft
+    user_id: str = ""  # Falls natürliche Person (User-ID)
+    gesellschaft_id: str = ""  # Falls Gesellschaft
+
+    # Rolle im Vertrag
+    rolle: str = ""  # "Verkäufer", "Käufer", "Überlasser", "Empfänger"
+
+    # Bei natürlichen Personen: erweiterte Daten
+    familienstand: str = ""  # ledig, verheiratet, geschieden, verwitwet
+    gueterstand: str = ""  # Zugewinngemeinschaft, Gütertrennung, etc.
+    ehepartner_user_id: str = ""  # Falls verheiratet und Ehepartner beteiligt
+
+    # Sortierung/Anzeige
+    reihenfolge: int = 0
+
+    # Metadaten
+    hinzugefuegt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class NotarAktenzeichen:
+    """Verwaltung der fortlaufenden Aktenzeichen pro Notar"""
+    notar_id: str
+    jahr: int
+    letzte_nummer: int = 0  # Letzte vergebene Nummer in diesem Jahr
 
 @dataclass
 class ImportierteAkte:
@@ -4557,6 +4737,15 @@ def init_session_state():
         # Importierte Akten (Notar)
         st.session_state.importierte_akten = {}  # Akte-ID -> ImportierteAkte
 
+        # NEU: Gesellschaften und Parteien
+        st.session_state.gesellschaften = {}  # Gesellschaft-ID -> Gesellschaft
+        st.session_state.organe = {}  # Organ-ID -> Organ
+        st.session_state.hr_eintraege = {}  # HR-ID -> HandelsregisterEintrag
+        st.session_state.parteien = {}  # Partei-ID -> Partei
+
+        # NEU: Aktenzeichen-Zähler pro Notar und Jahr
+        st.session_state.aktenzeichen_zaehler = {}  # "notar_id_jahr" -> letzte_nummer
+
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
         st.session_state.api_keys = {
@@ -4653,6 +4842,10 @@ def create_demo_projekt():
         status=ProjektStatus.TEILNEHMER_EINGELADEN.value
     )
     st.session_state.projekte[projekt.projekt_id] = projekt
+
+    # Automatisch Akte für Demo-Projekt erstellen und verknüpfen
+    if projekt.notar_id:
+        verknuepfe_projekt_mit_notar(projekt.projekt_id, projekt.notar_id)
 
 def create_demo_timeline():
     """Erstellt Demo-Timeline-Events"""
@@ -10829,7 +11022,7 @@ def makler_dashboard():
     with tabs[9]:
         makler_ausweis_erfassung()
 
-    with tabs[9]:
+    with tabs[10]:
         # Termin-Übersicht für Makler mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -11224,6 +11417,10 @@ def makler_projekte_view():
                     projekt.preisverhandlung_erlaubt = preisverhandlung_neu
                     st.success("✅ Projekt-Einstellungen gespeichert!")
                     st.rerun()
+
+            # NEU: Parteien-Verwaltung (Gesellschaften, Organe)
+            with st.expander("👥 Parteien & Gesellschaften", expanded=False):
+                render_parteien_verwaltung(projekt, UserRole.MAKLER.value)
 
             # ===== VERBESSERUNG 3: MAKLER-EINSICHT PREISVERHANDLUNG =====
             angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
@@ -17384,10 +17581,6 @@ def notar_dashboard():
         notar_termine()
 
     with tabs[14]:
-        notar_aktenimport_view()
-
-    with tabs[15]:
-
         notar_makler_empfehlung_view()
 
     with tabs[15]:
@@ -17400,6 +17593,9 @@ def notar_dashboard():
         notar_rechtsdokumente_view()
 
     with tabs[18]:
+        notar_aktenimport_view()
+
+    with tabs[19]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -17518,6 +17714,19 @@ def notar_projekte_view():
                             st.rerun()
             else:
                 st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
+
+            # NEU: Parteien-Verwaltung (Gesellschaften, Organe, Handelsregister)
+            st.markdown("---")
+            with st.expander("👥 Parteien & Gesellschaften verwalten", expanded=False):
+                render_parteien_verwaltung(projekt, UserRole.NOTAR.value)
+
+            # Aktenzeichen und verknüpfte Akte anzeigen
+            if projekt.aktenzeichen:
+                st.markdown("---")
+                st.markdown(f"**📁 Aktenzeichen:** {projekt.aktenzeichen}")
+                if projekt.akte_id and projekt.akte_id in st.session_state.importierte_akten:
+                    akte = st.session_state.importierte_akten[projekt.akte_id]
+                    st.info(f"Verknüpft mit Akte: {akte.bezeichnung}")
 
 
 def notar_aktenmanagement_view():
@@ -22615,6 +22824,667 @@ def render_rechtsdokumente_akzeptanz_pflicht(user_id: str, rolle: str) -> bool:
                     st.rerun()
 
     return False
+
+
+# ============================================================================
+# AKTENZEICHEN & AUTOMATISCHE AKTEN-ERSTELLUNG
+# ============================================================================
+
+def generiere_aktenzeichen(notar_id: str) -> str:
+    """
+    Generiert ein fortlaufendes Aktenzeichen für einen Notar.
+    Format: "Nummer/Jahr" z.B. "123/2025"
+    """
+    import uuid
+    aktuelles_jahr = datetime.now().year
+    zaehler_key = f"{notar_id}_{aktuelles_jahr}"
+
+    # Zähler initialisieren falls nicht vorhanden
+    if 'aktenzeichen_zaehler' not in st.session_state:
+        st.session_state.aktenzeichen_zaehler = {}
+
+    if zaehler_key not in st.session_state.aktenzeichen_zaehler:
+        # Prüfen ob es bereits Akten für dieses Jahr gibt
+        bestehende_nummern = []
+        for akte in st.session_state.importierte_akten.values():
+            if akte.notar_id == notar_id and akte.aktenzeichen:
+                # Nummer aus Aktenzeichen extrahieren (Format: "123/2025 Name / Name")
+                try:
+                    teil = akte.aktenzeichen.split('/')[0].strip()
+                    nummer = int(teil)
+                    jahr_teil = akte.aktenzeichen.split('/')[1].split()[0]
+                    if int(jahr_teil) == aktuelles_jahr:
+                        bestehende_nummern.append(nummer)
+                except:
+                    pass
+
+        st.session_state.aktenzeichen_zaehler[zaehler_key] = max(bestehende_nummern) if bestehende_nummern else 0
+
+    # Nächste Nummer vergeben
+    st.session_state.aktenzeichen_zaehler[zaehler_key] += 1
+    neue_nummer = st.session_state.aktenzeichen_zaehler[zaehler_key]
+
+    return f"{neue_nummer}/{aktuelles_jahr}"
+
+
+def erstelle_aktenbezeichnung(projekt: 'Projekt') -> str:
+    """
+    Erstellt die Aktenbezeichnung im Format:
+    "Nummer/Jahr Verkäufername(n) / Käufername(n)"
+    """
+    # Verkäufer-Namen sammeln
+    verkaeufer_namen = []
+    for vid in projekt.verkaeufer_ids:
+        user = st.session_state.users.get(vid)
+        if user:
+            # Nur Nachname verwenden
+            name_teile = user.name.split()
+            nachname = name_teile[-1] if name_teile else user.name
+            verkaeufer_namen.append(nachname)
+
+    # Gesellschaften als Verkäufer prüfen
+    for partei_id in projekt.parteien:
+        partei = st.session_state.parteien.get(partei_id)
+        if partei and partei.rolle in ["Verkäufer", "Überlasser", "Veräußerer"] and partei.ist_gesellschaft:
+            gesellschaft = st.session_state.gesellschaften.get(partei.gesellschaft_id)
+            if gesellschaft:
+                # Kurzname oder Firmenname
+                verkaeufer_namen.append(gesellschaft.firma_kurz or gesellschaft.firma.split()[0])
+
+    # Käufer-Namen sammeln
+    kaeufer_namen = []
+    for kid in projekt.kaeufer_ids:
+        user = st.session_state.users.get(kid)
+        if user:
+            name_teile = user.name.split()
+            nachname = name_teile[-1] if name_teile else user.name
+            kaeufer_namen.append(nachname)
+
+    # Gesellschaften als Käufer prüfen
+    for partei_id in projekt.parteien:
+        partei = st.session_state.parteien.get(partei_id)
+        if partei and partei.rolle in ["Käufer", "Empfänger", "Erwerber"] and partei.ist_gesellschaft:
+            gesellschaft = st.session_state.gesellschaften.get(partei.gesellschaft_id)
+            if gesellschaft:
+                kaeufer_namen.append(gesellschaft.firma_kurz or gesellschaft.firma.split()[0])
+
+    # Bezeichnung zusammenstellen
+    verkaeufer_str = ", ".join(verkaeufer_namen) if verkaeufer_namen else "N.N."
+    kaeufer_str = ", ".join(kaeufer_namen) if kaeufer_namen else "N.N."
+
+    return f"{verkaeufer_str} / {kaeufer_str}"
+
+
+def erstelle_akte_fuer_projekt(projekt: 'Projekt', notar_id: str) -> 'ImportierteAkte':
+    """
+    Erstellt automatisch eine Akte für ein Projekt wenn ein Notar zugewiesen wird.
+    """
+    import uuid
+
+    akte_id = str(uuid.uuid4())[:8]
+
+    # Aktenzeichen generieren
+    az_nummer = generiere_aktenzeichen(notar_id)
+    bezeichnung = erstelle_aktenbezeichnung(projekt)
+    volles_aktenzeichen = f"{az_nummer} {bezeichnung}"
+
+    # Standard-Ordner erstellen
+    ordner = {}
+    for i, std_ordner in enumerate(STANDARD_AKTEN_ORDNER):
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner[ordner_id] = AktenOrdner(
+            ordner_id=ordner_id,
+            akte_id=akte_id,
+            name=std_ordner["name"],
+            beschreibung=std_ordner["beschreibung"],
+            reihenfolge=i,
+            ist_standard_ordner=True
+        )
+
+    # Akte erstellen
+    akte = ImportierteAkte(
+        akte_id=akte_id,
+        notar_id=notar_id,
+        aktenzeichen=volles_aktenzeichen,
+        bezeichnung=f"{projekt.vertragstyp}: {bezeichnung}",
+        projekt_id=projekt.projekt_id,
+        ordner=ordner,
+        status=AktenStatus.IN_BEARBEITUNG.value if hasattr(AktenStatus, 'IN_BEARBEITUNG') else "In Bearbeitung"
+    )
+
+    # Beteiligte aus Projekt übernehmen
+    for vid in projekt.verkaeufer_ids:
+        user = st.session_state.users.get(vid)
+        if user:
+            akte.verkaeufer_namen.append(user.name)
+
+    for kid in projekt.kaeufer_ids:
+        user = st.session_state.users.get(kid)
+        if user:
+            akte.kaeufer_namen.append(user.name)
+
+    akte.objekt_adresse = projekt.adresse
+    akte.kaufpreis = projekt.kaufpreis
+
+    # In Session State speichern
+    st.session_state.importierte_akten[akte_id] = akte
+
+    # Projekt mit Akte verknüpfen
+    projekt.akte_id = akte_id
+    projekt.aktenzeichen = volles_aktenzeichen
+
+    return akte
+
+
+def verknuepfe_projekt_mit_notar(projekt_id: str, notar_id: str) -> Optional['ImportierteAkte']:
+    """
+    Wird aufgerufen wenn ein Notar einem Projekt zugewiesen wird.
+    Erstellt automatisch eine Akte und verknüpft sie mit dem Projekt.
+    """
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return None
+
+    # Prüfen ob bereits eine Akte existiert
+    if projekt.akte_id and projekt.akte_id in st.session_state.importierte_akten:
+        return st.session_state.importierte_akten[projekt.akte_id]
+
+    # Neue Akte erstellen
+    akte = erstelle_akte_fuer_projekt(projekt, notar_id)
+
+    return akte
+
+
+def aktualisiere_aktenbezeichnung(projekt_id: str):
+    """
+    Aktualisiert die Aktenbezeichnung wenn sich Parteien ändern.
+    """
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt or not projekt.akte_id:
+        return
+
+    akte = st.session_state.importierte_akten.get(projekt.akte_id)
+    if not akte:
+        return
+
+    # Nur den Namen-Teil aktualisieren, Nummer beibehalten
+    az_teile = akte.aktenzeichen.split(' ', 1)
+    if len(az_teile) >= 1:
+        az_nummer = az_teile[0]  # z.B. "123/2025"
+        neue_bezeichnung = erstelle_aktenbezeichnung(projekt)
+        volles_aktenzeichen = f"{az_nummer} {neue_bezeichnung}"
+
+        akte.aktenzeichen = volles_aktenzeichen
+        akte.bezeichnung = f"{projekt.vertragstyp}: {neue_bezeichnung}"
+        projekt.aktenzeichen = volles_aktenzeichen
+
+
+# ============================================================================
+# PARTEIEN-VERWALTUNG (KÄUFER/VERKÄUFER/GESELLSCHAFTEN)
+# ============================================================================
+
+def render_parteien_verwaltung(projekt: 'Projekt', user_rolle: str):
+    """UI für die Verwaltung der Vertragsparteien eines Projekts."""
+    st.markdown("### 👥 Vertragsparteien")
+
+    # Tabs für Verkäufer und Käufer
+    partei_tabs = st.tabs(["🏠 Verkäufer/Überlasser", "🛒 Käufer/Empfänger"])
+
+    with partei_tabs[0]:
+        render_partei_sektion(projekt, "Verkäufer", user_rolle)
+
+    with partei_tabs[1]:
+        render_partei_sektion(projekt, "Käufer", user_rolle)
+
+
+def render_partei_sektion(projekt: 'Projekt', rolle: str, user_rolle: str):
+    """Rendert eine Sektion für Verkäufer oder Käufer."""
+
+    # Bestehende Parteien dieser Rolle anzeigen
+    parteien_der_rolle = []
+
+    # Natürliche Personen aus kaeufer_ids/verkaeufer_ids
+    if rolle in ["Käufer", "Empfänger", "Erwerber"]:
+        for user_id in projekt.kaeufer_ids:
+            user = st.session_state.users.get(user_id)
+            if user:
+                parteien_der_rolle.append({
+                    "typ": "person",
+                    "id": user_id,
+                    "name": user.name,
+                    "details": user.email
+                })
+    else:  # Verkäufer
+        for user_id in projekt.verkaeufer_ids:
+            user = st.session_state.users.get(user_id)
+            if user:
+                parteien_der_rolle.append({
+                    "typ": "person",
+                    "id": user_id,
+                    "name": user.name,
+                    "details": user.email
+                })
+
+    # Gesellschaften aus parteien
+    for partei_id in projekt.parteien:
+        partei = st.session_state.parteien.get(partei_id)
+        if partei and partei.ist_gesellschaft:
+            if (rolle in ["Käufer", "Empfänger", "Erwerber"] and partei.rolle in ["Käufer", "Empfänger", "Erwerber"]) or \
+               (rolle in ["Verkäufer", "Überlasser", "Veräußerer"] and partei.rolle in ["Verkäufer", "Überlasser", "Veräußerer"]):
+                gesellschaft = st.session_state.gesellschaften.get(partei.gesellschaft_id)
+                if gesellschaft:
+                    parteien_der_rolle.append({
+                        "typ": "gesellschaft",
+                        "id": gesellschaft.gesellschaft_id,
+                        "partei_id": partei_id,
+                        "name": gesellschaft.firma,
+                        "details": f"{gesellschaft.rechtsform} - {gesellschaft.registernummer}"
+                    })
+
+    # Parteien anzeigen
+    if parteien_der_rolle:
+        for i, partei in enumerate(parteien_der_rolle):
+            icon = "👤" if partei["typ"] == "person" else "🏢"
+            with st.expander(f"{icon} {partei['name']}", expanded=False):
+                st.write(f"**{partei['details']}**")
+
+                if partei["typ"] == "gesellschaft":
+                    gesellschaft = st.session_state.gesellschaften.get(partei["id"])
+                    if gesellschaft:
+                        render_gesellschaft_details(gesellschaft)
+
+                # Entfernen-Button (nur für berechtigte Rollen)
+                if user_rolle in [UserRole.NOTAR.value, UserRole.MAKLER.value]:
+                    if st.button(f"🗑️ Entfernen", key=f"remove_{rolle}_{partei['id']}_{i}"):
+                        if partei["typ"] == "person":
+                            if rolle in ["Käufer", "Empfänger"]:
+                                projekt.kaeufer_ids.remove(partei["id"])
+                            else:
+                                projekt.verkaeufer_ids.remove(partei["id"])
+                        else:
+                            projekt.parteien.remove(partei["partei_id"])
+                        aktualisiere_aktenbezeichnung(projekt.projekt_id)
+                        st.success(f"{partei['name']} entfernt")
+                        st.rerun()
+    else:
+        st.info(f"Noch keine {rolle} hinzugefügt.")
+
+    # Neue Partei hinzufügen (nur für berechtigte Rollen)
+    if user_rolle in [UserRole.NOTAR.value, UserRole.MAKLER.value]:
+        st.markdown("---")
+        render_neue_partei_formular(projekt, rolle)
+
+
+def render_neue_partei_formular(projekt: 'Projekt', rolle: str):
+    """Formular zum Hinzufügen einer neuen Partei."""
+    import uuid
+
+    with st.expander(f"➕ {rolle} hinzufügen", expanded=False):
+        partei_typ = st.radio(
+            "Art der Partei",
+            ["Natürliche Person", "Gesellschaft/Firma"],
+            key=f"partei_typ_{projekt.projekt_id}_{rolle}",
+            horizontal=True
+        )
+
+        if partei_typ == "Natürliche Person":
+            # Bestehenden User auswählen oder neuen anlegen
+            st.markdown("##### Bestehenden Teilnehmer auswählen")
+
+            # Alle verfügbaren User (die noch nicht in diesem Projekt sind)
+            verfuegbare_user = []
+            for user in st.session_state.users.values():
+                if rolle in ["Käufer", "Empfänger"]:
+                    if user.user_id not in projekt.kaeufer_ids:
+                        verfuegbare_user.append(user)
+                else:
+                    if user.user_id not in projekt.verkaeufer_ids:
+                        verfuegbare_user.append(user)
+
+            if verfuegbare_user:
+                user_optionen = {u.user_id: f"{u.name} ({u.email})" for u in verfuegbare_user}
+                selected_user = st.selectbox(
+                    "Teilnehmer auswählen",
+                    options=[""] + list(user_optionen.keys()),
+                    format_func=lambda x: user_optionen.get(x, "-- Auswählen --"),
+                    key=f"select_user_{projekt.projekt_id}_{rolle}"
+                )
+
+                if selected_user and st.button(f"✅ Als {rolle} hinzufügen", key=f"add_user_{projekt.projekt_id}_{rolle}"):
+                    if rolle in ["Käufer", "Empfänger"]:
+                        projekt.kaeufer_ids.append(selected_user)
+                    else:
+                        projekt.verkaeufer_ids.append(selected_user)
+                    aktualisiere_aktenbezeichnung(projekt.projekt_id)
+                    st.success(f"Teilnehmer als {rolle} hinzugefügt!")
+                    st.rerun()
+
+        else:  # Gesellschaft
+            render_gesellschaft_formular(projekt, rolle)
+
+
+def render_gesellschaft_formular(projekt: 'Projekt', rolle: str):
+    """Formular zum Anlegen einer neuen Gesellschaft."""
+    import uuid
+
+    st.markdown("##### Neue Gesellschaft anlegen")
+
+    with st.form(f"neue_gesellschaft_{projekt.projekt_id}_{rolle}"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            firma = st.text_input("Firma (vollständig) *", placeholder="Muster GmbH")
+            firma_kurz = st.text_input("Kurzbezeichnung", placeholder="Muster")
+            rechtsform = st.selectbox(
+                "Rechtsform *",
+                [r.value for r in Rechtsform if r != Rechtsform.NATUERLICHE_PERSON]
+            )
+
+        with col2:
+            registergericht = st.text_input("Registergericht", placeholder="Amtsgericht München")
+            registernummer = st.text_input("Registernummer", placeholder="HRB 12345")
+            sitz = st.text_input("Sitz", placeholder="München")
+
+        st.markdown("##### Geschäftsanschrift")
+        col3, col4, col5 = st.columns([3, 1, 2])
+        with col3:
+            strasse = st.text_input("Straße", key=f"g_strasse_{projekt.projekt_id}_{rolle}")
+        with col4:
+            hausnummer = st.text_input("Nr.", key=f"g_hnr_{projekt.projekt_id}_{rolle}")
+        with col5:
+            plz = st.text_input("PLZ", key=f"g_plz_{projekt.projekt_id}_{rolle}")
+
+        ort = st.text_input("Ort", key=f"g_ort_{projekt.projekt_id}_{rolle}")
+
+        st.markdown("##### Vertretung")
+        vertretungsregelung = st.text_input(
+            "Vertretungsregelung",
+            placeholder="z.B. Jeder Geschäftsführer allein / Zwei Geschäftsführer gemeinsam"
+        )
+
+        submitted = st.form_submit_button("💼 Gesellschaft anlegen", type="primary")
+
+        if submitted:
+            if not firma:
+                st.error("Bitte Firmenname eingeben!")
+            else:
+                # Gesellschaft erstellen
+                gesellschaft_id = str(uuid.uuid4())[:8]
+                gesellschaft = Gesellschaft(
+                    gesellschaft_id=gesellschaft_id,
+                    projekt_id=projekt.projekt_id,
+                    firma=firma,
+                    firma_kurz=firma_kurz,
+                    rechtsform=rechtsform,
+                    registergericht=registergericht,
+                    registernummer=registernummer,
+                    sitz=sitz,
+                    strasse=strasse,
+                    hausnummer=hausnummer,
+                    plz=plz,
+                    ort=ort,
+                    vertretungsregelung=vertretungsregelung,
+                    erfasst_von=st.session_state.current_user.user_id
+                )
+                st.session_state.gesellschaften[gesellschaft_id] = gesellschaft
+
+                # Partei erstellen und mit Projekt verknüpfen
+                partei_id = str(uuid.uuid4())[:8]
+                partei = Partei(
+                    partei_id=partei_id,
+                    projekt_id=projekt.projekt_id,
+                    ist_gesellschaft=True,
+                    gesellschaft_id=gesellschaft_id,
+                    rolle=rolle
+                )
+                st.session_state.parteien[partei_id] = partei
+                projekt.parteien.append(partei_id)
+                projekt.gesellschaften.append(gesellschaft_id)
+
+                aktualisiere_aktenbezeichnung(projekt.projekt_id)
+                st.success(f"✅ {firma} als {rolle} hinzugefügt!")
+                st.rerun()
+
+
+def render_gesellschaft_details(gesellschaft: 'Gesellschaft'):
+    """Zeigt die Details einer Gesellschaft an."""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write(f"**Rechtsform:** {gesellschaft.rechtsform}")
+        st.write(f"**Sitz:** {gesellschaft.sitz}")
+        if gesellschaft.registergericht:
+            st.write(f"**Registergericht:** {gesellschaft.registergericht}")
+        if gesellschaft.registernummer:
+            st.write(f"**Registernummer:** {gesellschaft.registernummer}")
+
+    with col2:
+        if gesellschaft.strasse:
+            st.write(f"**Anschrift:** {gesellschaft.strasse} {gesellschaft.hausnummer}")
+            st.write(f"{gesellschaft.plz} {gesellschaft.ort}")
+        if gesellschaft.vertretungsregelung:
+            st.write(f"**Vertretung:** {gesellschaft.vertretungsregelung}")
+
+    # Organe anzeigen
+    if gesellschaft.organe:
+        st.markdown("##### Vertretungsberechtigte")
+        for organ_id in gesellschaft.organe:
+            organ = st.session_state.organe.get(organ_id)
+            if organ:
+                st.write(f"• {organ.vorname} {organ.name} ({organ.organ_typ})")
+    else:
+        st.info("⚠️ Keine Vertretungsberechtigten erfasst")
+
+    # Button für Handelsregisterabfrage
+    if gesellschaft.registernummer and not gesellschaft.hr_abfrage_erfolgt:
+        if st.button("🔍 Handelsregister abfragen", key=f"hr_query_{gesellschaft.gesellschaft_id}"):
+            st.session_state[f"show_hr_query_{gesellschaft.gesellschaft_id}"] = True
+            st.rerun()
+
+    if st.session_state.get(f"show_hr_query_{gesellschaft.gesellschaft_id}"):
+        render_handelsregister_abfrage(gesellschaft)
+
+
+def render_handelsregister_abfrage(gesellschaft: 'Gesellschaft'):
+    """UI für die Handelsregister-Abfrage."""
+    st.markdown("#### 🔍 Handelsregister-Abfrage")
+
+    st.info("""
+    **Handelsregister-Abfrage**
+
+    Für eine automatische Abfrage benötigen Sie einen API-Zugang zum
+    Handelsregister (z.B. über unternehmensregister.de).
+
+    Alternativ können Sie die Daten manuell eingeben oder einen
+    Handelsregisterauszug hochladen.
+    """)
+
+    tab1, tab2 = st.tabs(["📝 Manuell eingeben", "📄 Auszug hochladen"])
+
+    with tab1:
+        render_hr_manuelle_eingabe(gesellschaft)
+
+    with tab2:
+        render_hr_upload(gesellschaft)
+
+
+def render_hr_manuelle_eingabe(gesellschaft: 'Gesellschaft'):
+    """Manuelle Eingabe der Handelsregister-Daten."""
+    import uuid
+
+    with st.form(f"hr_manuell_{gesellschaft.gesellschaft_id}"):
+        st.markdown("##### Registerdaten")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            registerart = st.selectbox("Registerart", ["HRB", "HRA", "GnR", "PR", "VR"])
+            registernummer = st.text_input("Registernummer", value=gesellschaft.registernummer)
+
+        with col2:
+            registergericht = st.text_input("Registergericht", value=gesellschaft.registergericht)
+            letzte_eintragung = st.text_input("Letzte Eintragung", placeholder="z.B. 01.01.2024")
+
+        st.markdown("##### Firmendaten aus Register")
+        firma_hr = st.text_input("Firma lt. HR", value=gesellschaft.firma)
+        gegenstand = st.text_area("Unternehmensgegenstand", height=80)
+
+        col3, col4 = st.columns(2)
+        with col3:
+            stammkapital = st.number_input("Stammkapital (€)", value=gesellschaft.stammkapital if hasattr(gesellschaft, 'stammkapital') else 25000.0, step=1000.0)
+        with col4:
+            gruendungsdatum = st.text_input("Gründungsdatum", placeholder="TT.MM.JJJJ")
+
+        st.markdown("##### Geschäftsführung / Vertretung")
+        st.info("Fügen Sie die vertretungsberechtigten Personen hinzu")
+
+        # Bestehende Organe anzeigen
+        organe_neu = st.session_state.get(f"neue_organe_{gesellschaft.gesellschaft_id}", [])
+
+        organ_name = st.text_input("Name des Vertreters", key=f"organ_name_{gesellschaft.gesellschaft_id}")
+        organ_vorname = st.text_input("Vorname", key=f"organ_vorname_{gesellschaft.gesellschaft_id}")
+        organ_typ = st.selectbox("Funktion", [o.value for o in OrganTyp], key=f"organ_typ_{gesellschaft.gesellschaft_id}")
+        einzelvertretung = st.checkbox("Einzelvertretungsberechtigt", key=f"organ_einzel_{gesellschaft.gesellschaft_id}")
+
+        if st.form_submit_button("💾 Speichern"):
+            # HR-Eintrag erstellen
+            hr_id = str(uuid.uuid4())[:8]
+            hr_eintrag = HandelsregisterEintrag(
+                hr_id=hr_id,
+                gesellschaft_id=gesellschaft.gesellschaft_id,
+                registergericht=registergericht,
+                registerart=registerart,
+                registernummer=registernummer,
+                firma=firma_hr,
+                gegenstand=gegenstand,
+                stammkapital=stammkapital,
+                gruendungsdatum=gruendungsdatum,
+                letzte_eintragung=letzte_eintragung,
+                abfrage_datum=datetime.now()
+            )
+            st.session_state.hr_eintraege[hr_id] = hr_eintrag
+
+            # Gesellschaft aktualisieren
+            gesellschaft.hr_eintrag_id = hr_id
+            gesellschaft.hr_abfrage_erfolgt = True
+            gesellschaft.registergericht = registergericht
+            gesellschaft.registernummer = f"{registerart} {registernummer}"
+
+            # Organ hinzufügen falls eingegeben
+            if organ_name:
+                organ_id = str(uuid.uuid4())[:8]
+                organ = Organ(
+                    organ_id=organ_id,
+                    gesellschaft_id=gesellschaft.gesellschaft_id,
+                    name=organ_name,
+                    vorname=organ_vorname,
+                    organ_typ=organ_typ,
+                    einzelvertretungsberechtigt=einzelvertretung
+                )
+                st.session_state.organe[organ_id] = organ
+                gesellschaft.organe.append(organ_id)
+
+            st.success("✅ Handelsregister-Daten gespeichert!")
+            if f"show_hr_query_{gesellschaft.gesellschaft_id}" in st.session_state:
+                del st.session_state[f"show_hr_query_{gesellschaft.gesellschaft_id}"]
+            st.rerun()
+
+
+def render_hr_upload(gesellschaft: 'Gesellschaft'):
+    """Upload eines Handelsregisterauszugs."""
+    import uuid
+
+    uploaded_file = st.file_uploader(
+        "Handelsregisterauszug hochladen (PDF)",
+        type=["pdf"],
+        key=f"hr_upload_{gesellschaft.gesellschaft_id}"
+    )
+
+    if uploaded_file:
+        pdf_bytes = uploaded_file.read()
+        st.success(f"📄 {uploaded_file.name} hochgeladen ({len(pdf_bytes)/1024:.1f} KB)")
+
+        if st.button("💾 Auszug speichern", key=f"save_hr_{gesellschaft.gesellschaft_id}"):
+            hr_id = str(uuid.uuid4())[:8]
+            hr_eintrag = HandelsregisterEintrag(
+                hr_id=hr_id,
+                gesellschaft_id=gesellschaft.gesellschaft_id,
+                registergericht=gesellschaft.registergericht,
+                registernummer=gesellschaft.registernummer,
+                abfrage_datum=datetime.now(),
+                abfrage_pdf=pdf_bytes
+            )
+            st.session_state.hr_eintraege[hr_id] = hr_eintrag
+
+            gesellschaft.hr_eintrag_id = hr_id
+            gesellschaft.hr_abfrage_erfolgt = True
+
+            st.success("✅ Handelsregisterauszug gespeichert!")
+            if f"show_hr_query_{gesellschaft.gesellschaft_id}" in st.session_state:
+                del st.session_state[f"show_hr_query_{gesellschaft.gesellschaft_id}"]
+            st.rerun()
+
+
+def render_organ_verwaltung(gesellschaft: 'Gesellschaft'):
+    """Verwaltung der Organe/Vertretungsberechtigten einer Gesellschaft."""
+    import uuid
+
+    st.markdown("#### 👥 Vertretungsberechtigte")
+
+    # Bestehende Organe anzeigen
+    for organ_id in gesellschaft.organe:
+        organ = st.session_state.organe.get(organ_id)
+        if organ:
+            with st.expander(f"👤 {organ.vorname} {organ.name} - {organ.organ_typ}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Funktion:** {organ.organ_typ}")
+                    st.write(f"**Einzelvertretung:** {'Ja' if organ.einzelvertretungsberechtigt else 'Nein'}")
+                    if organ.vertretungsbeschraenkung:
+                        st.write(f"**Beschränkung:** {organ.vertretungsbeschraenkung}")
+                with col2:
+                    if organ.geburtsdatum:
+                        st.write(f"**Geburtsdatum:** {organ.geburtsdatum}")
+                    if organ.ausweis_typ:
+                        st.write(f"**Ausweis:** {organ.ausweis_typ} {organ.ausweis_nummer}")
+
+                if st.button("🗑️ Entfernen", key=f"remove_organ_{organ_id}"):
+                    gesellschaft.organe.remove(organ_id)
+                    del st.session_state.organe[organ_id]
+                    st.success("Organ entfernt")
+                    st.rerun()
+
+    # Neues Organ hinzufügen
+    with st.expander("➕ Vertretungsberechtigten hinzufügen"):
+        with st.form(f"neues_organ_{gesellschaft.gesellschaft_id}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                vorname = st.text_input("Vorname *")
+                name = st.text_input("Name *")
+                geburtsdatum = st.text_input("Geburtsdatum", placeholder="TT.MM.JJJJ")
+            with col2:
+                organ_typ = st.selectbox("Funktion *", [o.value for o in OrganTyp])
+                einzelvertretung = st.checkbox("Einzelvertretungsberechtigt")
+                beschraenkung = st.text_input("Vertretungsbeschränkung")
+
+            if st.form_submit_button("➕ Hinzufügen"):
+                if not name or not vorname:
+                    st.error("Bitte Name und Vorname eingeben!")
+                else:
+                    organ_id = str(uuid.uuid4())[:8]
+                    organ = Organ(
+                        organ_id=organ_id,
+                        gesellschaft_id=gesellschaft.gesellschaft_id,
+                        name=name,
+                        vorname=vorname,
+                        geburtsdatum=geburtsdatum,
+                        organ_typ=organ_typ,
+                        einzelvertretungsberechtigt=einzelvertretung,
+                        vertretungsbeschraenkung=beschraenkung
+                    )
+                    st.session_state.organe[organ_id] = organ
+                    gesellschaft.organe.append(organ_id)
+                    st.success(f"✅ {vorname} {name} hinzugefügt!")
+                    st.rerun()
 
 
 # ============================================================================
