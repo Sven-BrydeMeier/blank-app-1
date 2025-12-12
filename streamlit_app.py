@@ -3711,13 +3711,18 @@ class AktenDokumentTyp(Enum):
     SONSTIGES = "Sonstiges"
 
 class AktenStatus(Enum):
-    """Status einer importierten Akte"""
+    """Status einer Akte"""
     IMPORTIERT = "Importiert"
+    NEU = "Neu angelegt"
     IN_BEARBEITUNG = "In Bearbeitung"
+    WARTET_AUF_UNTERLAGEN = "Wartet auf Unterlagen"
     VOLLSTAENDIG = "Vollständig"
+    BEURKUNDUNG_VORBEREITET = "Beurkundung vorbereitet"
     BEURKUNDET = "Beurkundet"
+    VOLLZUG = "Im Vollzug"
     ABGESCHLOSSEN = "Abgeschlossen"
     ARCHIVIERT = "Archiviert"
+    STORNIERT = "Storniert"
 
 @dataclass
 class AktenDokument:
@@ -4149,16 +4154,8 @@ class AktenTypZivilrecht(Enum):
     SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
 
 
-class AktenStatus(Enum):
-    """Status einer Akte"""
-    NEU = "Neu angelegt"
-    IN_BEARBEITUNG = "In Bearbeitung"
-    WARTET_AUF_UNTERLAGEN = "Wartet auf Unterlagen"
-    BEURKUNDUNG_VORBEREITET = "Beurkundung vorbereitet"
-    BEURKUNDET = "Beurkundet"
-    VOLLZUG = "Im Vollzug"
-    ABGESCHLOSSEN = "Abgeschlossen"
-    STORNIERT = "Storniert"
+# AktenStatus ist bereits oben definiert (Zeile ~3713)
+# Enthält: IMPORTIERT, IN_BEARBEITUNG, VOLLSTAENDIG, BEURKUNDET, ABGESCHLOSSEN, ARCHIVIERT
 
 
 # Mapping von Hauptbereich zu Untertypen
