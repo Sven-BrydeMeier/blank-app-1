@@ -2,13 +2,13 @@
 
 **Letzte Aktualisierung:** 2025-12-13
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `4fc846f` - Feature: Kommunikations-Features in Dashboards integriert
+**Letzter Commit:** Feature: Umfassende Erweiterungen - Benachrichtigungen, Gating, Fristenmanagement, Mandanten-Portal
 
 ---
 
 ## Projekt-Übersicht
 
-Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~25.000+ Zeilen), die die Kommunikation zwischen folgenden Parteien koordiniert:
+Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~28.500+ Zeilen), die die Kommunikation zwischen folgenden Parteien koordiniert:
 - **Makler** - Erstellt Projekte, verwaltet Exposés, koordiniert Termine, kann Ausweise scannen, Parteien-Verwaltung
 - **Käufer** - Lädt Bonitätsunterlagen hoch, akzeptiert Dokumente, bestätigt Termine, muss Rechtsdokumente akzeptieren
 - **Verkäufer** - Stellt Unterlagen bereit, akzeptiert Dokumente, bestätigt Termine, muss Rechtsdokumente akzeptieren
@@ -33,7 +33,50 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~25.000+ 
 
 ## Kürzlich implementierte Features (2025-12-13)
 
-### 1. Kommunikations-Erweiterungen (NEU)
+### 0. NEUESTE ERWEITERUNGEN (aktuell)
+
+#### Benachrichtigungs-Center mit Badge
+- **Badge in Sidebar**: Zeigt Anzahl ungelesener Eingänge an
+- **Typen**: Nachrichten, Dokumente, Termine, Freigaben, Fristen, Anforderungen, System
+- **Antwortvorlagen**: 6 System-Vorlagen für schnelle Antworten
+- **Funktionen**: `render_benachrichtigungs_badge()`, `render_eingaenge_center()`
+
+#### Finanzierungs- und Legal-Gating
+- **Gating-Prüfungen**: Workflow mit Abhängigkeiten (vorgaenger_ids)
+- **Status**: OFFEN, IN_PRUEFUNG, FREIGEGEBEN, ABGELEHNT, WARTET
+- **8 Standard-Prüfungen**: Identitätsnachweis, Datenschutz, Bonitätsprüfung, etc.
+- **Funktionen**: `render_gating_uebersicht()`, `get_gating_status()`
+
+#### Fristenmanagement
+- **Automatische Fristenberechnung**: Ab Beurkundungsdatum
+- **Fristtypen**: Widerrufsfrist, Zahlungsfrist, Grundbucheintragung, etc.
+- **Erinnerungen**: Konfigurierbare Tage vor Ablauf
+- **Funktionen**: `render_fristenmanagement()`, `erstelle_standard_fristen()`
+
+#### Reporting-Dashboard
+- **KPIs**: Projekte, Umsatz, Beurkundungen, Durchlaufzeit
+- **Visualisierungen**: Metriken, Diagramme, Trends
+- **Funktionen**: `render_reporting_dashboard()`, `berechne_kpis()`
+
+#### Dokumenten-Versionierung
+- **Versionskontrolle**: Entwurf, Zur Prüfung, Freigegeben, Signiert, Archiviert
+- **Wasserzeichen**: Automatisch für nicht-finale Versionen
+- **Funktionen**: `render_dokument_versionen()`, `erstelle_dokument_version()`
+
+#### Mandanten-Portal (Käufer/Verkäufer)
+- **Schnellübersicht**: KPIs (Projekte, Nachrichten, Fristen, Termine)
+- **Dringende Aufgaben**: Fehlende Unterlagen, ablaufende Fristen
+- **Projekt-Status**: Gating-Fortschritt, beteiligte Parteien
+- **Nächste Schritte**: Priorisierte Aufgabenliste
+- **Funktionen**: `render_mandanten_portal()`
+
+#### Vorlagen-Management System
+- **Dokumentenvorlagen**: Kaufvertrag, Brief, E-Mail, Checkliste
+- **Platzhalter-System**: `{{KAEUFER_NAME}}`, `{{KAUFPREIS}}`, etc.
+- **System-Vorlagen**: 3 Standard-Vorlagen enthalten
+- **Funktionen**: `render_vorlagen_management()`, `init_vorlagen_system()`
+
+### 1. Kommunikations-Erweiterungen
 - **Briefkopf-Administration**: Kanzlei-Logo, Firmenname, Adresse, Kontaktdaten, Bankverbindung, Design-Einstellungen
 - **E-Mail-Signaturen**: Text- und HTML-Signaturen, Vorlagen für verschiedene Anlässe
 - **Makler-Mitarbeiterverwaltung**: Mitarbeiter mit Rollen, Berechtigungen, Projekt-Zuweisungen

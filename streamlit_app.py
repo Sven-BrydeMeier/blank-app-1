@@ -3989,6 +3989,207 @@ class MaklerMitarbeiterRolle(Enum):
     TEAMLEITER = "Teamleiter"
     PARTNER = "Partner"
 
+# ============================================================================
+# BENACHRICHTIGUNGS-CENTER DATENSTRUKTUREN
+# ============================================================================
+
+class EingangTyp(Enum):
+    """Typen von Eingängen im Benachrichtigungs-Center"""
+    NACHRICHT = "Nachricht"
+    DOKUMENT = "Dokument"
+    TERMIN = "Termin"
+    FREIGABE = "Freigabe"
+    FRIST = "Frist"
+    ANFORDERUNG = "Anforderung"
+    SYSTEM = "System"
+
+class EingangStatus(Enum):
+    """Status von Eingängen"""
+    NEU = "Neu"
+    GELESEN = "Gelesen"
+    BEARBEITET = "Bearbeitet"
+    ERLEDIGT = "Erledigt"
+    ARCHIVIERT = "Archiviert"
+
+class FristTyp(Enum):
+    """Typen von Fristen"""
+    WIDERRUFSFRIST = "Widerrufsfrist"
+    ZAHLUNGSFRIST = "Zahlungsfrist"
+    GRUNDBUCHEINTRAGUNG = "Grundbucheintragung"
+    DOKUMENTENEINREICHUNG = "Dokumenteneinreichung"
+    BEURKUNDUNGSTERMIN = "Beurkundungstermin"
+    FINANZIERUNGSZUSAGE = "Finanzierungszusage"
+    KAUFPREISZAHLUNG = "Kaufpreiszahlung"
+    UEBERGABE = "Übergabe"
+    CUSTOM = "Benutzerdefiniert"
+
+class GatingStatus(Enum):
+    """Status für Finanzierungs- und Legal-Gating"""
+    OFFEN = "Offen"
+    IN_PRUEFUNG = "In Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    ABGELEHNT = "Abgelehnt"
+    WARTET = "Wartet auf Vorgänger"
+
+class DokumentVersion(Enum):
+    """Status einer Dokumentenversion"""
+    ENTWURF = "Entwurf"
+    ZUR_PRUEFUNG = "Zur Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    SIGNIERT = "Signiert"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class Eingang:
+    """Ein Eingang im Benachrichtigungs-Center"""
+    eingang_id: str
+    empfaenger_id: str
+    typ: str  # EingangTyp
+    titel: str
+
+    # Optionale Felder mit Defaults
+    beschreibung: str = ""
+    absender_id: str = ""
+    projekt_id: str = ""
+    akte_id: str = ""
+    referenz_id: str = ""  # ID des verlinkten Objekts
+    referenz_typ: str = ""  # Typ des verlinkten Objekts
+    status: str = EingangStatus.NEU.value
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    gelesen_am: datetime = None
+    bearbeitet_am: datetime = None
+    faellig_am: datetime = None
+    antwort_vorlage_id: str = ""
+    metadata: Dict = field(default_factory=dict)
+
+@dataclass
+class AntwortVorlage:
+    """Vorlage für Schnellantworten"""
+    vorlage_id: str
+    name: str
+    kategorie: str  # z.B. "Bestätigung", "Ablehnung", "Nachfrage"
+
+    betreff_template: str = ""
+    text_template: str = ""
+    platzhalter: List[str] = field(default_factory=list)
+    fuer_typen: List[str] = field(default_factory=list)  # EingangTyp
+    ist_system: bool = False
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class Frist:
+    """Eine Frist im System"""
+    frist_id: str
+    projekt_id: str
+    typ: str  # FristTyp
+    bezeichnung: str
+
+    faellig_am: datetime = None
+    erinnerung_tage: int = 3  # Tage vor Fälligkeit erinnern
+    verantwortlich_id: str = ""
+    status: str = "offen"  # offen, erledigt, ueberfaellig
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erledigt_am: datetime = None
+    automatisch_berechnet: bool = False
+    basis_datum: datetime = None  # Datum von dem aus berechnet wird
+    tage_offset: int = 0  # Tage nach Basisdatum
+
+@dataclass
+class GatingPruefung:
+    """Prüfung im Gating-Prozess"""
+    pruefung_id: str
+    projekt_id: str
+    user_id: str  # Wer muss prüfen/bestätigen
+    typ: str  # "legal", "finanzierung", "dokument"
+    bezeichnung: str
+
+    status: str = GatingStatus.OFFEN.value
+    reihenfolge: int = 0  # Für sequenzielle Prüfungen
+    vorgaenger_ids: List[str] = field(default_factory=list)
+    erforderlich: bool = True
+    geprueft_von: str = ""
+    geprueft_am: datetime = None
+    kommentar: str = ""
+    dokument_ids: List[str] = field(default_factory=list)
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class DokumentVersionierung:
+    """Versionierte Dokumentenverwaltung"""
+    version_id: str
+    dokument_id: str
+    version_nummer: int
+
+    dateiname: str = ""
+    datei_data: bytes = None
+    dateityp: str = ""
+    dateigroesse: int = 0
+    status: str = DokumentVersion.ENTWURF.value
+    aenderungen: str = ""  # Beschreibung der Änderungen
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    freigegeben_von: str = ""
+    freigegeben_am: datetime = None
+    signatur_data: bytes = None
+    signiert_von: str = ""
+    signiert_am: datetime = None
+    wasserzeichen: bool = True  # Bei Entwürfen
+
+# ============================================================================
+# REPORTING & KPI DATENSTRUKTUREN
+# ============================================================================
+
+@dataclass
+class KPISnapshot:
+    """Snapshot von KPIs für Reporting"""
+    snapshot_id: str
+    user_id: str
+    datum: datetime
+
+    # Projekt-KPIs
+    projekte_gesamt: int = 0
+    projekte_aktiv: int = 0
+    projekte_abgeschlossen: int = 0
+    durchschnittliche_dauer_tage: float = 0.0
+
+    # Umsatz-KPIs (für Makler)
+    umsatz_monat: float = 0.0
+    umsatz_quartal: float = 0.0
+    umsatz_jahr: float = 0.0
+    provision_offen: float = 0.0
+
+    # Aktivitäts-KPIs
+    dokumente_hochgeladen: int = 0
+    nachrichten_gesendet: int = 0
+    termine_durchgefuehrt: int = 0
+
+    # Qualitäts-KPIs
+    durchschnittliche_reaktionszeit_std: float = 0.0
+    kundenzufriedenheit: float = 0.0
+
+    metadata: Dict = field(default_factory=dict)
+
+@dataclass
+class BerichtKonfiguration:
+    """Konfiguration für automatische Berichte"""
+    bericht_id: str
+    user_id: str
+    name: str
+
+    typ: str = "standard"  # standard, custom
+    intervall: str = "monatlich"  # taeglich, woechentlich, monatlich
+    empfaenger_emails: List[str] = field(default_factory=list)
+    format: str = "pdf"  # pdf, excel, html
+    sektionen: List[str] = field(default_factory=list)
+    filter_kriterien: Dict = field(default_factory=dict)
+    aktiv: bool = True
+    letzter_versand: datetime = None
+    naechster_versand: datetime = None
+
+
 @dataclass
 class Briefkopf:
     """Briefkopf für Dokumente und Korrespondenz"""
@@ -5124,6 +5325,18 @@ def init_session_state():
 
         # Audit-Log
         st.session_state.audit_log = []  # Liste von AuditLogEintrag
+
+        # ===== BENACHRICHTIGUNGS-CENTER =====
+        st.session_state.eingaenge = {}  # Eingang-ID -> Eingang
+        st.session_state.antwort_vorlagen = {}  # Vorlage-ID -> AntwortVorlage
+        st.session_state.fristen = {}  # Frist-ID -> Frist
+        st.session_state.gating_pruefungen = {}  # Pruefung-ID -> GatingPruefung
+        st.session_state.dokument_versionen = {}  # Version-ID -> DokumentVersionierung
+        st.session_state.kpi_snapshots = {}  # Snapshot-ID -> KPISnapshot
+        st.session_state.bericht_konfigurationen = {}  # Bericht-ID -> BerichtKonfiguration
+
+        # System-Antwortvorlagen initialisieren
+        _initialisiere_system_antwortvorlagen()
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
@@ -11346,6 +11559,9 @@ def makler_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -11370,7 +11586,9 @@ def makler_dashboard():
         "🪪 Ausweisdaten erfassen",
         "📅 Termine",
         "👥 Mitarbeiter",
-        "📨 Nachrichten"
+        "📨 Nachrichten",
+        "⏰ Fristen",  # NEU: Fristenmanagement
+        "📈 Reporting"  # NEU: KPIs und Berichte
     ])
 
     with tabs[0]:
@@ -11430,6 +11648,14 @@ def makler_dashboard():
     with tabs[12]:
         # Kommunikationszentrale
         render_kommunikationszentrale(user_id)
+
+    with tabs[13]:
+        # Fristenmanagement
+        render_fristenmanagement(user_id)
+
+    with tabs[14]:
+        # Reporting Dashboard
+        render_reporting_dashboard(user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -11810,6 +12036,10 @@ def makler_projekte_view():
             # NEU: Parteien-Verwaltung (Gesellschaften, Organe)
             with st.expander("👥 Parteien & Gesellschaften", expanded=False):
                 render_parteien_verwaltung(projekt, UserRole.MAKLER.value)
+
+            # NEU: Gating-Übersicht (Finanzierung & Legal)
+            with st.expander("🔐 Freigabe-Status", expanded=False):
+                render_gating_uebersicht(projekt.projekt_id, UserRole.MAKLER.value)
 
             # ===== VERBESSERUNG 3: MAKLER-EINSICHT PREISVERHANDLUNG =====
             angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
@@ -12532,6 +12762,9 @@ def kaeufer_dashboard():
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -12546,6 +12779,7 @@ def kaeufer_dashboard():
         st.session_state['kaeufer_search'] = ''
 
     tabs = st.tabs([
+        "🏠 Mein Portal",  # NEU: Mandanten-Portal Übersicht
         "📊 Timeline",
         "📋 Projekte",
         "📝 Aufgaben",
@@ -12558,32 +12792,36 @@ def kaeufer_dashboard():
     ])
 
     with tabs[0]:
-        kaeufer_timeline_view()
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.KAEUFER.value)
 
     with tabs[1]:
-        kaeufer_projekte_view()
+        kaeufer_timeline_view()
 
     with tabs[2]:
-        kaeufer_aufgaben_view()
+        kaeufer_projekte_view()
 
     with tabs[3]:
-        kaeufer_finanzierung_view()
+        kaeufer_aufgaben_view()
 
     with tabs[4]:
-        kaeufer_handwerker_empfehlungen()
+        kaeufer_finanzierung_view()
 
     with tabs[5]:
+        kaeufer_handwerker_empfehlungen()
+
+    with tabs[6]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
 
-    with tabs[6]:
+    with tabs[7]:
         kaeufer_nachrichten()
 
-    with tabs[7]:
+    with tabs[8]:
         kaeufer_dokumente_view()
 
-    with tabs[8]:
+    with tabs[9]:
         # Termin-Übersicht für Käufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -16070,6 +16308,9 @@ def verkaeufer_dashboard():
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -16083,38 +16324,42 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
+    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
 
     with tabs[0]:
-        verkaeufer_timeline_view()
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
 
     with tabs[1]:
-        verkaeufer_projekte_view()
+        verkaeufer_timeline_view()
 
     with tabs[2]:
-        verkaeufer_preisfindung_view()
+        verkaeufer_projekte_view()
 
     with tabs[3]:
-        verkaeufer_makler_finden()
+        verkaeufer_preisfindung_view()
 
     with tabs[4]:
+        verkaeufer_makler_finden()
+
+    with tabs[5]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[5]:
+    with tabs[6]:
         verkaeufer_dokumente_view()
 
-    with tabs[6]:
+    with tabs[7]:
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[7]:
+    with tabs[8]:
         verkaeufer_nachrichten()
 
-    with tabs[8]:
+    with tabs[9]:
         verkaeufer_eigene_kosten_view()
 
-    with tabs[9]:
+    with tabs[10]:
         # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -17423,6 +17668,9 @@ def finanzierer_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -17891,6 +18139,9 @@ def notar_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -17925,6 +18176,9 @@ def notar_dashboard():
         "📜 Rechtsdokumente",
         "📁 Aktenimport",  # NEU: PDF-Akten importieren
         "📨 Nachrichten",  # NEU: Kommunikationszentrale
+        "⏰ Fristen",  # NEU: Fristenmanagement
+        "📈 Reporting",  # NEU: KPIs und Berichte
+        "📋 Vorlagen",  # NEU: Vorlagen-Management
         "⚙️ Einstellungen"
     ])
 
@@ -17990,6 +18244,18 @@ def notar_dashboard():
         render_kommunikationszentrale(user_id)
 
     with tabs[20]:
+        # Fristenmanagement
+        render_fristenmanagement(user_id)
+
+    with tabs[21]:
+        # Reporting Dashboard
+        render_reporting_dashboard(user_id)
+
+    with tabs[22]:
+        # Vorlagen-Management
+        render_vorlagen_management(user_id)
+
+    with tabs[23]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -18113,6 +18379,10 @@ def notar_projekte_view():
             st.markdown("---")
             with st.expander("👥 Parteien & Gesellschaften verwalten", expanded=False):
                 render_parteien_verwaltung(projekt, UserRole.NOTAR.value)
+
+            # NEU: Gating-Übersicht (Finanzierung & Legal)
+            with st.expander("🔐 Freigabe-Status & Gating", expanded=False):
+                render_gating_uebersicht(projekt.projekt_id, UserRole.NOTAR.value)
 
             # Aktenzeichen und verknüpfte Akte anzeigen
             if projekt.aktenzeichen:
@@ -20994,6 +21264,17 @@ def notar_dokumenten_freigaben():
                     )
         else:
             st.info("Noch keine Dokumente freigegeben.")
+
+        # NEU: Dokumenten-Versionierung anzeigen
+        with st.expander("📚 Dokumentenversionen & History", expanded=False):
+            # Alle Dokument-IDs für dieses Projekt sammeln
+            dok_ids = [d.doc_id for d in st.session_state.wirtschaftsdaten.values()
+                      if d.kaeufer_id in projekt.kaeufer_ids]
+            if dok_ids:
+                for dok_id in dok_ids:
+                    render_dokument_versionen(dok_id, UserRole.NOTAR.value)
+            else:
+                st.info("Keine Dokumente mit Versionierung vorhanden.")
 
         st.markdown("---")
 
@@ -24914,6 +25195,9 @@ def notarmitarbeiter_dashboard():
     st.title("⚖️ Notar-Mitarbeiter-Dashboard")
     st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(mitarbeiter.user_id)
+
     # Tab-Liste basierend auf Berechtigungen
     tab_labels = ["📊 Timeline", "📋 Projekte"]
 
@@ -26319,6 +26603,1289 @@ def render_erweiterte_suche(user_id: str):
             st.warning("Keine Ergebnisse gefunden.")
 
 
+# ============================================================================
+# BENACHRICHTIGUNGS-CENTER FUNKTIONEN
+# ============================================================================
+
+def _initialisiere_system_antwortvorlagen():
+    """Initialisiert die System-Antwortvorlagen"""
+    if 'antwort_vorlagen' not in st.session_state:
+        st.session_state.antwort_vorlagen = {}
+
+    system_vorlagen = [
+        AntwortVorlage(
+            vorlage_id="sys_bestaetigung_dokument",
+            name="Dokumentenempfang bestätigen",
+            kategorie="Bestätigung",
+            betreff_template="Bestätigung: {dokument_name} erhalten",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nhiermit bestätigen wir den Erhalt des Dokuments \"{dokument_name}\".\n\nDas Dokument wird nun geprüft. Bei Rückfragen melden wir uns umgehend.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "dokument_name"],
+            fuer_typen=[EingangTyp.DOKUMENT.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_bestaetigung_termin",
+            name="Termin bestätigen",
+            kategorie="Bestätigung",
+            betreff_template="Terminbestätigung: {termin_datum}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nhiermit bestätigen wir den Termin am {termin_datum} um {termin_uhrzeit} Uhr.\n\nBitte bringen Sie folgende Unterlagen mit:\n{unterlagen_liste}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "termin_datum", "termin_uhrzeit", "unterlagen_liste"],
+            fuer_typen=[EingangTyp.TERMIN.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_ablehnung_dokument",
+            name="Dokument ablehnen/Nachbesserung",
+            kategorie="Ablehnung",
+            betreff_template="Nachbesserung erforderlich: {dokument_name}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nbei der Prüfung des Dokuments \"{dokument_name}\" sind folgende Mängel aufgefallen:\n\n{maengel_liste}\n\nBitte reichen Sie das Dokument korrigiert bis zum {frist_datum} ein.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "dokument_name", "maengel_liste", "frist_datum"],
+            fuer_typen=[EingangTyp.DOKUMENT.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_freigabe_erteilt",
+            name="Freigabe erteilen",
+            kategorie="Freigabe",
+            betreff_template="Freigabe erteilt: {objekt_name}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nwir freuen uns, Ihnen mitteilen zu können, dass {objekt_name} freigegeben wurde.\n\n{zusatz_info}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "objekt_name", "zusatz_info"],
+            fuer_typen=[EingangTyp.FREIGABE.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_erinnerung_frist",
+            name="Frist-Erinnerung",
+            kategorie="Erinnerung",
+            betreff_template="Erinnerung: {frist_name} läuft am {frist_datum} ab",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nwir möchten Sie daran erinnern, dass die Frist \"{frist_name}\" am {frist_datum} abläuft.\n\nBitte beachten Sie:\n{hinweise}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "frist_name", "frist_datum", "hinweise"],
+            fuer_typen=[EingangTyp.FRIST.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_nachfrage",
+            name="Rückfrage stellen",
+            kategorie="Nachfrage",
+            betreff_template="Rückfrage zu: {betreff}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nzu Ihrer Anfrage haben wir folgende Rückfragen:\n\n{fragen_liste}\n\nBitte antworten Sie uns bis zum {frist_datum}.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "betreff", "fragen_liste", "frist_datum"],
+            fuer_typen=[EingangTyp.NACHRICHT.value, EingangTyp.ANFORDERUNG.value],
+            ist_system=True
+        ),
+    ]
+
+    for vorlage in system_vorlagen:
+        if vorlage.vorlage_id not in st.session_state.antwort_vorlagen:
+            st.session_state.antwort_vorlagen[vorlage.vorlage_id] = vorlage
+
+
+def get_eingaenge_zaehler(user_id: str) -> Dict[str, int]:
+    """Zählt die ungelesenen Eingänge nach Typ"""
+    if 'eingaenge' not in st.session_state:
+        st.session_state.eingaenge = {}
+
+    zaehler = {
+        EingangTyp.NACHRICHT.value: 0,
+        EingangTyp.DOKUMENT.value: 0,
+        EingangTyp.TERMIN.value: 0,
+        EingangTyp.FREIGABE.value: 0,
+        EingangTyp.FRIST.value: 0,
+        EingangTyp.ANFORDERUNG.value: 0,
+        EingangTyp.SYSTEM.value: 0,
+        "gesamt": 0
+    }
+
+    for eingang in st.session_state.eingaenge.values():
+        if eingang.empfaenger_id == user_id and eingang.status == EingangStatus.NEU.value:
+            zaehler[eingang.typ] = zaehler.get(eingang.typ, 0) + 1
+            zaehler["gesamt"] += 1
+
+    return zaehler
+
+
+def erstelle_eingang(
+    empfaenger_id: str,
+    typ: str,
+    titel: str,
+    beschreibung: str = "",
+    absender_id: str = "",
+    projekt_id: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value,
+    faellig_am: datetime = None
+) -> Eingang:
+    """Erstellt einen neuen Eingang"""
+    eingang_id = f"eingang_{uuid.uuid4().hex[:8]}"
+
+    eingang = Eingang(
+        eingang_id=eingang_id,
+        empfaenger_id=empfaenger_id,
+        typ=typ,
+        titel=titel,
+        beschreibung=beschreibung,
+        absender_id=absender_id,
+        projekt_id=projekt_id,
+        referenz_id=referenz_id,
+        referenz_typ=referenz_typ,
+        prioritaet=prioritaet,
+        faellig_am=faellig_am
+    )
+
+    if 'eingaenge' not in st.session_state:
+        st.session_state.eingaenge = {}
+    st.session_state.eingaenge[eingang_id] = eingang
+
+    return eingang
+
+
+def render_benachrichtigungs_badge(user_id: str):
+    """Zeigt das Benachrichtigungs-Badge in der Sidebar"""
+    zaehler = get_eingaenge_zaehler(user_id)
+    gesamt = zaehler["gesamt"]
+
+    # Badge-Farbe basierend auf Anzahl
+    if gesamt == 0:
+        badge_style = "background-color: #28a745;"  # Grün
+        badge_text = "✓"
+    elif gesamt < 5:
+        badge_style = "background-color: #ffc107; color: #000;"  # Gelb
+        badge_text = str(gesamt)
+    else:
+        badge_style = "background-color: #dc3545;"  # Rot
+        badge_text = str(gesamt) if gesamt < 100 else "99+"
+
+    # CSS für Badge
+    st.markdown(f"""
+    <style>
+    .notification-badge {{
+        position: relative;
+        display: inline-block;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        color: white;
+        cursor: pointer;
+        margin-bottom: 10px;
+        width: 100%;
+        text-align: center;
+    }}
+    .notification-badge:hover {{
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }}
+    .badge-count {{
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        {badge_style}
+        color: white;
+        border-radius: 50%;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        min-width: 20px;
+        text-align: center;
+    }}
+    .notification-types {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 5px;
+        font-size: 11px;
+    }}
+    .notification-type {{
+        background: rgba(255,255,255,0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Eingänge-Button in Sidebar
+    with st.sidebar:
+        st.markdown("---")
+
+        if st.button(f"📬 Eingänge ({gesamt})", key="open_eingaenge", use_container_width=True, type="primary" if gesamt > 0 else "secondary"):
+            st.session_state.show_eingaenge_center = True
+            st.rerun()
+
+        # Mini-Übersicht
+        if gesamt > 0:
+            cols = st.columns(4)
+            typ_icons = {
+                EingangTyp.NACHRICHT.value: "✉️",
+                EingangTyp.DOKUMENT.value: "📄",
+                EingangTyp.TERMIN.value: "📅",
+                EingangTyp.FRIST.value: "⏰"
+            }
+            col_idx = 0
+            for typ, icon in typ_icons.items():
+                if zaehler.get(typ, 0) > 0:
+                    with cols[col_idx % 4]:
+                        st.caption(f"{icon} {zaehler[typ]}")
+                    col_idx += 1
+
+
+def render_eingaenge_center(user_id: str):
+    """Zeigt das vollständige Eingänge-Center als Modal/Overlay"""
+    if not st.session_state.get('show_eingaenge_center', False):
+        return
+
+    st.markdown("---")
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.subheader("📬 Eingänge-Center")
+    with col2:
+        if st.button("✖️ Schließen", key="close_eingaenge"):
+            st.session_state.show_eingaenge_center = False
+            st.rerun()
+
+    # Tabs für verschiedene Ansichten
+    tabs = st.tabs([
+        "📥 Alle Eingänge",
+        "✉️ Nachrichten",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⏰ Fristen",
+        "✅ Freigaben",
+        "📋 Erledigt"
+    ])
+
+    eingaenge = list(st.session_state.get('eingaenge', {}).values())
+    user_eingaenge = [e for e in eingaenge if e.empfaenger_id == user_id]
+
+    with tabs[0]:
+        _render_eingaenge_liste(user_eingaenge, "alle")
+
+    with tabs[1]:
+        nachrichten = [e for e in user_eingaenge if e.typ == EingangTyp.NACHRICHT.value]
+        _render_eingaenge_liste(nachrichten, "nachrichten")
+
+    with tabs[2]:
+        dokumente = [e for e in user_eingaenge if e.typ == EingangTyp.DOKUMENT.value]
+        _render_eingaenge_liste(dokumente, "dokumente")
+
+    with tabs[3]:
+        termine = [e for e in user_eingaenge if e.typ == EingangTyp.TERMIN.value]
+        _render_eingaenge_liste(termine, "termine")
+
+    with tabs[4]:
+        fristen = [e for e in user_eingaenge if e.typ == EingangTyp.FRIST.value]
+        _render_eingaenge_liste(fristen, "fristen")
+
+    with tabs[5]:
+        freigaben = [e for e in user_eingaenge if e.typ == EingangTyp.FREIGABE.value]
+        _render_eingaenge_liste(freigaben, "freigaben")
+
+    with tabs[6]:
+        erledigte = [e for e in user_eingaenge if e.status in [EingangStatus.ERLEDIGT.value, EingangStatus.ARCHIVIERT.value]]
+        _render_eingaenge_liste(erledigte, "erledigt")
+
+
+def _render_eingaenge_liste(eingaenge: List, kontext: str):
+    """Rendert eine Liste von Eingängen"""
+    # Sortierung
+    sort_option = st.selectbox(
+        "Sortieren nach",
+        ["Neueste zuerst", "Älteste zuerst", "Priorität", "Fälligkeit"],
+        key=f"sort_{kontext}"
+    )
+
+    if sort_option == "Neueste zuerst":
+        eingaenge.sort(key=lambda e: e.erstellt_am, reverse=True)
+    elif sort_option == "Älteste zuerst":
+        eingaenge.sort(key=lambda e: e.erstellt_am)
+    elif sort_option == "Priorität":
+        prio_order = {NachrichtenPrioritaet.DRINGEND.value: 0, NachrichtenPrioritaet.HOCH.value: 1, NachrichtenPrioritaet.NORMAL.value: 2}
+        eingaenge.sort(key=lambda e: prio_order.get(e.prioritaet, 2))
+    elif sort_option == "Fälligkeit":
+        eingaenge.sort(key=lambda e: e.faellig_am or datetime.max)
+
+    # Nur neue filtern (außer bei erledigt)
+    if kontext != "erledigt":
+        nur_neue = st.checkbox("Nur ungelesene", value=True, key=f"nur_neue_{kontext}")
+        if nur_neue:
+            eingaenge = [e for e in eingaenge if e.status == EingangStatus.NEU.value]
+
+    if not eingaenge:
+        st.info("Keine Eingänge vorhanden.")
+        return
+
+    st.caption(f"{len(eingaenge)} Eingang/Eingänge")
+
+    for eingang in eingaenge:
+        _render_eingang_card(eingang)
+
+
+def _render_eingang_card(eingang: Eingang):
+    """Rendert eine einzelne Eingangs-Karte"""
+    # Status-Icons
+    status_icons = {
+        EingangStatus.NEU.value: "🔵",
+        EingangStatus.GELESEN.value: "⚪",
+        EingangStatus.BEARBEITET.value: "🟡",
+        EingangStatus.ERLEDIGT.value: "🟢",
+        EingangStatus.ARCHIVIERT.value: "📁"
+    }
+
+    # Typ-Icons
+    typ_icons = {
+        EingangTyp.NACHRICHT.value: "✉️",
+        EingangTyp.DOKUMENT.value: "📄",
+        EingangTyp.TERMIN.value: "📅",
+        EingangTyp.FREIGABE.value: "✅",
+        EingangTyp.FRIST.value: "⏰",
+        EingangTyp.ANFORDERUNG.value: "📋",
+        EingangTyp.SYSTEM.value: "🔔"
+    }
+
+    # Prioritäts-Farben
+    prio_colors = {
+        NachrichtenPrioritaet.DRINGEND.value: "#dc3545",
+        NachrichtenPrioritaet.HOCH.value: "#fd7e14",
+        NachrichtenPrioritaet.NORMAL.value: "#6c757d"
+    }
+
+    status_icon = status_icons.get(eingang.status, "⚪")
+    typ_icon = typ_icons.get(eingang.typ, "📨")
+    prio_color = prio_colors.get(eingang.prioritaet, "#6c757d")
+
+    # Absender-Name holen
+    absender_name = "System"
+    if eingang.absender_id and eingang.absender_id in st.session_state.get('users', {}):
+        absender_name = st.session_state.users[eingang.absender_id].name
+
+    # Projekt-Name holen
+    projekt_name = ""
+    if eingang.projekt_id and eingang.projekt_id in st.session_state.get('projekte', {}):
+        projekt_name = st.session_state.projekte[eingang.projekt_id].name
+
+    with st.expander(f"{status_icon} {typ_icon} **{eingang.titel}**", expanded=eingang.status == EingangStatus.NEU.value):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**Von:** {absender_name}")
+            if projekt_name:
+                st.markdown(f"**Projekt:** {projekt_name}")
+            st.markdown(f"**Datum:** {eingang.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+            if eingang.faellig_am:
+                tage_bis = (eingang.faellig_am - datetime.now()).days
+                if tage_bis < 0:
+                    st.error(f"⚠️ Überfällig seit {abs(tage_bis)} Tagen!")
+                elif tage_bis == 0:
+                    st.warning("⏰ Heute fällig!")
+                elif tage_bis <= 3:
+                    st.warning(f"⏰ Fällig in {tage_bis} Tagen")
+                else:
+                    st.caption(f"Fällig am: {eingang.faellig_am.strftime('%d.%m.%Y')}")
+
+            if eingang.beschreibung:
+                st.markdown("---")
+                st.markdown(eingang.beschreibung)
+
+        with col2:
+            st.markdown(f"<span style='color: {prio_color}; font-weight: bold;'>{eingang.prioritaet}</span>", unsafe_allow_html=True)
+            st.caption(f"Status: {eingang.status}")
+
+        # Aktionen
+        st.markdown("---")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if eingang.status == EingangStatus.NEU.value:
+                if st.button("👁️ Gelesen", key=f"read_{eingang.eingang_id}"):
+                    eingang.status = EingangStatus.GELESEN.value
+                    eingang.gelesen_am = datetime.now()
+                    st.rerun()
+
+        with col2:
+            if st.button("💬 Antworten", key=f"reply_{eingang.eingang_id}"):
+                st.session_state[f'reply_to_{eingang.eingang_id}'] = True
+                st.rerun()
+
+        with col3:
+            if eingang.status not in [EingangStatus.ERLEDIGT.value, EingangStatus.ARCHIVIERT.value]:
+                if st.button("✅ Erledigt", key=f"done_{eingang.eingang_id}"):
+                    eingang.status = EingangStatus.ERLEDIGT.value
+                    eingang.bearbeitet_am = datetime.now()
+                    st.rerun()
+
+        with col4:
+            if st.button("📁 Archiv", key=f"archive_{eingang.eingang_id}"):
+                eingang.status = EingangStatus.ARCHIVIERT.value
+                st.rerun()
+
+        # Antwort-Formular
+        if st.session_state.get(f'reply_to_{eingang.eingang_id}', False):
+            _render_antwort_formular(eingang)
+
+
+def _render_antwort_formular(eingang: Eingang):
+    """Rendert das Antwort-Formular mit Vorlagen"""
+    st.markdown("### 💬 Antwort verfassen")
+
+    # Vorlagen filtern nach Typ
+    vorlagen = [v for v in st.session_state.get('antwort_vorlagen', {}).values()
+                if eingang.typ in v.fuer_typen or not v.fuer_typen]
+
+    vorlage_options = ["-- Keine Vorlage --"] + [v.name for v in vorlagen]
+    selected_vorlage = st.selectbox("Vorlage verwenden", vorlage_options, key=f"vorlage_{eingang.eingang_id}")
+
+    # Betreff und Text vorbelegen
+    betreff = f"Re: {eingang.titel}"
+    text = ""
+
+    if selected_vorlage != "-- Keine Vorlage --":
+        vorlage = next((v for v in vorlagen if v.name == selected_vorlage), None)
+        if vorlage:
+            betreff = vorlage.betreff_template
+            text = vorlage.text_template
+
+            # Platzhalter ersetzen (wo möglich)
+            absender = st.session_state.get('users', {}).get(eingang.absender_id)
+            if absender:
+                betreff = betreff.replace("{empfaenger_name}", absender.name)
+                text = text.replace("{empfaenger_name}", absender.name)
+
+    with st.form(key=f"reply_form_{eingang.eingang_id}"):
+        antwort_betreff = st.text_input("Betreff", value=betreff)
+        antwort_text = st.text_area("Nachricht", value=text, height=200)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("📤 Senden", type="primary"):
+                if eingang.absender_id:
+                    # Neue Nachricht erstellen
+                    erstelle_eingang(
+                        empfaenger_id=eingang.absender_id,
+                        typ=EingangTyp.NACHRICHT.value,
+                        titel=antwort_betreff,
+                        beschreibung=antwort_text,
+                        absender_id=st.session_state.current_user.user_id,
+                        projekt_id=eingang.projekt_id,
+                        referenz_id=eingang.eingang_id,
+                        referenz_typ="antwort"
+                    )
+                    eingang.status = EingangStatus.BEARBEITET.value
+                    eingang.bearbeitet_am = datetime.now()
+                    st.session_state[f'reply_to_{eingang.eingang_id}'] = False
+                    st.success("✅ Antwort gesendet!")
+                    st.rerun()
+
+        with col2:
+            if st.form_submit_button("❌ Abbrechen"):
+                st.session_state[f'reply_to_{eingang.eingang_id}'] = False
+                st.rerun()
+
+
+# ============================================================================
+# FINANZIERUNGS- UND LEGAL-GATING
+# ============================================================================
+
+def erstelle_standard_gating_pruefungen(projekt_id: str):
+    """Erstellt die Standard-Gating-Prüfungen für ein Projekt"""
+    if 'gating_pruefungen' not in st.session_state:
+        st.session_state.gating_pruefungen = {}
+
+    projekt = st.session_state.get('projekte', {}).get(projekt_id)
+    if not projekt:
+        return
+
+    # Standard-Prüfungen definieren
+    pruefungen = [
+        # Legal-Gating für Käufer
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Widerrufsbelehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 1,
+            "erforderlich": True
+        },
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Verbraucherschutzbelehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 2,
+            "erforderlich": True
+        },
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Geldwäschegesetz-Belehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 3,
+            "erforderlich": True
+        },
+        {
+            "typ": "dokument",
+            "bezeichnung": "Käufer: Legitimation vollständig",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 4,
+            "erforderlich": True
+        },
+        # Legal-Gating für Verkäufer
+        {
+            "typ": "legal",
+            "bezeichnung": "Verkäufer: Geldwäschegesetz-Belehrung akzeptiert",
+            "user_rolle": "verkaeufer",
+            "reihenfolge": 5,
+            "erforderlich": True
+        },
+        {
+            "typ": "dokument",
+            "bezeichnung": "Verkäufer: Legitimation vollständig",
+            "user_rolle": "verkaeufer",
+            "reihenfolge": 6,
+            "erforderlich": True
+        },
+        # Finanzierungs-Gating (erst nach Legal möglich)
+        {
+            "typ": "finanzierung",
+            "bezeichnung": "Finanzierungsbestätigung der Bank",
+            "user_rolle": "finanzierer",
+            "reihenfolge": 10,
+            "erforderlich": True,
+            "vorgaenger": [1, 2, 3, 4]  # Alle Käufer-Legal-Prüfungen
+        },
+        {
+            "typ": "finanzierung",
+            "bezeichnung": "Kaufpreisfinanzierung gesichert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 11,
+            "erforderlich": True,
+            "vorgaenger": [10]
+        },
+    ]
+
+    # User-IDs zuordnen
+    user_ids = {
+        "kaeufer": projekt.kaeufer_id,
+        "verkaeufer": projekt.verkaeufer_id,
+        "finanzierer": projekt.finanzierer_id,
+        "notar": projekt.notar_id,
+        "makler": projekt.makler_id
+    }
+
+    created_pruefungen = {}
+
+    for idx, p in enumerate(pruefungen):
+        user_id = user_ids.get(p["user_rolle"], "")
+        if not user_id:
+            continue
+
+        pruefung_id = f"gating_{projekt_id}_{idx}"
+
+        vorgaenger_ids = []
+        if "vorgaenger" in p:
+            for v_idx in p["vorgaenger"]:
+                v_id = f"gating_{projekt_id}_{v_idx - 1}"
+                if v_id in created_pruefungen:
+                    vorgaenger_ids.append(v_id)
+
+        pruefung = GatingPruefung(
+            pruefung_id=pruefung_id,
+            projekt_id=projekt_id,
+            user_id=user_id,
+            typ=p["typ"],
+            bezeichnung=p["bezeichnung"],
+            reihenfolge=p["reihenfolge"],
+            vorgaenger_ids=vorgaenger_ids,
+            erforderlich=p["erforderlich"]
+        )
+
+        # Status auf "wartet" setzen wenn Vorgänger existieren
+        if vorgaenger_ids:
+            pruefung.status = GatingStatus.WARTET.value
+
+        st.session_state.gating_pruefungen[pruefung_id] = pruefung
+        created_pruefungen[pruefung_id] = pruefung
+
+
+def get_gating_status(projekt_id: str) -> Dict:
+    """Ermittelt den Gating-Status für ein Projekt"""
+    pruefungen = [p for p in st.session_state.get('gating_pruefungen', {}).values()
+                  if p.projekt_id == projekt_id]
+
+    if not pruefungen:
+        return {
+            "legal_status": "nicht_konfiguriert",
+            "finanzierung_status": "nicht_konfiguriert",
+            "fortschritt": 0,
+            "naechste_schritte": [],
+            "blockiert": False
+        }
+
+    legal_pruefungen = [p for p in pruefungen if p.typ == "legal"]
+    finanz_pruefungen = [p for p in pruefungen if p.typ == "finanzierung"]
+
+    legal_freigegeben = all(p.status == GatingStatus.FREIGEGEBEN.value for p in legal_pruefungen if p.erforderlich)
+    finanz_freigegeben = all(p.status == GatingStatus.FREIGEGEBEN.value for p in finanz_pruefungen if p.erforderlich)
+
+    gesamt = len([p for p in pruefungen if p.erforderlich])
+    erledigt = len([p for p in pruefungen if p.erforderlich and p.status == GatingStatus.FREIGEGEBEN.value])
+    fortschritt = (erledigt / gesamt * 100) if gesamt > 0 else 0
+
+    # Nächste Schritte ermitteln
+    naechste_schritte = []
+    for p in pruefungen:
+        if p.status in [GatingStatus.OFFEN.value, GatingStatus.IN_PRUEFUNG.value]:
+            # Prüfen ob Vorgänger erledigt
+            vorgaenger_erledigt = all(
+                st.session_state.gating_pruefungen.get(v_id, GatingPruefung("", "", "", "", "")).status == GatingStatus.FREIGEGEBEN.value
+                for v_id in p.vorgaenger_ids
+            )
+            if vorgaenger_erledigt:
+                naechste_schritte.append(p)
+
+    return {
+        "legal_status": "freigegeben" if legal_freigegeben else "offen",
+        "finanzierung_status": "freigegeben" if finanz_freigegeben else ("blockiert" if not legal_freigegeben else "offen"),
+        "fortschritt": fortschritt,
+        "naechste_schritte": naechste_schritte,
+        "blockiert": not legal_freigegeben and any(p.typ == "finanzierung" and p.status == GatingStatus.WARTET.value for p in pruefungen)
+    }
+
+
+def render_gating_uebersicht(projekt_id: str, user_rolle: str):
+    """Zeigt die Gating-Übersicht für ein Projekt"""
+    st.subheader("🔐 Freigabe-Status")
+
+    status = get_gating_status(projekt_id)
+
+    # Fortschrittsanzeige
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if status["legal_status"] == "freigegeben":
+            st.success("✅ Legal-Prüfung abgeschlossen")
+        else:
+            st.warning("⏳ Legal-Prüfung ausstehend")
+
+    with col2:
+        if status["finanzierung_status"] == "freigegeben":
+            st.success("✅ Finanzierung gesichert")
+        elif status["finanzierung_status"] == "blockiert":
+            st.error("🔒 Finanzierung blockiert (Legal-Prüfung erforderlich)")
+        else:
+            st.warning("⏳ Finanzierung ausstehend")
+
+    with col3:
+        st.metric("Fortschritt", f"{status['fortschritt']:.0f}%")
+
+    st.progress(status['fortschritt'] / 100)
+
+    # Detaillierte Prüfungen
+    st.markdown("### 📋 Prüfungen im Detail")
+
+    pruefungen = [p for p in st.session_state.get('gating_pruefungen', {}).values()
+                  if p.projekt_id == projekt_id]
+    pruefungen.sort(key=lambda p: p.reihenfolge)
+
+    for pruefung in pruefungen:
+        _render_gating_pruefung(pruefung, user_rolle)
+
+    # Nächste Schritte
+    if status["naechste_schritte"]:
+        st.markdown("### ⏭️ Nächste Schritte")
+        for schritt in status["naechste_schritte"]:
+            user = st.session_state.get('users', {}).get(schritt.user_id)
+            user_name = user.name if user else "Unbekannt"
+            st.info(f"**{schritt.bezeichnung}** - Verantwortlich: {user_name}")
+
+
+def _render_gating_pruefung(pruefung: GatingPruefung, user_rolle: str):
+    """Rendert eine einzelne Gating-Prüfung"""
+    status_icons = {
+        GatingStatus.OFFEN.value: "⚪",
+        GatingStatus.IN_PRUEFUNG.value: "🔵",
+        GatingStatus.FREIGEGEBEN.value: "🟢",
+        GatingStatus.ABGELEHNT.value: "🔴",
+        GatingStatus.WARTET.value: "⏸️"
+    }
+
+    typ_icons = {
+        "legal": "⚖️",
+        "finanzierung": "💰",
+        "dokument": "📄"
+    }
+
+    icon = status_icons.get(pruefung.status, "⚪")
+    typ_icon = typ_icons.get(pruefung.typ, "📋")
+
+    user = st.session_state.get('users', {}).get(pruefung.user_id)
+    user_name = user.name if user else "Unbekannt"
+
+    with st.expander(f"{icon} {typ_icon} {pruefung.bezeichnung}"):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**Verantwortlich:** {user_name}")
+            st.markdown(f"**Status:** {pruefung.status}")
+            if pruefung.geprueft_am:
+                st.markdown(f"**Geprüft am:** {pruefung.geprueft_am.strftime('%d.%m.%Y %H:%M')}")
+            if pruefung.kommentar:
+                st.markdown(f"**Kommentar:** {pruefung.kommentar}")
+
+        with col2:
+            # Aktionen nur für berechtigte User
+            current_user = st.session_state.current_user
+            kann_bearbeiten = (
+                current_user.user_id == pruefung.user_id or
+                user_rolle in ["notar", "admin"]
+            )
+
+            if kann_bearbeiten and pruefung.status in [GatingStatus.OFFEN.value, GatingStatus.IN_PRUEFUNG.value]:
+                if st.button("✅ Freigeben", key=f"approve_{pruefung.pruefung_id}"):
+                    pruefung.status = GatingStatus.FREIGEGEBEN.value
+                    pruefung.geprueft_von = current_user.user_id
+                    pruefung.geprueft_am = datetime.now()
+                    _aktualisiere_abhaengige_pruefungen(pruefung.pruefung_id)
+                    st.success("Freigabe erteilt!")
+                    st.rerun()
+
+                if st.button("❌ Ablehnen", key=f"reject_{pruefung.pruefung_id}"):
+                    pruefung.status = GatingStatus.ABGELEHNT.value
+                    pruefung.geprueft_von = current_user.user_id
+                    pruefung.geprueft_am = datetime.now()
+                    st.rerun()
+
+
+def _aktualisiere_abhaengige_pruefungen(pruefung_id: str):
+    """Aktualisiert abhängige Prüfungen wenn eine Prüfung freigegeben wurde"""
+    for pruefung in st.session_state.get('gating_pruefungen', {}).values():
+        if pruefung_id in pruefung.vorgaenger_ids:
+            # Prüfen ob alle Vorgänger erledigt
+            alle_vorgaenger_erledigt = all(
+                st.session_state.gating_pruefungen.get(v_id, GatingPruefung("", "", "", "", "")).status == GatingStatus.FREIGEGEBEN.value
+                for v_id in pruefung.vorgaenger_ids
+            )
+            if alle_vorgaenger_erledigt and pruefung.status == GatingStatus.WARTET.value:
+                pruefung.status = GatingStatus.OFFEN.value
+
+
+# ============================================================================
+# FRISTENMANAGEMENT
+# ============================================================================
+
+def erstelle_standard_fristen(projekt_id: str, beurkundungsdatum: datetime = None):
+    """Erstellt Standard-Fristen für ein Projekt"""
+    if 'fristen' not in st.session_state:
+        st.session_state.fristen = {}
+
+    projekt = st.session_state.get('projekte', {}).get(projekt_id)
+    if not projekt:
+        return
+
+    # Basis-Datum ist entweder Beurkundungsdatum oder heute
+    basis = beurkundungsdatum or datetime.now()
+
+    standard_fristen = [
+        {
+            "typ": FristTyp.WIDERRUFSFRIST.value,
+            "bezeichnung": "Widerrufsfrist Käufer",
+            "tage_offset": 14,
+            "verantwortlich": projekt.kaeufer_id,
+            "erinnerung_tage": 3
+        },
+        {
+            "typ": FristTyp.KAUFPREISZAHLUNG.value,
+            "bezeichnung": "Kaufpreiszahlung",
+            "tage_offset": 30,
+            "verantwortlich": projekt.kaeufer_id,
+            "erinnerung_tage": 7
+        },
+        {
+            "typ": FristTyp.GRUNDBUCHEINTRAGUNG.value,
+            "bezeichnung": "Auflassungsvormerkung eintragen",
+            "tage_offset": 7,
+            "verantwortlich": projekt.notar_id,
+            "erinnerung_tage": 2
+        },
+        {
+            "typ": FristTyp.UEBERGABE.value,
+            "bezeichnung": "Objektübergabe",
+            "tage_offset": 60,
+            "verantwortlich": projekt.makler_id,
+            "erinnerung_tage": 14
+        }
+    ]
+
+    for idx, f in enumerate(standard_fristen):
+        if not f["verantwortlich"]:
+            continue
+
+        frist_id = f"frist_{projekt_id}_{idx}"
+
+        frist = Frist(
+            frist_id=frist_id,
+            projekt_id=projekt_id,
+            typ=f["typ"],
+            bezeichnung=f["bezeichnung"],
+            faellig_am=basis + timedelta(days=f["tage_offset"]),
+            verantwortlich_id=f["verantwortlich"],
+            erinnerung_tage=f["erinnerung_tage"],
+            automatisch_berechnet=True,
+            basis_datum=basis,
+            tage_offset=f["tage_offset"]
+        )
+
+        st.session_state.fristen[frist_id] = frist
+
+
+def get_faellige_fristen(user_id: str = None, projekt_id: str = None, tage_voraus: int = 7) -> List[Frist]:
+    """Ermittelt fällige Fristen"""
+    fristen = list(st.session_state.get('fristen', {}).values())
+
+    if user_id:
+        fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+    if projekt_id:
+        fristen = [f for f in fristen if f.projekt_id == projekt_id]
+
+    # Nur offene Fristen
+    fristen = [f for f in fristen if f.status == "offen"]
+
+    # Fällige oder bald fällige
+    jetzt = datetime.now()
+    grenze = jetzt + timedelta(days=tage_voraus)
+
+    faellige = [f for f in fristen if f.faellig_am and f.faellig_am <= grenze]
+    faellige.sort(key=lambda f: f.faellig_am)
+
+    return faellige
+
+
+def render_fristenmanagement(projekt_id: str = None, user_id: str = None):
+    """Rendert die Fristenverwaltung"""
+    st.subheader("⏰ Fristenmanagement")
+
+    tabs = st.tabs(["📋 Übersicht", "➕ Neue Frist", "📊 Kalender"])
+
+    with tabs[0]:
+        # Filter
+        col1, col2 = st.columns(2)
+        with col1:
+            tage_filter = st.selectbox("Zeitraum", ["7 Tage", "14 Tage", "30 Tage", "Alle"], key="frist_zeitraum")
+            tage = {"7 Tage": 7, "14 Tage": 14, "30 Tage": 30, "Alle": 365}.get(tage_filter, 7)
+
+        with col2:
+            status_filter = st.selectbox("Status", ["Alle", "Offen", "Überfällig", "Erledigt"], key="frist_status")
+
+        fristen = list(st.session_state.get('fristen', {}).values())
+        if projekt_id:
+            fristen = [f for f in fristen if f.projekt_id == projekt_id]
+        if user_id:
+            fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+
+        # Status-Filter anwenden
+        jetzt = datetime.now()
+        if status_filter == "Offen":
+            fristen = [f for f in fristen if f.status == "offen"]
+        elif status_filter == "Überfällig":
+            fristen = [f for f in fristen if f.status == "offen" and f.faellig_am and f.faellig_am < jetzt]
+        elif status_filter == "Erledigt":
+            fristen = [f for f in fristen if f.status == "erledigt"]
+
+        # Zeitfilter
+        if tage_filter != "Alle":
+            grenze = jetzt + timedelta(days=tage)
+            fristen = [f for f in fristen if not f.faellig_am or f.faellig_am <= grenze]
+
+        fristen.sort(key=lambda f: f.faellig_am or datetime.max)
+
+        if not fristen:
+            st.info("Keine Fristen im ausgewählten Zeitraum.")
+        else:
+            for frist in fristen:
+                _render_frist_card(frist)
+
+    with tabs[1]:
+        _render_neue_frist_formular(projekt_id)
+
+    with tabs[2]:
+        _render_fristen_kalender(projekt_id, user_id)
+
+
+def _render_frist_card(frist: Frist):
+    """Rendert eine Frist-Karte"""
+    jetzt = datetime.now()
+
+    if frist.status == "erledigt":
+        status_color = "🟢"
+        bg_color = "#d4edda"
+    elif frist.faellig_am and frist.faellig_am < jetzt:
+        status_color = "🔴"
+        bg_color = "#f8d7da"
+    elif frist.faellig_am and (frist.faellig_am - jetzt).days <= frist.erinnerung_tage:
+        status_color = "🟡"
+        bg_color = "#fff3cd"
+    else:
+        status_color = "⚪"
+        bg_color = "#f8f9fa"
+
+    verantwortlich = st.session_state.get('users', {}).get(frist.verantwortlich_id)
+    verantwortlich_name = verantwortlich.name if verantwortlich else "Unbekannt"
+
+    projekt = st.session_state.get('projekte', {}).get(frist.projekt_id)
+    projekt_name = projekt.name if projekt else ""
+
+    with st.container():
+        col1, col2, col3 = st.columns([3, 2, 1])
+
+        with col1:
+            st.markdown(f"{status_color} **{frist.bezeichnung}**")
+            if projekt_name:
+                st.caption(f"Projekt: {projekt_name}")
+
+        with col2:
+            if frist.faellig_am:
+                tage_bis = (frist.faellig_am - jetzt).days
+                if tage_bis < 0:
+                    st.error(f"⚠️ Überfällig: {frist.faellig_am.strftime('%d.%m.%Y')}")
+                elif tage_bis == 0:
+                    st.warning(f"⏰ Heute fällig!")
+                else:
+                    st.info(f"📅 {frist.faellig_am.strftime('%d.%m.%Y')} ({tage_bis} Tage)")
+            st.caption(f"Verantwortlich: {verantwortlich_name}")
+
+        with col3:
+            if frist.status == "offen":
+                if st.button("✅", key=f"done_frist_{frist.frist_id}", help="Als erledigt markieren"):
+                    frist.status = "erledigt"
+                    frist.erledigt_am = datetime.now()
+                    st.rerun()
+
+
+def _render_neue_frist_formular(projekt_id: str = None):
+    """Formular für neue Frist"""
+    st.markdown("### ➕ Neue Frist erstellen")
+
+    with st.form("neue_frist_form"):
+        # Projekt auswählen wenn nicht vorgegeben
+        if not projekt_id:
+            projekte = list(st.session_state.get('projekte', {}).values())
+            projekt_options = {p.name: p.projekt_id for p in projekte}
+            selected_projekt = st.selectbox("Projekt", list(projekt_options.keys()))
+            projekt_id = projekt_options.get(selected_projekt)
+
+        bezeichnung = st.text_input("Bezeichnung *")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            typ = st.selectbox("Fristtyp", [f.value for f in FristTyp])
+            faellig_am = st.date_input("Fällig am *")
+
+        with col2:
+            erinnerung_tage = st.number_input("Erinnerung (Tage vorher)", min_value=0, max_value=30, value=3)
+
+            # Verantwortlichen auswählen
+            users = list(st.session_state.get('users', {}).values())
+            user_options = {u.name: u.user_id for u in users}
+            selected_user = st.selectbox("Verantwortlich *", list(user_options.keys()))
+
+        notizen = st.text_area("Notizen")
+
+        if st.form_submit_button("💾 Frist erstellen", type="primary"):
+            if bezeichnung and faellig_am and selected_user:
+                frist_id = f"frist_{uuid.uuid4().hex[:8]}"
+                frist = Frist(
+                    frist_id=frist_id,
+                    projekt_id=projekt_id or "",
+                    typ=typ,
+                    bezeichnung=bezeichnung,
+                    faellig_am=datetime.combine(faellig_am, datetime.min.time()),
+                    verantwortlich_id=user_options[selected_user],
+                    erinnerung_tage=erinnerung_tage,
+                    notizen=notizen
+                )
+
+                if 'fristen' not in st.session_state:
+                    st.session_state.fristen = {}
+                st.session_state.fristen[frist_id] = frist
+
+                st.success("✅ Frist erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte alle Pflichtfelder ausfüllen!")
+
+
+def _render_fristen_kalender(projekt_id: str = None, user_id: str = None):
+    """Zeigt Fristen im Kalenderformat"""
+    st.markdown("### 📅 Fristen-Kalender")
+
+    fristen = list(st.session_state.get('fristen', {}).values())
+    if projekt_id:
+        fristen = [f for f in fristen if f.projekt_id == projekt_id]
+    if user_id:
+        fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+
+    fristen = [f for f in fristen if f.status == "offen" and f.faellig_am]
+
+    if not fristen:
+        st.info("Keine anstehenden Fristen.")
+        return
+
+    # Nach Wochen gruppieren
+    jetzt = datetime.now()
+    wochen = {}
+
+    for frist in fristen:
+        kw = frist.faellig_am.isocalendar()[1]
+        jahr = frist.faellig_am.year
+        key = f"{jahr}-KW{kw:02d}"
+        if key not in wochen:
+            wochen[key] = []
+        wochen[key].append(frist)
+
+    for woche, woche_fristen in sorted(wochen.items()):
+        with st.expander(f"📅 {woche} ({len(woche_fristen)} Fristen)", expanded=True):
+            for frist in sorted(woche_fristen, key=lambda f: f.faellig_am):
+                tage_bis = (frist.faellig_am - jetzt).days
+                status = "🔴" if tage_bis < 0 else ("🟡" if tage_bis <= 3 else "⚪")
+                st.markdown(f"{status} **{frist.faellig_am.strftime('%d.%m.')}** - {frist.bezeichnung}")
+
+
+# ============================================================================
+# REPORTING & KPIs
+# ============================================================================
+
+def berechne_kpis(user_id: str) -> Dict:
+    """Berechnet die KPIs für einen Benutzer"""
+    user = st.session_state.get('users', {}).get(user_id)
+    if not user:
+        return {}
+
+    projekte = list(st.session_state.get('projekte', {}).values())
+
+    # Projekte nach Rolle filtern
+    if user.rolle == UserRole.MAKLER.value:
+        user_projekte = [p for p in projekte if p.makler_id == user_id]
+    elif user.rolle == UserRole.NOTAR.value:
+        user_projekte = [p for p in projekte if p.notar_id == user_id]
+    else:
+        user_projekte = [p for p in projekte if user_id in [p.kaeufer_id, p.verkaeufer_id]]
+
+    # Projekt-KPIs
+    projekte_gesamt = len(user_projekte)
+    projekte_aktiv = len([p for p in user_projekte if p.status not in ["Abgeschlossen", "Storniert"]])
+    projekte_abgeschlossen = len([p for p in user_projekte if p.status == "Abgeschlossen"])
+
+    # Durchschnittliche Dauer berechnen
+    dauern = []
+    for p in user_projekte:
+        if p.status == "Abgeschlossen" and hasattr(p, 'erstellt_am') and hasattr(p, 'abgeschlossen_am'):
+            if p.abgeschlossen_am and p.erstellt_am:
+                dauer = (p.abgeschlossen_am - p.erstellt_am).days
+                dauern.append(dauer)
+    durchschnittliche_dauer = sum(dauern) / len(dauern) if dauern else 0
+
+    # Umsatz-KPIs (für Makler)
+    umsatz_monat = 0
+    umsatz_jahr = 0
+    provision_offen = 0
+
+    if user.rolle == UserRole.MAKLER.value:
+        jetzt = datetime.now()
+        for p in user_projekte:
+            if p.status == "Abgeschlossen" and p.kaufpreis:
+                provision = p.kaufpreis * 0.0357  # 3.57% Provision
+                if hasattr(p, 'abgeschlossen_am') and p.abgeschlossen_am:
+                    if p.abgeschlossen_am.year == jetzt.year:
+                        umsatz_jahr += provision
+                        if p.abgeschlossen_am.month == jetzt.month:
+                            umsatz_monat += provision
+            elif p.status not in ["Storniert"] and p.kaufpreis:
+                provision_offen += p.kaufpreis * 0.0357
+
+    return {
+        "projekte_gesamt": projekte_gesamt,
+        "projekte_aktiv": projekte_aktiv,
+        "projekte_abgeschlossen": projekte_abgeschlossen,
+        "durchschnittliche_dauer_tage": durchschnittliche_dauer,
+        "umsatz_monat": umsatz_monat,
+        "umsatz_jahr": umsatz_jahr,
+        "provision_offen": provision_offen
+    }
+
+
+def render_reporting_dashboard(user_id: str):
+    """Zeigt das Reporting-Dashboard"""
+    st.subheader("📊 Reporting & Statistiken")
+
+    kpis = berechne_kpis(user_id)
+    user = st.session_state.get('users', {}).get(user_id)
+
+    # KPI-Karten
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Projekte gesamt", kpis.get("projekte_gesamt", 0))
+    with col2:
+        st.metric("Aktive Projekte", kpis.get("projekte_aktiv", 0))
+    with col3:
+        st.metric("Abgeschlossen", kpis.get("projekte_abgeschlossen", 0))
+    with col4:
+        st.metric("Ø Dauer (Tage)", f"{kpis.get('durchschnittliche_dauer_tage', 0):.0f}")
+
+    # Umsatz-KPIs für Makler
+    if user and user.rolle == UserRole.MAKLER.value:
+        st.markdown("---")
+        st.markdown("### 💰 Umsatz-Übersicht")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Umsatz Monat", f"{kpis.get('umsatz_monat', 0):,.2f} €")
+        with col2:
+            st.metric("Umsatz Jahr", f"{kpis.get('umsatz_jahr', 0):,.2f} €")
+        with col3:
+            st.metric("Provision offen", f"{kpis.get('provision_offen', 0):,.2f} €")
+
+    # Diagramme
+    st.markdown("---")
+    st.markdown("### 📈 Projekt-Entwicklung")
+
+    # Projekt-Status-Verteilung
+    projekte = list(st.session_state.get('projekte', {}).values())
+    if user.rolle == UserRole.MAKLER.value:
+        projekte = [p for p in projekte if p.makler_id == user_id]
+    elif user.rolle == UserRole.NOTAR.value:
+        projekte = [p for p in projekte if p.notar_id == user_id]
+
+    status_counts = {}
+    for p in projekte:
+        status_counts[p.status] = status_counts.get(p.status, 0) + 1
+
+    if status_counts:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Projekte nach Status**")
+            for status, count in sorted(status_counts.items(), key=lambda x: -x[1]):
+                prozent = (count / len(projekte) * 100) if projekte else 0
+                st.progress(prozent / 100, text=f"{status}: {count} ({prozent:.0f}%)")
+
+        with col2:
+            st.markdown("**Aktivitäten**")
+            # Aktivitäten aus Audit-Log zählen
+            logs = st.session_state.get('audit_log', [])
+            user_logs = [l for l in logs if hasattr(l, 'user_id') and l.user_id == user_id]
+
+            aktionen = {}
+            for log in user_logs[-100:]:  # Letzte 100
+                if hasattr(log, 'aktion'):
+                    aktionen[log.aktion] = aktionen.get(log.aktion, 0) + 1
+
+            if aktionen:
+                for aktion, count in sorted(aktionen.items(), key=lambda x: -x[1])[:5]:
+                    st.markdown(f"• {aktion}: **{count}**")
+            else:
+                st.caption("Keine Aktivitäten erfasst.")
+
+
+# ============================================================================
+# DOKUMENTEN-VERSIONIERUNG
+# ============================================================================
+
+def erstelle_dokument_version(
+    dokument_id: str,
+    dateiname: str,
+    datei_data: bytes,
+    dateityp: str,
+    aenderungen: str = "",
+    erstellt_von: str = ""
+) -> DokumentVersionierung:
+    """Erstellt eine neue Dokumentenversion"""
+    if 'dokument_versionen' not in st.session_state:
+        st.session_state.dokument_versionen = {}
+
+    # Höchste Version finden
+    bestehende = [v for v in st.session_state.dokument_versionen.values() if v.dokument_id == dokument_id]
+    naechste_version = max([v.version_nummer for v in bestehende], default=0) + 1
+
+    version_id = f"version_{dokument_id}_{naechste_version}"
+
+    version = DokumentVersionierung(
+        version_id=version_id,
+        dokument_id=dokument_id,
+        version_nummer=naechste_version,
+        dateiname=dateiname,
+        datei_data=datei_data,
+        dateityp=dateityp,
+        dateigroesse=len(datei_data) if datei_data else 0,
+        aenderungen=aenderungen,
+        erstellt_von=erstellt_von,
+        wasserzeichen=True  # Entwürfe haben Wasserzeichen
+    )
+
+    st.session_state.dokument_versionen[version_id] = version
+    return version
+
+
+def render_dokument_versionen(dokument_id: str, user_rolle: str):
+    """Zeigt alle Versionen eines Dokuments"""
+    st.markdown("### 📚 Dokumentenversionen")
+
+    versionen = [v for v in st.session_state.get('dokument_versionen', {}).values()
+                 if v.dokument_id == dokument_id]
+    versionen.sort(key=lambda v: v.version_nummer, reverse=True)
+
+    if not versionen:
+        st.info("Keine Versionen vorhanden.")
+        return
+
+    for version in versionen:
+        ersteller = st.session_state.get('users', {}).get(version.erstellt_von)
+        ersteller_name = ersteller.name if ersteller else "Unbekannt"
+
+        status_icons = {
+            DokumentVersion.ENTWURF.value: "📝",
+            DokumentVersion.ZUR_PRUEFUNG.value: "👁️",
+            DokumentVersion.FREIGEGEBEN.value: "✅",
+            DokumentVersion.SIGNIERT.value: "✍️",
+            DokumentVersion.ARCHIVIERT.value: "📁"
+        }
+
+        icon = status_icons.get(version.status, "📄")
+
+        with st.expander(f"{icon} Version {version.version_nummer} - {version.status}", expanded=version.version_nummer == versionen[0].version_nummer):
+            col1, col2 = st.columns([3, 1])
+
+            with col1:
+                st.markdown(f"**Datei:** {version.dateiname}")
+                st.markdown(f"**Erstellt von:** {ersteller_name}")
+                st.markdown(f"**Datum:** {version.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                if version.aenderungen:
+                    st.markdown(f"**Änderungen:** {version.aenderungen}")
+                if version.freigegeben_von:
+                    freigeber = st.session_state.get('users', {}).get(version.freigegeben_von)
+                    st.markdown(f"**Freigegeben von:** {freigeber.name if freigeber else 'Unbekannt'} am {version.freigegeben_am.strftime('%d.%m.%Y')}")
+
+            with col2:
+                # Download-Button
+                if version.datei_data:
+                    st.download_button(
+                        "⬇️ Download",
+                        data=version.datei_data,
+                        file_name=version.dateiname,
+                        mime=version.dateityp,
+                        key=f"download_{version.version_id}"
+                    )
+
+                # Status-Aktionen
+                if user_rolle in ["notar", "admin"]:
+                    if version.status == DokumentVersion.ENTWURF.value:
+                        if st.button("👁️ Zur Prüfung", key=f"review_{version.version_id}"):
+                            version.status = DokumentVersion.ZUR_PRUEFUNG.value
+                            st.rerun()
+                    elif version.status == DokumentVersion.ZUR_PRUEFUNG.value:
+                        if st.button("✅ Freigeben", key=f"approve_{version.version_id}"):
+                            version.status = DokumentVersion.FREIGEGEBEN.value
+                            version.freigegeben_von = st.session_state.current_user.user_id
+                            version.freigegeben_am = datetime.now()
+                            version.wasserzeichen = False
+                            st.rerun()
+
+
 def render_audit_log(user_id: str, akte_id: str = None, projekt_id: str = None):
     """Zeigt das Aktivitätsprotokoll an"""
     st.subheader("📋 Aktivitätsprotokoll")
@@ -26346,6 +27913,561 @@ def render_audit_log(user_id: str, akte_id: str = None, projekt_id: str = None):
             st.markdown(f"| {eintrag.timestamp.strftime('%d.%m.%Y %H:%M')} | {eintrag.user_name} | {eintrag.aktion} | {eintrag.objekt_typ}: {eintrag.objekt_name} | {eintrag.details[:50] if eintrag.details else '-'} |")
     else:
         st.info("Keine Aktivitäten protokolliert.")
+
+
+# ============================================================================
+# MANDANTEN-PORTAL
+# ============================================================================
+
+def render_mandanten_portal(user_id: str, user_rolle: str):
+    """Zentrales Mandanten-Portal mit Übersicht aller relevanten Informationen"""
+    st.markdown("## 🏠 Willkommen im Mandanten-Portal")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden.")
+        return
+
+    st.markdown(f"**Guten Tag, {user.name}!** Hier finden Sie alle wichtigen Informationen zu Ihrer Immobilientransaktion.")
+
+    # Projekte des Mandanten finden
+    if user_rolle == UserRole.KAEUFER.value:
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+        rolle_text = "Käufer"
+    else:
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+        rolle_text = "Verkäufer"
+
+    if not projekte:
+        st.info("Sie sind noch keinem Projekt zugewiesen. Sobald Sie einem Projekt zugewiesen werden, erscheinen hier alle relevanten Informationen.")
+        return
+
+    # ===== SCHNELLÜBERSICHT =====
+    st.markdown("### 📊 Schnellübersicht")
+
+    # Zähler für verschiedene Bereiche
+    eingaenge = st.session_state.get('eingaenge', {})
+    ungelesene_eingaenge = len([e for e in eingaenge.values()
+                                if e.empfaenger_id == user_id and e.status == EingangStatus.NEU.value])
+
+    fristen = st.session_state.get('fristen', {})
+    offene_fristen = []
+    for p in projekte:
+        projekt_fristen = [f for f in fristen.values()
+                          if f.projekt_id == p.projekt_id and f.status == "offen"]
+        offene_fristen.extend(projekt_fristen)
+
+    # Anstehende Termine
+    termine_count = 0
+    for p in projekte:
+        projekt_termine = [t for t in st.session_state.termine.values()
+                          if t.projekt_id == p.projekt_id and t.status != "abgesagt"]
+        termine_count += len(projekt_termine)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            label="📁 Aktive Projekte",
+            value=len(projekte)
+        )
+
+    with col2:
+        st.metric(
+            label="📬 Ungelesene Nachrichten",
+            value=ungelesene_eingaenge,
+            delta="Neu" if ungelesene_eingaenge > 0 else None
+        )
+
+    with col3:
+        st.metric(
+            label="⏰ Offene Fristen",
+            value=len(offene_fristen),
+            delta="Achtung" if len(offene_fristen) > 3 else None,
+            delta_color="inverse" if len(offene_fristen) > 3 else "normal"
+        )
+
+    with col4:
+        st.metric(
+            label="📅 Anstehende Termine",
+            value=termine_count
+        )
+
+    st.markdown("---")
+
+    # ===== DRINGENDE AUFGABEN =====
+    st.markdown("### ⚠️ Dringende Aufgaben")
+
+    dringende_aufgaben = []
+
+    # Ungelesene Eingänge
+    if ungelesene_eingaenge > 0:
+        dringende_aufgaben.append(f"📬 **{ungelesene_eingaenge} ungelesene Nachrichten** - Bitte prüfen Sie Ihren Posteingang")
+
+    # Ausweis fehlt?
+    personal_key = f"personal_{user_id}"
+    if personal_key not in st.session_state:
+        dringende_aufgaben.append("🪪 **Ausweisdaten fehlen** - Bitte laden Sie Ihren Ausweis hoch")
+
+    # Fristen die bald ablaufen
+    heute = datetime.now()
+    for frist in offene_fristen:
+        if frist.faellig_am:
+            tage_bis = (frist.faellig_am - heute).days
+            if tage_bis <= 3 and tage_bis >= 0:
+                dringende_aufgaben.append(f"⏰ **Frist '{frist.bezeichnung}'** läuft in {tage_bis} Tag(en) ab")
+
+    # Wirtschaftsdaten für Käufer
+    if user_rolle == UserRole.KAEUFER.value:
+        wirtschaftsdaten = [w for w in st.session_state.wirtschaftsdaten.values() if w.kaeufer_id == user_id]
+        if not wirtschaftsdaten:
+            dringende_aufgaben.append("💼 **Bonitätsnachweise fehlen** - Bitte laden Sie Ihre Unterlagen hoch")
+
+    if dringende_aufgaben:
+        for aufgabe in dringende_aufgaben:
+            st.warning(aufgabe)
+    else:
+        st.success("✅ Keine dringenden Aufgaben - Alles im grünen Bereich!")
+
+    st.markdown("---")
+
+    # ===== PROJEKT-STATUS =====
+    st.markdown("### 📁 Ihre Projekte")
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ **{projekt.name}**", expanded=True):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown(f"**Adresse:** {projekt.adresse or 'Nicht angegeben'}")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €" if projekt.kaufpreis > 0 else "**Kaufpreis:** Noch nicht festgelegt")
+                st.markdown(f"**Status:** {projekt.status}")
+                st.markdown(f"**Ihre Rolle:** {rolle_text}")
+
+            with col2:
+                # Fortschrittsanzeige
+                gating_status = get_gating_status(projekt.projekt_id)
+
+                st.markdown("**Transaktionsfortschritt:**")
+                if gating_status['legal_vollstaendig']:
+                    st.success("✅ Rechtliche Prüfung abgeschlossen")
+                else:
+                    st.warning(f"⏳ Rechtliche Prüfung: {gating_status['legal_prozent']}%")
+
+                if gating_status['finanzierung_vollstaendig']:
+                    st.success("✅ Finanzierung gesichert")
+                else:
+                    st.warning(f"⏳ Finanzierung: {gating_status['finanzierung_prozent']}%")
+
+            # Beteiligte Parteien
+            st.markdown("**Beteiligte Parteien:**")
+            col_p1, col_p2, col_p3 = st.columns(3)
+
+            with col_p1:
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    st.markdown(f"👔 **Makler:** {makler.name if makler else 'Unbekannt'}")
+
+            with col_p2:
+                if projekt.notar_id:
+                    notar = st.session_state.users.get(projekt.notar_id)
+                    st.markdown(f"⚖️ **Notar:** {notar.name if notar else 'Unbekannt'}")
+
+            with col_p3:
+                for fid in projekt.finanzierer_ids:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        st.markdown(f"🏦 **Finanzierer:** {finanzierer.name}")
+
+    st.markdown("---")
+
+    # ===== NÄCHSTE SCHRITTE =====
+    st.markdown("### 🎯 Nächste Schritte")
+
+    naechste_schritte = []
+
+    for projekt in projekte:
+        # Prüfe verschiedene Status
+        gating_status = get_gating_status(projekt.projekt_id)
+
+        if not gating_status['legal_vollstaendig']:
+            naechste_schritte.append({
+                'projekt': projekt.name,
+                'schritt': "Rechtliche Dokumente akzeptieren",
+                'beschreibung': "Bitte prüfen und akzeptieren Sie die erforderlichen rechtlichen Dokumente.",
+                'prioritaet': 'hoch'
+            })
+
+        if user_rolle == UserRole.KAEUFER.value:
+            wirtschaftsdaten = [w for w in st.session_state.wirtschaftsdaten.values()
+                               if w.kaeufer_id == user_id and w.kaeufer_id in projekt.kaeufer_ids]
+            if not wirtschaftsdaten:
+                naechste_schritte.append({
+                    'projekt': projekt.name,
+                    'schritt': "Bonitätsnachweise hochladen",
+                    'beschreibung': "Laden Sie Ihre Einkommensnachweise und weitere Bonitätsunterlagen hoch.",
+                    'prioritaet': 'hoch'
+                })
+
+            if not gating_status['finanzierung_vollstaendig']:
+                naechste_schritte.append({
+                    'projekt': projekt.name,
+                    'schritt': "Finanzierung klären",
+                    'beschreibung': "Kontaktieren Sie einen Finanzierer, um Ihre Finanzierung zu sichern.",
+                    'prioritaet': 'mittel'
+                })
+
+    if naechste_schritte:
+        for schritt in naechste_schritte[:5]:  # Max 5 Schritte anzeigen
+            prioritaet_icon = "🔴" if schritt['prioritaet'] == 'hoch' else "🟡" if schritt['prioritaet'] == 'mittel' else "🟢"
+            st.info(f"{prioritaet_icon} **{schritt['schritt']}** ({schritt['projekt']})\n\n{schritt['beschreibung']}")
+    else:
+        st.success("🎉 Alle wichtigen Schritte wurden erledigt!")
+
+    st.markdown("---")
+
+    # ===== KONTAKT & HILFE =====
+    st.markdown("### 📞 Kontakt & Hilfe")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        **Haben Sie Fragen?**
+
+        Nutzen Sie den Tab **Nachrichten**, um direkt mit Ihrem Makler, Notar oder Finanzierer zu kommunizieren.
+        """)
+
+    with col2:
+        st.markdown("""
+        **Wichtige Dokumente**
+
+        Alle Ihre Dokumente finden Sie im Tab **Dokumente**. Dort können Sie auch neue Unterlagen hochladen.
+        """)
+
+
+# ============================================================================
+# VORLAGEN-MANAGEMENT SYSTEM
+# ============================================================================
+
+@dataclass
+class DokumentVorlage:
+    """Vorlage für Dokumente und Textbausteine"""
+    vorlage_id: str
+    name: str
+    kategorie: str  # z.B. "Kaufvertrag", "Brief", "E-Mail"
+    beschreibung: str = ""
+    inhalt: str = ""
+    platzhalter: List[str] = field(default_factory=list)  # z.B. ["{{KAEUFER}}", "{{VERKAEUFER}}"]
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+    ist_system_vorlage: bool = False
+
+
+def init_vorlagen_system():
+    """Initialisiert das Vorlagen-System mit Standard-Vorlagen"""
+    if 'dokument_vorlagen' not in st.session_state:
+        st.session_state.dokument_vorlagen = {}
+
+    # System-Vorlagen erstellen, falls nicht vorhanden
+    system_vorlagen = [
+        DokumentVorlage(
+            vorlage_id="sys_1",
+            name="Standard Kaufvertrag",
+            kategorie="Kaufvertrag",
+            beschreibung="Basis-Vorlage für einen Immobilien-Kaufvertrag",
+            inhalt="""KAUFVERTRAG
+
+Zwischen
+
+{{VERKAEUFER_NAME}}, geboren am {{VERKAEUFER_GEBURTSDATUM}}, wohnhaft {{VERKAEUFER_ADRESSE}}
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+{{KAEUFER_NAME}}, geboren am {{KAEUFER_GEBURTSDATUM}}, wohnhaft {{KAEUFER_ADRESSE}}
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück {{ADRESSE}} eingetragen im Grundbuch von {{GRUNDBUCHAMT}}, Blatt {{GRUNDBUCHBLATT}}.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt {{KAUFPREIS}} € (in Worten: {{KAUFPREIS_WORT}} Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 14 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen auf das Notaranderkonto zu zahlen.
+
+{{WEITERE_KLAUSELN}}
+
+Ort, Datum: _______________
+
+Unterschrift Verkäufer: _______________
+
+Unterschrift Käufer: _______________
+""",
+            platzhalter=["{{VERKAEUFER_NAME}}", "{{VERKAEUFER_GEBURTSDATUM}}", "{{VERKAEUFER_ADRESSE}}",
+                        "{{KAEUFER_NAME}}", "{{KAEUFER_GEBURTSDATUM}}", "{{KAEUFER_ADRESSE}}",
+                        "{{ADRESSE}}", "{{GRUNDBUCHAMT}}", "{{GRUNDBUCHBLATT}}",
+                        "{{KAUFPREIS}}", "{{KAUFPREIS_WORT}}", "{{WEITERE_KLAUSELN}}"],
+            ist_system_vorlage=True
+        ),
+        DokumentVorlage(
+            vorlage_id="sys_2",
+            name="Terminbestätigung",
+            kategorie="Brief",
+            beschreibung="Bestätigung eines Beurkundungstermins",
+            inhalt="""Sehr geehrte(r) {{EMPFAENGER_NAME}},
+
+hiermit bestätigen wir Ihnen den Beurkundungstermin:
+
+Datum: {{TERMIN_DATUM}}
+Uhrzeit: {{TERMIN_UHRZEIT}}
+Ort: {{TERMIN_ORT}}
+
+Betreff: {{PROJEKT_NAME}}
+
+Bitte bringen Sie folgende Unterlagen mit:
+- Gültigen Personalausweis oder Reisepass
+- {{WEITERE_UNTERLAGEN}}
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+
+{{NOTAR_NAME}}
+Notar
+""",
+            platzhalter=["{{EMPFAENGER_NAME}}", "{{TERMIN_DATUM}}", "{{TERMIN_UHRZEIT}}",
+                        "{{TERMIN_ORT}}", "{{PROJEKT_NAME}}", "{{WEITERE_UNTERLAGEN}}", "{{NOTAR_NAME}}"],
+            ist_system_vorlage=True
+        ),
+        DokumentVorlage(
+            vorlage_id="sys_3",
+            name="Unterlagenerinnerung",
+            kategorie="E-Mail",
+            beschreibung="Erinnerung an fehlende Unterlagen",
+            inhalt="""Betreff: Erinnerung: Fehlende Unterlagen für {{PROJEKT_NAME}}
+
+Sehr geehrte(r) {{EMPFAENGER_NAME}},
+
+in Bezug auf den geplanten Kaufvertrag für {{PROJEKT_NAME}} fehlen uns noch folgende Unterlagen:
+
+{{FEHLENDE_UNTERLAGEN}}
+
+Bitte übermitteln Sie uns diese Unterlagen bis zum {{FRIST_DATUM}}.
+
+Falls Sie Fragen haben, stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+{{ABSENDER_NAME}}
+""",
+            platzhalter=["{{PROJEKT_NAME}}", "{{EMPFAENGER_NAME}}", "{{FEHLENDE_UNTERLAGEN}}",
+                        "{{FRIST_DATUM}}", "{{ABSENDER_NAME}}"],
+            ist_system_vorlage=True
+        )
+    ]
+
+    for vorlage in system_vorlagen:
+        if vorlage.vorlage_id not in st.session_state.dokument_vorlagen:
+            st.session_state.dokument_vorlagen[vorlage.vorlage_id] = vorlage
+
+
+def render_vorlagen_management(user_id: str):
+    """Verwaltung von Dokumentenvorlagen"""
+    st.subheader("📋 Vorlagen-Management")
+
+    # Initialisierung
+    init_vorlagen_system()
+
+    sub_tabs = st.tabs(["📚 Vorlagen-Bibliothek", "➕ Neue Vorlage", "⚙️ Platzhalter-Hilfe"])
+
+    with sub_tabs[0]:
+        render_vorlagen_bibliothek(user_id)
+
+    with sub_tabs[1]:
+        render_neue_vorlage(user_id)
+
+    with sub_tabs[2]:
+        render_platzhalter_hilfe()
+
+
+def render_vorlagen_bibliothek(user_id: str):
+    """Zeigt alle verfügbaren Vorlagen"""
+    st.markdown("### 📚 Vorlagen-Bibliothek")
+
+    vorlagen = list(st.session_state.dokument_vorlagen.values())
+
+    # Filter
+    kategorien = list(set(v.kategorie for v in vorlagen))
+    filter_kategorie = st.selectbox("Kategorie filtern", ["Alle"] + kategorien)
+
+    if filter_kategorie != "Alle":
+        vorlagen = [v for v in vorlagen if v.kategorie == filter_kategorie]
+
+    if not vorlagen:
+        st.info("Keine Vorlagen gefunden.")
+        return
+
+    for vorlage in vorlagen:
+        with st.expander(f"{'🔒' if vorlage.ist_system_vorlage else '📄'} {vorlage.name} ({vorlage.kategorie})"):
+            st.markdown(f"**Beschreibung:** {vorlage.beschreibung}")
+            st.markdown(f"**Platzhalter:** {', '.join(vorlage.platzhalter) if vorlage.platzhalter else 'Keine'}")
+
+            # Vorschau
+            with st.container():
+                st.markdown("**Vorschau:**")
+                st.code(vorlage.inhalt[:500] + ("..." if len(vorlage.inhalt) > 500 else ""), language=None)
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button("📝 Verwenden", key=f"use_vorlage_{vorlage.vorlage_id}"):
+                    st.session_state.aktive_vorlage = vorlage.vorlage_id
+                    st.success("Vorlage ausgewählt! Gehen Sie zum Tab 'Neue Vorlage' um sie anzupassen.")
+
+            with col2:
+                if not vorlage.ist_system_vorlage:
+                    if st.button("✏️ Bearbeiten", key=f"edit_vorlage_{vorlage.vorlage_id}"):
+                        st.session_state.edit_vorlage = vorlage.vorlage_id
+                        st.rerun()
+
+            with col3:
+                if not vorlage.ist_system_vorlage:
+                    if st.button("🗑️ Löschen", key=f"del_vorlage_{vorlage.vorlage_id}"):
+                        del st.session_state.dokument_vorlagen[vorlage.vorlage_id]
+                        st.success("Vorlage gelöscht!")
+                        st.rerun()
+
+
+def render_neue_vorlage(user_id: str):
+    """Erstellen einer neuen Vorlage"""
+    st.markdown("### ➕ Neue Vorlage erstellen")
+
+    # Prüfen ob eine Vorlage bearbeitet wird
+    edit_id = st.session_state.get('edit_vorlage')
+    vorlage_zum_bearbeiten = None
+    if edit_id:
+        vorlage_zum_bearbeiten = st.session_state.dokument_vorlagen.get(edit_id)
+
+    with st.form("neue_vorlage_form"):
+        name = st.text_input(
+            "Vorlagen-Name*",
+            value=vorlage_zum_bearbeiten.name if vorlage_zum_bearbeiten else ""
+        )
+
+        kategorie = st.selectbox(
+            "Kategorie*",
+            ["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"],
+            index=["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"].index(
+                vorlage_zum_bearbeiten.kategorie) if vorlage_zum_bearbeiten and vorlage_zum_bearbeiten.kategorie in
+                ["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"] else 0
+        )
+
+        beschreibung = st.text_area(
+            "Beschreibung",
+            value=vorlage_zum_bearbeiten.beschreibung if vorlage_zum_bearbeiten else ""
+        )
+
+        inhalt = st.text_area(
+            "Vorlagen-Inhalt*",
+            height=300,
+            value=vorlage_zum_bearbeiten.inhalt if vorlage_zum_bearbeiten else "",
+            help="Verwenden Sie {{PLATZHALTER}} für variable Inhalte"
+        )
+
+        # Platzhalter automatisch erkennen
+        import re
+        gefundene_platzhalter = re.findall(r'\{\{[A-Z_]+\}\}', inhalt)
+        if gefundene_platzhalter:
+            st.info(f"Erkannte Platzhalter: {', '.join(set(gefundene_platzhalter))}")
+
+        submitted = st.form_submit_button("💾 Vorlage speichern")
+
+        if submitted:
+            if not name or not inhalt:
+                st.error("Bitte füllen Sie alle Pflichtfelder aus.")
+            else:
+                vorlage_id = edit_id if edit_id else str(uuid.uuid4())[:8]
+
+                neue_vorlage = DokumentVorlage(
+                    vorlage_id=vorlage_id,
+                    name=name,
+                    kategorie=kategorie,
+                    beschreibung=beschreibung,
+                    inhalt=inhalt,
+                    platzhalter=list(set(gefundene_platzhalter)),
+                    erstellt_von=user_id,
+                    ist_system_vorlage=False
+                )
+
+                st.session_state.dokument_vorlagen[vorlage_id] = neue_vorlage
+
+                if edit_id:
+                    st.session_state.pop('edit_vorlage', None)
+                    st.success("Vorlage aktualisiert!")
+                else:
+                    st.success("Neue Vorlage erstellt!")
+
+                st.rerun()
+
+    if edit_id:
+        if st.button("❌ Bearbeitung abbrechen"):
+            st.session_state.pop('edit_vorlage', None)
+            st.rerun()
+
+
+def render_platzhalter_hilfe():
+    """Hilfe zu Platzhaltern"""
+    st.markdown("### ℹ️ Platzhalter-Hilfe")
+
+    st.markdown("""
+    Platzhalter werden automatisch durch die tatsächlichen Werte ersetzt, wenn ein Dokument aus einer Vorlage erstellt wird.
+
+    **Format:** `{{PLATZHALTER_NAME}}`
+
+    **Verfügbare Standard-Platzhalter:**
+    """)
+
+    platzhalter_liste = {
+        "Personen": [
+            ("{{KAEUFER_NAME}}", "Name des Käufers"),
+            ("{{KAEUFER_GEBURTSDATUM}}", "Geburtsdatum des Käufers"),
+            ("{{KAEUFER_ADRESSE}}", "Vollständige Adresse des Käufers"),
+            ("{{VERKAEUFER_NAME}}", "Name des Verkäufers"),
+            ("{{VERKAEUFER_GEBURTSDATUM}}", "Geburtsdatum des Verkäufers"),
+            ("{{VERKAEUFER_ADRESSE}}", "Vollständige Adresse des Verkäufers"),
+            ("{{NOTAR_NAME}}", "Name des Notars"),
+            ("{{MAKLER_NAME}}", "Name des Maklers"),
+        ],
+        "Objekt": [
+            ("{{ADRESSE}}", "Objektadresse"),
+            ("{{KAUFPREIS}}", "Kaufpreis in Euro"),
+            ("{{KAUFPREIS_WORT}}", "Kaufpreis in Worten"),
+            ("{{GRUNDBUCHAMT}}", "Zuständiges Grundbuchamt"),
+            ("{{GRUNDBUCHBLATT}}", "Grundbuchblatt-Nummer"),
+            ("{{FLURSTÜCK}}", "Flurstücksnummer"),
+        ],
+        "Termine": [
+            ("{{TERMIN_DATUM}}", "Datum des Termins"),
+            ("{{TERMIN_UHRZEIT}}", "Uhrzeit des Termins"),
+            ("{{TERMIN_ORT}}", "Ort des Termins"),
+            ("{{FRIST_DATUM}}", "Fristdatum"),
+        ],
+        "Allgemein": [
+            ("{{PROJEKT_NAME}}", "Name des Projekts"),
+            ("{{HEUTE_DATUM}}", "Aktuelles Datum"),
+            ("{{EMPFAENGER_NAME}}", "Name des Empfängers"),
+            ("{{ABSENDER_NAME}}", "Name des Absenders"),
+        ]
+    }
+
+    for kategorie, platzhalter in platzhalter_liste.items():
+        st.markdown(f"**{kategorie}:**")
+        for ph, beschreibung in platzhalter:
+            st.markdown(f"- `{ph}` - {beschreibung}")
 
 
 def main():
