@@ -3938,6 +3938,363 @@ class NotarAktenzeichen:
     jahr: int
     letzte_nummer: int = 0  # Letzte vergebene Nummer in diesem Jahr
 
+# ===== KOMMUNIKATIONS-ERWEITERUNGEN =====
+
+class NachrichtenPrioritaet(Enum):
+    """Priorität einer Nachricht"""
+    NORMAL = "Normal"
+    HOCH = "Hoch"
+    DRINGEND = "Dringend"
+
+class NachrichtenKategorie(Enum):
+    """Kategorie einer Nachricht"""
+    ANFRAGE = "Anfrage"
+    INFORMATION = "Information"
+    DOKUMENT = "Dokument"
+    TERMIN = "Termin"
+    FREIGABE = "Freigabe"
+    ERINNERUNG = "Erinnerung"
+
+class Sicherheitsstufe(Enum):
+    """Sicherheitsstufe für Dokumente und Nachrichten"""
+    OEFFENTLICH = "Öffentlich"
+    INTERN = "Intern"
+    VERTRAULICH = "Vertraulich"
+    STRENG_VERTRAULICH = "Streng vertraulich"
+
+class MaklerBerechtigungTyp(Enum):
+    """Berechtigungen für Makler-Mitarbeiter"""
+    PROJEKTE_ANSEHEN = "Projekte ansehen"
+    PROJEKTE_ERSTELLEN = "Projekte erstellen"
+    PROJEKTE_BEARBEITEN = "Projekte bearbeiten"
+    PROJEKTE_LOESCHEN = "Projekte löschen"
+    NACHRICHTEN_SENDEN = "Nachrichten senden"
+    NACHRICHTEN_LESEN = "Alle Nachrichten lesen"
+    IM_NAMEN_KOMMUNIZIEREN = "Im Namen des Maklers kommunizieren"
+    DOKUMENTE_HOCHLADEN = "Dokumente hochladen"
+    DOKUMENTE_LOESCHEN = "Dokumente löschen"
+    EXPOSE_ERSTELLEN = "Exposés erstellen"
+    TEILNEHMER_EINLADEN = "Teilnehmer einladen"
+    TEILNEHMER_VERWALTEN = "Teilnehmer verwalten"
+    TERMINE_ERSTELLEN = "Termine erstellen"
+    TERMINE_BESTAETIGEN = "Termine bestätigen"
+    PREISE_SEHEN = "Preise sehen"
+    PREISE_VERHANDELN = "Preisverhandlungen führen"
+    MITARBEITER_VERWALTEN = "Mitarbeiter verwalten"
+    EINSTELLUNGEN_AENDERN = "Einstellungen ändern"
+
+class MaklerMitarbeiterRolle(Enum):
+    """Rollen für Makler-Mitarbeiter"""
+    MITARBEITER = "Mitarbeiter"
+    TEAMLEITER = "Teamleiter"
+    PARTNER = "Partner"
+
+@dataclass
+class Briefkopf:
+    """Briefkopf für Dokumente und Korrespondenz"""
+    briefkopf_id: str
+    inhaber_id: str  # User oder Firma-ID
+    inhaber_typ: str  # "user", "firma", "kanzlei", "maklerbüro"
+
+    # Logo
+    logo_data: bytes = None
+    logo_position: str = "links"  # links, rechts, zentriert
+    logo_groesse: int = 100  # Pixel Höhe
+
+    # Kopfdaten
+    firmenname: str = ""
+    zusatz: str = ""  # z.B. "Notariat", "Immobilienmakler"
+    inhaber_name: str = ""
+
+    # Adresse
+    strasse: str = ""
+    hausnummer: str = ""
+    plz: str = ""
+    ort: str = ""
+    land: str = "Deutschland"
+
+    # Kontakt
+    telefon: str = ""
+    fax: str = ""
+    email: str = ""
+    website: str = ""
+
+    # Rechtliches
+    steuernummer: str = ""
+    ust_id: str = ""
+    handelsregister: str = ""
+
+    # Bankverbindung
+    bank_name: str = ""
+    iban: str = ""
+    bic: str = ""
+
+    # Design
+    schriftart: str = "Arial"
+    primaerfarbe: str = "#000000"
+    sekundaerfarbe: str = "#666666"
+
+    # Fußzeile
+    fusszeile_text: str = ""
+    fusszeile_zeile2: str = ""
+
+    ist_aktiv: bool = True
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class EmailSignatur:
+    """E-Mail-Signatur für Benutzer"""
+    signatur_id: str
+    user_id: str
+    name: str  # z.B. "Standard", "Formal", "Kurz"
+
+    # Inhalt
+    text_signatur: str = ""  # Plaintext-Version
+    html_signatur: str = ""  # HTML-Version mit Formatierung
+
+    # Optionen
+    bild_einbetten: bool = True
+    visitenkarte_anhaengen: bool = False
+
+    # Verwendung
+    ist_standard: bool = False
+    fuer_neue_nachrichten: bool = True
+    fuer_antworten: bool = True
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class MaklerMitarbeiter:
+    """Mitarbeiter eines Maklerbüros"""
+    mitarbeiter_id: str
+    makler_id: str  # Büro-Inhaber (User-ID)
+
+    # Persönliche Daten
+    name: str
+    vorname: str = ""
+    email: str = ""
+    telefon: str = ""
+    password_hash: str = ""
+
+    # Rolle und Berechtigungen
+    rolle: str = MaklerMitarbeiterRolle.MITARBEITER.value
+    berechtigungen: List[str] = field(default_factory=list)
+
+    # Projektzuordnung
+    projekt_ids: List[str] = field(default_factory=list)
+    kann_alle_projekte_sehen: bool = False
+
+    # Status
+    ist_aktiv: bool = True
+    eingestellt_am: datetime = field(default_factory=datetime.now)
+
+    # Kommunikation
+    kann_im_namen_kommunizieren: bool = False
+    eigene_signatur: bool = True
+    signatur_id: str = ""
+
+    # Kürzel für Aktenzeichen
+    kuerzel: str = ""
+
+@dataclass
+class KommunikationsAnlage:
+    """Anlage einer Nachricht"""
+    anlage_id: str
+    nachricht_id: str
+    projekt_id: str = ""
+
+    # Datei-Informationen
+    dateiname: str = ""
+    dateityp: str = ""  # PDF, DOCX, JPG, etc.
+    dateigroesse: int = 0
+    datei_data: bytes = None
+
+    # Metadaten
+    hochgeladen_von: str = ""
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    beschreibung: str = ""
+
+    # Sicherheit
+    sicherheitsstufe: str = Sicherheitsstufe.INTERN.value
+    ist_vertraulich: bool = False
+
+    # Ordner-Zuordnung
+    ordner_pfad: str = ""  # z.B. "/Kaufvertrag/Entwürfe"
+    akte_id: str = ""  # Verknüpfung zur Akte
+
+@dataclass
+class KommunikationsNachricht:
+    """Eine Nachricht im Kommunikationssystem"""
+    nachricht_id: str
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Absender/Empfänger
+    absender_id: str = ""
+    absender_typ: str = "user"  # "user", "mitarbeiter"
+    empfaenger_ids: List[str] = field(default_factory=list)
+    cc_ids: List[str] = field(default_factory=list)
+
+    # Inhalt
+    betreff: str = ""
+    inhalt: str = ""  # Kann HTML/Markdown enthalten
+    inhalt_plaintext: str = ""
+
+    # Klassifizierung
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value
+    kategorie: str = NachrichtenKategorie.INFORMATION.value
+    sicherheitsstufe: str = Sicherheitsstufe.INTERN.value
+
+    # Anlagen
+    anlage_ids: List[str] = field(default_factory=list)
+
+    # Status
+    gelesen_von: List[str] = field(default_factory=list)
+    ist_entwurf: bool = False
+    ist_archiviert: bool = False
+    ist_geloescht: bool = False
+
+    # Verknüpfungen
+    antwort_auf_id: str = ""  # Falls Antwort auf eine Nachricht
+    aktenzeichen: str = ""
+
+    # Zeitstempel
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    gesendet_am: datetime = None
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class AktenOrdner:
+    """Ordner innerhalb einer Akte"""
+    ordner_id: str
+    akte_id: str
+    name: str
+    pfad: str  # z.B. "/01_Stammdaten" oder "/05_Korrespondenz/Eingehend"
+
+    # Hierarchie
+    parent_ordner_id: str = ""
+    reihenfolge: int = 0
+
+    # Metadaten
+    beschreibung: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+
+    # Automatische Zuordnung
+    auto_zuordnung_typen: List[str] = field(default_factory=list)  # Dokumenttypen die automatisch hier landen
+
+@dataclass
+class GespeicherteSuche:
+    """Gespeicherte Suchanfrage"""
+    suche_id: str
+    user_id: str
+    name: str  # z.B. "Offene Kaufverträge 2025"
+
+    # Suchkriterien
+    suchbegriff: str = ""
+    filter_kriterien: Dict = field(default_factory=dict)
+    sortierung: str = "datum_desc"
+
+    # Einstellungen
+    ist_standard: bool = False
+    in_schnellzugriff: bool = False
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_verwendet: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class AuditLogEintrag:
+    """Eintrag im Aktivitätsprotokoll"""
+    log_id: str
+    timestamp: datetime
+
+    # Wer
+    user_id: str
+    user_name: str = ""
+    user_rolle: str = ""
+
+    # Was
+    aktion: str = ""  # "angesehen", "bearbeitet", "heruntergeladen", "gesendet"
+    objekt_typ: str = ""  # "dokument", "nachricht", "akte", "projekt"
+    objekt_id: str = ""
+    objekt_name: str = ""
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Details
+    details: str = ""
+    ip_adresse: str = ""
+
+# Standard-Ordnerstruktur für Akten
+AKTEN_ORDNER_TEMPLATES = {
+    "Kaufvertrag": [
+        ("01_Stammdaten", "Personalausweise, HR-Auszüge, Vollmachten"),
+        ("01_Stammdaten/Personalausweise", ""),
+        ("01_Stammdaten/Handelsregisterauszuege", ""),
+        ("01_Stammdaten/Vollmachten", ""),
+        ("02_Kaufgegenstand", "Grundbuch, Flurkarte, Baulastenverzeichnis"),
+        ("02_Kaufgegenstand/Grundbuch", ""),
+        ("02_Kaufgegenstand/Flurkarten", ""),
+        ("02_Kaufgegenstand/Baulasten", ""),
+        ("03_Finanzierung", "Finanzierungsbestätigung, Grundschuld"),
+        ("04_Vertragsentwuerfe", "Alle Versionen des Kaufvertrags"),
+        ("05_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("05_Korrespondenz/Eingehend", ""),
+        ("05_Korrespondenz/Ausgehend", ""),
+        ("06_Beurkundung", "Protokoll, unterschriebene Dokumente"),
+        ("07_Vollzug", "Grundbuchanmeldung, Finanzamtsmeldung"),
+        ("08_Abrechnung", "Kostenrechnung, Zahlungen"),
+    ],
+    "Testament": [
+        ("01_Stammdaten", "Personalausweise, Familiendaten"),
+        ("02_Verfuegungen", "Testamentarische Verfügungen"),
+        ("03_Entwuerfe", "Entwürfe"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+        ("06_Verwahrung", "Verwahrungsdokumentation"),
+    ],
+    "Gesellschaftsgruendung": [
+        ("01_Stammdaten", "Personalausweise, Gesellschafterdaten"),
+        ("02_Gesellschaftsvertrag", "Satzung, Gesellschaftsvertrag"),
+        ("03_Handelsregister", "HR-Anmeldung, Eintragung"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+    ],
+    "Erbvertrag": [
+        ("01_Stammdaten", "Personalausweise, Familiendaten"),
+        ("02_Vermoegensübersicht", "Vermögensaufstellung"),
+        ("03_Entwuerfe", "Vertragsentwürfe"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+    ],
+}
+
+# Automatische Dokumenten-Zuordnung
+DOKUMENT_AUTO_ZUORDNUNG = {
+    "Personalausweis": "01_Stammdaten/Personalausweise",
+    "Reisepass": "01_Stammdaten/Personalausweise",
+    "Handelsregisterauszug": "01_Stammdaten/Handelsregisterauszuege",
+    "Vollmacht": "01_Stammdaten/Vollmachten",
+    "Grundbuchauszug": "02_Kaufgegenstand/Grundbuch",
+    "Flurkarte": "02_Kaufgegenstand/Flurkarten",
+    "Baulastenverzeichnis": "02_Kaufgegenstand/Baulasten",
+    "Finanzierungsbestätigung": "03_Finanzierung",
+    "Grundschuldbestellung": "03_Finanzierung",
+    "Kaufvertrag": "04_Vertragsentwuerfe",
+    "Vertragsentwurf": "04_Vertragsentwuerfe",
+    "Kostenrechnung": "08_Abrechnung",
+}
+
 @dataclass
 class ImportierteAkte:
     """Eine aus PDF importierte Notarakte"""
@@ -4744,6 +5101,29 @@ def init_session_state():
 
         # NEU: Aktenzeichen-Zähler pro Notar und Jahr
         st.session_state.aktenzeichen_zaehler = {}  # "notar_id_jahr" -> letzte_nummer
+
+        # ===== KOMMUNIKATIONS-ERWEITERUNGEN =====
+        # Briefköpfe
+        st.session_state.briefkoepfe = {}  # Briefkopf-ID -> Briefkopf
+
+        # E-Mail-Signaturen
+        st.session_state.email_signaturen = {}  # Signatur-ID -> EmailSignatur
+
+        # Makler-Mitarbeiter
+        st.session_state.makler_mitarbeiter = {}  # Mitarbeiter-ID -> MaklerMitarbeiter
+
+        # Kommunikation
+        st.session_state.nachrichten = {}  # Nachricht-ID -> KommunikationsNachricht
+        st.session_state.kommunikations_anlagen = {}  # Anlage-ID -> KommunikationsAnlage
+
+        # Akten-Ordner
+        st.session_state.akten_ordner = {}  # Ordner-ID -> AktenOrdner
+
+        # Gespeicherte Suchen
+        st.session_state.gespeicherte_suchen = {}  # Suche-ID -> GespeicherteSuche
+
+        # Audit-Log
+        st.session_state.audit_log = []  # Liste von AuditLogEintrag
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
@@ -10988,7 +11368,9 @@ def makler_dashboard():
         "✉️ Einladungen",
         "💬 Kommentare",
         "🪪 Ausweisdaten erfassen",
-        "📅 Termine"
+        "📅 Termine",
+        "👥 Mitarbeiter",
+        "📨 Nachrichten"
     ])
 
     with tabs[0]:
@@ -11040,6 +11422,14 @@ def makler_dashboard():
                         render_termin_verwaltung(projekt, UserRole.MAKLER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[11]:
+        # Mitarbeiter-Verwaltung
+        render_makler_mitarbeiter_verwaltung(user_id)
+
+    with tabs[12]:
+        # Kommunikationszentrale
+        render_kommunikationszentrale(user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -17534,6 +17924,7 @@ def notar_dashboard():
         "🪪 Ausweisdaten",
         "📜 Rechtsdokumente",
         "📁 Aktenimport",  # NEU: PDF-Akten importieren
+        "📨 Nachrichten",  # NEU: Kommunikationszentrale
         "⚙️ Einstellungen"
     ])
 
@@ -17595,6 +17986,10 @@ def notar_dashboard():
         notar_aktenimport_view()
 
     with tabs[19]:
+        # Kommunikationszentrale
+        render_kommunikationszentrale(user_id)
+
+    with tabs[20]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -24009,450 +24404,471 @@ def notar_aktenimport_view():
 
 
 def notar_einstellungen_view():
-    """Einstellungen für Notar - API-Keys für OCR konfigurieren"""
+    """Einstellungen für Notar - API-Keys, Briefkopf, Signaturen, Datenbank"""
     st.subheader("⚙️ Einstellungen")
 
-    st.info("""
-    Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
-    Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
-    """)
+    user_id = st.session_state.current_user.user_id
 
-    st.warning("""
-    ⚠️ **Wichtig für dauerhafte Speicherung:**
+    # Haupttabs für alle Einstellungen
+    einstellungen_tabs = st.tabs([
+        "🔑 API-Keys",
+        "📝 Briefkopf",
+        "✉️ E-Mail-Signaturen",
+        "🧪 Demo-Modus",
+        "🗄️ Datenbank"
+    ])
 
-    API-Schlüssel, die hier eingegeben werden, gehen bei einem Seiten-Reload verloren.
-    Für permanente Speicherung konfigurieren Sie die Schlüssel in **Streamlit Cloud**:
-
-    1. Gehen Sie zu Ihrer App auf [share.streamlit.io](https://share.streamlit.io)
-    2. Klicken Sie auf ⚙️ **Settings** → **Secrets**
-    3. Fügen Sie folgendes hinzu:
-    ```
-    OPENAI_API_KEY = "sk-..."
-    ANTHROPIC_API_KEY = "sk-ant-..."
-    ```
-    4. Klicken Sie auf **Save**
-
-    Die Schlüssel werden dann automatisch bei jedem Start geladen.
-    """)
-
-    # Sicherstellen, dass api_keys existiert
-    if 'api_keys' not in st.session_state:
-        st.session_state.api_keys = {
-            'openai': '',
-            'anthropic': ''
-        }
-
-    st.markdown("### 🔑 API-Schlüssel für OCR")
-
-    with st.form("api_keys_form"):
-        st.markdown("#### OpenAI API")
-        st.caption("Für GPT-4 Vision OCR-Erkennung. Erhältlich unter: https://platform.openai.com/api-keys")
-
-        openai_key = st.text_input(
-            "OpenAI API-Key",
-            value=st.session_state.api_keys.get('openai', ''),
-            type="password",
-            placeholder="sk-...",
-            help="Ihr OpenAI API-Schlüssel (beginnt mit 'sk-')"
-        )
-
-        st.markdown("#### Anthropic API (Claude)")
-        st.caption("Für Claude Vision OCR-Erkennung. Erhältlich unter: https://console.anthropic.com/")
-
-        anthropic_key = st.text_input(
-            "Anthropic API-Key",
-            value=st.session_state.api_keys.get('anthropic', ''),
-            type="password",
-            placeholder="sk-ant-...",
-            help="Ihr Anthropic API-Schlüssel (beginnt mit 'sk-ant-')"
-        )
-
-        submit = st.form_submit_button("💾 API-Schlüssel speichern", type="primary")
-
-        if submit:
-            st.session_state.api_keys['openai'] = openai_key
-            st.session_state.api_keys['anthropic'] = anthropic_key
-            st.success("✅ API-Schlüssel wurden gespeichert!")
-
-    # Status-Anzeige
-    st.markdown("---")
-    st.markdown("### 📊 Status der API-Konfiguration")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**OpenAI:**")
-        if st.session_state.api_keys.get('openai'):
-            masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
-            st.success(f"✅ Konfiguriert ({masked_key})")
-        else:
-            # Prüfe auch Secrets und Umgebungsvariablen
-            has_secret = False
-            try:
-                if st.secrets.get("OPENAI_API_KEY"):
-                    has_secret = True
-            except:
-                pass
-
-            import os
-            if os.environ.get("OPENAI_API_KEY"):
-                has_secret = True
-
-            if has_secret:
-                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
-            else:
-                st.warning("⚠️ Nicht konfiguriert")
-
-    with col2:
-        st.markdown("**Anthropic (Claude):**")
-        if st.session_state.api_keys.get('anthropic'):
-            masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
-            st.success(f"✅ Konfiguriert ({masked_key})")
-        else:
-            # Prüfe auch Secrets und Umgebungsvariablen
-            has_secret = False
-            try:
-                if st.secrets.get("ANTHROPIC_API_KEY"):
-                    has_secret = True
-            except:
-                pass
-
-            import os
-            if os.environ.get("ANTHROPIC_API_KEY"):
-                has_secret = True
-
-            if has_secret:
-                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
-            else:
-                st.warning("⚠️ Nicht konfiguriert")
-
-    # Hinweise
-    st.markdown("---")
-    st.markdown("### ℹ️ Hinweise")
-    st.markdown("""
-    - **Priorität:** Claude Vision → OpenAI Vision → pytesseract → Demo-Daten
-    - Die API-Schlüssel werden im Session State gespeichert und sind nur für diese Sitzung gültig.
-    - Für permanente Konfiguration nutzen Sie Streamlit Secrets (`.streamlit/secrets.toml`).
-    - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
-    - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
-    """)
-
-    # Demo-Modus Einstellungen
-    st.markdown("---")
-    st.markdown("### 🧪 Demo-Modus")
-
-    # Demo-Modus initialisieren falls nicht vorhanden
-    if 'demo_modus_aktiv' not in st.session_state:
-        st.session_state.demo_modus_aktiv = True  # Standard: Demo-Modus AN
-
-    st.info("""
-    **Demo-Modus:** Alle Dashboards sind voll funktionsfähig mit simulierten Daten.
-    Im aktiven Modus werden bestimmte Funktionen eingeschränkt, bis alle erforderlichen
-    Konfigurationen (API-Keys, echte Daten) vorgenommen wurden.
-    """)
-
-    demo_modus = st.toggle(
-        "Demo-Modus aktiviert",
-        value=st.session_state.demo_modus_aktiv,
-        help="AN = Volle Funktionalität mit Demo-Daten | AUS = Aktiver Modus mit Einschränkungen"
-    )
-
-    if demo_modus != st.session_state.demo_modus_aktiv:
-        st.session_state.demo_modus_aktiv = demo_modus
-        if demo_modus:
-            st.success("✅ Demo-Modus aktiviert - Alle Funktionen verfügbar")
-        else:
-            st.warning("⚠️ Aktiver Modus - Einige Funktionen erfordern echte Konfiguration")
-        st.rerun()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.session_state.demo_modus_aktiv:
-            st.success("🟢 **Demo-Modus AKTIV**")
-            st.caption("Alle Dashboards funktionieren mit simulierten Daten")
-        else:
-            st.error("🔴 **Aktiver Modus**")
-            st.caption("Produktivbetrieb - echte Daten erforderlich")
-
-    with col2:
-        st.markdown("**Aktuelle Einstellung:**")
-        if st.session_state.demo_modus_aktiv:
-            st.markdown("- ✅ Demo-Handwerker verfügbar")
-            st.markdown("- ✅ Demo-Rechtsdokumente verfügbar")
-            st.markdown("- ✅ OCR mit Demo-Daten als Fallback")
-        else:
-            st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
-            st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
-            st.markdown("- ⚠️ API-Keys für OCR erforderlich")
-
-    # Datenbank-Konfiguration
-    st.markdown("---")
-    st.markdown("### 🗄️ Datenbank-Konfiguration")
-
-    st.info("""
-    Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
-    Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
-    """)
-
-    # Datenbank-Konfiguration initialisieren
-    if 'db_config' not in st.session_state:
-        st.session_state.db_config = {
-            'db_type': 'sqlite',
-            'host': 'localhost',
-            'port': 5432,
-            'database': 'immobilien_plattform',
-            'username': '',
-            'password': '',
-            'sqlite_path': 'data/immobilien_plattform.db'
-        }
-
-    # Tabs für Konfiguration und Status
-    db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
-
-    with db_tabs[0]:
-        st.markdown("#### Datenbank-Verbindung einrichten")
-
-        # Datenbanktyp auswählen
-        db_type = st.selectbox(
-            "Datenbank-Typ",
-            ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
-            index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
-                  (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
-            key="db_type_select",
-            help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
-        )
-
-        db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
-        st.session_state.db_config['db_type'] = db_type_key
-
-        if db_type_key == 'sqlite':
-            # SQLite Konfiguration
-            st.markdown("##### 📁 SQLite-Datei")
-
-            sqlite_path = st.text_input(
-                "Datenbankpfad",
-                value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
-                key="sqlite_path_input",
-                help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
-            )
-            st.session_state.db_config['sqlite_path'] = sqlite_path
-
-            st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
-
-            # Verbindungs-URL generieren
-            db_url = f"sqlite:///{sqlite_path}"
-
-        else:
-            # PostgreSQL / MySQL Konfiguration
-            col1, col2 = st.columns(2)
-
-            with col1:
-                host = st.text_input(
-                    "Host",
-                    value=st.session_state.db_config.get('host', 'localhost'),
-                    key="db_host_input",
-                    placeholder="localhost oder IP-Adresse"
-                )
-                st.session_state.db_config['host'] = host
-
-                database = st.text_input(
-                    "Datenbankname",
-                    value=st.session_state.db_config.get('database', 'immobilien_plattform'),
-                    key="db_name_input"
-                )
-                st.session_state.db_config['database'] = database
-
-            with col2:
-                port = st.number_input(
-                    "Port",
-                    value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
-                    min_value=1,
-                    max_value=65535,
-                    key="db_port_input"
-                )
-                st.session_state.db_config['port'] = port
-
-                username = st.text_input(
-                    "Benutzername",
-                    value=st.session_state.db_config.get('username', ''),
-                    key="db_user_input"
-                )
-                st.session_state.db_config['username'] = username
-
-            password = st.text_input(
-                "Passwort",
-                value=st.session_state.db_config.get('password', ''),
-                type="password",
-                key="db_pass_input"
-            )
-            st.session_state.db_config['password'] = password
-
-            # Verbindungs-URL generieren
-            if db_type_key == 'postgresql':
-                db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-            else:
-                db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
-
-        # Verbindungs-URL anzeigen (maskiert)
-        st.markdown("##### 🔗 Verbindungs-URL")
-        if db_type_key == 'sqlite':
-            st.code(db_url)
-        else:
-            masked_url = db_url.replace(password, '***') if password else db_url
-            st.code(masked_url)
-
-        # Aktionen
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
-                with st.spinner("Teste Verbindung..."):
-                    try:
-                        # Teste die Verbindung
-                        test_result = test_database_connection(db_url)
-                        if test_result['success']:
-                            st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
-                            st.session_state.db_connection_url = db_url
-                            st.session_state.database_connected = True
-                        else:
-                            st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
-                            st.session_state.database_connected = False
-                    except Exception as e:
-                        st.error(f"❌ Fehler: {str(e)}")
-                        st.session_state.database_connected = False
-
-        with col2:
-            if st.button("💾 Konfiguration speichern", key="save_db_config"):
-                try:
-                    save_database_config(st.session_state.db_config)
-                    st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
-                except Exception as e:
-                    st.error(f"❌ Fehler beim Speichern: {e}")
-
-        with col3:
-            if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
-                if st.session_state.get('database_connected'):
-                    with st.spinner("Erstelle Datenbanktabellen..."):
-                        try:
-                            result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
-                            if result['success']:
-                                st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
-                            else:
-                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
-                        except Exception as e:
-                            st.error(f"❌ Fehler: {e}")
-                else:
-                    st.warning("⚠️ Bitte zuerst Verbindung testen!")
-
-    with db_tabs[1]:
-        st.markdown("#### 📊 Verbindungsstatus")
-
-        db_connected = st.session_state.get('database_connected', False)
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if db_connected:
-                st.success("🟢 **Verbunden**")
-                st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
-            else:
-                st.error("🔴 **Nicht verbunden**")
-
-        with col2:
-            # Session State Statistiken
-            session_users = len(st.session_state.get('users', {}))
-            session_projekte = len(st.session_state.get('projekte', {}))
-            st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
-
-        with col3:
-            if db_connected:
-                st.metric("Datenbank", "Bereit")
-            else:
-                st.metric("Datenbank", "Offline")
-
-        st.markdown("---")
-        st.markdown("#### 🔄 Datenmigration")
-
+    # ===== TAB 0: API-Keys =====
+    with einstellungen_tabs[0]:
         st.info("""
-        **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
-        Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+        Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
+        Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
         """)
+
+        st.warning("""
+        ⚠️ **Wichtig für dauerhafte Speicherung:**
+
+        API-Schlüssel, die hier eingegeben werden, gehen bei einem Seiten-Reload verloren.
+        Für permanente Speicherung konfigurieren Sie die Schlüssel in **Streamlit Cloud**:
+
+        1. Gehen Sie zu Ihrer App auf [share.streamlit.io](https://share.streamlit.io)
+        2. Klicken Sie auf ⚙️ **Settings** → **Secrets**
+        3. Fügen Sie folgendes hinzu:
+        ```
+        OPENAI_API_KEY = "sk-..."
+        ANTHROPIC_API_KEY = "sk-ant-..."
+        ```
+        4. Klicken Sie auf **Save**
+
+        Die Schlüssel werden dann automatisch bei jedem Start geladen.
+        """)
+
+        # Sicherstellen, dass api_keys existiert
+        if 'api_keys' not in st.session_state:
+            st.session_state.api_keys = {
+                'openai': '',
+                'anthropic': ''
+            }
+
+        st.markdown("### 🔑 API-Schlüssel für OCR")
+
+        with st.form("api_keys_form"):
+            st.markdown("#### OpenAI API")
+            st.caption("Für GPT-4 Vision OCR-Erkennung. Erhältlich unter: https://platform.openai.com/api-keys")
+
+            openai_key = st.text_input(
+                "OpenAI API-Key",
+                value=st.session_state.api_keys.get('openai', ''),
+                type="password",
+                placeholder="sk-...",
+                help="Ihr OpenAI API-Schlüssel (beginnt mit 'sk-')"
+            )
+
+            st.markdown("#### Anthropic API (Claude)")
+            st.caption("Für Claude Vision OCR-Erkennung. Erhältlich unter: https://console.anthropic.com/")
+
+            anthropic_key = st.text_input(
+                "Anthropic API-Key",
+                value=st.session_state.api_keys.get('anthropic', ''),
+                type="password",
+                placeholder="sk-ant-...",
+                help="Ihr Anthropic API-Schlüssel (beginnt mit 'sk-ant-')"
+            )
+
+            submit = st.form_submit_button("💾 API-Schlüssel speichern", type="primary")
+
+            if submit:
+                st.session_state.api_keys['openai'] = openai_key
+                st.session_state.api_keys['anthropic'] = anthropic_key
+                st.success("✅ API-Schlüssel wurden gespeichert!")
+
+        # Status-Anzeige
+        st.markdown("---")
+        st.markdown("### 📊 Status der API-Konfiguration")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("**Von Session State → Datenbank:**")
-            migrate_items = st.multiselect(
-                "Zu migrierende Daten",
-                ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
-                default=["Nutzer", "Projekte"],
-                key="migrate_selection"
-            )
+            st.markdown("**OpenAI:**")
+            if st.session_state.api_keys.get('openai'):
+                masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
+                st.success(f"✅ Konfiguriert ({masked_key})")
+            else:
+                # Prüfe auch Secrets und Umgebungsvariablen
+                has_secret = False
+                try:
+                    if st.secrets.get("OPENAI_API_KEY"):
+                        has_secret = True
+                except:
+                    pass
 
-            if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
-                if db_connected and migrate_items:
-                    with st.spinner("Exportiere Daten..."):
-                        result = migrate_session_to_database(migrate_items)
-                        if result['success']:
-                            st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
-                        else:
-                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                import os
+                if os.environ.get("OPENAI_API_KEY"):
+                    has_secret = True
+
+                if has_secret:
+                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
                 else:
-                    st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
+                    st.warning("⚠️ Nicht konfiguriert")
 
         with col2:
-            st.markdown("**Von Datenbank → Session State:**")
-            st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
+            st.markdown("**Anthropic (Claude):**")
+            if st.session_state.api_keys.get('anthropic'):
+                masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
+                st.success(f"✅ Konfiguriert ({masked_key})")
+            else:
+                # Prüfe auch Secrets und Umgebungsvariablen
+                has_secret = False
+                try:
+                    if st.secrets.get("ANTHROPIC_API_KEY"):
+                        has_secret = True
+                except:
+                    pass
 
-            if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
-                if db_connected:
-                    with st.spinner("Importiere Daten..."):
-                        result = load_database_to_session()
-                        if result['success']:
-                            st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                import os
+                if os.environ.get("ANTHROPIC_API_KEY"):
+                    has_secret = True
 
-            auto_load = st.checkbox(
-                "Automatisch beim Start laden",
-                value=st.session_state.get('db_auto_load', False),
-                key="db_auto_load_checkbox",
-                help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
-            )
-            st.session_state.db_auto_load = auto_load
+                if has_secret:
+                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+                else:
+                    st.warning("⚠️ Nicht konfiguriert")
 
-    with db_tabs[2]:
-        st.markdown("#### 📋 Datenbankschema")
-
+        # Hinweise
+        st.markdown("---")
+        st.markdown("### ℹ️ Hinweise")
         st.markdown("""
-        Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
-
-        | Tabelle | Beschreibung |
-        |---------|-------------|
-        | `nutzer` | Benutzerkonten mit Rollen |
-        | `makler_profil` | Makler-Profilinformationen |
-        | `notar_profil` | Notar-Profilinformationen |
-        | `notar_mitarbeiter` | Notar-Mitarbeiter |
-        | `immobilie` | Immobilien-Stammdaten |
-        | `projekt` | Transaktionsprojekte |
-        | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
-        | `preisvorschlag` | Preisverhandlungen |
-        | `preis_historie` | Preisentwicklung |
-        | `markt_daten` | Marktdaten für ML |
-        | `dokument` | Dokumente mit OCR |
-        | `interaktion` | Benutzeraktivitäten |
-        | `benachrichtigung` | Systembenachrichtigungen |
-        | `textbaustein` | Vertragsbausteine |
-        | `vertragsdokument` | Generierte Verträge |
-        | `akte` | Aktenmanagement |
-        | `akten_dokument` | Dokumente in Akten |
-        | `akten_nachricht` | Kommunikation in Akten |
-        | `api_key` | API-Schlüssel |
+        - **Priorität:** Claude Vision → OpenAI Vision → pytesseract → Demo-Daten
+        - Die API-Schlüssel werden im Session State gespeichert und sind nur für diese Sitzung gültig.
+        - Für permanente Konfiguration nutzen Sie Streamlit Secrets (`.streamlit/secrets.toml`).
+        - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
+        - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
         """)
 
-        if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
-            st.code('''
+    # ===== TAB 1: Briefkopf =====
+    with einstellungen_tabs[1]:
+        render_briefkopf_administration(user_id)
+
+    # ===== TAB 2: E-Mail-Signaturen =====
+    with einstellungen_tabs[2]:
+        render_email_signaturen(user_id)
+
+    # ===== TAB 3: Demo-Modus =====
+    with einstellungen_tabs[3]:
+        st.markdown("### 🧪 Demo-Modus")
+
+        # Demo-Modus initialisieren falls nicht vorhanden
+        if 'demo_modus_aktiv' not in st.session_state:
+            st.session_state.demo_modus_aktiv = True  # Standard: Demo-Modus AN
+
+        st.info("""
+        **Demo-Modus:** Alle Dashboards sind voll funktionsfähig mit simulierten Daten.
+        Im aktiven Modus werden bestimmte Funktionen eingeschränkt, bis alle erforderlichen
+        Konfigurationen (API-Keys, echte Daten) vorgenommen wurden.
+        """)
+
+        demo_modus = st.toggle(
+            "Demo-Modus aktiviert",
+            value=st.session_state.demo_modus_aktiv,
+            help="AN = Volle Funktionalität mit Demo-Daten | AUS = Aktiver Modus mit Einschränkungen"
+        )
+
+        if demo_modus != st.session_state.demo_modus_aktiv:
+            st.session_state.demo_modus_aktiv = demo_modus
+            if demo_modus:
+                st.success("✅ Demo-Modus aktiviert - Alle Funktionen verfügbar")
+            else:
+                st.warning("⚠️ Aktiver Modus - Einige Funktionen erfordern echte Konfiguration")
+            st.rerun()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.session_state.demo_modus_aktiv:
+                st.success("🟢 **Demo-Modus AKTIV**")
+                st.caption("Alle Dashboards funktionieren mit simulierten Daten")
+            else:
+                st.error("🔴 **Aktiver Modus**")
+                st.caption("Produktivbetrieb - echte Daten erforderlich")
+
+        with col2:
+            st.markdown("**Aktuelle Einstellung:**")
+            if st.session_state.demo_modus_aktiv:
+                st.markdown("- ✅ Demo-Handwerker verfügbar")
+                st.markdown("- ✅ Demo-Rechtsdokumente verfügbar")
+                st.markdown("- ✅ OCR mit Demo-Daten als Fallback")
+            else:
+                st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
+                st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
+                st.markdown("- ⚠️ API-Keys für OCR erforderlich")
+
+    # ===== TAB 4: Datenbank =====
+    with einstellungen_tabs[4]:
+        st.markdown("### 🗄️ Datenbank-Konfiguration")
+
+        st.info("""
+        Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
+        Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
+        """)
+
+        # Datenbank-Konfiguration initialisieren
+        if 'db_config' not in st.session_state:
+            st.session_state.db_config = {
+                'db_type': 'sqlite',
+                'host': 'localhost',
+                'port': 5432,
+                'database': 'immobilien_plattform',
+                'username': '',
+                'password': '',
+                'sqlite_path': 'data/immobilien_plattform.db'
+            }
+
+        # Tabs für Konfiguration und Status
+        db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
+
+        with db_tabs[0]:
+            st.markdown("#### Datenbank-Verbindung einrichten")
+
+            # Datenbanktyp auswählen
+            db_type = st.selectbox(
+                "Datenbank-Typ",
+                ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
+                index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
+                      (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
+                key="db_type_select",
+                help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
+            )
+
+            db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
+            st.session_state.db_config['db_type'] = db_type_key
+
+            if db_type_key == 'sqlite':
+                # SQLite Konfiguration
+                st.markdown("##### 📁 SQLite-Datei")
+
+                sqlite_path = st.text_input(
+                    "Datenbankpfad",
+                    value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
+                    key="sqlite_path_input",
+                    help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
+                )
+                st.session_state.db_config['sqlite_path'] = sqlite_path
+
+                st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
+
+                # Verbindungs-URL generieren
+                db_url = f"sqlite:///{sqlite_path}"
+
+            else:
+                # PostgreSQL / MySQL Konfiguration
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    host = st.text_input(
+                        "Host",
+                        value=st.session_state.db_config.get('host', 'localhost'),
+                        key="db_host_input",
+                        placeholder="localhost oder IP-Adresse"
+                    )
+                    st.session_state.db_config['host'] = host
+
+                    database = st.text_input(
+                        "Datenbankname",
+                        value=st.session_state.db_config.get('database', 'immobilien_plattform'),
+                        key="db_name_input"
+                    )
+                    st.session_state.db_config['database'] = database
+
+                with col2:
+                    port = st.number_input(
+                        "Port",
+                        value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
+                        min_value=1,
+                        max_value=65535,
+                        key="db_port_input"
+                    )
+                    st.session_state.db_config['port'] = port
+
+                    username = st.text_input(
+                        "Benutzername",
+                        value=st.session_state.db_config.get('username', ''),
+                        key="db_user_input"
+                    )
+                    st.session_state.db_config['username'] = username
+
+                password = st.text_input(
+                    "Passwort",
+                    value=st.session_state.db_config.get('password', ''),
+                    type="password",
+                    key="db_pass_input"
+                )
+                st.session_state.db_config['password'] = password
+
+                # Verbindungs-URL generieren
+                if db_type_key == 'postgresql':
+                    db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+                else:
+                    db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+
+            # Verbindungs-URL anzeigen (maskiert)
+            st.markdown("##### 🔗 Verbindungs-URL")
+            if db_type_key == 'sqlite':
+                st.code(db_url)
+            else:
+                masked_url = db_url.replace(password, '***') if password else db_url
+                st.code(masked_url)
+
+            # Aktionen
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
+                    with st.spinner("Teste Verbindung..."):
+                        try:
+                            # Teste die Verbindung
+                            test_result = test_database_connection(db_url)
+                            if test_result['success']:
+                                st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
+                                st.session_state.db_connection_url = db_url
+                                st.session_state.database_connected = True
+                            else:
+                                st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
+                                st.session_state.database_connected = False
+                        except Exception as e:
+                            st.error(f"❌ Fehler: {str(e)}")
+                            st.session_state.database_connected = False
+
+            with col2:
+                if st.button("💾 Konfiguration speichern", key="save_db_config"):
+                    try:
+                        save_database_config(st.session_state.db_config)
+                        st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
+                    except Exception as e:
+                        st.error(f"❌ Fehler beim Speichern: {e}")
+
+            with col3:
+                if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
+                    if st.session_state.get('database_connected'):
+                        with st.spinner("Erstelle Datenbanktabellen..."):
+                            try:
+                                result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
+                                if result['success']:
+                                    st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
+                                else:
+                                    st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                            except Exception as e:
+                                st.error(f"❌ Fehler: {e}")
+                    else:
+                        st.warning("⚠️ Bitte zuerst Verbindung testen!")
+
+        with db_tabs[1]:
+            st.markdown("#### 📊 Verbindungsstatus")
+
+            db_connected = st.session_state.get('database_connected', False)
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if db_connected:
+                    st.success("🟢 **Verbunden**")
+                    st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
+                else:
+                    st.error("🔴 **Nicht verbunden**")
+
+            with col2:
+                # Session State Statistiken
+                session_users = len(st.session_state.get('users', {}))
+                session_projekte = len(st.session_state.get('projekte', {}))
+                st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
+
+            with col3:
+                if db_connected:
+                    st.metric("Datenbank", "Bereit")
+                else:
+                    st.metric("Datenbank", "Offline")
+
+            st.markdown("---")
+            st.markdown("#### 🔄 Datenmigration")
+
+            st.info("""
+            **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
+            Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+            """)
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("**Von Session State → Datenbank:**")
+                migrate_items = st.multiselect(
+                    "Zu migrierende Daten",
+                    ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
+                    default=["Nutzer", "Projekte"],
+                    key="migrate_selection"
+                )
+
+                if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
+                    if db_connected and migrate_items:
+                        with st.spinner("Exportiere Daten..."):
+                            result = migrate_session_to_database(migrate_items)
+                            if result['success']:
+                                st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                    else:
+                        st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
+
+            with col2:
+                st.markdown("**Von Datenbank → Session State:**")
+                st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
+
+                if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
+                    if db_connected:
+                        with st.spinner("Importiere Daten..."):
+                            result = load_database_to_session()
+                            if result['success']:
+                                st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+
+                auto_load = st.checkbox(
+                    "Automatisch beim Start laden",
+                    value=st.session_state.get('db_auto_load', False),
+                    key="db_auto_load_checkbox",
+                    help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
+                )
+                st.session_state.db_auto_load = auto_load
+
+        with db_tabs[2]:
+            st.markdown("#### 📋 Datenbankschema")
+
+            st.markdown("""
+            Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
+
+            | Tabelle | Beschreibung |
+            |---------|-------------|
+            | `nutzer` | Benutzerkonten mit Rollen |
+            | `makler_profil` | Makler-Profilinformationen |
+            | `notar_profil` | Notar-Profilinformationen |
+            | `notar_mitarbeiter` | Notar-Mitarbeiter |
+            | `immobilie` | Immobilien-Stammdaten |
+            | `projekt` | Transaktionsprojekte |
+            | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
+            | `preisvorschlag` | Preisverhandlungen |
+            | `preis_historie` | Preisentwicklung |
+            | `markt_daten` | Marktdaten für ML |
+            | `dokument` | Dokumente mit OCR |
+            | `interaktion` | Benutzeraktivitäten |
+            | `benachrichtigung` | Systembenachrichtigungen |
+            | `textbaustein` | Vertragsbausteine |
+            | `vertragsdokument` | Generierte Verträge |
+            | `akte` | Aktenmanagement |
+            | `akten_dokument` | Dokumente in Akten |
+            | `akten_nachricht` | Kommunikation in Akten |
+            | `api_key` | API-Schlüssel |
+            """)
+
+            if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
+                st.code('''
 -- Beispiel: Nutzer-Tabelle
 CREATE TABLE nutzer (
     id SERIAL PRIMARY KEY,
@@ -24484,7 +24900,7 @@ CREATE TABLE projekt (
     notar_id VARCHAR(50) REFERENCES nutzer(user_id),
     created_at TIMESTAMP DEFAULT NOW()
 );
-            ''', language='sql')
+                ''', language='sql')
 
 
 # ============================================================================
@@ -24927,6 +25343,1009 @@ Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der
                 Sie erhalten dann Ihre Zugangsdaten per E-Mail.
                 """)
                 st.balloons()
+
+
+# ===== KOMMUNIKATIONS-ERWEITERUNGEN: UI-KOMPONENTEN =====
+
+def audit_log_eintrag(user_id: str, aktion: str, objekt_typ: str, objekt_id: str, objekt_name: str = "", projekt_id: str = "", akte_id: str = "", details: str = ""):
+    """Erstellt einen Audit-Log-Eintrag"""
+    user = st.session_state.users.get(user_id)
+    eintrag = AuditLogEintrag(
+        log_id=str(uuid.uuid4())[:8],
+        timestamp=datetime.now(),
+        user_id=user_id,
+        user_name=user.name if user else "",
+        user_rolle=user.rolle if user else "",
+        aktion=aktion,
+        objekt_typ=objekt_typ,
+        objekt_id=objekt_id,
+        objekt_name=objekt_name,
+        projekt_id=projekt_id,
+        akte_id=akte_id,
+        details=details
+    )
+    st.session_state.audit_log.append(eintrag)
+
+
+def render_briefkopf_administration(user_id: str):
+    """Administration der Briefköpfe"""
+    st.subheader("📝 Briefkopf-Verwaltung")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Bestehenden Briefkopf suchen oder neuen erstellen
+    briefkopf = None
+    for bk in st.session_state.briefkoepfe.values():
+        if bk.inhaber_id == user_id:
+            briefkopf = bk
+            break
+
+    col_form, col_preview = st.columns([2, 1])
+
+    with col_form:
+        with st.form("briefkopf_form"):
+            st.markdown("#### Logo")
+            logo_file = st.file_uploader("Logo hochladen", type=['png', 'jpg', 'jpeg'], key="briefkopf_logo")
+            logo_position = st.radio(
+                "Logo-Position",
+                ["links", "zentriert", "rechts"],
+                horizontal=True,
+                index=0 if not briefkopf else ["links", "zentriert", "rechts"].index(briefkopf.logo_position)
+            )
+
+            st.markdown("---")
+            st.markdown("#### Firmendaten")
+            col1, col2 = st.columns(2)
+            with col1:
+                firmenname = st.text_input("Firmenname", value=briefkopf.firmenname if briefkopf else "")
+                zusatz = st.text_input("Zusatz (z.B. Notariat, Immobilienmakler)", value=briefkopf.zusatz if briefkopf else "")
+            with col2:
+                inhaber_name = st.text_input("Inhaber/Name", value=briefkopf.inhaber_name if briefkopf else user.name)
+
+            st.markdown("---")
+            st.markdown("#### Adresse")
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                strasse = st.text_input("Straße", value=briefkopf.strasse if briefkopf else "")
+            with col2:
+                hausnummer = st.text_input("Hausnummer", value=briefkopf.hausnummer if briefkopf else "")
+
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col1:
+                plz = st.text_input("PLZ", value=briefkopf.plz if briefkopf else "")
+            with col2:
+                ort = st.text_input("Ort", value=briefkopf.ort if briefkopf else "")
+            with col3:
+                land = st.text_input("Land", value=briefkopf.land if briefkopf else "Deutschland")
+
+            st.markdown("---")
+            st.markdown("#### Kontakt")
+            col1, col2 = st.columns(2)
+            with col1:
+                telefon = st.text_input("Telefon", value=briefkopf.telefon if briefkopf else "")
+                email = st.text_input("E-Mail", value=briefkopf.email if briefkopf else user.email)
+            with col2:
+                fax = st.text_input("Fax", value=briefkopf.fax if briefkopf else "")
+                website = st.text_input("Website", value=briefkopf.website if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Rechtliche Angaben")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                steuernummer = st.text_input("Steuernummer", value=briefkopf.steuernummer if briefkopf else "")
+            with col2:
+                ust_id = st.text_input("USt-IdNr.", value=briefkopf.ust_id if briefkopf else "")
+            with col3:
+                handelsregister = st.text_input("Handelsregister", value=briefkopf.handelsregister if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Bankverbindung")
+            bank_name = st.text_input("Bank", value=briefkopf.bank_name if briefkopf else "")
+            col1, col2 = st.columns(2)
+            with col1:
+                iban = st.text_input("IBAN", value=briefkopf.iban if briefkopf else "")
+            with col2:
+                bic = st.text_input("BIC", value=briefkopf.bic if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Fußzeile")
+            fusszeile_text = st.text_input("Fußzeile Zeile 1", value=briefkopf.fusszeile_text if briefkopf else "")
+            fusszeile_zeile2 = st.text_input("Fußzeile Zeile 2", value=briefkopf.fusszeile_zeile2 if briefkopf else "")
+
+            submitted = st.form_submit_button("💾 Briefkopf speichern", type="primary")
+
+            if submitted:
+                logo_data = None
+                if logo_file:
+                    logo_data = logo_file.read()
+                elif briefkopf and briefkopf.logo_data:
+                    logo_data = briefkopf.logo_data
+
+                inhaber_typ = "kanzlei" if user.rolle == UserRole.NOTAR.value else "maklerbüro" if user.rolle == UserRole.MAKLER.value else "user"
+
+                if briefkopf:
+                    # Aktualisieren
+                    briefkopf.logo_data = logo_data
+                    briefkopf.logo_position = logo_position
+                    briefkopf.firmenname = firmenname
+                    briefkopf.zusatz = zusatz
+                    briefkopf.inhaber_name = inhaber_name
+                    briefkopf.strasse = strasse
+                    briefkopf.hausnummer = hausnummer
+                    briefkopf.plz = plz
+                    briefkopf.ort = ort
+                    briefkopf.land = land
+                    briefkopf.telefon = telefon
+                    briefkopf.fax = fax
+                    briefkopf.email = email
+                    briefkopf.website = website
+                    briefkopf.steuernummer = steuernummer
+                    briefkopf.ust_id = ust_id
+                    briefkopf.handelsregister = handelsregister
+                    briefkopf.bank_name = bank_name
+                    briefkopf.iban = iban
+                    briefkopf.bic = bic
+                    briefkopf.fusszeile_text = fusszeile_text
+                    briefkopf.fusszeile_zeile2 = fusszeile_zeile2
+                    briefkopf.aktualisiert_am = datetime.now()
+                    st.session_state.briefkoepfe[briefkopf.briefkopf_id] = briefkopf
+                else:
+                    # Neu erstellen
+                    briefkopf_id = str(uuid.uuid4())[:8]
+                    briefkopf = Briefkopf(
+                        briefkopf_id=briefkopf_id,
+                        inhaber_id=user_id,
+                        inhaber_typ=inhaber_typ,
+                        logo_data=logo_data,
+                        logo_position=logo_position,
+                        firmenname=firmenname,
+                        zusatz=zusatz,
+                        inhaber_name=inhaber_name,
+                        strasse=strasse,
+                        hausnummer=hausnummer,
+                        plz=plz,
+                        ort=ort,
+                        land=land,
+                        telefon=telefon,
+                        fax=fax,
+                        email=email,
+                        website=website,
+                        steuernummer=steuernummer,
+                        ust_id=ust_id,
+                        handelsregister=handelsregister,
+                        bank_name=bank_name,
+                        iban=iban,
+                        bic=bic,
+                        fusszeile_text=fusszeile_text,
+                        fusszeile_zeile2=fusszeile_zeile2
+                    )
+                    st.session_state.briefkoepfe[briefkopf_id] = briefkopf
+
+                st.success("✅ Briefkopf gespeichert!")
+                audit_log_eintrag(user_id, "bearbeitet", "briefkopf", briefkopf.briefkopf_id, "Briefkopf")
+                st.rerun()
+
+    with col_preview:
+        st.markdown("#### Vorschau")
+        if briefkopf or firmenname:
+            # Briefkopf-Vorschau
+            bk = briefkopf if briefkopf else None
+            preview_html = f"""
+            <div style="border: 1px solid #ccc; padding: 20px; font-family: Arial; max-width: 400px;">
+                <div style="text-align: {'left' if (bk and bk.logo_position == 'links') else 'center' if (bk and bk.logo_position == 'zentriert') else 'right'};">
+                    <strong style="font-size: 16px;">{bk.firmenname if bk else firmenname or 'Firmenname'}</strong><br>
+                    <span style="font-size: 12px; color: #666;">{bk.zusatz if bk else zusatz or ''}</span><br>
+                    <span style="font-size: 11px;">{bk.inhaber_name if bk else inhaber_name or ''}</span>
+                </div>
+                <hr style="margin: 10px 0;">
+                <div style="font-size: 10px; color: #666; text-align: center;">
+                    {bk.strasse if bk else strasse or ''} {bk.hausnummer if bk else hausnummer or ''} · {bk.plz if bk else plz or ''} {bk.ort if bk else ort or ''}<br>
+                    Tel: {bk.telefon if bk else telefon or ''} · {bk.email if bk else email or ''}
+                </div>
+            </div>
+            """
+            st.markdown(preview_html, unsafe_allow_html=True)
+        else:
+            st.info("Füllen Sie das Formular aus, um eine Vorschau zu sehen.")
+
+
+def render_email_signaturen(user_id: str):
+    """Verwaltung der E-Mail-Signaturen"""
+    st.subheader("✉️ E-Mail-Signaturen")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Bestehende Signaturen laden
+    user_signaturen = [s for s in st.session_state.email_signaturen.values() if s.user_id == user_id]
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("### Meine Signaturen")
+
+        if user_signaturen:
+            for sig in user_signaturen:
+                with st.expander(f"{'⭐ ' if sig.ist_standard else ''}{sig.name}", expanded=sig.ist_standard):
+                    st.markdown(sig.html_signatur if sig.html_signatur else sig.text_signatur, unsafe_allow_html=True)
+
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("✏️ Bearbeiten", key=f"edit_sig_{sig.signatur_id}"):
+                            st.session_state[f'editing_signatur_{user_id}'] = sig.signatur_id
+                            st.rerun()
+                    with col_b:
+                        if not sig.ist_standard:
+                            if st.button("⭐ Als Standard", key=f"std_sig_{sig.signatur_id}"):
+                                for s in user_signaturen:
+                                    s.ist_standard = False
+                                    st.session_state.email_signaturen[s.signatur_id] = s
+                                sig.ist_standard = True
+                                st.session_state.email_signaturen[sig.signatur_id] = sig
+                                st.success("Als Standard-Signatur festgelegt!")
+                                st.rerun()
+                    with col_c:
+                        if len(user_signaturen) > 1:
+                            if st.button("🗑️ Löschen", key=f"del_sig_{sig.signatur_id}"):
+                                del st.session_state.email_signaturen[sig.signatur_id]
+                                st.success("Signatur gelöscht!")
+                                st.rerun()
+        else:
+            st.info("Noch keine Signaturen angelegt.")
+
+    with col2:
+        st.markdown("### Neue Signatur erstellen")
+
+        with st.form("neue_signatur_form"):
+            sig_name = st.text_input("Name der Signatur", placeholder="z.B. Standard, Formal, Kurz")
+            sig_text = st.text_area(
+                "Signatur-Text",
+                height=200,
+                placeholder="""Mit freundlichen Grüßen
+
+Max Mustermann
+Notar
+
+Musterstraße 1, 12345 Musterstadt
+Tel: 0123-456789
+E-Mail: info@notar-muster.de""",
+                help="Verwenden Sie Platzhalter wie {{name}}, {{telefon}}, {{email}}"
+            )
+
+            ist_standard = st.checkbox("Als Standard-Signatur verwenden", value=len(user_signaturen) == 0)
+            fuer_antworten = st.checkbox("Auch für Antworten verwenden", value=True)
+
+            if st.form_submit_button("💾 Signatur speichern", type="primary"):
+                if sig_name and sig_text:
+                    signatur_id = str(uuid.uuid4())[:8]
+
+                    # Wenn als Standard markiert, andere deaktivieren
+                    if ist_standard:
+                        for s in user_signaturen:
+                            s.ist_standard = False
+                            st.session_state.email_signaturen[s.signatur_id] = s
+
+                    neue_signatur = EmailSignatur(
+                        signatur_id=signatur_id,
+                        user_id=user_id,
+                        name=sig_name,
+                        text_signatur=sig_text,
+                        html_signatur=sig_text.replace('\n', '<br>'),
+                        ist_standard=ist_standard,
+                        fuer_antworten=fuer_antworten
+                    )
+                    st.session_state.email_signaturen[signatur_id] = neue_signatur
+                    st.success(f"✅ Signatur '{sig_name}' erstellt!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Name und Text eingeben.")
+
+    # Platzhalter-Hilfe
+    st.markdown("---")
+    with st.expander("📋 Verfügbare Platzhalter"):
+        st.markdown("""
+        | Platzhalter | Beschreibung |
+        |-------------|--------------|
+        | `{{name}}` | Vollständiger Name |
+        | `{{vorname}}` | Vorname |
+        | `{{nachname}}` | Nachname |
+        | `{{titel}}` | Titel (Dr., Prof., etc.) |
+        | `{{position}}` | Position/Rolle |
+        | `{{telefon}}` | Telefonnummer |
+        | `{{email}}` | E-Mail-Adresse |
+        | `{{firma}}` | Firmenname |
+        | `{{adresse}}` | Vollständige Adresse |
+        | `{{datum}}` | Aktuelles Datum |
+        | `{{aktenzeichen}}` | Aktenzeichen (im Kontext) |
+        """)
+
+
+def render_makler_mitarbeiter_verwaltung(makler_id: str):
+    """Mitarbeiterverwaltung für Makler"""
+    st.subheader("👥 Mitarbeiter-Verwaltung")
+
+    makler = st.session_state.users.get(makler_id)
+    if not makler or makler.rolle != UserRole.MAKLER.value:
+        st.error("Nur für Makler verfügbar")
+        return
+
+    # Bestehende Mitarbeiter laden
+    mitarbeiter_liste = [m for m in st.session_state.makler_mitarbeiter.values() if m.makler_id == makler_id]
+
+    tab1, tab2, tab3 = st.tabs(["👥 Übersicht", "➕ Neuer Mitarbeiter", "📋 Projektzuweisung"])
+
+    with tab1:
+        if mitarbeiter_liste:
+            for ma in mitarbeiter_liste:
+                status_icon = "✅" if ma.ist_aktiv else "⏸️"
+                with st.expander(f"{status_icon} {ma.vorname} {ma.name} ({ma.rolle})", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"**E-Mail:** {ma.email}")
+                        st.markdown(f"**Telefon:** {ma.telefon or '-'}")
+                        st.markdown(f"**Kürzel:** {ma.kuerzel or '-'}")
+                        st.markdown(f"**Eingestellt:** {ma.eingestellt_am.strftime('%d.%m.%Y')}")
+                    with col2:
+                        st.markdown(f"**Zugewiesene Projekte:** {len(ma.projekt_ids)}")
+                        st.markdown(f"**Alle Projekte sehen:** {'Ja' if ma.kann_alle_projekte_sehen else 'Nein'}")
+                        st.markdown(f"**Im Namen kommunizieren:** {'Ja' if ma.kann_im_namen_kommunizieren else 'Nein'}")
+
+                    st.markdown("**Berechtigungen:**")
+                    if ma.berechtigungen:
+                        berechtigung_cols = st.columns(3)
+                        for i, b in enumerate(ma.berechtigungen):
+                            berechtigung_cols[i % 3].markdown(f"✓ {b}")
+                    else:
+                        st.info("Keine speziellen Berechtigungen")
+
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("✏️ Bearbeiten", key=f"edit_ma_{ma.mitarbeiter_id}"):
+                            st.session_state[f'editing_mitarbeiter'] = ma.mitarbeiter_id
+                            st.rerun()
+                    with col_b:
+                        new_status = not ma.ist_aktiv
+                        if st.button("✅ Aktivieren" if not ma.ist_aktiv else "⏸️ Deaktivieren", key=f"status_ma_{ma.mitarbeiter_id}"):
+                            ma.ist_aktiv = new_status
+                            st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"Mitarbeiter {'aktiviert' if new_status else 'deaktiviert'}!")
+                            st.rerun()
+                    with col_c:
+                        if st.button("🗑️ Entfernen", key=f"del_ma_{ma.mitarbeiter_id}"):
+                            del st.session_state.makler_mitarbeiter[ma.mitarbeiter_id]
+                            st.success("Mitarbeiter entfernt!")
+                            st.rerun()
+        else:
+            st.info("Noch keine Mitarbeiter angelegt. Fügen Sie im Tab 'Neuer Mitarbeiter' welche hinzu.")
+
+    with tab2:
+        with st.form("neuer_mitarbeiter_form"):
+            st.markdown("### Neuen Mitarbeiter hinzufügen")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                ma_vorname = st.text_input("Vorname*")
+                ma_email = st.text_input("E-Mail*")
+                ma_kuerzel = st.text_input("Kürzel (für Aktenzeichen)", max_chars=3)
+            with col2:
+                ma_name = st.text_input("Nachname*")
+                ma_telefon = st.text_input("Telefon")
+                ma_passwort = st.text_input("Passwort*", type="password")
+
+            st.markdown("---")
+            ma_rolle = st.selectbox("Rolle", [r.value for r in MaklerMitarbeiterRolle])
+
+            st.markdown("**Berechtigungen:**")
+            col1, col2, col3 = st.columns(3)
+
+            berechtigungen = []
+            with col1:
+                if st.checkbox("Projekte ansehen", value=True, key="perm_ansehen"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_ANSEHEN.value)
+                if st.checkbox("Projekte bearbeiten", value=True, key="perm_bearbeiten"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_BEARBEITEN.value)
+                if st.checkbox("Projekte erstellen", key="perm_erstellen"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_ERSTELLEN.value)
+                if st.checkbox("Exposés erstellen", value=True, key="perm_expose"):
+                    berechtigungen.append(MaklerBerechtigungTyp.EXPOSE_ERSTELLEN.value)
+
+            with col2:
+                if st.checkbox("Nachrichten senden", value=True, key="perm_nachrichten"):
+                    berechtigungen.append(MaklerBerechtigungTyp.NACHRICHTEN_SENDEN.value)
+                if st.checkbox("Dokumente hochladen", value=True, key="perm_dokumente"):
+                    berechtigungen.append(MaklerBerechtigungTyp.DOKUMENTE_HOCHLADEN.value)
+                if st.checkbox("Teilnehmer einladen", key="perm_teilnehmer"):
+                    berechtigungen.append(MaklerBerechtigungTyp.TEILNEHMER_EINLADEN.value)
+                if st.checkbox("Termine erstellen", value=True, key="perm_termine"):
+                    berechtigungen.append(MaklerBerechtigungTyp.TERMINE_ERSTELLEN.value)
+
+            with col3:
+                if st.checkbox("Preise sehen", key="perm_preise"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PREISE_SEHEN.value)
+                if st.checkbox("Preisverhandlungen führen", key="perm_verhandeln"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PREISE_VERHANDELN.value)
+                kann_im_namen = st.checkbox("Im Namen des Maklers kommunizieren", key="perm_im_namen")
+                kann_alle_sehen = st.checkbox("Alle Projekte sehen", key="perm_alle")
+
+            if st.form_submit_button("📧 Mitarbeiter hinzufügen", type="primary"):
+                if ma_vorname and ma_name and ma_email and ma_passwort:
+                    mitarbeiter_id = str(uuid.uuid4())[:8]
+
+                    if kann_im_namen:
+                        berechtigungen.append(MaklerBerechtigungTyp.IM_NAMEN_KOMMUNIZIEREN.value)
+
+                    neuer_ma = MaklerMitarbeiter(
+                        mitarbeiter_id=mitarbeiter_id,
+                        makler_id=makler_id,
+                        name=ma_name,
+                        vorname=ma_vorname,
+                        email=ma_email,
+                        telefon=ma_telefon,
+                        password_hash=hash_password(ma_passwort),
+                        rolle=ma_rolle,
+                        berechtigungen=berechtigungen,
+                        kann_alle_projekte_sehen=kann_alle_sehen,
+                        kann_im_namen_kommunizieren=kann_im_namen,
+                        kuerzel=ma_kuerzel.upper() if ma_kuerzel else ""
+                    )
+                    st.session_state.makler_mitarbeiter[mitarbeiter_id] = neuer_ma
+
+                    st.success(f"✅ Mitarbeiter {ma_vorname} {ma_name} hinzugefügt!")
+                    audit_log_eintrag(makler_id, "erstellt", "mitarbeiter", mitarbeiter_id, f"{ma_vorname} {ma_name}")
+                    st.rerun()
+                else:
+                    st.error("Bitte alle Pflichtfelder (*) ausfüllen.")
+
+    with tab3:
+        st.markdown("### Projekte zuweisen")
+
+        if not mitarbeiter_liste:
+            st.info("Erst Mitarbeiter anlegen, dann Projekte zuweisen.")
+            return
+
+        makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+        if not makler_projekte:
+            st.info("Noch keine Projekte vorhanden.")
+            return
+
+        selected_projekt = st.selectbox(
+            "Projekt auswählen",
+            makler_projekte,
+            format_func=lambda p: f"{p.name} ({p.adresse})" if p.adresse else p.name
+        )
+
+        if selected_projekt:
+            st.markdown(f"**Mitarbeiter für '{selected_projekt.name}':**")
+
+            for ma in mitarbeiter_liste:
+                ist_zugewiesen = selected_projekt.projekt_id in ma.projekt_ids
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    checked = st.checkbox(
+                        f"{ma.vorname} {ma.name} ({ma.rolle})",
+                        value=ist_zugewiesen,
+                        key=f"assign_{selected_projekt.projekt_id}_{ma.mitarbeiter_id}"
+                    )
+                with col2:
+                    if checked != ist_zugewiesen:
+                        if checked:
+                            ma.projekt_ids.append(selected_projekt.projekt_id)
+                        else:
+                            ma.projekt_ids.remove(selected_projekt.projekt_id)
+                        st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
+                        st.rerun()
+
+
+def render_kommunikationszentrale(user_id: str, projekt_id: str = None):
+    """Kommunikationszentrale mit Posteingang/Postausgang"""
+    st.subheader("📬 Kommunikationszentrale")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Nachrichten für diesen Benutzer laden
+    empfangene = [n for n in st.session_state.nachrichten.values()
+                  if user_id in n.empfaenger_ids and not n.ist_geloescht and not n.ist_entwurf]
+    gesendete = [n for n in st.session_state.nachrichten.values()
+                 if n.absender_id == user_id and not n.ist_geloescht and not n.ist_entwurf]
+    entwuerfe = [n for n in st.session_state.nachrichten.values()
+                 if n.absender_id == user_id and n.ist_entwurf]
+
+    # Filter nach Projekt wenn angegeben
+    if projekt_id:
+        empfangene = [n for n in empfangene if n.projekt_id == projekt_id]
+        gesendete = [n for n in gesendete if n.projekt_id == projekt_id]
+
+    # Ungelesene zählen
+    ungelesen_count = len([n for n in empfangene if user_id not in n.gelesen_von])
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        f"📥 Posteingang ({ungelesen_count})" if ungelesen_count > 0 else "📥 Posteingang",
+        "📤 Gesendet",
+        f"📝 Entwürfe ({len(entwuerfe)})" if entwuerfe else "📝 Entwürfe",
+        "✉️ Neue Nachricht"
+    ])
+
+    with tab1:
+        _render_nachrichten_liste(empfangene, user_id, "eingang")
+
+    with tab2:
+        _render_nachrichten_liste(gesendete, user_id, "ausgang")
+
+    with tab3:
+        _render_nachrichten_liste(entwuerfe, user_id, "entwurf")
+
+    with tab4:
+        _render_neue_nachricht_form(user_id, projekt_id)
+
+
+def _render_nachrichten_liste(nachrichten: list, user_id: str, typ: str):
+    """Rendert eine Liste von Nachrichten"""
+    if not nachrichten:
+        st.info("Keine Nachrichten vorhanden.")
+        return
+
+    # Sortierung
+    sort_option = st.selectbox(
+        "Sortieren nach",
+        ["Neueste zuerst", "Älteste zuerst", "Priorität", "Ungelesen zuerst"],
+        key=f"sort_{typ}"
+    )
+
+    if sort_option == "Neueste zuerst":
+        nachrichten.sort(key=lambda n: n.erstellt_am, reverse=True)
+    elif sort_option == "Älteste zuerst":
+        nachrichten.sort(key=lambda n: n.erstellt_am)
+    elif sort_option == "Priorität":
+        prio_order = {NachrichtenPrioritaet.DRINGEND.value: 0, NachrichtenPrioritaet.HOCH.value: 1, NachrichtenPrioritaet.NORMAL.value: 2}
+        nachrichten.sort(key=lambda n: prio_order.get(n.prioritaet, 2))
+    elif sort_option == "Ungelesen zuerst":
+        nachrichten.sort(key=lambda n: (user_id in n.gelesen_von, n.erstellt_am), reverse=True)
+
+    for nachricht in nachrichten:
+        ist_gelesen = user_id in nachricht.gelesen_von
+        absender = st.session_state.users.get(nachricht.absender_id)
+        absender_name = absender.name if absender else "Unbekannt"
+
+        # Priorität-Icon
+        prio_icon = ""
+        if nachricht.prioritaet == NachrichtenPrioritaet.DRINGEND.value:
+            prio_icon = "🔴 "
+        elif nachricht.prioritaet == NachrichtenPrioritaet.HOCH.value:
+            prio_icon = "🟠 "
+
+        # Sicherheitsstufe-Icon
+        sicher_icon = ""
+        if nachricht.sicherheitsstufe == Sicherheitsstufe.VERTRAULICH.value:
+            sicher_icon = "🔒 "
+        elif nachricht.sicherheitsstufe == Sicherheitsstufe.STRENG_VERTRAULICH.value:
+            sicher_icon = "🔐 "
+
+        anlagen_count = len(nachricht.anlage_ids)
+        anlagen_text = f" 📎{anlagen_count}" if anlagen_count > 0 else ""
+
+        titel = f"{'**' if not ist_gelesen else ''}{prio_icon}{sicher_icon}{nachricht.betreff}{anlagen_text}{'**' if not ist_gelesen else ''}"
+
+        with st.expander(f"{titel} - {absender_name} ({nachricht.erstellt_am.strftime('%d.%m.%Y %H:%M')})"):
+            # Als gelesen markieren
+            if typ == "eingang" and user_id not in nachricht.gelesen_von:
+                nachricht.gelesen_von.append(user_id)
+                st.session_state.nachrichten[nachricht.nachricht_id] = nachricht
+                audit_log_eintrag(user_id, "angesehen", "nachricht", nachricht.nachricht_id, nachricht.betreff)
+
+            st.markdown(f"**Von:** {absender_name}")
+            st.markdown(f"**Betreff:** {nachricht.betreff}")
+            st.markdown(f"**Kategorie:** {nachricht.kategorie}")
+            if nachricht.projekt_id:
+                projekt = st.session_state.projekte.get(nachricht.projekt_id)
+                if projekt:
+                    st.markdown(f"**Projekt:** {projekt.name}")
+            st.markdown("---")
+            st.markdown(nachricht.inhalt)
+
+            # Anlagen anzeigen
+            if nachricht.anlage_ids:
+                st.markdown("---")
+                st.markdown("**📎 Anlagen:**")
+                for anlage_id in nachricht.anlage_ids:
+                    anlage = st.session_state.kommunikations_anlagen.get(anlage_id)
+                    if anlage:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"• {anlage.dateiname} ({anlage.dateigroesse // 1024} KB)")
+                        with col2:
+                            if anlage.datei_data:
+                                st.download_button(
+                                    "⬇️",
+                                    anlage.datei_data,
+                                    file_name=anlage.dateiname,
+                                    key=f"dl_{anlage.anlage_id}"
+                                )
+
+
+def _render_neue_nachricht_form(user_id: str, projekt_id: str = None):
+    """Formular für neue Nachricht"""
+    user = st.session_state.users.get(user_id)
+
+    with st.form("neue_nachricht_form"):
+        # Projekt auswählen (wenn nicht vorgegeben)
+        if not projekt_id:
+            user_projekte = _get_user_projekte(user_id, user.rolle)
+            if user_projekte:
+                selected_projekt = st.selectbox(
+                    "Projekt",
+                    [None] + user_projekte,
+                    format_func=lambda p: "-- Kein Projekt --" if p is None else p.name
+                )
+                projekt_id = selected_projekt.projekt_id if selected_projekt else None
+
+        # Empfänger
+        empfaenger_optionen = _get_moegliche_empfaenger(user_id, projekt_id)
+        empfaenger = st.multiselect("Empfänger*", list(empfaenger_optionen.keys()))
+
+        betreff = st.text_input("Betreff*")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            kategorie = st.selectbox("Kategorie", [k.value for k in NachrichtenKategorie])
+        with col2:
+            prioritaet = st.selectbox("Priorität", [p.value for p in NachrichtenPrioritaet])
+
+        sicherheitsstufe = st.selectbox("Sicherheitsstufe", [s.value for s in Sicherheitsstufe])
+
+        inhalt = st.text_area("Nachricht*", height=200)
+
+        # Anlagen
+        anlagen = st.file_uploader("Anlagen hinzufügen", accept_multiple_files=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            senden = st.form_submit_button("📤 Senden", type="primary")
+        with col2:
+            speichern = st.form_submit_button("💾 Als Entwurf speichern")
+
+        if senden or speichern:
+            if (senden and not empfaenger) or not betreff or not inhalt:
+                st.error("Bitte alle Pflichtfelder (*) ausfüllen.")
+            else:
+                nachricht_id = str(uuid.uuid4())[:8]
+
+                # Anlagen speichern
+                anlage_ids = []
+                for datei in anlagen:
+                    anlage_id = str(uuid.uuid4())[:8]
+                    anlage = KommunikationsAnlage(
+                        anlage_id=anlage_id,
+                        nachricht_id=nachricht_id,
+                        projekt_id=projekt_id or "",
+                        dateiname=datei.name,
+                        dateityp=datei.name.split('.')[-1].upper() if '.' in datei.name else "UNBEKANNT",
+                        dateigroesse=datei.size,
+                        datei_data=datei.read(),
+                        hochgeladen_von=user_id,
+                        sicherheitsstufe=sicherheitsstufe
+                    )
+                    st.session_state.kommunikations_anlagen[anlage_id] = anlage
+                    anlage_ids.append(anlage_id)
+
+                empfaenger_ids = [empfaenger_optionen[e] for e in empfaenger] if empfaenger else []
+
+                nachricht = KommunikationsNachricht(
+                    nachricht_id=nachricht_id,
+                    projekt_id=projekt_id or "",
+                    absender_id=user_id,
+                    empfaenger_ids=empfaenger_ids,
+                    betreff=betreff,
+                    inhalt=inhalt,
+                    inhalt_plaintext=inhalt,
+                    prioritaet=prioritaet,
+                    kategorie=kategorie,
+                    sicherheitsstufe=sicherheitsstufe,
+                    anlage_ids=anlage_ids,
+                    ist_entwurf=speichern,
+                    gesendet_am=datetime.now() if senden else None
+                )
+                st.session_state.nachrichten[nachricht_id] = nachricht
+
+                if senden:
+                    # Benachrichtigungen erstellen
+                    for emp_id in empfaenger_ids:
+                        create_notification(emp_id, f"Neue Nachricht: {betreff}", f"Von {user.name}", NotificationType.INFO.value)
+
+                    st.success("✅ Nachricht gesendet!")
+                    audit_log_eintrag(user_id, "gesendet", "nachricht", nachricht_id, betreff, projekt_id)
+                else:
+                    st.success("✅ Entwurf gespeichert!")
+
+                st.rerun()
+
+
+def _get_user_projekte(user_id: str, rolle: str) -> list:
+    """Holt alle Projekte eines Benutzers"""
+    projekte = []
+    for p in st.session_state.projekte.values():
+        if rolle == UserRole.MAKLER.value and p.makler_id == user_id:
+            projekte.append(p)
+        elif rolle == UserRole.NOTAR.value and p.notar_id == user_id:
+            projekte.append(p)
+        elif rolle == UserRole.KAEUFER.value and user_id in p.kaeufer_ids:
+            projekte.append(p)
+        elif rolle == UserRole.VERKAEUFER.value and user_id in p.verkaeufer_ids:
+            projekte.append(p)
+        elif rolle == UserRole.FINANZIERER.value and user_id in p.finanzierer_ids:
+            projekte.append(p)
+    return projekte
+
+
+def _get_moegliche_empfaenger(user_id: str, projekt_id: str = None) -> dict:
+    """Holt mögliche Empfänger für Nachrichten"""
+    empfaenger = {}
+
+    if projekt_id:
+        projekt = st.session_state.projekte.get(projekt_id)
+        if projekt:
+            # Alle Projektbeteiligten
+            if projekt.makler_id and projekt.makler_id != user_id:
+                makler = st.session_state.users.get(projekt.makler_id)
+                if makler:
+                    empfaenger[f"👔 Makler: {makler.name}"] = projekt.makler_id
+
+            if projekt.notar_id and projekt.notar_id != user_id:
+                notar = st.session_state.users.get(projekt.notar_id)
+                if notar:
+                    empfaenger[f"⚖️ Notar: {notar.name}"] = projekt.notar_id
+
+            for kid in projekt.kaeufer_ids:
+                if kid != user_id:
+                    kaeufer = st.session_state.users.get(kid)
+                    if kaeufer:
+                        empfaenger[f"🏠 Käufer: {kaeufer.name}"] = kid
+
+            for vid in projekt.verkaeufer_ids:
+                if vid != user_id:
+                    verkaeufer = st.session_state.users.get(vid)
+                    if verkaeufer:
+                        empfaenger[f"🏡 Verkäufer: {verkaeufer.name}"] = vid
+
+            for fid in projekt.finanzierer_ids:
+                if fid != user_id:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        empfaenger[f"🏦 Finanzierer: {finanzierer.name}"] = fid
+    else:
+        # Alle bekannten Benutzer (außer sich selbst)
+        for uid, u in st.session_state.users.items():
+            if uid != user_id:
+                rolle_icon = {"Makler": "👔", "Notar": "⚖️", "Käufer": "🏠", "Verkäufer": "🏡", "Finanzierer": "🏦"}.get(u.rolle, "👤")
+                empfaenger[f"{rolle_icon} {u.name}"] = uid
+
+    return empfaenger
+
+
+def render_akten_ordner_struktur(akte_id: str, user_id: str):
+    """Rendert die Ordnerstruktur einer Akte"""
+    akte = st.session_state.importierte_akten.get(akte_id)
+    if not akte:
+        st.error("Akte nicht gefunden")
+        return
+
+    st.markdown(f"### 📁 {akte.aktenzeichen}")
+
+    # Ordner für diese Akte laden
+    ordner_liste = [o for o in st.session_state.akten_ordner.values() if o.akte_id == akte_id]
+    ordner_liste.sort(key=lambda o: o.pfad)
+
+    # Dokumente in dieser Akte
+    dokumente = [d for d in st.session_state.akten_dokumente.values() if d.akte_id == akte_id] if hasattr(st.session_state, 'akten_dokumente') else []
+
+    if not ordner_liste:
+        # Ordner aus Template erstellen
+        st.info("Keine Ordnerstruktur vorhanden. Möchten Sie eine Standard-Struktur erstellen?")
+
+        akten_typ = st.selectbox("Aktentyp auswählen", list(AKTEN_ORDNER_TEMPLATES.keys()))
+
+        if st.button("📁 Ordnerstruktur erstellen"):
+            _erstelle_ordner_struktur(akte_id, akten_typ, user_id)
+            st.success("Ordnerstruktur erstellt!")
+            st.rerun()
+    else:
+        # Ordner als Baum anzeigen
+        for ordner in ordner_liste:
+            tiefe = ordner.pfad.count('/') - 1
+            einzug = "  " * tiefe
+            ordner_name = ordner.pfad.split('/')[-1]
+
+            # Dokumente in diesem Ordner zählen
+            dok_count = len([d for d in dokumente if d.ordner_name == ordner.pfad])
+
+            if dok_count > 0:
+                with st.expander(f"{einzug}📂 {ordner_name} ({dok_count} Dokumente)"):
+                    for dok in [d for d in dokumente if d.ordner_name == ordner.pfad]:
+                        st.markdown(f"📄 {dok.titel}")
+            else:
+                st.markdown(f"{einzug}📁 {ordner_name}")
+
+
+def _erstelle_ordner_struktur(akte_id: str, akten_typ: str, user_id: str):
+    """Erstellt die Ordnerstruktur für eine Akte"""
+    template = AKTEN_ORDNER_TEMPLATES.get(akten_typ, [])
+
+    for pfad, beschreibung in template:
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner = AktenOrdner(
+            ordner_id=ordner_id,
+            akte_id=akte_id,
+            name=pfad.split('/')[-1],
+            pfad=f"/{pfad}",
+            beschreibung=beschreibung,
+            erstellt_von=user_id
+        )
+        st.session_state.akten_ordner[ordner_id] = ordner
+
+
+def render_erweiterte_suche(user_id: str):
+    """Erweiterte Such- und Filterfunktionen"""
+    st.subheader("🔍 Erweiterte Suche")
+
+    user = st.session_state.users.get(user_id)
+
+    # Gespeicherte Suchen
+    user_suchen = [s for s in st.session_state.gespeicherte_suchen.values() if s.user_id == user_id]
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        suchbegriff = st.text_input("🔍 Suchbegriff", placeholder="Aktenzeichen, Name, Betreff...")
+
+    with col2:
+        if user_suchen:
+            gespeicherte = st.selectbox(
+                "Gespeicherte Suchen",
+                [None] + user_suchen,
+                format_func=lambda s: "-- Neue Suche --" if s is None else f"⭐ {s.name}"
+            )
+            if gespeicherte:
+                suchbegriff = gespeicherte.suchbegriff
+
+    # Filter
+    with st.expander("🎛️ Erweiterte Filter", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            filter_typ = st.multiselect(
+                "Suchen in",
+                ["Akten", "Nachrichten", "Dokumente", "Projekte"],
+                default=["Akten", "Nachrichten", "Dokumente", "Projekte"]
+            )
+
+        with col2:
+            filter_zeitraum = st.selectbox(
+                "Zeitraum",
+                ["Alle", "Heute", "Diese Woche", "Dieser Monat", "Dieses Jahr", "Benutzerdefiniert"]
+            )
+
+        with col3:
+            filter_status = st.selectbox(
+                "Status",
+                ["Alle", "Offen", "In Bearbeitung", "Abgeschlossen", "Archiviert"]
+            )
+
+        with col4:
+            filter_sicherheit = st.selectbox(
+                "Sicherheitsstufe",
+                ["Alle"] + [s.value for s in Sicherheitsstufe]
+            )
+
+        if filter_zeitraum == "Benutzerdefiniert":
+            col1, col2 = st.columns(2)
+            with col1:
+                datum_von = st.date_input("Von")
+            with col2:
+                datum_bis = st.date_input("Bis")
+
+    # Sortierung
+    sortierung = st.selectbox(
+        "Sortieren nach",
+        ["Relevanz", "Datum (neueste)", "Datum (älteste)", "Name (A-Z)", "Name (Z-A)"]
+    )
+
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        suchen_clicked = st.button("🔍 Suchen", type="primary")
+    with col2:
+        if suchbegriff:
+            speichern_clicked = st.button("💾 Suche speichern")
+            if speichern_clicked:
+                suche_id = str(uuid.uuid4())[:8]
+                name = st.text_input("Name für die Suche", value=suchbegriff[:30])
+                if name:
+                    neue_suche = GespeicherteSuche(
+                        suche_id=suche_id,
+                        user_id=user_id,
+                        name=name,
+                        suchbegriff=suchbegriff,
+                        filter_kriterien={
+                            "typ": filter_typ,
+                            "zeitraum": filter_zeitraum,
+                            "status": filter_status,
+                            "sicherheit": filter_sicherheit
+                        },
+                        sortierung=sortierung
+                    )
+                    st.session_state.gespeicherte_suchen[suche_id] = neue_suche
+                    st.success("Suche gespeichert!")
+
+    # Suchergebnisse
+    if suchen_clicked and suchbegriff:
+        st.markdown("---")
+        st.markdown("### Suchergebnisse")
+
+        ergebnisse = []
+
+        # In Akten suchen
+        if "Akten" in filter_typ:
+            for akte in st.session_state.importierte_akten.values():
+                if suchbegriff.lower() in akte.aktenzeichen.lower() or suchbegriff.lower() in akte.bezeichnung.lower():
+                    ergebnisse.append(("📁 Akte", akte.aktenzeichen, akte.bezeichnung, akte.importiert_am))
+
+        # In Nachrichten suchen
+        if "Nachrichten" in filter_typ:
+            for nachricht in st.session_state.nachrichten.values():
+                if user_id in nachricht.empfaenger_ids or nachricht.absender_id == user_id:
+                    if suchbegriff.lower() in nachricht.betreff.lower() or suchbegriff.lower() in nachricht.inhalt.lower():
+                        ergebnisse.append(("✉️ Nachricht", nachricht.betreff, nachricht.inhalt[:100], nachricht.erstellt_am))
+
+        # In Projekten suchen
+        if "Projekte" in filter_typ:
+            for projekt in st.session_state.projekte.values():
+                if suchbegriff.lower() in projekt.name.lower() or suchbegriff.lower() in projekt.beschreibung.lower():
+                    ergebnisse.append(("🏘️ Projekt", projekt.name, projekt.beschreibung, projekt.created_at))
+
+        if ergebnisse:
+            st.info(f"{len(ergebnisse)} Ergebnisse gefunden")
+            for typ, titel, beschreibung, datum in ergebnisse:
+                with st.expander(f"{typ} {titel}"):
+                    st.markdown(beschreibung)
+                    st.caption(f"Datum: {datum.strftime('%d.%m.%Y %H:%M') if datum else '-'}")
+        else:
+            st.warning("Keine Ergebnisse gefunden.")
+
+
+def render_audit_log(user_id: str, akte_id: str = None, projekt_id: str = None):
+    """Zeigt das Aktivitätsprotokoll an"""
+    st.subheader("📋 Aktivitätsprotokoll")
+
+    # Filter
+    log_eintraege = st.session_state.audit_log.copy()
+
+    if akte_id:
+        log_eintraege = [e for e in log_eintraege if e.akte_id == akte_id]
+    if projekt_id:
+        log_eintraege = [e for e in log_eintraege if e.projekt_id == projekt_id]
+
+    # Sortieren nach Datum (neueste zuerst)
+    log_eintraege.sort(key=lambda e: e.timestamp, reverse=True)
+
+    # Limitieren
+    max_eintraege = st.slider("Anzahl Einträge", 10, 100, 50)
+    log_eintraege = log_eintraege[:max_eintraege]
+
+    if log_eintraege:
+        st.markdown("| Datum/Zeit | Benutzer | Aktion | Objekt | Details |")
+        st.markdown("|------------|----------|--------|--------|---------|")
+
+        for eintrag in log_eintraege:
+            st.markdown(f"| {eintrag.timestamp.strftime('%d.%m.%Y %H:%M')} | {eintrag.user_name} | {eintrag.aktion} | {eintrag.objekt_typ}: {eintrag.objekt_name} | {eintrag.details[:50] if eintrag.details else '-'} |")
+    else:
+        st.info("Keine Aktivitäten protokolliert.")
 
 
 def main():
