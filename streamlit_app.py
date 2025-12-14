@@ -4497,6 +4497,54 @@ class DSGVOEinwilligung:
     einwilligungstext: str = ""
     version: str = "1.0"
 
+class DSGVODokumentTyp(Enum):
+    """Typen von DSGVO-Anforderungsdokumenten"""
+    AUSKUNFTSANFRAGE = "Auskunftsanfrage (Art. 15 DSGVO)"
+    LOESCHUNGSANFRAGE = "Löschungsanfrage (Art. 17 DSGVO)"
+    WIDERSPRUCH = "Widerspruch gegen Verarbeitung (Art. 21 DSGVO)"
+    BERICHTIGUNG = "Berichtigungsanfrage (Art. 16 DSGVO)"
+    EINSCHRAENKUNG = "Einschränkungsanfrage (Art. 18 DSGVO)"
+    DATENUEBERTRAGUNG = "Datenübertragung (Art. 20 DSGVO)"
+
+@dataclass
+class DSGVONachweisdokument:
+    """Hochgeladenes Nachweis-Dokument für DSGVO-Anfragen"""
+    dokument_id: str
+    anfrage_id: str  # Referenz zur LoeschAnfrage
+
+    # Dokument-Details
+    dokument_typ: str = DSGVODokumentTyp.LOESCHUNGSANFRAGE.value
+    dateiname: str = ""
+    dateityp: str = ""  # z.B. "application/pdf"
+    datei_data: bytes = None  # Base64-encoded Datei
+    dateigroesse: int = 0
+
+    # Metadaten
+    hochgeladen_von: str = ""
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+
+    # Absender des Schreibens
+    absender_name: str = ""  # Name des Löschberechtigten
+    absender_adresse: str = ""
+    schreiben_datum: datetime = None  # Datum des Schreibens
+    eingangsdatum: datetime = None  # Wann ist es eingegangen
+
+    # Identitätsprüfung
+    identitaet_geprueft: bool = False
+    identitaet_geprueft_von: str = ""
+    identitaet_geprueft_am: datetime = None
+    identitaet_nachweis: str = ""  # z.B. "Personalausweis", "Vollmacht"
+
+    # Akte-Zuordnung
+    akte_id: str = ""  # Zuordnung zur Akte/Projekt
+    akte_name: str = ""
+
+    # Verifizierung
+    ist_verifiziert: bool = False
+    verifiziert_von: str = ""
+    verifiziert_am: datetime = None
+    verifizierungs_kommentar: str = ""
+
 @dataclass
 class LoeschAnfrage:
     """Löschanfrage nach Art. 17 DSGVO (Recht auf Löschung)"""
@@ -4512,6 +4560,11 @@ class LoeschAnfrage:
     loeschgrund: str = ""  # z.B. "Widerruf", "Zweck erfüllt", "Unrechtmäßig"
     umfang: str = "alle"  # "alle" oder "spezifisch"
     spezifische_daten: List[str] = field(default_factory=list)  # Wenn umfang="spezifisch"
+
+    # PFLICHT: Nachweis-Dokument
+    nachweis_dokument_id: str = ""  # Referenz zum hochgeladenen Schreiben
+    nachweis_hochgeladen: bool = False
+    nachweis_verifiziert: bool = False
 
     # Status
     status: str = LoeschStatus.ANGEFRAGT.value
@@ -5748,6 +5801,7 @@ def init_session_state():
         st.session_state.dsgvo_auskuenfte = {}  # Auskunft-ID -> DSGVOAuskunft
         st.session_state.dsgvo_einwilligungen = {}  # Einwilligung-ID -> DSGVOEinwilligung
         st.session_state.daten_herkunft_log = []  # Liste von Datenerfassungs-Events
+        st.session_state.dsgvo_nachweisdokumente = {}  # Dokument-ID -> DSGVONachweisdokument
 
         # System-Antwortvorlagen initialisieren
         _initialisiere_system_antwortvorlagen()
@@ -31003,6 +31057,41 @@ def erstelle_loesch_anfrage(
     return anfrage_id
 
 
+def pruefe_nachweis_dokument(anfrage_id: str) -> Tuple[bool, str]:
+    """
+    Prüft ob ein gültiges Nachweis-Dokument für die Löschanfrage vorliegt.
+
+    Returns:
+        Tuple: (ist_gueltig, Fehlermeldung)
+    """
+    anfrage = st.session_state.loesch_anfragen.get(anfrage_id)
+    if not anfrage:
+        return False, "Löschanfrage nicht gefunden"
+
+    # Prüfe ob Nachweis hochgeladen wurde
+    if not anfrage.nachweis_hochgeladen or not anfrage.nachweis_dokument_id:
+        return False, "Kein Nachweis-Dokument hochgeladen. Bitte laden Sie das Auskunfts- oder Löschungsschreiben des Berechtigten hoch."
+
+    # Nachweis-Dokument laden
+    nachweis = st.session_state.dsgvo_nachweisdokumente.get(anfrage.nachweis_dokument_id)
+    if not nachweis:
+        return False, "Nachweis-Dokument nicht gefunden. Bitte laden Sie das Dokument erneut hoch."
+
+    # Prüfe ob Identität verifiziert wurde
+    if not nachweis.identitaet_geprueft:
+        return False, "Die Identität des Löschberechtigten wurde noch nicht geprüft. Bitte verifizieren Sie die Identität."
+
+    # Prüfe ob Dokument verifiziert wurde
+    if not nachweis.ist_verifiziert:
+        return False, "Das Nachweis-Dokument wurde noch nicht verifiziert. Bitte prüfen und verifizieren Sie das Dokument."
+
+    # Prüfe Akte-Zuordnung
+    if not nachweis.akte_id:
+        return False, "Das Nachweis-Dokument wurde keiner Akte zugeordnet. Bitte ordnen Sie das Dokument einer Akte zu."
+
+    return True, ""
+
+
 def fuehre_loeschung_durch(
     anfrage_id: str,
     bearbeiter_id: str,
@@ -31011,12 +31100,24 @@ def fuehre_loeschung_durch(
     """
     Führt die Löschung durch und erstellt ein Protokoll.
 
+    WICHTIG: Löschung nur möglich wenn:
+    - Nachweis-Dokument (Auskunfts-/Löschungsschreiben) hochgeladen
+    - Identität des Berechtigten geprüft
+    - Dokument verifiziert
+    - Dokument einer Akte zugeordnet
+
     Returns:
         Tuple: (Protokoll-ID, gelöschte Daten, nicht gelöschte Daten)
     """
     anfrage = st.session_state.loesch_anfragen.get(anfrage_id)
     if not anfrage:
         return None, [], []
+
+    # PFLICHT: Nachweis-Dokument prüfen
+    nachweis_ok, nachweis_fehler = pruefe_nachweis_dokument(anfrage_id)
+    if not nachweis_ok:
+        # Löschung nicht möglich ohne Nachweis
+        return None, [], [{'fehler': nachweis_fehler}]
 
     betroffener_id = anfrage.betroffener_id
     geloeschte_daten = []
@@ -31310,9 +31411,208 @@ def render_dsgvo_personenauskunft(admin_user_id: str, ist_notar: bool):
                 )
 
 
+def render_dsgvo_nachweis_upload(anfrage: LoeschAnfrage, admin_user_id: str):
+    """Rendert den Upload und die Verwaltung des Nachweis-Dokuments."""
+    st.markdown("##### 📄 Nachweis-Dokument (PFLICHT)")
+
+    st.warning("""
+    **Wichtig:** Eine Löschung nach DSGVO ist nur möglich, wenn ein entsprechendes
+    Auskunfts- oder Löschungsschreiben des Löschberechtigten hochgeladen und der Akte
+    zugeordnet wurde.
+    """)
+
+    # Prüfen ob bereits ein Nachweis vorhanden ist
+    nachweis = None
+    if anfrage.nachweis_dokument_id:
+        nachweis = st.session_state.dsgvo_nachweisdokumente.get(anfrage.nachweis_dokument_id)
+
+    if nachweis:
+        # Vorhandenes Dokument anzeigen
+        st.success(f"✅ Nachweis hochgeladen: {nachweis.dateiname}")
+
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            st.markdown(f"**Dokumenttyp:** {nachweis.dokument_typ}")
+            st.markdown(f"**Absender:** {nachweis.absender_name or 'Nicht angegeben'}")
+            if nachweis.schreiben_datum:
+                st.markdown(f"**Datum des Schreibens:** {nachweis.schreiben_datum.strftime('%d.%m.%Y')}")
+            st.markdown(f"**Hochgeladen am:** {nachweis.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+        with col_n2:
+            # Status-Anzeige
+            if nachweis.identitaet_geprueft:
+                st.success(f"✅ Identität geprüft ({nachweis.identitaet_nachweis})")
+            else:
+                st.error("❌ Identität nicht geprüft")
+
+            if nachweis.ist_verifiziert:
+                st.success("✅ Dokument verifiziert")
+            else:
+                st.error("❌ Dokument nicht verifiziert")
+
+            if nachweis.akte_id:
+                st.success(f"✅ Akte zugeordnet: {nachweis.akte_name}")
+            else:
+                st.error("❌ Keine Akte zugeordnet")
+
+        # Identitätsprüfung
+        if not nachweis.identitaet_geprueft:
+            st.markdown("---")
+            st.markdown("**🪪 Identitätsprüfung:**")
+            id_nachweis = st.selectbox(
+                "Identitätsnachweis",
+                options=["Personalausweis", "Reisepass", "Vollmacht mit Ausweis", "Notariell beglaubigt"],
+                key=f"id_nachweis_{anfrage.anfrage_id}"
+            )
+            if st.button("✅ Identität bestätigen", key=f"id_confirm_{anfrage.anfrage_id}"):
+                nachweis.identitaet_geprueft = True
+                nachweis.identitaet_geprueft_von = admin_user_id
+                nachweis.identitaet_geprueft_am = datetime.now()
+                nachweis.identitaet_nachweis = id_nachweis
+                st.success("✅ Identität bestätigt")
+                st.rerun()
+
+        # Dokument-Verifizierung
+        if nachweis.identitaet_geprueft and not nachweis.ist_verifiziert:
+            st.markdown("---")
+            st.markdown("**📋 Dokument-Verifizierung:**")
+            verif_kommentar = st.text_area(
+                "Verifizierungs-Kommentar",
+                placeholder="Optional: Anmerkungen zur Verifizierung...",
+                key=f"verif_komm_{anfrage.anfrage_id}"
+            )
+            if st.button("✅ Dokument verifizieren", key=f"verif_{anfrage.anfrage_id}"):
+                nachweis.ist_verifiziert = True
+                nachweis.verifiziert_von = admin_user_id
+                nachweis.verifiziert_am = datetime.now()
+                nachweis.verifizierungs_kommentar = verif_kommentar
+                anfrage.nachweis_verifiziert = True
+                st.success("✅ Dokument verifiziert")
+                st.rerun()
+
+        # Akte-Zuordnung
+        if nachweis.ist_verifiziert and not nachweis.akte_id:
+            st.markdown("---")
+            st.markdown("**📁 Akte-Zuordnung:**")
+
+            # Projekte als Akten anbieten
+            projekte_liste = []
+            betroffener_id = anfrage.betroffener_id
+            for p in st.session_state.projekte.values():
+                if betroffener_id in p.kaeufer_ids or betroffener_id in p.verkaeufer_ids:
+                    projekte_liste.append(p)
+
+            if projekte_liste:
+                projekt_optionen = {p.projekt_id: f"{p.name} ({p.status})" for p in projekte_liste}
+                selected_akte = st.selectbox(
+                    "Akte/Projekt auswählen",
+                    options=list(projekt_optionen.keys()),
+                    format_func=lambda x: projekt_optionen[x],
+                    key=f"akte_select_{anfrage.anfrage_id}"
+                )
+
+                if st.button("📁 Akte zuordnen", key=f"akte_assign_{anfrage.anfrage_id}"):
+                    nachweis.akte_id = selected_akte
+                    nachweis.akte_name = projekt_optionen[selected_akte]
+                    st.success(f"✅ Dokument der Akte '{projekt_optionen[selected_akte]}' zugeordnet")
+                    st.rerun()
+            else:
+                st.warning("Keine Projekte/Akten für diese Person gefunden.")
+
+        # Download des Dokuments
+        if nachweis.datei_data:
+            st.markdown("---")
+            st.download_button(
+                label=f"📥 {nachweis.dateiname} herunterladen",
+                data=nachweis.datei_data,
+                file_name=nachweis.dateiname,
+                mime=nachweis.dateityp,
+                key=f"dl_nachweis_{anfrage.anfrage_id}"
+            )
+
+    else:
+        # Dokument hochladen
+        st.markdown("**📤 Nachweis-Dokument hochladen:**")
+
+        dokument_typ = st.selectbox(
+            "Dokumenttyp",
+            options=[t.value for t in DSGVODokumentTyp],
+            key=f"dok_typ_{anfrage.anfrage_id}"
+        )
+
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            absender_name = st.text_input(
+                "Name des Absenders (Löschberechtigter)",
+                placeholder="Max Mustermann",
+                key=f"absender_{anfrage.anfrage_id}"
+            )
+        with col_u2:
+            schreiben_datum = st.date_input(
+                "Datum des Schreibens",
+                value=datetime.now().date(),
+                key=f"schreiben_dat_{anfrage.anfrage_id}"
+            )
+
+        absender_adresse = st.text_input(
+            "Adresse des Absenders",
+            placeholder="Musterstraße 1, 12345 Musterstadt",
+            key=f"absender_adr_{anfrage.anfrage_id}"
+        )
+
+        uploaded_file = st.file_uploader(
+            "Dokument auswählen (PDF, JPG, PNG)",
+            type=["pdf", "jpg", "jpeg", "png"],
+            key=f"upload_{anfrage.anfrage_id}"
+        )
+
+        if uploaded_file and absender_name:
+            if st.button("📤 Hochladen und speichern", key=f"save_upload_{anfrage.anfrage_id}", type="primary"):
+                # Neues Nachweis-Dokument erstellen
+                dokument_id = str(uuid.uuid4())
+                file_data = uploaded_file.read()
+
+                neues_nachweis = DSGVONachweisdokument(
+                    dokument_id=dokument_id,
+                    anfrage_id=anfrage.anfrage_id,
+                    dokument_typ=dokument_typ,
+                    dateiname=uploaded_file.name,
+                    dateityp=uploaded_file.type,
+                    datei_data=file_data,
+                    dateigroesse=len(file_data),
+                    hochgeladen_von=admin_user_id,
+                    hochgeladen_am=datetime.now(),
+                    absender_name=absender_name,
+                    absender_adresse=absender_adresse,
+                    schreiben_datum=datetime.combine(schreiben_datum, datetime.min.time()),
+                    eingangsdatum=datetime.now()
+                )
+
+                st.session_state.dsgvo_nachweisdokumente[dokument_id] = neues_nachweis
+
+                # Anfrage aktualisieren
+                anfrage.nachweis_dokument_id = dokument_id
+                anfrage.nachweis_hochgeladen = True
+
+                st.success(f"✅ Nachweis-Dokument '{uploaded_file.name}' hochgeladen")
+                st.rerun()
+        elif uploaded_file and not absender_name:
+            st.warning("Bitte geben Sie den Namen des Absenders an.")
+
+
 def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
     """Rendert die Verwaltung von Löschanfragen."""
     st.markdown("#### 🗑️ Löschanfragen bearbeiten")
+
+    st.info("""
+    **DSGVO-Löschprozess:**
+    1. Löschanfrage erstellen
+    2. Nachweis-Dokument (Auskunfts-/Löschungsschreiben) hochladen
+    3. Identität des Löschberechtigten prüfen
+    4. Dokument verifizieren
+    5. Dokument der Akte zuordnen
+    6. Löschung durchführen
+    """)
 
     # Neue Anfrage erstellen
     with st.expander("➕ Neue Löschanfrage erstellen", expanded=False):
@@ -31364,7 +31664,7 @@ def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
                     loeschgrund=loeschgrund,
                     kontakt_email=kontakt_email
                 )
-                st.success(f"✅ Löschanfrage {anfrage_id[:8]}... erstellt")
+                st.success(f"✅ Löschanfrage {anfrage_id[:8]}... erstellt. Bitte laden Sie nun das Nachweis-Dokument hoch.")
                 st.rerun()
 
     st.markdown("---")
@@ -31383,11 +31683,20 @@ def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
 
         tage_verbleibend = (anfrage.frist_bis - datetime.now()).days if anfrage.frist_bis else 0
 
+        # Status-Icons für Nachweis
+        nachweis_status = "❌" if not anfrage.nachweis_hochgeladen else ("✅" if anfrage.nachweis_verifiziert else "⏳")
+
         with st.expander(
             f"{'🔴' if tage_verbleibend < 7 else '🟡' if tage_verbleibend < 14 else '🟢'} "
-            f"Anfrage vom {anfrage.angefragt_am.strftime('%d.%m.%Y')} - {betroffener_name}",
+            f"Anfrage vom {anfrage.angefragt_am.strftime('%d.%m.%Y')} - {betroffener_name} "
+            f"[Nachweis: {nachweis_status}]",
             expanded=True
         ):
+            # Nachweis-Dokument Upload/Verwaltung
+            render_dsgvo_nachweis_upload(anfrage, admin_user_id)
+
+            st.markdown("---")
+
             col1, col2 = st.columns([2, 1])
 
             with col1:
@@ -31413,17 +31722,28 @@ def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
             with col2:
                 st.markdown("**Aktionen:**")
 
-                if st.button("✅ Löschung durchführen", key=f"loesch_{anfrage.anfrage_id}", type="primary"):
-                    protokoll_id, geloescht, nicht_geloescht = fuehre_loeschung_durch(
-                        anfrage.anfrage_id,
-                        admin_user_id
-                    )
+                # Prüfen ob Nachweis vollständig
+                nachweis_ok, nachweis_fehler = pruefe_nachweis_dokument(anfrage.anfrage_id)
 
-                    if protokoll_id:
-                        st.success(f"✅ Löschung durchgeführt!")
-                        st.info(f"Gelöscht: {len(geloescht)} | Nicht gelöscht: {len(nicht_geloescht)}")
-                        st.caption(f"Protokoll-ID: {protokoll_id[:8]}...")
-                        st.rerun()
+                if nachweis_ok:
+                    if st.button("✅ Löschung durchführen", key=f"loesch_{anfrage.anfrage_id}", type="primary"):
+                        protokoll_id, geloescht, nicht_geloescht = fuehre_loeschung_durch(
+                            anfrage.anfrage_id,
+                            admin_user_id
+                        )
+
+                        if protokoll_id:
+                            st.success(f"✅ Löschung durchgeführt!")
+                            st.info(f"Gelöscht: {len(geloescht)} | Nicht gelöscht: {len(nicht_geloescht)}")
+                            st.caption(f"Protokoll-ID: {protokoll_id[:8]}...")
+                            st.rerun()
+                        else:
+                            # Fehler bei Löschung
+                            if nicht_geloescht and 'fehler' in nicht_geloescht[0]:
+                                st.error(nicht_geloescht[0]['fehler'])
+                else:
+                    st.error("🚫 Löschung nicht möglich")
+                    st.caption(nachweis_fehler)
 
                 if st.button("📋 Nur prüfen", key=f"pruef_{anfrage.anfrage_id}"):
                     anfrage.status = LoeschStatus.IN_PRUEFUNG.value
