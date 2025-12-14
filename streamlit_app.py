@@ -3938,6 +3938,1004 @@ class NotarAktenzeichen:
     jahr: int
     letzte_nummer: int = 0  # Letzte vergebene Nummer in diesem Jahr
 
+# ===== KOMMUNIKATIONS-ERWEITERUNGEN =====
+
+class NachrichtenPrioritaet(Enum):
+    """Priorität einer Nachricht"""
+    NORMAL = "Normal"
+    HOCH = "Hoch"
+    DRINGEND = "Dringend"
+
+class NachrichtenKategorie(Enum):
+    """Kategorie einer Nachricht"""
+    ANFRAGE = "Anfrage"
+    INFORMATION = "Information"
+    DOKUMENT = "Dokument"
+    TERMIN = "Termin"
+    FREIGABE = "Freigabe"
+    ERINNERUNG = "Erinnerung"
+
+class Sicherheitsstufe(Enum):
+    """Sicherheitsstufe für Dokumente und Nachrichten"""
+    OEFFENTLICH = "Öffentlich"
+    INTERN = "Intern"
+    VERTRAULICH = "Vertraulich"
+    STRENG_VERTRAULICH = "Streng vertraulich"
+
+class MaklerBerechtigungTyp(Enum):
+    """Berechtigungen für Makler-Mitarbeiter"""
+    PROJEKTE_ANSEHEN = "Projekte ansehen"
+    PROJEKTE_ERSTELLEN = "Projekte erstellen"
+    PROJEKTE_BEARBEITEN = "Projekte bearbeiten"
+    PROJEKTE_LOESCHEN = "Projekte löschen"
+    NACHRICHTEN_SENDEN = "Nachrichten senden"
+    NACHRICHTEN_LESEN = "Alle Nachrichten lesen"
+    IM_NAMEN_KOMMUNIZIEREN = "Im Namen des Maklers kommunizieren"
+    DOKUMENTE_HOCHLADEN = "Dokumente hochladen"
+    DOKUMENTE_LOESCHEN = "Dokumente löschen"
+    EXPOSE_ERSTELLEN = "Exposés erstellen"
+    TEILNEHMER_EINLADEN = "Teilnehmer einladen"
+    TEILNEHMER_VERWALTEN = "Teilnehmer verwalten"
+    TERMINE_ERSTELLEN = "Termine erstellen"
+    TERMINE_BESTAETIGEN = "Termine bestätigen"
+    PREISE_SEHEN = "Preise sehen"
+    PREISE_VERHANDELN = "Preisverhandlungen führen"
+    MITARBEITER_VERWALTEN = "Mitarbeiter verwalten"
+    EINSTELLUNGEN_AENDERN = "Einstellungen ändern"
+
+class MaklerMitarbeiterRolle(Enum):
+    """Rollen für Makler-Mitarbeiter"""
+    MITARBEITER = "Mitarbeiter"
+    TEAMLEITER = "Teamleiter"
+    PARTNER = "Partner"
+
+# ============================================================================
+# BENACHRICHTIGUNGS-CENTER DATENSTRUKTUREN
+# ============================================================================
+
+class EingangTyp(Enum):
+    """Typen von Eingängen im Benachrichtigungs-Center"""
+    NACHRICHT = "Nachricht"
+    DOKUMENT = "Dokument"
+    TERMIN = "Termin"
+    FREIGABE = "Freigabe"
+    FRIST = "Frist"
+    ANFORDERUNG = "Anforderung"
+    SYSTEM = "System"
+
+class EingangStatus(Enum):
+    """Status von Eingängen"""
+    NEU = "Neu"
+    GELESEN = "Gelesen"
+    BEARBEITET = "Bearbeitet"
+    ERLEDIGT = "Erledigt"
+    ARCHIVIERT = "Archiviert"
+
+class FristTyp(Enum):
+    """Typen von Fristen"""
+    WIDERRUFSFRIST = "Widerrufsfrist"
+    ZAHLUNGSFRIST = "Zahlungsfrist"
+    GRUNDBUCHEINTRAGUNG = "Grundbucheintragung"
+    DOKUMENTENEINREICHUNG = "Dokumenteneinreichung"
+    BEURKUNDUNGSTERMIN = "Beurkundungstermin"
+    FINANZIERUNGSZUSAGE = "Finanzierungszusage"
+    KAUFPREISZAHLUNG = "Kaufpreiszahlung"
+    UEBERGABE = "Übergabe"
+    CUSTOM = "Benutzerdefiniert"
+
+class GatingStatus(Enum):
+    """Status für Finanzierungs- und Legal-Gating"""
+    OFFEN = "Offen"
+    IN_PRUEFUNG = "In Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    ABGELEHNT = "Abgelehnt"
+    WARTET = "Wartet auf Vorgänger"
+
+class DokumentVersion(Enum):
+    """Status einer Dokumentenversion"""
+    ENTWURF = "Entwurf"
+    ZUR_PRUEFUNG = "Zur Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    SIGNIERT = "Signiert"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class Eingang:
+    """Ein Eingang im Benachrichtigungs-Center"""
+    eingang_id: str
+    empfaenger_id: str
+    typ: str  # EingangTyp
+    titel: str
+
+    # Optionale Felder mit Defaults
+    beschreibung: str = ""
+    absender_id: str = ""
+    projekt_id: str = ""
+    akte_id: str = ""
+    referenz_id: str = ""  # ID des verlinkten Objekts
+    referenz_typ: str = ""  # Typ des verlinkten Objekts
+    status: str = EingangStatus.NEU.value
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    gelesen_am: datetime = None
+    bearbeitet_am: datetime = None
+    faellig_am: datetime = None
+    antwort_vorlage_id: str = ""
+    metadata: Dict = field(default_factory=dict)
+
+@dataclass
+class AntwortVorlage:
+    """Vorlage für Schnellantworten"""
+    vorlage_id: str
+    name: str
+    kategorie: str  # z.B. "Bestätigung", "Ablehnung", "Nachfrage"
+
+    betreff_template: str = ""
+    text_template: str = ""
+    platzhalter: List[str] = field(default_factory=list)
+    fuer_typen: List[str] = field(default_factory=list)  # EingangTyp
+    ist_system: bool = False
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class Frist:
+    """Eine Frist im System"""
+    frist_id: str
+    projekt_id: str
+    typ: str  # FristTyp
+    bezeichnung: str
+
+    faellig_am: datetime = None
+    erinnerung_tage: int = 3  # Tage vor Fälligkeit erinnern
+    verantwortlich_id: str = ""
+    status: str = "offen"  # offen, erledigt, ueberfaellig
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erledigt_am: datetime = None
+    automatisch_berechnet: bool = False
+    basis_datum: datetime = None  # Datum von dem aus berechnet wird
+    tage_offset: int = 0  # Tage nach Basisdatum
+
+@dataclass
+class GatingPruefung:
+    """Prüfung im Gating-Prozess"""
+    pruefung_id: str
+    projekt_id: str
+    user_id: str  # Wer muss prüfen/bestätigen
+    typ: str  # "legal", "finanzierung", "dokument"
+    bezeichnung: str
+
+    status: str = GatingStatus.OFFEN.value
+    reihenfolge: int = 0  # Für sequenzielle Prüfungen
+    vorgaenger_ids: List[str] = field(default_factory=list)
+    erforderlich: bool = True
+    geprueft_von: str = ""
+    geprueft_am: datetime = None
+    kommentar: str = ""
+    dokument_ids: List[str] = field(default_factory=list)
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+# ============================================================================
+# VERTRAGSVERSIONEN & VERGLEICH
+# ============================================================================
+
+class AenderungsTyp(Enum):
+    """Typen von Textänderungen"""
+    HINZUGEFUEGT = "Hinzugefügt"
+    GELOESCHT = "Gelöscht"
+    GEAENDERT = "Geändert"
+    UNVERAENDERT = "Unverändert"
+
+@dataclass
+class TextAenderung:
+    """Einzelne Textänderung mit Metadaten"""
+    aenderung_id: str
+    version_id: str
+    typ: str  # AenderungsTyp
+    position_start: int = 0
+    position_ende: int = 0
+    alter_text: str = ""
+    neuer_text: str = ""
+    geaendert_von: str = ""
+    geaendert_am: datetime = field(default_factory=datetime.now)
+    grund: str = ""  # Begründung für die Änderung
+    referenz_dokument_id: str = ""  # Verweis auf Anfrage-Dokument
+    referenz_dokument_typ: str = ""  # z.B. "Käuferanfrage", "Verkäuferanfrage"
+    referenz_sichtbar: bool = False  # Notar-Freigabe für Referenzanzeige
+
+@dataclass
+class VertragsVersion:
+    """Version eines Vertragstextes für Vergleich"""
+    version_id: str
+    vertrag_id: str  # Projekt-ID oder Vertrag-ID
+    version_nummer: int
+
+    titel: str = ""
+    text_inhalt: str = ""  # Der vollständige Vertragstext
+    status: str = DokumentVersion.ENTWURF.value
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aenderungen: List[str] = field(default_factory=list)  # Liste von TextAenderung-IDs
+    aenderungsbeschreibung: str = ""
+    freigegeben_von: str = ""
+    freigegeben_am: datetime = None
+    referenz_freigabe_durch_notar: bool = False  # Notar erlaubt Anzeige von Referenz-Dokumenten
+    basiert_auf_version: str = ""  # Vorgänger-Version-ID
+
+@dataclass
+class DokumentVersionierung:
+    """Versionierte Dokumentenverwaltung"""
+    version_id: str
+    dokument_id: str
+    version_nummer: int
+
+    dateiname: str = ""
+    datei_data: bytes = None
+    dateityp: str = ""
+    dateigroesse: int = 0
+    status: str = DokumentVersion.ENTWURF.value
+    aenderungen: str = ""  # Beschreibung der Änderungen
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    freigegeben_von: str = ""
+    freigegeben_am: datetime = None
+    signatur_data: bytes = None
+    signiert_von: str = ""
+    signiert_am: datetime = None
+    wasserzeichen: bool = True  # Bei Entwürfen
+
+# ============================================================================
+# PAPIERKORB-SYSTEM
+# ============================================================================
+
+class PapierkorbObjektTyp(Enum):
+    """Typen von Objekten im Papierkorb"""
+    DOKUMENT = "Dokument"
+    NACHRICHT = "Nachricht"
+    AKTE = "Akte"
+    PROJEKT = "Projekt"
+    TEXTBAUSTEIN = "Textbaustein"
+    VORLAGE = "Vorlage"
+    NOTIZ = "Notiz"
+    TERMIN = "Termin"
+
+@dataclass
+class PapierkorbElement:
+    """Ein Element im Papierkorb"""
+    papierkorb_id: str
+    objekt_id: str  # Original-ID des gelöschten Objekts
+    objekt_typ: str  # PapierkorbObjektTyp
+    objekt_daten: Dict = field(default_factory=dict)  # Serialisierte Objektdaten
+
+    # Metadaten
+    original_name: str = ""
+    geloescht_von: str = ""
+    geloescht_am: datetime = field(default_factory=datetime.now)
+    loeschgrund: str = ""
+
+    # Automatisches Löschen
+    endgueltig_loeschen_am: datetime = None  # Berechnetes Datum für endgültiges Löschen
+    aufbewahrungsstunden: int = 48  # Standard: 48 Stunden
+
+    # Reaktivierung
+    reaktiviert: bool = False
+    reaktiviert_von: str = ""
+    reaktiviert_am: datetime = None
+
+    # Zusätzliche Infos
+    urspruenglicher_pfad: str = ""  # z.B. Projekt-ID oder Akte-ID
+    dateigroesse: int = 0
+    preview_verfuegbar: bool = False
+
+@dataclass
+class PapierkorbEinstellungen:
+    """Benutzer- oder systemweite Papierkorb-Einstellungen"""
+    einstellung_id: str
+    user_id: str  # Leer für Systemeinstellungen
+
+    # Aufbewahrungszeit
+    standard_aufbewahrungsstunden: int = 48  # Standard: 48 Stunden
+    min_aufbewahrungsstunden: int = 1  # Minimum: 1 Stunde
+    max_aufbewahrungsstunden: int = 720  # Maximum: 30 Tage
+
+    # Automatisches Löschen
+    auto_loeschen_aktiv: bool = True
+    benachrichtigung_vor_loeschen: bool = True
+    benachrichtigung_stunden_vorher: int = 24  # 24 Stunden vor endgültigem Löschen
+
+    # Kapazität
+    max_elemente: int = 100
+    max_speicher_mb: float = 500.0
+
+    # Berechtigungen
+    reaktivierung_erlaubt: bool = True
+    sofort_loeschen_erlaubt: bool = True  # Für Admins/Notare
+
+    # Logging
+    loeschung_protokollieren: bool = True
+
+# ============================================================================
+# TEXT-TO-SPEECH (VORLESEN)
+# ============================================================================
+
+class TTSGeschwindigkeit(Enum):
+    """Voreingestellte TTS-Geschwindigkeiten"""
+    SEHR_LANGSAM = 0.5
+    LANGSAM = 0.75
+    NORMAL = 1.0
+    SCHNELL = 1.25
+    SEHR_SCHNELL = 1.5
+    DOPPELT = 2.0
+
+class TTSStimme(Enum):
+    """Verfügbare TTS-Stimmen (Browser-abhängig)"""
+    STANDARD = "default"
+    MAENNLICH = "male"
+    WEIBLICH = "female"
+    DEUTSCH_DE = "de-DE"
+    DEUTSCH_AT = "de-AT"
+    DEUTSCH_CH = "de-CH"
+
+@dataclass
+class TTSEinstellungen:
+    """Text-to-Speech Einstellungen pro Benutzer"""
+    einstellung_id: str
+    user_id: str
+
+    # Geschwindigkeit (0.25 bis 2.0 in 0.25er Schritten)
+    geschwindigkeit: float = 1.0
+    min_geschwindigkeit: float = 0.25
+    max_geschwindigkeit: float = 2.0
+    geschwindigkeit_schritt: float = 0.25
+
+    # Stimme
+    stimme: str = TTSStimme.DEUTSCH_DE.value
+    lautstaerke: float = 1.0  # 0.0 bis 1.0
+    tonhoehe: float = 1.0  # 0.5 bis 2.0
+
+    # Verhalten
+    auto_scroll: bool = True  # Beim Vorlesen automatisch scrollen
+    hervorheben_bei_vorlesen: bool = True  # Gelesenen Text hervorheben
+    pause_zwischen_absaetzen: float = 0.5  # Sekunden Pause
+
+    # Tastenkürzel
+    tastenkuerzel_start_stop: str = "Space"
+    tastenkuerzel_schneller: str = "ArrowUp"
+    tastenkuerzel_langsamer: str = "ArrowDown"
+
+@dataclass
+class VorleseSession:
+    """Aktive Vorlese-Session"""
+    session_id: str
+    user_id: str
+    dokument_id: str
+    dokument_typ: str
+
+    # Status
+    aktiv: bool = False
+    pausiert: bool = False
+    position: int = 0  # Aktuelle Position im Text
+    gesamtlaenge: int = 0
+
+    # Zeitstempel
+    gestartet_am: datetime = field(default_factory=datetime.now)
+    pausiert_am: datetime = None
+    beendet_am: datetime = None
+
+    # Einstellungen für diese Session
+    geschwindigkeit: float = 1.0
+    stimme: str = TTSStimme.DEUTSCH_DE.value
+
+# ============================================================================
+# DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG
+# ============================================================================
+
+class DatenKategorie(Enum):
+    """Kategorien personenbezogener Daten nach DSGVO"""
+    STAMMDATEN = "Stammdaten"  # Name, Geburtsdatum, etc.
+    KONTAKTDATEN = "Kontaktdaten"  # E-Mail, Telefon, Adresse
+    FINANZDATEN = "Finanzdaten"  # Bankverbindung, Gehalt, Schulden
+    AUSWEISDATEN = "Ausweisdaten"  # Personalausweis, Reisepass
+    GESUNDHEITSDATEN = "Gesundheitsdaten"  # Besondere Kategorie
+    KOMMUNIKATION = "Kommunikation"  # Nachrichten, E-Mails
+    DOKUMENTE = "Dokumente"  # Hochgeladene Dateien
+    NUTZUNGSDATEN = "Nutzungsdaten"  # Login-Zeiten, Aktivitäten
+    VERTRAGSDATEN = "Vertragsdaten"  # Vertragsinhalte
+    TRANSAKTIONSDATEN = "Transaktionsdaten"  # Zahlungen, Überweisungen
+
+class LoeschHindernis(Enum):
+    """Gründe die eine Löschung verhindern können"""
+    GESETZLICHE_AUFBEWAHRUNG = "Gesetzliche Aufbewahrungspflicht"
+    STEUERRECHT = "Steuerrechtliche Aufbewahrungspflicht (10 Jahre)"
+    HANDELSRECHT = "Handelsrechtliche Aufbewahrungspflicht (6 Jahre)"
+    LAUFENDER_VERTRAG = "Laufender Vertrag"
+    OFFENE_FORDERUNG = "Offene Forderung"
+    RECHTSTREIT = "Laufender Rechtsstreit"
+    BEWEISSICHERUNG = "Beweissicherungspflicht"
+    NOTARIELLE_PFLICHT = "Notarielle Aufbewahrungspflicht"
+    GRUNDBUCH = "Grundbuchrelevante Daten"
+    GELDWAESCHE = "Geldwäschegesetz (5 Jahre)"
+
+class DatenHerkunft(Enum):
+    """Herkunft der personenbezogenen Daten"""
+    BETROFFENER_SELBST = "Vom Betroffenen selbst eingegeben"
+    NOTAR = "Vom Notar erfasst"
+    MAKLER = "Vom Makler erfasst"
+    FINANZIERER = "Vom Finanzierer erfasst"
+    BEHOERDE = "Von Behörde übermittelt"
+    DRITTPARTEI = "Von Drittpartei übermittelt"
+    AUTOMATISCH = "Automatisch generiert"
+    OCR = "Durch OCR-Erkennung erfasst"
+
+class LoeschStatus(Enum):
+    """Status einer Löschanfrage"""
+    ANGEFRAGT = "Löschung angefragt"
+    IN_PRUEFUNG = "In Prüfung"
+    TEILWEISE_GELOESCHT = "Teilweise gelöscht"
+    VOLLSTAENDIG_GELOESCHT = "Vollständig gelöscht"
+    ABGELEHNT = "Löschung abgelehnt"
+    GESPERRT = "Daten gesperrt (statt Löschung)"
+
+@dataclass
+class PersonenbezogeneDaten:
+    """Tracking personenbezogener Daten für DSGVO-Compliance"""
+    daten_id: str
+    betroffener_id: str  # User-ID der betroffenen Person
+    kategorie: str  # DatenKategorie
+
+    # Beschreibung der Daten
+    beschreibung: str = ""
+    datenfelder: List[str] = field(default_factory=list)  # z.B. ["name", "email", "telefon"]
+
+    # Herkunft und Verantwortung
+    herkunft: str = DatenHerkunft.BETROFFENER_SELBST.value
+    erfasst_von_id: str = ""  # User-ID des Erfassers
+    erfasst_am: datetime = field(default_factory=datetime.now)
+
+    # Rechtsgrundlage
+    rechtsgrundlage: str = ""  # z.B. "Einwilligung", "Vertragserfüllung", "Gesetzliche Pflicht"
+    einwilligung_erteilt: bool = False
+    einwilligung_am: datetime = None
+
+    # Speicherort
+    speicherort: str = ""  # z.B. "users", "dokumente", "nachrichten"
+    referenz_id: str = ""  # ID des zugehörigen Objekts
+
+    # Aufbewahrung
+    aufbewahrungsfrist_jahre: int = 0  # 0 = unbegrenzt bis Widerruf
+    loeschung_geplant_am: datetime = None
+
+    # Status
+    ist_geloescht: bool = False
+    geloescht_am: datetime = None
+    geloescht_von: str = ""
+
+@dataclass
+class LoeschProtokoll:
+    """Protokoll über Datenlöschungen nach DSGVO"""
+    protokoll_id: str
+    anfrage_id: str  # Referenz zur Löschanfrage
+    betroffener_id: str
+
+    # Anfrage-Details
+    angefragt_von: str = ""  # Wer hat die Löschung angefragt
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    grund_anfrage: str = ""  # z.B. "Widerruf der Einwilligung", "Auskunftsersuchen"
+
+    # Durchführung
+    bearbeitet_von: str = ""  # User-ID des Bearbeiters
+    bearbeitet_am: datetime = None
+    status: str = LoeschStatus.ANGEFRAGT.value
+
+    # Gelöschte Daten
+    geloeschte_daten: List[Dict] = field(default_factory=list)
+    # Format: [{"kategorie": "...", "beschreibung": "...", "geloescht_am": "..."}]
+
+    # Nicht gelöschte Daten mit Begründung
+    nicht_geloeschte_daten: List[Dict] = field(default_factory=list)
+    # Format: [{"kategorie": "...", "beschreibung": "...", "hindernis": "...", "begruendung": "...", "aufbewahrung_bis": "..."}]
+
+    # Protokoll-Text
+    protokoll_text: str = ""
+    hinweise: str = ""
+
+    # Signatur/Bestätigung
+    bestaetigt: bool = False
+    bestaetigt_von: str = ""
+    bestaetigt_am: datetime = None
+
+    # PDF-Export
+    pdf_erstellt: bool = False
+    pdf_erstellt_am: datetime = None
+
+@dataclass
+class DSGVOAuskunft:
+    """Auskunftsersuchen nach Art. 15 DSGVO"""
+    auskunft_id: str
+    betroffener_id: str
+
+    # Anfrage
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    angefragt_ueber: str = ""  # z.B. "E-Mail", "Portal", "Brief"
+
+    # Bearbeitung
+    bearbeitet_von: str = ""
+    bearbeitet_am: datetime = None
+    frist_bis: datetime = None  # 30 Tage nach Anfrage
+
+    # Ergebnis
+    daten_kategorien: List[str] = field(default_factory=list)
+    daten_export: Dict = field(default_factory=dict)  # Exportierte Daten
+
+    # Status
+    status: str = "angefragt"  # angefragt, in_bearbeitung, erledigt
+    export_erstellt: bool = False
+    export_zugestellt: bool = False
+    zugestellt_am: datetime = None
+
+@dataclass
+class DSGVOEinwilligung:
+    """Einwilligung zur Datenverarbeitung"""
+    einwilligung_id: str
+    betroffener_id: str
+
+    # Einwilligung
+    zweck: str = ""  # Wofür wird eingewilligt
+    kategorien: List[str] = field(default_factory=list)  # Welche Datenkategorien
+
+    # Erteilung
+    erteilt_am: datetime = field(default_factory=datetime.now)
+    erteilt_ueber: str = ""  # z.B. "Portal-Checkbox", "Unterschrift"
+
+    # Widerruf
+    widerrufen: bool = False
+    widerrufen_am: datetime = None
+    widerrufen_grund: str = ""
+
+    # Text der Einwilligung
+    einwilligungstext: str = ""
+    version: str = "1.0"
+
+class DSGVODokumentTyp(Enum):
+    """Typen von DSGVO-Anforderungsdokumenten"""
+    AUSKUNFTSANFRAGE = "Auskunftsanfrage (Art. 15 DSGVO)"
+    LOESCHUNGSANFRAGE = "Löschungsanfrage (Art. 17 DSGVO)"
+    WIDERSPRUCH = "Widerspruch gegen Verarbeitung (Art. 21 DSGVO)"
+    BERICHTIGUNG = "Berichtigungsanfrage (Art. 16 DSGVO)"
+    EINSCHRAENKUNG = "Einschränkungsanfrage (Art. 18 DSGVO)"
+    DATENUEBERTRAGUNG = "Datenübertragung (Art. 20 DSGVO)"
+
+@dataclass
+class DSGVONachweisdokument:
+    """Hochgeladenes Nachweis-Dokument für DSGVO-Anfragen"""
+    dokument_id: str
+    anfrage_id: str  # Referenz zur LoeschAnfrage
+
+    # Dokument-Details
+    dokument_typ: str = DSGVODokumentTyp.LOESCHUNGSANFRAGE.value
+    dateiname: str = ""
+    dateityp: str = ""  # z.B. "application/pdf"
+    datei_data: bytes = None  # Base64-encoded Datei
+    dateigroesse: int = 0
+
+    # Metadaten
+    hochgeladen_von: str = ""
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+
+    # Absender des Schreibens
+    absender_name: str = ""  # Name des Löschberechtigten
+    absender_adresse: str = ""
+    schreiben_datum: datetime = None  # Datum des Schreibens
+    eingangsdatum: datetime = None  # Wann ist es eingegangen
+
+    # Identitätsprüfung
+    identitaet_geprueft: bool = False
+    identitaet_geprueft_von: str = ""
+    identitaet_geprueft_am: datetime = None
+    identitaet_nachweis: str = ""  # z.B. "Personalausweis", "Vollmacht"
+
+    # Akte-Zuordnung
+    akte_id: str = ""  # Zuordnung zur Akte/Projekt
+    akte_name: str = ""
+
+    # Verifizierung
+    ist_verifiziert: bool = False
+    verifiziert_von: str = ""
+    verifiziert_am: datetime = None
+    verifizierungs_kommentar: str = ""
+
+@dataclass
+class LoeschAnfrage:
+    """Löschanfrage nach Art. 17 DSGVO (Recht auf Löschung)"""
+    anfrage_id: str
+    betroffener_id: str
+
+    # Anfrage-Details
+    angefragt_von: str = ""  # User-ID oder "betroffener"
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    kontakt_email: str = ""
+
+    # Begründung
+    loeschgrund: str = ""  # z.B. "Widerruf", "Zweck erfüllt", "Unrechtmäßig"
+    umfang: str = "alle"  # "alle" oder "spezifisch"
+    spezifische_daten: List[str] = field(default_factory=list)  # Wenn umfang="spezifisch"
+
+    # PFLICHT: Nachweis-Dokument
+    nachweis_dokument_id: str = ""  # Referenz zum hochgeladenen Schreiben
+    nachweis_hochgeladen: bool = False
+    nachweis_verifiziert: bool = False
+
+    # Status
+    status: str = LoeschStatus.ANGEFRAGT.value
+    frist_bis: datetime = None  # 30 Tage nach Anfrage
+
+    # Bearbeitung
+    bearbeiter_id: str = ""
+    bearbeitet_am: datetime = None
+
+    # Ergebnis
+    protokoll_id: str = ""  # Referenz zum Löschprotokoll
+    abschluss_kommentar: str = ""
+
+# ============================================================================
+# REPORTING & KPI DATENSTRUKTUREN
+# ============================================================================
+
+@dataclass
+class KPISnapshot:
+    """Snapshot von KPIs für Reporting"""
+    snapshot_id: str
+    user_id: str
+    datum: datetime
+
+    # Projekt-KPIs
+    projekte_gesamt: int = 0
+    projekte_aktiv: int = 0
+    projekte_abgeschlossen: int = 0
+    durchschnittliche_dauer_tage: float = 0.0
+
+    # Umsatz-KPIs (für Makler)
+    umsatz_monat: float = 0.0
+    umsatz_quartal: float = 0.0
+    umsatz_jahr: float = 0.0
+    provision_offen: float = 0.0
+
+    # Aktivitäts-KPIs
+    dokumente_hochgeladen: int = 0
+    nachrichten_gesendet: int = 0
+    termine_durchgefuehrt: int = 0
+
+    # Qualitäts-KPIs
+    durchschnittliche_reaktionszeit_std: float = 0.0
+    kundenzufriedenheit: float = 0.0
+
+    metadata: Dict = field(default_factory=dict)
+
+@dataclass
+class BerichtKonfiguration:
+    """Konfiguration für automatische Berichte"""
+    bericht_id: str
+    user_id: str
+    name: str
+
+    typ: str = "standard"  # standard, custom
+    intervall: str = "monatlich"  # taeglich, woechentlich, monatlich
+    empfaenger_emails: List[str] = field(default_factory=list)
+    format: str = "pdf"  # pdf, excel, html
+    sektionen: List[str] = field(default_factory=list)
+    filter_kriterien: Dict = field(default_factory=dict)
+    aktiv: bool = True
+    letzter_versand: datetime = None
+    naechster_versand: datetime = None
+
+
+@dataclass
+class Briefkopf:
+    """Briefkopf für Dokumente und Korrespondenz"""
+    briefkopf_id: str
+    inhaber_id: str  # User oder Firma-ID
+    inhaber_typ: str  # "user", "firma", "kanzlei", "maklerbüro"
+
+    # Logo
+    logo_data: bytes = None
+    logo_position: str = "links"  # links, rechts, zentriert
+    logo_groesse: int = 100  # Pixel Höhe
+
+    # Kopfdaten
+    firmenname: str = ""
+    zusatz: str = ""  # z.B. "Notariat", "Immobilienmakler"
+    inhaber_name: str = ""
+
+    # Adresse
+    strasse: str = ""
+    hausnummer: str = ""
+    plz: str = ""
+    ort: str = ""
+    land: str = "Deutschland"
+
+    # Kontakt
+    telefon: str = ""
+    fax: str = ""
+    email: str = ""
+    website: str = ""
+
+    # Rechtliches
+    steuernummer: str = ""
+    ust_id: str = ""
+    handelsregister: str = ""
+
+    # Bankverbindung
+    bank_name: str = ""
+    iban: str = ""
+    bic: str = ""
+
+    # Design
+    schriftart: str = "Arial"
+    primaerfarbe: str = "#000000"
+    sekundaerfarbe: str = "#666666"
+
+    # Fußzeile
+    fusszeile_text: str = ""
+    fusszeile_zeile2: str = ""
+
+    ist_aktiv: bool = True
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class EmailSignatur:
+    """E-Mail-Signatur für Benutzer"""
+    signatur_id: str
+    user_id: str
+    name: str  # z.B. "Standard", "Formal", "Kurz"
+
+    # Inhalt
+    text_signatur: str = ""  # Plaintext-Version
+    html_signatur: str = ""  # HTML-Version mit Formatierung
+
+    # Optionen
+    bild_einbetten: bool = True
+    visitenkarte_anhaengen: bool = False
+
+    # Verwendung
+    ist_standard: bool = False
+    fuer_neue_nachrichten: bool = True
+    fuer_antworten: bool = True
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class MaklerMitarbeiter:
+    """Mitarbeiter eines Maklerbüros"""
+    mitarbeiter_id: str
+    makler_id: str  # Büro-Inhaber (User-ID)
+
+    # Persönliche Daten
+    name: str
+    vorname: str = ""
+    email: str = ""
+    telefon: str = ""
+    password_hash: str = ""
+
+    # Rolle und Berechtigungen
+    rolle: str = MaklerMitarbeiterRolle.MITARBEITER.value
+    berechtigungen: List[str] = field(default_factory=list)
+
+    # Projektzuordnung
+    projekt_ids: List[str] = field(default_factory=list)
+    kann_alle_projekte_sehen: bool = False
+
+    # Status
+    ist_aktiv: bool = True
+    eingestellt_am: datetime = field(default_factory=datetime.now)
+
+    # Kommunikation
+    kann_im_namen_kommunizieren: bool = False
+    eigene_signatur: bool = True
+    signatur_id: str = ""
+
+    # Kürzel für Aktenzeichen
+    kuerzel: str = ""
+
+@dataclass
+class KommunikationsAnlage:
+    """Anlage einer Nachricht"""
+    anlage_id: str
+    nachricht_id: str
+    projekt_id: str = ""
+
+    # Datei-Informationen
+    dateiname: str = ""
+    dateityp: str = ""  # PDF, DOCX, JPG, etc.
+    dateigroesse: int = 0
+    datei_data: bytes = None
+
+    # Metadaten
+    hochgeladen_von: str = ""
+    hochgeladen_am: datetime = field(default_factory=datetime.now)
+    beschreibung: str = ""
+
+    # Sicherheit
+    sicherheitsstufe: str = Sicherheitsstufe.INTERN.value
+    ist_vertraulich: bool = False
+
+    # Ordner-Zuordnung
+    ordner_pfad: str = ""  # z.B. "/Kaufvertrag/Entwürfe"
+    akte_id: str = ""  # Verknüpfung zur Akte
+
+@dataclass
+class KommunikationsNachricht:
+    """Eine Nachricht im Kommunikationssystem"""
+    nachricht_id: str
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Absender/Empfänger
+    absender_id: str = ""
+    absender_typ: str = "user"  # "user", "mitarbeiter"
+    empfaenger_ids: List[str] = field(default_factory=list)
+    cc_ids: List[str] = field(default_factory=list)
+
+    # Inhalt
+    betreff: str = ""
+    inhalt: str = ""  # Kann HTML/Markdown enthalten
+    inhalt_plaintext: str = ""
+
+    # Klassifizierung
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value
+    kategorie: str = NachrichtenKategorie.INFORMATION.value
+    sicherheitsstufe: str = Sicherheitsstufe.INTERN.value
+
+    # Anlagen
+    anlage_ids: List[str] = field(default_factory=list)
+
+    # Status
+    gelesen_von: List[str] = field(default_factory=list)
+    ist_entwurf: bool = False
+    ist_archiviert: bool = False
+    ist_geloescht: bool = False
+
+    # Verknüpfungen
+    antwort_auf_id: str = ""  # Falls Antwort auf eine Nachricht
+    aktenzeichen: str = ""
+
+    # Zeitstempel
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    gesendet_am: datetime = None
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class AktenOrdner:
+    """Ordner innerhalb einer Akte"""
+    ordner_id: str
+    akte_id: str
+    name: str
+    pfad: str  # z.B. "/01_Stammdaten" oder "/05_Korrespondenz/Eingehend"
+
+    # Hierarchie
+    parent_ordner_id: str = ""
+    reihenfolge: int = 0
+
+    # Metadaten
+    beschreibung: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+
+    # Automatische Zuordnung
+    auto_zuordnung_typen: List[str] = field(default_factory=list)  # Dokumenttypen die automatisch hier landen
+
+@dataclass
+class GespeicherteSuche:
+    """Gespeicherte Suchanfrage"""
+    suche_id: str
+    user_id: str
+    name: str  # z.B. "Offene Kaufverträge 2025"
+
+    # Suchkriterien
+    suchbegriff: str = ""
+    filter_kriterien: Dict = field(default_factory=dict)
+    sortierung: str = "datum_desc"
+
+    # Einstellungen
+    ist_standard: bool = False
+    in_schnellzugriff: bool = False
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_verwendet: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class AuditLogEintrag:
+    """Eintrag im Aktivitätsprotokoll"""
+    log_id: str
+    timestamp: datetime
+
+    # Wer
+    user_id: str
+    user_name: str = ""
+    user_rolle: str = ""
+
+    # Was
+    aktion: str = ""  # "angesehen", "bearbeitet", "heruntergeladen", "gesendet"
+    objekt_typ: str = ""  # "dokument", "nachricht", "akte", "projekt"
+    objekt_id: str = ""
+    objekt_name: str = ""
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Details
+    details: str = ""
+    ip_adresse: str = ""
+
+# Standard-Ordnerstruktur für Akten
+AKTEN_ORDNER_TEMPLATES = {
+    "Kaufvertrag": [
+        ("01_Stammdaten", "Personalausweise, HR-Auszüge, Vollmachten"),
+        ("01_Stammdaten/Personalausweise", ""),
+        ("01_Stammdaten/Handelsregisterauszuege", ""),
+        ("01_Stammdaten/Vollmachten", ""),
+        ("02_Kaufgegenstand", "Grundbuch, Flurkarte, Baulastenverzeichnis"),
+        ("02_Kaufgegenstand/Grundbuch", ""),
+        ("02_Kaufgegenstand/Flurkarten", ""),
+        ("02_Kaufgegenstand/Baulasten", ""),
+        ("03_Finanzierung", "Finanzierungsbestätigung, Grundschuld"),
+        ("04_Vertragsentwuerfe", "Alle Versionen des Kaufvertrags"),
+        ("05_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("05_Korrespondenz/Eingehend", ""),
+        ("05_Korrespondenz/Ausgehend", ""),
+        ("06_Beurkundung", "Protokoll, unterschriebene Dokumente"),
+        ("07_Vollzug", "Grundbuchanmeldung, Finanzamtsmeldung"),
+        ("08_Abrechnung", "Kostenrechnung, Zahlungen"),
+    ],
+    "Testament": [
+        ("01_Stammdaten", "Personalausweise, Familiendaten"),
+        ("02_Verfuegungen", "Testamentarische Verfügungen"),
+        ("03_Entwuerfe", "Entwürfe"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+        ("06_Verwahrung", "Verwahrungsdokumentation"),
+    ],
+    "Gesellschaftsgruendung": [
+        ("01_Stammdaten", "Personalausweise, Gesellschafterdaten"),
+        ("02_Gesellschaftsvertrag", "Satzung, Gesellschaftsvertrag"),
+        ("03_Handelsregister", "HR-Anmeldung, Eintragung"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+    ],
+    "Erbvertrag": [
+        ("01_Stammdaten", "Personalausweise, Familiendaten"),
+        ("02_Vermoegensübersicht", "Vermögensaufstellung"),
+        ("03_Entwuerfe", "Vertragsentwürfe"),
+        ("04_Korrespondenz", "Ein- und ausgehende Kommunikation"),
+        ("04_Korrespondenz/Eingehend", ""),
+        ("04_Korrespondenz/Ausgehend", ""),
+        ("05_Beurkundung", "Beurkundungsdokumente"),
+    ],
+}
+
+# Automatische Dokumenten-Zuordnung
+DOKUMENT_AUTO_ZUORDNUNG = {
+    "Personalausweis": "01_Stammdaten/Personalausweise",
+    "Reisepass": "01_Stammdaten/Personalausweise",
+    "Handelsregisterauszug": "01_Stammdaten/Handelsregisterauszuege",
+    "Vollmacht": "01_Stammdaten/Vollmachten",
+    "Grundbuchauszug": "02_Kaufgegenstand/Grundbuch",
+    "Flurkarte": "02_Kaufgegenstand/Flurkarten",
+    "Baulastenverzeichnis": "02_Kaufgegenstand/Baulasten",
+    "Finanzierungsbestätigung": "03_Finanzierung",
+    "Grundschuldbestellung": "03_Finanzierung",
+    "Kaufvertrag": "04_Vertragsentwuerfe",
+    "Vertragsentwurf": "04_Vertragsentwuerfe",
+    "Kostenrechnung": "08_Abrechnung",
+}
+
 @dataclass
 class ImportierteAkte:
     """Eine aus PDF importierte Notarakte"""
@@ -4744,6 +5742,69 @@ def init_session_state():
 
         # NEU: Aktenzeichen-Zähler pro Notar und Jahr
         st.session_state.aktenzeichen_zaehler = {}  # "notar_id_jahr" -> letzte_nummer
+
+        # ===== KOMMUNIKATIONS-ERWEITERUNGEN =====
+        # Briefköpfe
+        st.session_state.briefkoepfe = {}  # Briefkopf-ID -> Briefkopf
+
+        # E-Mail-Signaturen
+        st.session_state.email_signaturen = {}  # Signatur-ID -> EmailSignatur
+
+        # Makler-Mitarbeiter
+        st.session_state.makler_mitarbeiter = {}  # Mitarbeiter-ID -> MaklerMitarbeiter
+
+        # Kommunikation
+        st.session_state.nachrichten = {}  # Nachricht-ID -> KommunikationsNachricht
+        st.session_state.kommunikations_anlagen = {}  # Anlage-ID -> KommunikationsAnlage
+
+        # Akten-Ordner
+        st.session_state.akten_ordner = {}  # Ordner-ID -> AktenOrdner
+
+        # Gespeicherte Suchen
+        st.session_state.gespeicherte_suchen = {}  # Suche-ID -> GespeicherteSuche
+
+        # Audit-Log
+        st.session_state.audit_log = []  # Liste von AuditLogEintrag
+
+        # ===== BENACHRICHTIGUNGS-CENTER =====
+        st.session_state.eingaenge = {}  # Eingang-ID -> Eingang
+        st.session_state.antwort_vorlagen = {}  # Vorlage-ID -> AntwortVorlage
+        st.session_state.fristen = {}  # Frist-ID -> Frist
+        st.session_state.gating_pruefungen = {}  # Pruefung-ID -> GatingPruefung
+        st.session_state.dokument_versionen = {}  # Version-ID -> DokumentVersionierung
+        st.session_state.kpi_snapshots = {}  # Snapshot-ID -> KPISnapshot
+        st.session_state.bericht_konfigurationen = {}  # Bericht-ID -> BerichtKonfiguration
+
+        # ===== VERTRAGSVERSIONEN & VERGLEICH =====
+        st.session_state.vertrags_versionen = {}  # Version-ID -> VertragsVersion
+        st.session_state.text_aenderungen = {}  # Aenderung-ID -> TextAenderung
+
+        # ===== PAPIERKORB-SYSTEM =====
+        st.session_state.papierkorb = {}  # Papierkorb-ID -> PapierkorbElement
+        st.session_state.papierkorb_einstellungen = {}  # User-ID -> PapierkorbEinstellungen
+        st.session_state.papierkorb_system_einstellungen = PapierkorbEinstellungen(
+            einstellung_id="system",
+            user_id="",
+            standard_aufbewahrungsstunden=48,
+            auto_loeschen_aktiv=True
+        )
+
+        # ===== TEXT-TO-SPEECH (VORLESEN) =====
+        st.session_state.tts_einstellungen = {}  # User-ID -> TTSEinstellungen
+        st.session_state.vorlese_sessions = {}  # Session-ID -> VorleseSession
+        st.session_state.tts_aktiv = False  # Globaler Status ob TTS gerade läuft
+
+        # ===== DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG =====
+        st.session_state.personenbezogene_daten = {}  # Daten-ID -> PersonenbezogeneDaten
+        st.session_state.loesch_protokolle = {}  # Protokoll-ID -> LoeschProtokoll
+        st.session_state.loesch_anfragen = {}  # Anfrage-ID -> LoeschAnfrage
+        st.session_state.dsgvo_auskuenfte = {}  # Auskunft-ID -> DSGVOAuskunft
+        st.session_state.dsgvo_einwilligungen = {}  # Einwilligung-ID -> DSGVOEinwilligung
+        st.session_state.daten_herkunft_log = []  # Liste von Datenerfassungs-Events
+        st.session_state.dsgvo_nachweisdokumente = {}  # Dokument-ID -> DSGVONachweisdokument
+
+        # System-Antwortvorlagen initialisieren
+        _initialisiere_system_antwortvorlagen()
 
         # API-Keys für OCR (vom Notar konfigurierbar)
         # Zuerst versuchen aus st.secrets zu laden (persistent)
@@ -10966,6 +12027,9 @@ def makler_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -10988,7 +12052,15 @@ def makler_dashboard():
         "✉️ Einladungen",
         "💬 Kommentare",
         "🪪 Ausweisdaten erfassen",
-        "📅 Termine"
+        "📅 Termine",
+        "👥 Mitarbeiter",
+        "📨 Nachrichten",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
+        "⏰ Fristen",  # NEU: Fristenmanagement
+        "📈 Reporting",  # NEU: KPIs und Berichte
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
+        "🔒 DSGVO"  # NEU: DSGVO-Datenverwaltung
     ])
 
     with tabs[0]:
@@ -11040,6 +12112,63 @@ def makler_dashboard():
                         render_termin_verwaltung(projekt, UserRole.MAKLER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[11]:
+        # Mitarbeiter-Verwaltung
+        render_makler_mitarbeiter_verwaltung(user_id)
+
+    with tabs[12]:
+        # Kommunikationszentrale
+        render_kommunikationszentrale(user_id)
+
+    with tabs[13]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        makler_projekte = [p for p in st.session_state.projekte.values()
+                          if p.makler_id == user_id]
+        if makler_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="makler_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[14]:
+        # Fristenmanagement
+        render_fristenmanagement(user_id)
+
+    with tabs[15]:
+        # Reporting Dashboard
+        render_reporting_dashboard(user_id)
+
+    with tabs[16]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[17]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Text-to-Speech Einstellungen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Dokument vorlesen testen")
+
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Makler können Sie Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann angepasst werden.
+        """
+        render_tts_controls(demo_text, "makler_demo_tts", user_id)
+
+    with tabs[18]:
+        # DSGVO-Datenverwaltung für Makler
+        render_dsgvo_tab_makler(user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -11420,6 +12549,10 @@ def makler_projekte_view():
             # NEU: Parteien-Verwaltung (Gesellschaften, Organe)
             with st.expander("👥 Parteien & Gesellschaften", expanded=False):
                 render_parteien_verwaltung(projekt, UserRole.MAKLER.value)
+
+            # NEU: Gating-Übersicht (Finanzierung & Legal)
+            with st.expander("🔐 Freigabe-Status", expanded=False):
+                render_gating_uebersicht(projekt.projekt_id, UserRole.MAKLER.value)
 
             # ===== VERBESSERUNG 3: MAKLER-EINSICHT PREISVERHANDLUNG =====
             angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
@@ -12142,6 +13275,9 @@ def kaeufer_dashboard():
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -12156,6 +13292,7 @@ def kaeufer_dashboard():
         st.session_state['kaeufer_search'] = ''
 
     tabs = st.tabs([
+        "🏠 Mein Portal",  # NEU: Mandanten-Portal Übersicht
         "📊 Timeline",
         "📋 Projekte",
         "📝 Aufgaben",
@@ -12164,36 +13301,61 @@ def kaeufer_dashboard():
         "🪪 Ausweis",
         "💬 Nachrichten",
         "📄 Dokumente",
-        "📅 Termine"
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
+        "📅 Termine",
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
     ])
 
     with tabs[0]:
-        kaeufer_timeline_view()
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.KAEUFER.value)
 
     with tabs[1]:
-        kaeufer_projekte_view()
+        kaeufer_timeline_view()
 
     with tabs[2]:
-        kaeufer_aufgaben_view()
+        kaeufer_projekte_view()
 
     with tabs[3]:
-        kaeufer_finanzierung_view()
+        kaeufer_aufgaben_view()
 
     with tabs[4]:
-        kaeufer_handwerker_empfehlungen()
+        kaeufer_finanzierung_view()
 
     with tabs[5]:
+        kaeufer_handwerker_empfehlungen()
+
+    with tabs[6]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
 
-    with tabs[6]:
+    with tabs[7]:
         kaeufer_nachrichten()
 
-    with tabs[7]:
+    with tabs[8]:
         kaeufer_dokumente_view()
 
-    with tabs[8]:
+    with tabs[9]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        kaeufer_projekte = [p for p in st.session_state.projekte.values()
+                           if user_id in p.kaeufer_ids]
+        if kaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="kaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with tabs[10]:
         # Termin-Übersicht für Käufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -12214,6 +13376,27 @@ def kaeufer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[11]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[12]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Kaufvertrag vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
+        So können Sie den Inhalt besser verstehen und prüfen.
+        """
+        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -15680,6 +16863,9 @@ def verkaeufer_dashboard():
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -15693,38 +16879,60 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
+    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine", "🗑️ Papierkorb", "🔊 Vorlesen"])
 
     with tabs[0]:
-        verkaeufer_timeline_view()
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
 
     with tabs[1]:
-        verkaeufer_projekte_view()
+        verkaeufer_timeline_view()
 
     with tabs[2]:
-        verkaeufer_preisfindung_view()
+        verkaeufer_projekte_view()
 
     with tabs[3]:
-        verkaeufer_makler_finden()
+        verkaeufer_preisfindung_view()
 
     with tabs[4]:
+        verkaeufer_makler_finden()
+
+    with tabs[5]:
         # Personalausweis-Upload mit OCR
         st.subheader("🪪 Ausweisdaten erfassen")
         render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[5]:
+    with tabs[6]:
         verkaeufer_dokumente_view()
 
-    with tabs[6]:
+    with tabs[7]:
         render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    with tabs[7]:
+    with tabs[8]:
         verkaeufer_nachrichten()
 
-    with tabs[8]:
+    with tabs[9]:
         verkaeufer_eigene_kosten_view()
 
-    with tabs[9]:
+    with tabs[10]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        verkaeufer_projekte = [p for p in st.session_state.projekte.values()
+                              if user_id in p.verkaeufer_ids]
+        if verkaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="verkaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with tabs[11]:
         # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -15743,6 +16951,27 @@ def verkaeufer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[12]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[13]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Vertragsdokumente vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
 
 
 def verkaeufer_preisfindung_view():
@@ -17033,6 +18262,9 @@ def finanzierer_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -17051,7 +18283,9 @@ def finanzierer_dashboard():
         "📋 Wirtschaftsdaten Käufer",
         "💰 Finanzierungsangebote erstellen",
         "📜 Meine Angebote",
-        "📅 Termine"
+        "📅 Termine",
+        "🗑️ Papierkorb",
+        "🔊 Vorlesen"
     ])
 
     with tabs[0]:
@@ -17085,6 +18319,26 @@ def finanzierer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[5]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[6]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Finanzierungsdokumente vorlesen")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -17501,6 +18755,9 @@ def notar_dashboard():
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
 
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
 
@@ -17528,12 +18785,20 @@ def notar_dashboard():
         "💵 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📜 Kaufvertrag",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "📅 Termine",
         "🤝 Maklerempfehlung",
         "🔧 Handwerker",
         "🪪 Ausweisdaten",
         "📜 Rechtsdokumente",
         "📁 Aktenimport",  # NEU: PDF-Akten importieren
+        "📨 Nachrichten",  # NEU: Kommunikationszentrale
+        "⏰ Fristen",  # NEU: Fristenmanagement
+        "📈 Reporting",  # NEU: KPIs und Berichte
+        "📋 Vorlagen",  # NEU: Vorlagen-Management
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
+        "🔒 DSGVO",  # NEU: DSGVO-Datenverwaltung
         "⚙️ Einstellungen"
     ])
 
@@ -17577,24 +18842,83 @@ def notar_dashboard():
         notar_kaufvertrag_generator()
 
     with tabs[13]:
-        notar_termine()
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        notar_projekte = [p for p in st.session_state.projekte.values()
+                         if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="notar_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.NOTAR.value)
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
 
     with tabs[14]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[15]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[16]:
-        notar_ausweis_erfassung()
+        notar_handwerker_view()
 
     with tabs[17]:
-        notar_rechtsdokumente_view()
+        notar_ausweis_erfassung()
 
     with tabs[18]:
-        notar_aktenimport_view()
+        notar_rechtsdokumente_view()
 
     with tabs[19]:
+        notar_aktenimport_view()
+
+    with tabs[20]:
+        # Kommunikationszentrale
+        render_kommunikationszentrale(user_id)
+
+    with tabs[21]:
+        # Fristenmanagement
+        render_fristenmanagement(user_id)
+
+    with tabs[22]:
+        # Reporting Dashboard
+        render_reporting_dashboard(user_id)
+
+    with tabs[23]:
+        # Vorlagen-Management
+        render_vorlagen_management(user_id)
+
+    with tabs[24]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=True)
+
+    with tabs[25]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Text-to-Speech Einstellungen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Dokument vorlesen testen")
+
+        # Demo-Text zum Testen
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Der Kaufvertrag wird zwischen den Parteien geschlossen.
+        Der Kaufpreis beträgt einhunderttausend Euro.
+        Die Übergabe erfolgt zum vereinbarten Termin.
+        """
+        render_tts_controls(demo_text, "notar_demo_tts", user_id)
+
+    with tabs[26]:
+        # DSGVO-Datenverwaltung
+        render_dsgvo_tab_notar(user_id)
+
+    with tabs[27]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -17718,6 +19042,10 @@ def notar_projekte_view():
             st.markdown("---")
             with st.expander("👥 Parteien & Gesellschaften verwalten", expanded=False):
                 render_parteien_verwaltung(projekt, UserRole.NOTAR.value)
+
+            # NEU: Gating-Übersicht (Finanzierung & Legal)
+            with st.expander("🔐 Freigabe-Status & Gating", expanded=False):
+                render_gating_uebersicht(projekt.projekt_id, UserRole.NOTAR.value)
 
             # Aktenzeichen und verknüpfte Akte anzeigen
             if projekt.aktenzeichen:
@@ -20599,6 +21927,17 @@ def notar_dokumenten_freigaben():
                     )
         else:
             st.info("Noch keine Dokumente freigegeben.")
+
+        # NEU: Dokumenten-Versionierung anzeigen
+        with st.expander("📚 Dokumentenversionen & History", expanded=False):
+            # Alle Dokument-IDs für dieses Projekt sammeln
+            dok_ids = [d.doc_id for d in st.session_state.wirtschaftsdaten.values()
+                      if d.kaeufer_id in projekt.kaeufer_ids]
+            if dok_ids:
+                for dok_id in dok_ids:
+                    render_dokument_versionen(dok_id, UserRole.NOTAR.value)
+            else:
+                st.info("Keine Dokumente mit Versionierung vorhanden.")
 
         st.markdown("---")
 
@@ -24009,450 +25348,471 @@ def notar_aktenimport_view():
 
 
 def notar_einstellungen_view():
-    """Einstellungen für Notar - API-Keys für OCR konfigurieren"""
+    """Einstellungen für Notar - API-Keys, Briefkopf, Signaturen, Datenbank"""
     st.subheader("⚙️ Einstellungen")
 
-    st.info("""
-    Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
-    Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
-    """)
+    user_id = st.session_state.current_user.user_id
 
-    st.warning("""
-    ⚠️ **Wichtig für dauerhafte Speicherung:**
+    # Haupttabs für alle Einstellungen
+    einstellungen_tabs = st.tabs([
+        "🔑 API-Keys",
+        "📝 Briefkopf",
+        "✉️ E-Mail-Signaturen",
+        "🧪 Demo-Modus",
+        "🗄️ Datenbank"
+    ])
 
-    API-Schlüssel, die hier eingegeben werden, gehen bei einem Seiten-Reload verloren.
-    Für permanente Speicherung konfigurieren Sie die Schlüssel in **Streamlit Cloud**:
-
-    1. Gehen Sie zu Ihrer App auf [share.streamlit.io](https://share.streamlit.io)
-    2. Klicken Sie auf ⚙️ **Settings** → **Secrets**
-    3. Fügen Sie folgendes hinzu:
-    ```
-    OPENAI_API_KEY = "sk-..."
-    ANTHROPIC_API_KEY = "sk-ant-..."
-    ```
-    4. Klicken Sie auf **Save**
-
-    Die Schlüssel werden dann automatisch bei jedem Start geladen.
-    """)
-
-    # Sicherstellen, dass api_keys existiert
-    if 'api_keys' not in st.session_state:
-        st.session_state.api_keys = {
-            'openai': '',
-            'anthropic': ''
-        }
-
-    st.markdown("### 🔑 API-Schlüssel für OCR")
-
-    with st.form("api_keys_form"):
-        st.markdown("#### OpenAI API")
-        st.caption("Für GPT-4 Vision OCR-Erkennung. Erhältlich unter: https://platform.openai.com/api-keys")
-
-        openai_key = st.text_input(
-            "OpenAI API-Key",
-            value=st.session_state.api_keys.get('openai', ''),
-            type="password",
-            placeholder="sk-...",
-            help="Ihr OpenAI API-Schlüssel (beginnt mit 'sk-')"
-        )
-
-        st.markdown("#### Anthropic API (Claude)")
-        st.caption("Für Claude Vision OCR-Erkennung. Erhältlich unter: https://console.anthropic.com/")
-
-        anthropic_key = st.text_input(
-            "Anthropic API-Key",
-            value=st.session_state.api_keys.get('anthropic', ''),
-            type="password",
-            placeholder="sk-ant-...",
-            help="Ihr Anthropic API-Schlüssel (beginnt mit 'sk-ant-')"
-        )
-
-        submit = st.form_submit_button("💾 API-Schlüssel speichern", type="primary")
-
-        if submit:
-            st.session_state.api_keys['openai'] = openai_key
-            st.session_state.api_keys['anthropic'] = anthropic_key
-            st.success("✅ API-Schlüssel wurden gespeichert!")
-
-    # Status-Anzeige
-    st.markdown("---")
-    st.markdown("### 📊 Status der API-Konfiguration")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**OpenAI:**")
-        if st.session_state.api_keys.get('openai'):
-            masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
-            st.success(f"✅ Konfiguriert ({masked_key})")
-        else:
-            # Prüfe auch Secrets und Umgebungsvariablen
-            has_secret = False
-            try:
-                if st.secrets.get("OPENAI_API_KEY"):
-                    has_secret = True
-            except:
-                pass
-
-            import os
-            if os.environ.get("OPENAI_API_KEY"):
-                has_secret = True
-
-            if has_secret:
-                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
-            else:
-                st.warning("⚠️ Nicht konfiguriert")
-
-    with col2:
-        st.markdown("**Anthropic (Claude):**")
-        if st.session_state.api_keys.get('anthropic'):
-            masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
-            st.success(f"✅ Konfiguriert ({masked_key})")
-        else:
-            # Prüfe auch Secrets und Umgebungsvariablen
-            has_secret = False
-            try:
-                if st.secrets.get("ANTHROPIC_API_KEY"):
-                    has_secret = True
-            except:
-                pass
-
-            import os
-            if os.environ.get("ANTHROPIC_API_KEY"):
-                has_secret = True
-
-            if has_secret:
-                st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
-            else:
-                st.warning("⚠️ Nicht konfiguriert")
-
-    # Hinweise
-    st.markdown("---")
-    st.markdown("### ℹ️ Hinweise")
-    st.markdown("""
-    - **Priorität:** Claude Vision → OpenAI Vision → pytesseract → Demo-Daten
-    - Die API-Schlüssel werden im Session State gespeichert und sind nur für diese Sitzung gültig.
-    - Für permanente Konfiguration nutzen Sie Streamlit Secrets (`.streamlit/secrets.toml`).
-    - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
-    - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
-    """)
-
-    # Demo-Modus Einstellungen
-    st.markdown("---")
-    st.markdown("### 🧪 Demo-Modus")
-
-    # Demo-Modus initialisieren falls nicht vorhanden
-    if 'demo_modus_aktiv' not in st.session_state:
-        st.session_state.demo_modus_aktiv = True  # Standard: Demo-Modus AN
-
-    st.info("""
-    **Demo-Modus:** Alle Dashboards sind voll funktionsfähig mit simulierten Daten.
-    Im aktiven Modus werden bestimmte Funktionen eingeschränkt, bis alle erforderlichen
-    Konfigurationen (API-Keys, echte Daten) vorgenommen wurden.
-    """)
-
-    demo_modus = st.toggle(
-        "Demo-Modus aktiviert",
-        value=st.session_state.demo_modus_aktiv,
-        help="AN = Volle Funktionalität mit Demo-Daten | AUS = Aktiver Modus mit Einschränkungen"
-    )
-
-    if demo_modus != st.session_state.demo_modus_aktiv:
-        st.session_state.demo_modus_aktiv = demo_modus
-        if demo_modus:
-            st.success("✅ Demo-Modus aktiviert - Alle Funktionen verfügbar")
-        else:
-            st.warning("⚠️ Aktiver Modus - Einige Funktionen erfordern echte Konfiguration")
-        st.rerun()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.session_state.demo_modus_aktiv:
-            st.success("🟢 **Demo-Modus AKTIV**")
-            st.caption("Alle Dashboards funktionieren mit simulierten Daten")
-        else:
-            st.error("🔴 **Aktiver Modus**")
-            st.caption("Produktivbetrieb - echte Daten erforderlich")
-
-    with col2:
-        st.markdown("**Aktuelle Einstellung:**")
-        if st.session_state.demo_modus_aktiv:
-            st.markdown("- ✅ Demo-Handwerker verfügbar")
-            st.markdown("- ✅ Demo-Rechtsdokumente verfügbar")
-            st.markdown("- ✅ OCR mit Demo-Daten als Fallback")
-        else:
-            st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
-            st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
-            st.markdown("- ⚠️ API-Keys für OCR erforderlich")
-
-    # Datenbank-Konfiguration
-    st.markdown("---")
-    st.markdown("### 🗄️ Datenbank-Konfiguration")
-
-    st.info("""
-    Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
-    Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
-    """)
-
-    # Datenbank-Konfiguration initialisieren
-    if 'db_config' not in st.session_state:
-        st.session_state.db_config = {
-            'db_type': 'sqlite',
-            'host': 'localhost',
-            'port': 5432,
-            'database': 'immobilien_plattform',
-            'username': '',
-            'password': '',
-            'sqlite_path': 'data/immobilien_plattform.db'
-        }
-
-    # Tabs für Konfiguration und Status
-    db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
-
-    with db_tabs[0]:
-        st.markdown("#### Datenbank-Verbindung einrichten")
-
-        # Datenbanktyp auswählen
-        db_type = st.selectbox(
-            "Datenbank-Typ",
-            ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
-            index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
-                  (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
-            key="db_type_select",
-            help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
-        )
-
-        db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
-        st.session_state.db_config['db_type'] = db_type_key
-
-        if db_type_key == 'sqlite':
-            # SQLite Konfiguration
-            st.markdown("##### 📁 SQLite-Datei")
-
-            sqlite_path = st.text_input(
-                "Datenbankpfad",
-                value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
-                key="sqlite_path_input",
-                help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
-            )
-            st.session_state.db_config['sqlite_path'] = sqlite_path
-
-            st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
-
-            # Verbindungs-URL generieren
-            db_url = f"sqlite:///{sqlite_path}"
-
-        else:
-            # PostgreSQL / MySQL Konfiguration
-            col1, col2 = st.columns(2)
-
-            with col1:
-                host = st.text_input(
-                    "Host",
-                    value=st.session_state.db_config.get('host', 'localhost'),
-                    key="db_host_input",
-                    placeholder="localhost oder IP-Adresse"
-                )
-                st.session_state.db_config['host'] = host
-
-                database = st.text_input(
-                    "Datenbankname",
-                    value=st.session_state.db_config.get('database', 'immobilien_plattform'),
-                    key="db_name_input"
-                )
-                st.session_state.db_config['database'] = database
-
-            with col2:
-                port = st.number_input(
-                    "Port",
-                    value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
-                    min_value=1,
-                    max_value=65535,
-                    key="db_port_input"
-                )
-                st.session_state.db_config['port'] = port
-
-                username = st.text_input(
-                    "Benutzername",
-                    value=st.session_state.db_config.get('username', ''),
-                    key="db_user_input"
-                )
-                st.session_state.db_config['username'] = username
-
-            password = st.text_input(
-                "Passwort",
-                value=st.session_state.db_config.get('password', ''),
-                type="password",
-                key="db_pass_input"
-            )
-            st.session_state.db_config['password'] = password
-
-            # Verbindungs-URL generieren
-            if db_type_key == 'postgresql':
-                db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-            else:
-                db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
-
-        # Verbindungs-URL anzeigen (maskiert)
-        st.markdown("##### 🔗 Verbindungs-URL")
-        if db_type_key == 'sqlite':
-            st.code(db_url)
-        else:
-            masked_url = db_url.replace(password, '***') if password else db_url
-            st.code(masked_url)
-
-        # Aktionen
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
-                with st.spinner("Teste Verbindung..."):
-                    try:
-                        # Teste die Verbindung
-                        test_result = test_database_connection(db_url)
-                        if test_result['success']:
-                            st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
-                            st.session_state.db_connection_url = db_url
-                            st.session_state.database_connected = True
-                        else:
-                            st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
-                            st.session_state.database_connected = False
-                    except Exception as e:
-                        st.error(f"❌ Fehler: {str(e)}")
-                        st.session_state.database_connected = False
-
-        with col2:
-            if st.button("💾 Konfiguration speichern", key="save_db_config"):
-                try:
-                    save_database_config(st.session_state.db_config)
-                    st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
-                except Exception as e:
-                    st.error(f"❌ Fehler beim Speichern: {e}")
-
-        with col3:
-            if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
-                if st.session_state.get('database_connected'):
-                    with st.spinner("Erstelle Datenbanktabellen..."):
-                        try:
-                            result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
-                            if result['success']:
-                                st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
-                            else:
-                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
-                        except Exception as e:
-                            st.error(f"❌ Fehler: {e}")
-                else:
-                    st.warning("⚠️ Bitte zuerst Verbindung testen!")
-
-    with db_tabs[1]:
-        st.markdown("#### 📊 Verbindungsstatus")
-
-        db_connected = st.session_state.get('database_connected', False)
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if db_connected:
-                st.success("🟢 **Verbunden**")
-                st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
-            else:
-                st.error("🔴 **Nicht verbunden**")
-
-        with col2:
-            # Session State Statistiken
-            session_users = len(st.session_state.get('users', {}))
-            session_projekte = len(st.session_state.get('projekte', {}))
-            st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
-
-        with col3:
-            if db_connected:
-                st.metric("Datenbank", "Bereit")
-            else:
-                st.metric("Datenbank", "Offline")
-
-        st.markdown("---")
-        st.markdown("#### 🔄 Datenmigration")
-
+    # ===== TAB 0: API-Keys =====
+    with einstellungen_tabs[0]:
         st.info("""
-        **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
-        Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+        Hier können Sie API-Schlüssel für die KI-gestützte Dokumentenerkennung (OCR) konfigurieren.
+        Diese werden verwendet, um Personalausweise und Reisepässe automatisch zu erkennen.
         """)
+
+        st.warning("""
+        ⚠️ **Wichtig für dauerhafte Speicherung:**
+
+        API-Schlüssel, die hier eingegeben werden, gehen bei einem Seiten-Reload verloren.
+        Für permanente Speicherung konfigurieren Sie die Schlüssel in **Streamlit Cloud**:
+
+        1. Gehen Sie zu Ihrer App auf [share.streamlit.io](https://share.streamlit.io)
+        2. Klicken Sie auf ⚙️ **Settings** → **Secrets**
+        3. Fügen Sie folgendes hinzu:
+        ```
+        OPENAI_API_KEY = "sk-..."
+        ANTHROPIC_API_KEY = "sk-ant-..."
+        ```
+        4. Klicken Sie auf **Save**
+
+        Die Schlüssel werden dann automatisch bei jedem Start geladen.
+        """)
+
+        # Sicherstellen, dass api_keys existiert
+        if 'api_keys' not in st.session_state:
+            st.session_state.api_keys = {
+                'openai': '',
+                'anthropic': ''
+            }
+
+        st.markdown("### 🔑 API-Schlüssel für OCR")
+
+        with st.form("api_keys_form"):
+            st.markdown("#### OpenAI API")
+            st.caption("Für GPT-4 Vision OCR-Erkennung. Erhältlich unter: https://platform.openai.com/api-keys")
+
+            openai_key = st.text_input(
+                "OpenAI API-Key",
+                value=st.session_state.api_keys.get('openai', ''),
+                type="password",
+                placeholder="sk-...",
+                help="Ihr OpenAI API-Schlüssel (beginnt mit 'sk-')"
+            )
+
+            st.markdown("#### Anthropic API (Claude)")
+            st.caption("Für Claude Vision OCR-Erkennung. Erhältlich unter: https://console.anthropic.com/")
+
+            anthropic_key = st.text_input(
+                "Anthropic API-Key",
+                value=st.session_state.api_keys.get('anthropic', ''),
+                type="password",
+                placeholder="sk-ant-...",
+                help="Ihr Anthropic API-Schlüssel (beginnt mit 'sk-ant-')"
+            )
+
+            submit = st.form_submit_button("💾 API-Schlüssel speichern", type="primary")
+
+            if submit:
+                st.session_state.api_keys['openai'] = openai_key
+                st.session_state.api_keys['anthropic'] = anthropic_key
+                st.success("✅ API-Schlüssel wurden gespeichert!")
+
+        # Status-Anzeige
+        st.markdown("---")
+        st.markdown("### 📊 Status der API-Konfiguration")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown("**Von Session State → Datenbank:**")
-            migrate_items = st.multiselect(
-                "Zu migrierende Daten",
-                ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
-                default=["Nutzer", "Projekte"],
-                key="migrate_selection"
-            )
+            st.markdown("**OpenAI:**")
+            if st.session_state.api_keys.get('openai'):
+                masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
+                st.success(f"✅ Konfiguriert ({masked_key})")
+            else:
+                # Prüfe auch Secrets und Umgebungsvariablen
+                has_secret = False
+                try:
+                    if st.secrets.get("OPENAI_API_KEY"):
+                        has_secret = True
+                except:
+                    pass
 
-            if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
-                if db_connected and migrate_items:
-                    with st.spinner("Exportiere Daten..."):
-                        result = migrate_session_to_database(migrate_items)
-                        if result['success']:
-                            st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
-                        else:
-                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                import os
+                if os.environ.get("OPENAI_API_KEY"):
+                    has_secret = True
+
+                if has_secret:
+                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
                 else:
-                    st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
+                    st.warning("⚠️ Nicht konfiguriert")
 
         with col2:
-            st.markdown("**Von Datenbank → Session State:**")
-            st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
+            st.markdown("**Anthropic (Claude):**")
+            if st.session_state.api_keys.get('anthropic'):
+                masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
+                st.success(f"✅ Konfiguriert ({masked_key})")
+            else:
+                # Prüfe auch Secrets und Umgebungsvariablen
+                has_secret = False
+                try:
+                    if st.secrets.get("ANTHROPIC_API_KEY"):
+                        has_secret = True
+                except:
+                    pass
 
-            if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
-                if db_connected:
-                    with st.spinner("Importiere Daten..."):
-                        result = load_database_to_session()
-                        if result['success']:
-                            st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                import os
+                if os.environ.get("ANTHROPIC_API_KEY"):
+                    has_secret = True
 
-            auto_load = st.checkbox(
-                "Automatisch beim Start laden",
-                value=st.session_state.get('db_auto_load', False),
-                key="db_auto_load_checkbox",
-                help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
-            )
-            st.session_state.db_auto_load = auto_load
+                if has_secret:
+                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+                else:
+                    st.warning("⚠️ Nicht konfiguriert")
 
-    with db_tabs[2]:
-        st.markdown("#### 📋 Datenbankschema")
-
+        # Hinweise
+        st.markdown("---")
+        st.markdown("### ℹ️ Hinweise")
         st.markdown("""
-        Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
-
-        | Tabelle | Beschreibung |
-        |---------|-------------|
-        | `nutzer` | Benutzerkonten mit Rollen |
-        | `makler_profil` | Makler-Profilinformationen |
-        | `notar_profil` | Notar-Profilinformationen |
-        | `notar_mitarbeiter` | Notar-Mitarbeiter |
-        | `immobilie` | Immobilien-Stammdaten |
-        | `projekt` | Transaktionsprojekte |
-        | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
-        | `preisvorschlag` | Preisverhandlungen |
-        | `preis_historie` | Preisentwicklung |
-        | `markt_daten` | Marktdaten für ML |
-        | `dokument` | Dokumente mit OCR |
-        | `interaktion` | Benutzeraktivitäten |
-        | `benachrichtigung` | Systembenachrichtigungen |
-        | `textbaustein` | Vertragsbausteine |
-        | `vertragsdokument` | Generierte Verträge |
-        | `akte` | Aktenmanagement |
-        | `akten_dokument` | Dokumente in Akten |
-        | `akten_nachricht` | Kommunikation in Akten |
-        | `api_key` | API-Schlüssel |
+        - **Priorität:** Claude Vision → OpenAI Vision → pytesseract → Demo-Daten
+        - Die API-Schlüssel werden im Session State gespeichert und sind nur für diese Sitzung gültig.
+        - Für permanente Konfiguration nutzen Sie Streamlit Secrets (`.streamlit/secrets.toml`).
+        - Die OCR-Erkennung funktioniert am besten mit gut beleuchteten, geraden Aufnahmen.
+        - Unterstützte Dokumente: Deutscher Personalausweis, Reisepass
         """)
 
-        if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
-            st.code('''
+    # ===== TAB 1: Briefkopf =====
+    with einstellungen_tabs[1]:
+        render_briefkopf_administration(user_id)
+
+    # ===== TAB 2: E-Mail-Signaturen =====
+    with einstellungen_tabs[2]:
+        render_email_signaturen(user_id)
+
+    # ===== TAB 3: Demo-Modus =====
+    with einstellungen_tabs[3]:
+        st.markdown("### 🧪 Demo-Modus")
+
+        # Demo-Modus initialisieren falls nicht vorhanden
+        if 'demo_modus_aktiv' not in st.session_state:
+            st.session_state.demo_modus_aktiv = True  # Standard: Demo-Modus AN
+
+        st.info("""
+        **Demo-Modus:** Alle Dashboards sind voll funktionsfähig mit simulierten Daten.
+        Im aktiven Modus werden bestimmte Funktionen eingeschränkt, bis alle erforderlichen
+        Konfigurationen (API-Keys, echte Daten) vorgenommen wurden.
+        """)
+
+        demo_modus = st.toggle(
+            "Demo-Modus aktiviert",
+            value=st.session_state.demo_modus_aktiv,
+            help="AN = Volle Funktionalität mit Demo-Daten | AUS = Aktiver Modus mit Einschränkungen"
+        )
+
+        if demo_modus != st.session_state.demo_modus_aktiv:
+            st.session_state.demo_modus_aktiv = demo_modus
+            if demo_modus:
+                st.success("✅ Demo-Modus aktiviert - Alle Funktionen verfügbar")
+            else:
+                st.warning("⚠️ Aktiver Modus - Einige Funktionen erfordern echte Konfiguration")
+            st.rerun()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.session_state.demo_modus_aktiv:
+                st.success("🟢 **Demo-Modus AKTIV**")
+                st.caption("Alle Dashboards funktionieren mit simulierten Daten")
+            else:
+                st.error("🔴 **Aktiver Modus**")
+                st.caption("Produktivbetrieb - echte Daten erforderlich")
+
+        with col2:
+            st.markdown("**Aktuelle Einstellung:**")
+            if st.session_state.demo_modus_aktiv:
+                st.markdown("- ✅ Demo-Handwerker verfügbar")
+                st.markdown("- ✅ Demo-Rechtsdokumente verfügbar")
+                st.markdown("- ✅ OCR mit Demo-Daten als Fallback")
+            else:
+                st.markdown("- ⚠️ Echte Handwerker-Daten erforderlich")
+                st.markdown("- ⚠️ Echte Rechtsdokumente erforderlich")
+                st.markdown("- ⚠️ API-Keys für OCR erforderlich")
+
+    # ===== TAB 4: Datenbank =====
+    with einstellungen_tabs[4]:
+        st.markdown("### 🗄️ Datenbank-Konfiguration")
+
+        st.info("""
+        Hier können Sie eine Datenbank einrichten, um alle Daten der Plattform persistent zu speichern.
+        Die Daten bleiben dann auch nach einem Neustart der Anwendung erhalten.
+        """)
+
+        # Datenbank-Konfiguration initialisieren
+        if 'db_config' not in st.session_state:
+            st.session_state.db_config = {
+                'db_type': 'sqlite',
+                'host': 'localhost',
+                'port': 5432,
+                'database': 'immobilien_plattform',
+                'username': '',
+                'password': '',
+                'sqlite_path': 'data/immobilien_plattform.db'
+            }
+
+        # Tabs für Konfiguration und Status
+        db_tabs = st.tabs(["🔧 Verbindung konfigurieren", "📊 Status & Migration", "📋 Datenbankschema"])
+
+        with db_tabs[0]:
+            st.markdown("#### Datenbank-Verbindung einrichten")
+
+            # Datenbanktyp auswählen
+            db_type = st.selectbox(
+                "Datenbank-Typ",
+                ["SQLite (Lokal)", "PostgreSQL", "MySQL/MariaDB"],
+                index=0 if st.session_state.db_config['db_type'] == 'sqlite' else
+                      (1 if st.session_state.db_config['db_type'] == 'postgresql' else 2),
+                key="db_type_select",
+                help="SQLite für lokale Entwicklung, PostgreSQL/MySQL für Produktion"
+            )
+
+            db_type_key = 'sqlite' if 'SQLite' in db_type else ('postgresql' if 'PostgreSQL' in db_type else 'mysql')
+            st.session_state.db_config['db_type'] = db_type_key
+
+            if db_type_key == 'sqlite':
+                # SQLite Konfiguration
+                st.markdown("##### 📁 SQLite-Datei")
+
+                sqlite_path = st.text_input(
+                    "Datenbankpfad",
+                    value=st.session_state.db_config.get('sqlite_path', 'data/immobilien_plattform.db'),
+                    key="sqlite_path_input",
+                    help="Relativer oder absoluter Pfad zur SQLite-Datenbankdatei"
+                )
+                st.session_state.db_config['sqlite_path'] = sqlite_path
+
+                st.caption("💡 SQLite ist ideal für Entwicklung und kleinere Installationen. Die Datenbank wird automatisch erstellt.")
+
+                # Verbindungs-URL generieren
+                db_url = f"sqlite:///{sqlite_path}"
+
+            else:
+                # PostgreSQL / MySQL Konfiguration
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    host = st.text_input(
+                        "Host",
+                        value=st.session_state.db_config.get('host', 'localhost'),
+                        key="db_host_input",
+                        placeholder="localhost oder IP-Adresse"
+                    )
+                    st.session_state.db_config['host'] = host
+
+                    database = st.text_input(
+                        "Datenbankname",
+                        value=st.session_state.db_config.get('database', 'immobilien_plattform'),
+                        key="db_name_input"
+                    )
+                    st.session_state.db_config['database'] = database
+
+                with col2:
+                    port = st.number_input(
+                        "Port",
+                        value=st.session_state.db_config.get('port', 5432 if db_type_key == 'postgresql' else 3306),
+                        min_value=1,
+                        max_value=65535,
+                        key="db_port_input"
+                    )
+                    st.session_state.db_config['port'] = port
+
+                    username = st.text_input(
+                        "Benutzername",
+                        value=st.session_state.db_config.get('username', ''),
+                        key="db_user_input"
+                    )
+                    st.session_state.db_config['username'] = username
+
+                password = st.text_input(
+                    "Passwort",
+                    value=st.session_state.db_config.get('password', ''),
+                    type="password",
+                    key="db_pass_input"
+                )
+                st.session_state.db_config['password'] = password
+
+                # Verbindungs-URL generieren
+                if db_type_key == 'postgresql':
+                    db_url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+                else:
+                    db_url = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+
+            # Verbindungs-URL anzeigen (maskiert)
+            st.markdown("##### 🔗 Verbindungs-URL")
+            if db_type_key == 'sqlite':
+                st.code(db_url)
+            else:
+                masked_url = db_url.replace(password, '***') if password else db_url
+                st.code(masked_url)
+
+            # Aktionen
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button("🔌 Verbindung testen", key="test_db_btn", type="primary"):
+                    with st.spinner("Teste Verbindung..."):
+                        try:
+                            # Teste die Verbindung
+                            test_result = test_database_connection(db_url)
+                            if test_result['success']:
+                                st.success(f"✅ Verbindung erfolgreich! Server: {test_result.get('server_info', 'OK')}")
+                                st.session_state.db_connection_url = db_url
+                                st.session_state.database_connected = True
+                            else:
+                                st.error(f"❌ Verbindung fehlgeschlagen: {test_result.get('error', 'Unbekannter Fehler')}")
+                                st.session_state.database_connected = False
+                        except Exception as e:
+                            st.error(f"❌ Fehler: {str(e)}")
+                            st.session_state.database_connected = False
+
+            with col2:
+                if st.button("💾 Konfiguration speichern", key="save_db_config"):
+                    try:
+                        save_database_config(st.session_state.db_config)
+                        st.success("✅ Konfiguration in .streamlit/secrets.toml gespeichert!")
+                    except Exception as e:
+                        st.error(f"❌ Fehler beim Speichern: {e}")
+
+            with col3:
+                if st.button("🏗️ Tabellen erstellen", key="init_db_btn"):
+                    if st.session_state.get('database_connected'):
+                        with st.spinner("Erstelle Datenbanktabellen..."):
+                            try:
+                                result = initialize_database_tables(st.session_state.get('db_connection_url', db_url))
+                                if result['success']:
+                                    st.success(f"✅ {result['tables_created']} Tabellen erstellt!")
+                                else:
+                                    st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                            except Exception as e:
+                                st.error(f"❌ Fehler: {e}")
+                    else:
+                        st.warning("⚠️ Bitte zuerst Verbindung testen!")
+
+        with db_tabs[1]:
+            st.markdown("#### 📊 Verbindungsstatus")
+
+            db_connected = st.session_state.get('database_connected', False)
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if db_connected:
+                    st.success("🟢 **Verbunden**")
+                    st.caption(f"Typ: {st.session_state.db_config.get('db_type', 'N/A').upper()}")
+                else:
+                    st.error("🔴 **Nicht verbunden**")
+
+            with col2:
+                # Session State Statistiken
+                session_users = len(st.session_state.get('users', {}))
+                session_projekte = len(st.session_state.get('projekte', {}))
+                st.metric("Session State", f"{session_users} User, {session_projekte} Projekte")
+
+            with col3:
+                if db_connected:
+                    st.metric("Datenbank", "Bereit")
+                else:
+                    st.metric("Datenbank", "Offline")
+
+            st.markdown("---")
+            st.markdown("#### 🔄 Datenmigration")
+
+            st.info("""
+            **Datenmigration:** Übertragen Sie alle Daten aus dem Session State in die Datenbank.
+            Dies ermöglicht persistente Speicherung auch nach einem Neustart.
+            """)
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("**Von Session State → Datenbank:**")
+                migrate_items = st.multiselect(
+                    "Zu migrierende Daten",
+                    ["Nutzer", "Projekte", "Dokumente", "Akten", "Preisverhandlungen", "Benachrichtigungen"],
+                    default=["Nutzer", "Projekte"],
+                    key="migrate_selection"
+                )
+
+                if st.button("📤 Daten exportieren", key="export_to_db", disabled=not db_connected):
+                    if db_connected and migrate_items:
+                        with st.spinner("Exportiere Daten..."):
+                            result = migrate_session_to_database(migrate_items)
+                            if result['success']:
+                                st.success(f"✅ {result['migrated_count']} Datensätze exportiert!")
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+                    else:
+                        st.warning("⚠️ Keine Verbindung oder keine Daten ausgewählt")
+
+            with col2:
+                st.markdown("**Von Datenbank → Session State:**")
+                st.caption("Laden Sie gespeicherte Daten beim Start der Anwendung")
+
+                if st.button("📥 Daten importieren", key="import_from_db", disabled=not db_connected):
+                    if db_connected:
+                        with st.spinner("Importiere Daten..."):
+                            result = load_database_to_session()
+                            if result['success']:
+                                st.success(f"✅ {result['loaded_count']} Datensätze geladen!")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Fehler: {result.get('error', 'Unbekannt')}")
+
+                auto_load = st.checkbox(
+                    "Automatisch beim Start laden",
+                    value=st.session_state.get('db_auto_load', False),
+                    key="db_auto_load_checkbox",
+                    help="Lädt Daten automatisch aus der Datenbank beim Starten der App"
+                )
+                st.session_state.db_auto_load = auto_load
+
+        with db_tabs[2]:
+            st.markdown("#### 📋 Datenbankschema")
+
+            st.markdown("""
+            Die Datenbank enthält folgende Tabellen (SQLAlchemy Modelle):
+
+            | Tabelle | Beschreibung |
+            |---------|-------------|
+            | `nutzer` | Benutzerkonten mit Rollen |
+            | `makler_profil` | Makler-Profilinformationen |
+            | `notar_profil` | Notar-Profilinformationen |
+            | `notar_mitarbeiter` | Notar-Mitarbeiter |
+            | `immobilie` | Immobilien-Stammdaten |
+            | `projekt` | Transaktionsprojekte |
+            | `projekt_beteiligung` | Zuordnung User ↔ Projekt |
+            | `preisvorschlag` | Preisverhandlungen |
+            | `preis_historie` | Preisentwicklung |
+            | `markt_daten` | Marktdaten für ML |
+            | `dokument` | Dokumente mit OCR |
+            | `interaktion` | Benutzeraktivitäten |
+            | `benachrichtigung` | Systembenachrichtigungen |
+            | `textbaustein` | Vertragsbausteine |
+            | `vertragsdokument` | Generierte Verträge |
+            | `akte` | Aktenmanagement |
+            | `akten_dokument` | Dokumente in Akten |
+            | `akten_nachricht` | Kommunikation in Akten |
+            | `api_key` | API-Schlüssel |
+            """)
+
+            if st.button("📄 Schema als SQL anzeigen", key="show_schema_sql"):
+                st.code('''
 -- Beispiel: Nutzer-Tabelle
 CREATE TABLE nutzer (
     id SERIAL PRIMARY KEY,
@@ -24484,7 +25844,7 @@ CREATE TABLE projekt (
     notar_id VARCHAR(50) REFERENCES nutzer(user_id),
     created_at TIMESTAMP DEFAULT NOW()
 );
-            ''', language='sql')
+                ''', language='sql')
 
 
 # ============================================================================
@@ -24497,6 +25857,9 @@ def notarmitarbeiter_dashboard():
 
     st.title("⚖️ Notar-Mitarbeiter-Dashboard")
     st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(mitarbeiter.user_id)
 
     # Tab-Liste basierend auf Berechtigungen
     tab_labels = ["📊 Timeline", "📋 Projekte"]
@@ -24927,6 +26290,5609 @@ Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der
                 Sie erhalten dann Ihre Zugangsdaten per E-Mail.
                 """)
                 st.balloons()
+
+
+# ===== KOMMUNIKATIONS-ERWEITERUNGEN: UI-KOMPONENTEN =====
+
+def audit_log_eintrag(user_id: str, aktion: str, objekt_typ: str, objekt_id: str, objekt_name: str = "", projekt_id: str = "", akte_id: str = "", details: str = ""):
+    """Erstellt einen Audit-Log-Eintrag"""
+    user = st.session_state.users.get(user_id)
+    eintrag = AuditLogEintrag(
+        log_id=str(uuid.uuid4())[:8],
+        timestamp=datetime.now(),
+        user_id=user_id,
+        user_name=user.name if user else "",
+        user_rolle=user.rolle if user else "",
+        aktion=aktion,
+        objekt_typ=objekt_typ,
+        objekt_id=objekt_id,
+        objekt_name=objekt_name,
+        projekt_id=projekt_id,
+        akte_id=akte_id,
+        details=details
+    )
+    st.session_state.audit_log.append(eintrag)
+
+
+def render_briefkopf_administration(user_id: str):
+    """Administration der Briefköpfe"""
+    st.subheader("📝 Briefkopf-Verwaltung")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Bestehenden Briefkopf suchen oder neuen erstellen
+    briefkopf = None
+    for bk in st.session_state.briefkoepfe.values():
+        if bk.inhaber_id == user_id:
+            briefkopf = bk
+            break
+
+    col_form, col_preview = st.columns([2, 1])
+
+    with col_form:
+        with st.form("briefkopf_form"):
+            st.markdown("#### Logo")
+            logo_file = st.file_uploader("Logo hochladen", type=['png', 'jpg', 'jpeg'], key="briefkopf_logo")
+            logo_position = st.radio(
+                "Logo-Position",
+                ["links", "zentriert", "rechts"],
+                horizontal=True,
+                index=0 if not briefkopf else ["links", "zentriert", "rechts"].index(briefkopf.logo_position)
+            )
+
+            st.markdown("---")
+            st.markdown("#### Firmendaten")
+            col1, col2 = st.columns(2)
+            with col1:
+                firmenname = st.text_input("Firmenname", value=briefkopf.firmenname if briefkopf else "")
+                zusatz = st.text_input("Zusatz (z.B. Notariat, Immobilienmakler)", value=briefkopf.zusatz if briefkopf else "")
+            with col2:
+                inhaber_name = st.text_input("Inhaber/Name", value=briefkopf.inhaber_name if briefkopf else user.name)
+
+            st.markdown("---")
+            st.markdown("#### Adresse")
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                strasse = st.text_input("Straße", value=briefkopf.strasse if briefkopf else "")
+            with col2:
+                hausnummer = st.text_input("Hausnummer", value=briefkopf.hausnummer if briefkopf else "")
+
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col1:
+                plz = st.text_input("PLZ", value=briefkopf.plz if briefkopf else "")
+            with col2:
+                ort = st.text_input("Ort", value=briefkopf.ort if briefkopf else "")
+            with col3:
+                land = st.text_input("Land", value=briefkopf.land if briefkopf else "Deutschland")
+
+            st.markdown("---")
+            st.markdown("#### Kontakt")
+            col1, col2 = st.columns(2)
+            with col1:
+                telefon = st.text_input("Telefon", value=briefkopf.telefon if briefkopf else "")
+                email = st.text_input("E-Mail", value=briefkopf.email if briefkopf else user.email)
+            with col2:
+                fax = st.text_input("Fax", value=briefkopf.fax if briefkopf else "")
+                website = st.text_input("Website", value=briefkopf.website if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Rechtliche Angaben")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                steuernummer = st.text_input("Steuernummer", value=briefkopf.steuernummer if briefkopf else "")
+            with col2:
+                ust_id = st.text_input("USt-IdNr.", value=briefkopf.ust_id if briefkopf else "")
+            with col3:
+                handelsregister = st.text_input("Handelsregister", value=briefkopf.handelsregister if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Bankverbindung")
+            bank_name = st.text_input("Bank", value=briefkopf.bank_name if briefkopf else "")
+            col1, col2 = st.columns(2)
+            with col1:
+                iban = st.text_input("IBAN", value=briefkopf.iban if briefkopf else "")
+            with col2:
+                bic = st.text_input("BIC", value=briefkopf.bic if briefkopf else "")
+
+            st.markdown("---")
+            st.markdown("#### Fußzeile")
+            fusszeile_text = st.text_input("Fußzeile Zeile 1", value=briefkopf.fusszeile_text if briefkopf else "")
+            fusszeile_zeile2 = st.text_input("Fußzeile Zeile 2", value=briefkopf.fusszeile_zeile2 if briefkopf else "")
+
+            submitted = st.form_submit_button("💾 Briefkopf speichern", type="primary")
+
+            if submitted:
+                logo_data = None
+                if logo_file:
+                    logo_data = logo_file.read()
+                elif briefkopf and briefkopf.logo_data:
+                    logo_data = briefkopf.logo_data
+
+                inhaber_typ = "kanzlei" if user.rolle == UserRole.NOTAR.value else "maklerbüro" if user.rolle == UserRole.MAKLER.value else "user"
+
+                if briefkopf:
+                    # Aktualisieren
+                    briefkopf.logo_data = logo_data
+                    briefkopf.logo_position = logo_position
+                    briefkopf.firmenname = firmenname
+                    briefkopf.zusatz = zusatz
+                    briefkopf.inhaber_name = inhaber_name
+                    briefkopf.strasse = strasse
+                    briefkopf.hausnummer = hausnummer
+                    briefkopf.plz = plz
+                    briefkopf.ort = ort
+                    briefkopf.land = land
+                    briefkopf.telefon = telefon
+                    briefkopf.fax = fax
+                    briefkopf.email = email
+                    briefkopf.website = website
+                    briefkopf.steuernummer = steuernummer
+                    briefkopf.ust_id = ust_id
+                    briefkopf.handelsregister = handelsregister
+                    briefkopf.bank_name = bank_name
+                    briefkopf.iban = iban
+                    briefkopf.bic = bic
+                    briefkopf.fusszeile_text = fusszeile_text
+                    briefkopf.fusszeile_zeile2 = fusszeile_zeile2
+                    briefkopf.aktualisiert_am = datetime.now()
+                    st.session_state.briefkoepfe[briefkopf.briefkopf_id] = briefkopf
+                else:
+                    # Neu erstellen
+                    briefkopf_id = str(uuid.uuid4())[:8]
+                    briefkopf = Briefkopf(
+                        briefkopf_id=briefkopf_id,
+                        inhaber_id=user_id,
+                        inhaber_typ=inhaber_typ,
+                        logo_data=logo_data,
+                        logo_position=logo_position,
+                        firmenname=firmenname,
+                        zusatz=zusatz,
+                        inhaber_name=inhaber_name,
+                        strasse=strasse,
+                        hausnummer=hausnummer,
+                        plz=plz,
+                        ort=ort,
+                        land=land,
+                        telefon=telefon,
+                        fax=fax,
+                        email=email,
+                        website=website,
+                        steuernummer=steuernummer,
+                        ust_id=ust_id,
+                        handelsregister=handelsregister,
+                        bank_name=bank_name,
+                        iban=iban,
+                        bic=bic,
+                        fusszeile_text=fusszeile_text,
+                        fusszeile_zeile2=fusszeile_zeile2
+                    )
+                    st.session_state.briefkoepfe[briefkopf_id] = briefkopf
+
+                st.success("✅ Briefkopf gespeichert!")
+                audit_log_eintrag(user_id, "bearbeitet", "briefkopf", briefkopf.briefkopf_id, "Briefkopf")
+                st.rerun()
+
+    with col_preview:
+        st.markdown("#### Vorschau")
+        if briefkopf or firmenname:
+            # Briefkopf-Vorschau
+            bk = briefkopf if briefkopf else None
+            preview_html = f"""
+            <div style="border: 1px solid #ccc; padding: 20px; font-family: Arial; max-width: 400px;">
+                <div style="text-align: {'left' if (bk and bk.logo_position == 'links') else 'center' if (bk and bk.logo_position == 'zentriert') else 'right'};">
+                    <strong style="font-size: 16px;">{bk.firmenname if bk else firmenname or 'Firmenname'}</strong><br>
+                    <span style="font-size: 12px; color: #666;">{bk.zusatz if bk else zusatz or ''}</span><br>
+                    <span style="font-size: 11px;">{bk.inhaber_name if bk else inhaber_name or ''}</span>
+                </div>
+                <hr style="margin: 10px 0;">
+                <div style="font-size: 10px; color: #666; text-align: center;">
+                    {bk.strasse if bk else strasse or ''} {bk.hausnummer if bk else hausnummer or ''} · {bk.plz if bk else plz or ''} {bk.ort if bk else ort or ''}<br>
+                    Tel: {bk.telefon if bk else telefon or ''} · {bk.email if bk else email or ''}
+                </div>
+            </div>
+            """
+            st.markdown(preview_html, unsafe_allow_html=True)
+        else:
+            st.info("Füllen Sie das Formular aus, um eine Vorschau zu sehen.")
+
+
+def render_email_signaturen(user_id: str):
+    """Verwaltung der E-Mail-Signaturen"""
+    st.subheader("✉️ E-Mail-Signaturen")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Bestehende Signaturen laden
+    user_signaturen = [s for s in st.session_state.email_signaturen.values() if s.user_id == user_id]
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("### Meine Signaturen")
+
+        if user_signaturen:
+            for sig in user_signaturen:
+                with st.expander(f"{'⭐ ' if sig.ist_standard else ''}{sig.name}", expanded=sig.ist_standard):
+                    st.markdown(sig.html_signatur if sig.html_signatur else sig.text_signatur, unsafe_allow_html=True)
+
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("✏️ Bearbeiten", key=f"edit_sig_{sig.signatur_id}"):
+                            st.session_state[f'editing_signatur_{user_id}'] = sig.signatur_id
+                            st.rerun()
+                    with col_b:
+                        if not sig.ist_standard:
+                            if st.button("⭐ Als Standard", key=f"std_sig_{sig.signatur_id}"):
+                                for s in user_signaturen:
+                                    s.ist_standard = False
+                                    st.session_state.email_signaturen[s.signatur_id] = s
+                                sig.ist_standard = True
+                                st.session_state.email_signaturen[sig.signatur_id] = sig
+                                st.success("Als Standard-Signatur festgelegt!")
+                                st.rerun()
+                    with col_c:
+                        if len(user_signaturen) > 1:
+                            if st.button("🗑️ Löschen", key=f"del_sig_{sig.signatur_id}"):
+                                del st.session_state.email_signaturen[sig.signatur_id]
+                                st.success("Signatur gelöscht!")
+                                st.rerun()
+        else:
+            st.info("Noch keine Signaturen angelegt.")
+
+    with col2:
+        st.markdown("### Neue Signatur erstellen")
+
+        with st.form("neue_signatur_form"):
+            sig_name = st.text_input("Name der Signatur", placeholder="z.B. Standard, Formal, Kurz")
+            sig_text = st.text_area(
+                "Signatur-Text",
+                height=200,
+                placeholder="""Mit freundlichen Grüßen
+
+Max Mustermann
+Notar
+
+Musterstraße 1, 12345 Musterstadt
+Tel: 0123-456789
+E-Mail: info@notar-muster.de""",
+                help="Verwenden Sie Platzhalter wie {{name}}, {{telefon}}, {{email}}"
+            )
+
+            ist_standard = st.checkbox("Als Standard-Signatur verwenden", value=len(user_signaturen) == 0)
+            fuer_antworten = st.checkbox("Auch für Antworten verwenden", value=True)
+
+            if st.form_submit_button("💾 Signatur speichern", type="primary"):
+                if sig_name and sig_text:
+                    signatur_id = str(uuid.uuid4())[:8]
+
+                    # Wenn als Standard markiert, andere deaktivieren
+                    if ist_standard:
+                        for s in user_signaturen:
+                            s.ist_standard = False
+                            st.session_state.email_signaturen[s.signatur_id] = s
+
+                    neue_signatur = EmailSignatur(
+                        signatur_id=signatur_id,
+                        user_id=user_id,
+                        name=sig_name,
+                        text_signatur=sig_text,
+                        html_signatur=sig_text.replace('\n', '<br>'),
+                        ist_standard=ist_standard,
+                        fuer_antworten=fuer_antworten
+                    )
+                    st.session_state.email_signaturen[signatur_id] = neue_signatur
+                    st.success(f"✅ Signatur '{sig_name}' erstellt!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Name und Text eingeben.")
+
+    # Platzhalter-Hilfe
+    st.markdown("---")
+    with st.expander("📋 Verfügbare Platzhalter"):
+        st.markdown("""
+        | Platzhalter | Beschreibung |
+        |-------------|--------------|
+        | `{{name}}` | Vollständiger Name |
+        | `{{vorname}}` | Vorname |
+        | `{{nachname}}` | Nachname |
+        | `{{titel}}` | Titel (Dr., Prof., etc.) |
+        | `{{position}}` | Position/Rolle |
+        | `{{telefon}}` | Telefonnummer |
+        | `{{email}}` | E-Mail-Adresse |
+        | `{{firma}}` | Firmenname |
+        | `{{adresse}}` | Vollständige Adresse |
+        | `{{datum}}` | Aktuelles Datum |
+        | `{{aktenzeichen}}` | Aktenzeichen (im Kontext) |
+        """)
+
+
+def render_makler_mitarbeiter_verwaltung(makler_id: str):
+    """Mitarbeiterverwaltung für Makler"""
+    st.subheader("👥 Mitarbeiter-Verwaltung")
+
+    makler = st.session_state.users.get(makler_id)
+    if not makler or makler.rolle != UserRole.MAKLER.value:
+        st.error("Nur für Makler verfügbar")
+        return
+
+    # Bestehende Mitarbeiter laden
+    mitarbeiter_liste = [m for m in st.session_state.makler_mitarbeiter.values() if m.makler_id == makler_id]
+
+    tab1, tab2, tab3 = st.tabs(["👥 Übersicht", "➕ Neuer Mitarbeiter", "📋 Projektzuweisung"])
+
+    with tab1:
+        if mitarbeiter_liste:
+            for ma in mitarbeiter_liste:
+                status_icon = "✅" if ma.ist_aktiv else "⏸️"
+                with st.expander(f"{status_icon} {ma.vorname} {ma.name} ({ma.rolle})", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"**E-Mail:** {ma.email}")
+                        st.markdown(f"**Telefon:** {ma.telefon or '-'}")
+                        st.markdown(f"**Kürzel:** {ma.kuerzel or '-'}")
+                        st.markdown(f"**Eingestellt:** {ma.eingestellt_am.strftime('%d.%m.%Y')}")
+                    with col2:
+                        st.markdown(f"**Zugewiesene Projekte:** {len(ma.projekt_ids)}")
+                        st.markdown(f"**Alle Projekte sehen:** {'Ja' if ma.kann_alle_projekte_sehen else 'Nein'}")
+                        st.markdown(f"**Im Namen kommunizieren:** {'Ja' if ma.kann_im_namen_kommunizieren else 'Nein'}")
+
+                    st.markdown("**Berechtigungen:**")
+                    if ma.berechtigungen:
+                        berechtigung_cols = st.columns(3)
+                        for i, b in enumerate(ma.berechtigungen):
+                            berechtigung_cols[i % 3].markdown(f"✓ {b}")
+                    else:
+                        st.info("Keine speziellen Berechtigungen")
+
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        if st.button("✏️ Bearbeiten", key=f"edit_ma_{ma.mitarbeiter_id}"):
+                            st.session_state[f'editing_mitarbeiter'] = ma.mitarbeiter_id
+                            st.rerun()
+                    with col_b:
+                        new_status = not ma.ist_aktiv
+                        if st.button("✅ Aktivieren" if not ma.ist_aktiv else "⏸️ Deaktivieren", key=f"status_ma_{ma.mitarbeiter_id}"):
+                            ma.ist_aktiv = new_status
+                            st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
+                            st.success(f"Mitarbeiter {'aktiviert' if new_status else 'deaktiviert'}!")
+                            st.rerun()
+                    with col_c:
+                        if st.button("🗑️ Entfernen", key=f"del_ma_{ma.mitarbeiter_id}"):
+                            del st.session_state.makler_mitarbeiter[ma.mitarbeiter_id]
+                            st.success("Mitarbeiter entfernt!")
+                            st.rerun()
+        else:
+            st.info("Noch keine Mitarbeiter angelegt. Fügen Sie im Tab 'Neuer Mitarbeiter' welche hinzu.")
+
+    with tab2:
+        with st.form("neuer_mitarbeiter_form"):
+            st.markdown("### Neuen Mitarbeiter hinzufügen")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                ma_vorname = st.text_input("Vorname*")
+                ma_email = st.text_input("E-Mail*")
+                ma_kuerzel = st.text_input("Kürzel (für Aktenzeichen)", max_chars=3)
+            with col2:
+                ma_name = st.text_input("Nachname*")
+                ma_telefon = st.text_input("Telefon")
+                ma_passwort = st.text_input("Passwort*", type="password")
+
+            st.markdown("---")
+            ma_rolle = st.selectbox("Rolle", [r.value for r in MaklerMitarbeiterRolle])
+
+            st.markdown("**Berechtigungen:**")
+            col1, col2, col3 = st.columns(3)
+
+            berechtigungen = []
+            with col1:
+                if st.checkbox("Projekte ansehen", value=True, key="perm_ansehen"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_ANSEHEN.value)
+                if st.checkbox("Projekte bearbeiten", value=True, key="perm_bearbeiten"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_BEARBEITEN.value)
+                if st.checkbox("Projekte erstellen", key="perm_erstellen"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PROJEKTE_ERSTELLEN.value)
+                if st.checkbox("Exposés erstellen", value=True, key="perm_expose"):
+                    berechtigungen.append(MaklerBerechtigungTyp.EXPOSE_ERSTELLEN.value)
+
+            with col2:
+                if st.checkbox("Nachrichten senden", value=True, key="perm_nachrichten"):
+                    berechtigungen.append(MaklerBerechtigungTyp.NACHRICHTEN_SENDEN.value)
+                if st.checkbox("Dokumente hochladen", value=True, key="perm_dokumente"):
+                    berechtigungen.append(MaklerBerechtigungTyp.DOKUMENTE_HOCHLADEN.value)
+                if st.checkbox("Teilnehmer einladen", key="perm_teilnehmer"):
+                    berechtigungen.append(MaklerBerechtigungTyp.TEILNEHMER_EINLADEN.value)
+                if st.checkbox("Termine erstellen", value=True, key="perm_termine"):
+                    berechtigungen.append(MaklerBerechtigungTyp.TERMINE_ERSTELLEN.value)
+
+            with col3:
+                if st.checkbox("Preise sehen", key="perm_preise"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PREISE_SEHEN.value)
+                if st.checkbox("Preisverhandlungen führen", key="perm_verhandeln"):
+                    berechtigungen.append(MaklerBerechtigungTyp.PREISE_VERHANDELN.value)
+                kann_im_namen = st.checkbox("Im Namen des Maklers kommunizieren", key="perm_im_namen")
+                kann_alle_sehen = st.checkbox("Alle Projekte sehen", key="perm_alle")
+
+            if st.form_submit_button("📧 Mitarbeiter hinzufügen", type="primary"):
+                if ma_vorname and ma_name and ma_email and ma_passwort:
+                    mitarbeiter_id = str(uuid.uuid4())[:8]
+
+                    if kann_im_namen:
+                        berechtigungen.append(MaklerBerechtigungTyp.IM_NAMEN_KOMMUNIZIEREN.value)
+
+                    neuer_ma = MaklerMitarbeiter(
+                        mitarbeiter_id=mitarbeiter_id,
+                        makler_id=makler_id,
+                        name=ma_name,
+                        vorname=ma_vorname,
+                        email=ma_email,
+                        telefon=ma_telefon,
+                        password_hash=hash_password(ma_passwort),
+                        rolle=ma_rolle,
+                        berechtigungen=berechtigungen,
+                        kann_alle_projekte_sehen=kann_alle_sehen,
+                        kann_im_namen_kommunizieren=kann_im_namen,
+                        kuerzel=ma_kuerzel.upper() if ma_kuerzel else ""
+                    )
+                    st.session_state.makler_mitarbeiter[mitarbeiter_id] = neuer_ma
+
+                    st.success(f"✅ Mitarbeiter {ma_vorname} {ma_name} hinzugefügt!")
+                    audit_log_eintrag(makler_id, "erstellt", "mitarbeiter", mitarbeiter_id, f"{ma_vorname} {ma_name}")
+                    st.rerun()
+                else:
+                    st.error("Bitte alle Pflichtfelder (*) ausfüllen.")
+
+    with tab3:
+        st.markdown("### Projekte zuweisen")
+
+        if not mitarbeiter_liste:
+            st.info("Erst Mitarbeiter anlegen, dann Projekte zuweisen.")
+            return
+
+        makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == makler_id]
+
+        if not makler_projekte:
+            st.info("Noch keine Projekte vorhanden.")
+            return
+
+        selected_projekt = st.selectbox(
+            "Projekt auswählen",
+            makler_projekte,
+            format_func=lambda p: f"{p.name} ({p.adresse})" if p.adresse else p.name
+        )
+
+        if selected_projekt:
+            st.markdown(f"**Mitarbeiter für '{selected_projekt.name}':**")
+
+            for ma in mitarbeiter_liste:
+                ist_zugewiesen = selected_projekt.projekt_id in ma.projekt_ids
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    checked = st.checkbox(
+                        f"{ma.vorname} {ma.name} ({ma.rolle})",
+                        value=ist_zugewiesen,
+                        key=f"assign_{selected_projekt.projekt_id}_{ma.mitarbeiter_id}"
+                    )
+                with col2:
+                    if checked != ist_zugewiesen:
+                        if checked:
+                            ma.projekt_ids.append(selected_projekt.projekt_id)
+                        else:
+                            ma.projekt_ids.remove(selected_projekt.projekt_id)
+                        st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
+                        st.rerun()
+
+
+def render_kommunikationszentrale(user_id: str, projekt_id: str = None):
+    """Kommunikationszentrale mit Posteingang/Postausgang"""
+    st.subheader("📬 Kommunikationszentrale")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Nachrichten für diesen Benutzer laden
+    empfangene = [n for n in st.session_state.nachrichten.values()
+                  if user_id in n.empfaenger_ids and not n.ist_geloescht and not n.ist_entwurf]
+    gesendete = [n for n in st.session_state.nachrichten.values()
+                 if n.absender_id == user_id and not n.ist_geloescht and not n.ist_entwurf]
+    entwuerfe = [n for n in st.session_state.nachrichten.values()
+                 if n.absender_id == user_id and n.ist_entwurf]
+
+    # Filter nach Projekt wenn angegeben
+    if projekt_id:
+        empfangene = [n for n in empfangene if n.projekt_id == projekt_id]
+        gesendete = [n for n in gesendete if n.projekt_id == projekt_id]
+
+    # Ungelesene zählen
+    ungelesen_count = len([n for n in empfangene if user_id not in n.gelesen_von])
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        f"📥 Posteingang ({ungelesen_count})" if ungelesen_count > 0 else "📥 Posteingang",
+        "📤 Gesendet",
+        f"📝 Entwürfe ({len(entwuerfe)})" if entwuerfe else "📝 Entwürfe",
+        "✉️ Neue Nachricht"
+    ])
+
+    with tab1:
+        _render_nachrichten_liste(empfangene, user_id, "eingang")
+
+    with tab2:
+        _render_nachrichten_liste(gesendete, user_id, "ausgang")
+
+    with tab3:
+        _render_nachrichten_liste(entwuerfe, user_id, "entwurf")
+
+    with tab4:
+        _render_neue_nachricht_form(user_id, projekt_id)
+
+
+def _render_nachrichten_liste(nachrichten: list, user_id: str, typ: str):
+    """Rendert eine Liste von Nachrichten"""
+    if not nachrichten:
+        st.info("Keine Nachrichten vorhanden.")
+        return
+
+    # Sortierung
+    sort_option = st.selectbox(
+        "Sortieren nach",
+        ["Neueste zuerst", "Älteste zuerst", "Priorität", "Ungelesen zuerst"],
+        key=f"sort_{typ}"
+    )
+
+    if sort_option == "Neueste zuerst":
+        nachrichten.sort(key=lambda n: n.erstellt_am, reverse=True)
+    elif sort_option == "Älteste zuerst":
+        nachrichten.sort(key=lambda n: n.erstellt_am)
+    elif sort_option == "Priorität":
+        prio_order = {NachrichtenPrioritaet.DRINGEND.value: 0, NachrichtenPrioritaet.HOCH.value: 1, NachrichtenPrioritaet.NORMAL.value: 2}
+        nachrichten.sort(key=lambda n: prio_order.get(n.prioritaet, 2))
+    elif sort_option == "Ungelesen zuerst":
+        nachrichten.sort(key=lambda n: (user_id in n.gelesen_von, n.erstellt_am), reverse=True)
+
+    for nachricht in nachrichten:
+        ist_gelesen = user_id in nachricht.gelesen_von
+        absender = st.session_state.users.get(nachricht.absender_id)
+        absender_name = absender.name if absender else "Unbekannt"
+
+        # Priorität-Icon
+        prio_icon = ""
+        if nachricht.prioritaet == NachrichtenPrioritaet.DRINGEND.value:
+            prio_icon = "🔴 "
+        elif nachricht.prioritaet == NachrichtenPrioritaet.HOCH.value:
+            prio_icon = "🟠 "
+
+        # Sicherheitsstufe-Icon
+        sicher_icon = ""
+        if nachricht.sicherheitsstufe == Sicherheitsstufe.VERTRAULICH.value:
+            sicher_icon = "🔒 "
+        elif nachricht.sicherheitsstufe == Sicherheitsstufe.STRENG_VERTRAULICH.value:
+            sicher_icon = "🔐 "
+
+        anlagen_count = len(nachricht.anlage_ids)
+        anlagen_text = f" 📎{anlagen_count}" if anlagen_count > 0 else ""
+
+        titel = f"{'**' if not ist_gelesen else ''}{prio_icon}{sicher_icon}{nachricht.betreff}{anlagen_text}{'**' if not ist_gelesen else ''}"
+
+        with st.expander(f"{titel} - {absender_name} ({nachricht.erstellt_am.strftime('%d.%m.%Y %H:%M')})"):
+            # Als gelesen markieren
+            if typ == "eingang" and user_id not in nachricht.gelesen_von:
+                nachricht.gelesen_von.append(user_id)
+                st.session_state.nachrichten[nachricht.nachricht_id] = nachricht
+                audit_log_eintrag(user_id, "angesehen", "nachricht", nachricht.nachricht_id, nachricht.betreff)
+
+            st.markdown(f"**Von:** {absender_name}")
+            st.markdown(f"**Betreff:** {nachricht.betreff}")
+            st.markdown(f"**Kategorie:** {nachricht.kategorie}")
+            if nachricht.projekt_id:
+                projekt = st.session_state.projekte.get(nachricht.projekt_id)
+                if projekt:
+                    st.markdown(f"**Projekt:** {projekt.name}")
+            st.markdown("---")
+            st.markdown(nachricht.inhalt)
+
+            # Anlagen anzeigen
+            if nachricht.anlage_ids:
+                st.markdown("---")
+                st.markdown("**📎 Anlagen:**")
+                for anlage_id in nachricht.anlage_ids:
+                    anlage = st.session_state.kommunikations_anlagen.get(anlage_id)
+                    if anlage:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"• {anlage.dateiname} ({anlage.dateigroesse // 1024} KB)")
+                        with col2:
+                            if anlage.datei_data:
+                                st.download_button(
+                                    "⬇️",
+                                    anlage.datei_data,
+                                    file_name=anlage.dateiname,
+                                    key=f"dl_{anlage.anlage_id}"
+                                )
+
+
+def _render_neue_nachricht_form(user_id: str, projekt_id: str = None):
+    """Formular für neue Nachricht"""
+    user = st.session_state.users.get(user_id)
+
+    with st.form("neue_nachricht_form"):
+        # Projekt auswählen (wenn nicht vorgegeben)
+        if not projekt_id:
+            user_projekte = _get_user_projekte(user_id, user.rolle)
+            if user_projekte:
+                selected_projekt = st.selectbox(
+                    "Projekt",
+                    [None] + user_projekte,
+                    format_func=lambda p: "-- Kein Projekt --" if p is None else p.name
+                )
+                projekt_id = selected_projekt.projekt_id if selected_projekt else None
+
+        # Empfänger
+        empfaenger_optionen = _get_moegliche_empfaenger(user_id, projekt_id)
+        empfaenger = st.multiselect("Empfänger*", list(empfaenger_optionen.keys()))
+
+        betreff = st.text_input("Betreff*")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            kategorie = st.selectbox("Kategorie", [k.value for k in NachrichtenKategorie])
+        with col2:
+            prioritaet = st.selectbox("Priorität", [p.value for p in NachrichtenPrioritaet])
+
+        sicherheitsstufe = st.selectbox("Sicherheitsstufe", [s.value for s in Sicherheitsstufe])
+
+        inhalt = st.text_area("Nachricht*", height=200)
+
+        # Anlagen
+        anlagen = st.file_uploader("Anlagen hinzufügen", accept_multiple_files=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            senden = st.form_submit_button("📤 Senden", type="primary")
+        with col2:
+            speichern = st.form_submit_button("💾 Als Entwurf speichern")
+
+        if senden or speichern:
+            if (senden and not empfaenger) or not betreff or not inhalt:
+                st.error("Bitte alle Pflichtfelder (*) ausfüllen.")
+            else:
+                nachricht_id = str(uuid.uuid4())[:8]
+
+                # Anlagen speichern
+                anlage_ids = []
+                for datei in anlagen:
+                    anlage_id = str(uuid.uuid4())[:8]
+                    anlage = KommunikationsAnlage(
+                        anlage_id=anlage_id,
+                        nachricht_id=nachricht_id,
+                        projekt_id=projekt_id or "",
+                        dateiname=datei.name,
+                        dateityp=datei.name.split('.')[-1].upper() if '.' in datei.name else "UNBEKANNT",
+                        dateigroesse=datei.size,
+                        datei_data=datei.read(),
+                        hochgeladen_von=user_id,
+                        sicherheitsstufe=sicherheitsstufe
+                    )
+                    st.session_state.kommunikations_anlagen[anlage_id] = anlage
+                    anlage_ids.append(anlage_id)
+
+                empfaenger_ids = [empfaenger_optionen[e] for e in empfaenger] if empfaenger else []
+
+                nachricht = KommunikationsNachricht(
+                    nachricht_id=nachricht_id,
+                    projekt_id=projekt_id or "",
+                    absender_id=user_id,
+                    empfaenger_ids=empfaenger_ids,
+                    betreff=betreff,
+                    inhalt=inhalt,
+                    inhalt_plaintext=inhalt,
+                    prioritaet=prioritaet,
+                    kategorie=kategorie,
+                    sicherheitsstufe=sicherheitsstufe,
+                    anlage_ids=anlage_ids,
+                    ist_entwurf=speichern,
+                    gesendet_am=datetime.now() if senden else None
+                )
+                st.session_state.nachrichten[nachricht_id] = nachricht
+
+                if senden:
+                    # Benachrichtigungen erstellen
+                    for emp_id in empfaenger_ids:
+                        create_notification(emp_id, f"Neue Nachricht: {betreff}", f"Von {user.name}", NotificationType.INFO.value)
+
+                    st.success("✅ Nachricht gesendet!")
+                    audit_log_eintrag(user_id, "gesendet", "nachricht", nachricht_id, betreff, projekt_id)
+                else:
+                    st.success("✅ Entwurf gespeichert!")
+
+                st.rerun()
+
+
+def _get_user_projekte(user_id: str, rolle: str) -> list:
+    """Holt alle Projekte eines Benutzers"""
+    projekte = []
+    for p in st.session_state.projekte.values():
+        if rolle == UserRole.MAKLER.value and p.makler_id == user_id:
+            projekte.append(p)
+        elif rolle == UserRole.NOTAR.value and p.notar_id == user_id:
+            projekte.append(p)
+        elif rolle == UserRole.KAEUFER.value and user_id in p.kaeufer_ids:
+            projekte.append(p)
+        elif rolle == UserRole.VERKAEUFER.value and user_id in p.verkaeufer_ids:
+            projekte.append(p)
+        elif rolle == UserRole.FINANZIERER.value and user_id in p.finanzierer_ids:
+            projekte.append(p)
+    return projekte
+
+
+def _get_moegliche_empfaenger(user_id: str, projekt_id: str = None) -> dict:
+    """Holt mögliche Empfänger für Nachrichten"""
+    empfaenger = {}
+
+    if projekt_id:
+        projekt = st.session_state.projekte.get(projekt_id)
+        if projekt:
+            # Alle Projektbeteiligten
+            if projekt.makler_id and projekt.makler_id != user_id:
+                makler = st.session_state.users.get(projekt.makler_id)
+                if makler:
+                    empfaenger[f"👔 Makler: {makler.name}"] = projekt.makler_id
+
+            if projekt.notar_id and projekt.notar_id != user_id:
+                notar = st.session_state.users.get(projekt.notar_id)
+                if notar:
+                    empfaenger[f"⚖️ Notar: {notar.name}"] = projekt.notar_id
+
+            for kid in projekt.kaeufer_ids:
+                if kid != user_id:
+                    kaeufer = st.session_state.users.get(kid)
+                    if kaeufer:
+                        empfaenger[f"🏠 Käufer: {kaeufer.name}"] = kid
+
+            for vid in projekt.verkaeufer_ids:
+                if vid != user_id:
+                    verkaeufer = st.session_state.users.get(vid)
+                    if verkaeufer:
+                        empfaenger[f"🏡 Verkäufer: {verkaeufer.name}"] = vid
+
+            for fid in projekt.finanzierer_ids:
+                if fid != user_id:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        empfaenger[f"🏦 Finanzierer: {finanzierer.name}"] = fid
+    else:
+        # Alle bekannten Benutzer (außer sich selbst)
+        for uid, u in st.session_state.users.items():
+            if uid != user_id:
+                rolle_icon = {"Makler": "👔", "Notar": "⚖️", "Käufer": "🏠", "Verkäufer": "🏡", "Finanzierer": "🏦"}.get(u.rolle, "👤")
+                empfaenger[f"{rolle_icon} {u.name}"] = uid
+
+    return empfaenger
+
+
+def render_akten_ordner_struktur(akte_id: str, user_id: str):
+    """Rendert die Ordnerstruktur einer Akte"""
+    akte = st.session_state.importierte_akten.get(akte_id)
+    if not akte:
+        st.error("Akte nicht gefunden")
+        return
+
+    st.markdown(f"### 📁 {akte.aktenzeichen}")
+
+    # Ordner für diese Akte laden
+    ordner_liste = [o for o in st.session_state.akten_ordner.values() if o.akte_id == akte_id]
+    ordner_liste.sort(key=lambda o: o.pfad)
+
+    # Dokumente in dieser Akte
+    dokumente = [d for d in st.session_state.akten_dokumente.values() if d.akte_id == akte_id] if hasattr(st.session_state, 'akten_dokumente') else []
+
+    if not ordner_liste:
+        # Ordner aus Template erstellen
+        st.info("Keine Ordnerstruktur vorhanden. Möchten Sie eine Standard-Struktur erstellen?")
+
+        akten_typ = st.selectbox("Aktentyp auswählen", list(AKTEN_ORDNER_TEMPLATES.keys()))
+
+        if st.button("📁 Ordnerstruktur erstellen"):
+            _erstelle_ordner_struktur(akte_id, akten_typ, user_id)
+            st.success("Ordnerstruktur erstellt!")
+            st.rerun()
+    else:
+        # Ordner als Baum anzeigen
+        for ordner in ordner_liste:
+            tiefe = ordner.pfad.count('/') - 1
+            einzug = "  " * tiefe
+            ordner_name = ordner.pfad.split('/')[-1]
+
+            # Dokumente in diesem Ordner zählen
+            dok_count = len([d for d in dokumente if d.ordner_name == ordner.pfad])
+
+            if dok_count > 0:
+                with st.expander(f"{einzug}📂 {ordner_name} ({dok_count} Dokumente)"):
+                    for dok in [d for d in dokumente if d.ordner_name == ordner.pfad]:
+                        st.markdown(f"📄 {dok.titel}")
+            else:
+                st.markdown(f"{einzug}📁 {ordner_name}")
+
+
+def _erstelle_ordner_struktur(akte_id: str, akten_typ: str, user_id: str):
+    """Erstellt die Ordnerstruktur für eine Akte"""
+    template = AKTEN_ORDNER_TEMPLATES.get(akten_typ, [])
+
+    for pfad, beschreibung in template:
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner = AktenOrdner(
+            ordner_id=ordner_id,
+            akte_id=akte_id,
+            name=pfad.split('/')[-1],
+            pfad=f"/{pfad}",
+            beschreibung=beschreibung,
+            erstellt_von=user_id
+        )
+        st.session_state.akten_ordner[ordner_id] = ordner
+
+
+def render_erweiterte_suche(user_id: str):
+    """Erweiterte Such- und Filterfunktionen"""
+    st.subheader("🔍 Erweiterte Suche")
+
+    user = st.session_state.users.get(user_id)
+
+    # Gespeicherte Suchen
+    user_suchen = [s for s in st.session_state.gespeicherte_suchen.values() if s.user_id == user_id]
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        suchbegriff = st.text_input("🔍 Suchbegriff", placeholder="Aktenzeichen, Name, Betreff...")
+
+    with col2:
+        if user_suchen:
+            gespeicherte = st.selectbox(
+                "Gespeicherte Suchen",
+                [None] + user_suchen,
+                format_func=lambda s: "-- Neue Suche --" if s is None else f"⭐ {s.name}"
+            )
+            if gespeicherte:
+                suchbegriff = gespeicherte.suchbegriff
+
+    # Filter
+    with st.expander("🎛️ Erweiterte Filter", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            filter_typ = st.multiselect(
+                "Suchen in",
+                ["Akten", "Nachrichten", "Dokumente", "Projekte"],
+                default=["Akten", "Nachrichten", "Dokumente", "Projekte"]
+            )
+
+        with col2:
+            filter_zeitraum = st.selectbox(
+                "Zeitraum",
+                ["Alle", "Heute", "Diese Woche", "Dieser Monat", "Dieses Jahr", "Benutzerdefiniert"]
+            )
+
+        with col3:
+            filter_status = st.selectbox(
+                "Status",
+                ["Alle", "Offen", "In Bearbeitung", "Abgeschlossen", "Archiviert"]
+            )
+
+        with col4:
+            filter_sicherheit = st.selectbox(
+                "Sicherheitsstufe",
+                ["Alle"] + [s.value for s in Sicherheitsstufe]
+            )
+
+        if filter_zeitraum == "Benutzerdefiniert":
+            col1, col2 = st.columns(2)
+            with col1:
+                datum_von = st.date_input("Von")
+            with col2:
+                datum_bis = st.date_input("Bis")
+
+    # Sortierung
+    sortierung = st.selectbox(
+        "Sortieren nach",
+        ["Relevanz", "Datum (neueste)", "Datum (älteste)", "Name (A-Z)", "Name (Z-A)"]
+    )
+
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        suchen_clicked = st.button("🔍 Suchen", type="primary")
+    with col2:
+        if suchbegriff:
+            speichern_clicked = st.button("💾 Suche speichern")
+            if speichern_clicked:
+                suche_id = str(uuid.uuid4())[:8]
+                name = st.text_input("Name für die Suche", value=suchbegriff[:30])
+                if name:
+                    neue_suche = GespeicherteSuche(
+                        suche_id=suche_id,
+                        user_id=user_id,
+                        name=name,
+                        suchbegriff=suchbegriff,
+                        filter_kriterien={
+                            "typ": filter_typ,
+                            "zeitraum": filter_zeitraum,
+                            "status": filter_status,
+                            "sicherheit": filter_sicherheit
+                        },
+                        sortierung=sortierung
+                    )
+                    st.session_state.gespeicherte_suchen[suche_id] = neue_suche
+                    st.success("Suche gespeichert!")
+
+    # Suchergebnisse
+    if suchen_clicked and suchbegriff:
+        st.markdown("---")
+        st.markdown("### Suchergebnisse")
+
+        ergebnisse = []
+
+        # In Akten suchen
+        if "Akten" in filter_typ:
+            for akte in st.session_state.importierte_akten.values():
+                if suchbegriff.lower() in akte.aktenzeichen.lower() or suchbegriff.lower() in akte.bezeichnung.lower():
+                    ergebnisse.append(("📁 Akte", akte.aktenzeichen, akte.bezeichnung, akte.importiert_am))
+
+        # In Nachrichten suchen
+        if "Nachrichten" in filter_typ:
+            for nachricht in st.session_state.nachrichten.values():
+                if user_id in nachricht.empfaenger_ids or nachricht.absender_id == user_id:
+                    if suchbegriff.lower() in nachricht.betreff.lower() or suchbegriff.lower() in nachricht.inhalt.lower():
+                        ergebnisse.append(("✉️ Nachricht", nachricht.betreff, nachricht.inhalt[:100], nachricht.erstellt_am))
+
+        # In Projekten suchen
+        if "Projekte" in filter_typ:
+            for projekt in st.session_state.projekte.values():
+                if suchbegriff.lower() in projekt.name.lower() or suchbegriff.lower() in projekt.beschreibung.lower():
+                    ergebnisse.append(("🏘️ Projekt", projekt.name, projekt.beschreibung, projekt.created_at))
+
+        if ergebnisse:
+            st.info(f"{len(ergebnisse)} Ergebnisse gefunden")
+            for typ, titel, beschreibung, datum in ergebnisse:
+                with st.expander(f"{typ} {titel}"):
+                    st.markdown(beschreibung)
+                    st.caption(f"Datum: {datum.strftime('%d.%m.%Y %H:%M') if datum else '-'}")
+        else:
+            st.warning("Keine Ergebnisse gefunden.")
+
+
+# ============================================================================
+# BENACHRICHTIGUNGS-CENTER FUNKTIONEN
+# ============================================================================
+
+def _initialisiere_system_antwortvorlagen():
+    """Initialisiert die System-Antwortvorlagen"""
+    if 'antwort_vorlagen' not in st.session_state:
+        st.session_state.antwort_vorlagen = {}
+
+    system_vorlagen = [
+        AntwortVorlage(
+            vorlage_id="sys_bestaetigung_dokument",
+            name="Dokumentenempfang bestätigen",
+            kategorie="Bestätigung",
+            betreff_template="Bestätigung: {dokument_name} erhalten",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nhiermit bestätigen wir den Erhalt des Dokuments \"{dokument_name}\".\n\nDas Dokument wird nun geprüft. Bei Rückfragen melden wir uns umgehend.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "dokument_name"],
+            fuer_typen=[EingangTyp.DOKUMENT.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_bestaetigung_termin",
+            name="Termin bestätigen",
+            kategorie="Bestätigung",
+            betreff_template="Terminbestätigung: {termin_datum}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nhiermit bestätigen wir den Termin am {termin_datum} um {termin_uhrzeit} Uhr.\n\nBitte bringen Sie folgende Unterlagen mit:\n{unterlagen_liste}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "termin_datum", "termin_uhrzeit", "unterlagen_liste"],
+            fuer_typen=[EingangTyp.TERMIN.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_ablehnung_dokument",
+            name="Dokument ablehnen/Nachbesserung",
+            kategorie="Ablehnung",
+            betreff_template="Nachbesserung erforderlich: {dokument_name}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nbei der Prüfung des Dokuments \"{dokument_name}\" sind folgende Mängel aufgefallen:\n\n{maengel_liste}\n\nBitte reichen Sie das Dokument korrigiert bis zum {frist_datum} ein.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "dokument_name", "maengel_liste", "frist_datum"],
+            fuer_typen=[EingangTyp.DOKUMENT.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_freigabe_erteilt",
+            name="Freigabe erteilen",
+            kategorie="Freigabe",
+            betreff_template="Freigabe erteilt: {objekt_name}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nwir freuen uns, Ihnen mitteilen zu können, dass {objekt_name} freigegeben wurde.\n\n{zusatz_info}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "objekt_name", "zusatz_info"],
+            fuer_typen=[EingangTyp.FREIGABE.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_erinnerung_frist",
+            name="Frist-Erinnerung",
+            kategorie="Erinnerung",
+            betreff_template="Erinnerung: {frist_name} läuft am {frist_datum} ab",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nwir möchten Sie daran erinnern, dass die Frist \"{frist_name}\" am {frist_datum} abläuft.\n\nBitte beachten Sie:\n{hinweise}\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "frist_name", "frist_datum", "hinweise"],
+            fuer_typen=[EingangTyp.FRIST.value],
+            ist_system=True
+        ),
+        AntwortVorlage(
+            vorlage_id="sys_nachfrage",
+            name="Rückfrage stellen",
+            kategorie="Nachfrage",
+            betreff_template="Rückfrage zu: {betreff}",
+            text_template="Sehr geehrte/r {empfaenger_name},\n\nzu Ihrer Anfrage haben wir folgende Rückfragen:\n\n{fragen_liste}\n\nBitte antworten Sie uns bis zum {frist_datum}.\n\nMit freundlichen Grüßen",
+            platzhalter=["empfaenger_name", "betreff", "fragen_liste", "frist_datum"],
+            fuer_typen=[EingangTyp.NACHRICHT.value, EingangTyp.ANFORDERUNG.value],
+            ist_system=True
+        ),
+    ]
+
+    for vorlage in system_vorlagen:
+        if vorlage.vorlage_id not in st.session_state.antwort_vorlagen:
+            st.session_state.antwort_vorlagen[vorlage.vorlage_id] = vorlage
+
+
+def get_eingaenge_zaehler(user_id: str) -> Dict[str, int]:
+    """Zählt die ungelesenen Eingänge nach Typ"""
+    if 'eingaenge' not in st.session_state:
+        st.session_state.eingaenge = {}
+
+    zaehler = {
+        EingangTyp.NACHRICHT.value: 0,
+        EingangTyp.DOKUMENT.value: 0,
+        EingangTyp.TERMIN.value: 0,
+        EingangTyp.FREIGABE.value: 0,
+        EingangTyp.FRIST.value: 0,
+        EingangTyp.ANFORDERUNG.value: 0,
+        EingangTyp.SYSTEM.value: 0,
+        "gesamt": 0
+    }
+
+    for eingang in st.session_state.eingaenge.values():
+        if eingang.empfaenger_id == user_id and eingang.status == EingangStatus.NEU.value:
+            zaehler[eingang.typ] = zaehler.get(eingang.typ, 0) + 1
+            zaehler["gesamt"] += 1
+
+    return zaehler
+
+
+def erstelle_eingang(
+    empfaenger_id: str,
+    typ: str,
+    titel: str,
+    beschreibung: str = "",
+    absender_id: str = "",
+    projekt_id: str = "",
+    referenz_id: str = "",
+    referenz_typ: str = "",
+    prioritaet: str = NachrichtenPrioritaet.NORMAL.value,
+    faellig_am: datetime = None
+) -> Eingang:
+    """Erstellt einen neuen Eingang"""
+    eingang_id = f"eingang_{uuid.uuid4().hex[:8]}"
+
+    eingang = Eingang(
+        eingang_id=eingang_id,
+        empfaenger_id=empfaenger_id,
+        typ=typ,
+        titel=titel,
+        beschreibung=beschreibung,
+        absender_id=absender_id,
+        projekt_id=projekt_id,
+        referenz_id=referenz_id,
+        referenz_typ=referenz_typ,
+        prioritaet=prioritaet,
+        faellig_am=faellig_am
+    )
+
+    if 'eingaenge' not in st.session_state:
+        st.session_state.eingaenge = {}
+    st.session_state.eingaenge[eingang_id] = eingang
+
+    return eingang
+
+
+def render_benachrichtigungs_badge(user_id: str):
+    """Zeigt das Benachrichtigungs-Badge in der Sidebar"""
+    zaehler = get_eingaenge_zaehler(user_id)
+    gesamt = zaehler["gesamt"]
+
+    # Badge-Farbe basierend auf Anzahl
+    if gesamt == 0:
+        badge_style = "background-color: #28a745;"  # Grün
+        badge_text = "✓"
+    elif gesamt < 5:
+        badge_style = "background-color: #ffc107; color: #000;"  # Gelb
+        badge_text = str(gesamt)
+    else:
+        badge_style = "background-color: #dc3545;"  # Rot
+        badge_text = str(gesamt) if gesamt < 100 else "99+"
+
+    # CSS für Badge
+    st.markdown(f"""
+    <style>
+    .notification-badge {{
+        position: relative;
+        display: inline-block;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        color: white;
+        cursor: pointer;
+        margin-bottom: 10px;
+        width: 100%;
+        text-align: center;
+    }}
+    .notification-badge:hover {{
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }}
+    .badge-count {{
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        {badge_style}
+        color: white;
+        border-radius: 50%;
+        padding: 4px 8px;
+        font-size: 12px;
+        font-weight: bold;
+        min-width: 20px;
+        text-align: center;
+    }}
+    .notification-types {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 5px;
+        font-size: 11px;
+    }}
+    .notification-type {{
+        background: rgba(255,255,255,0.2);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Eingänge-Button in Sidebar
+    with st.sidebar:
+        st.markdown("---")
+
+        if st.button(f"📬 Eingänge ({gesamt})", key="open_eingaenge", use_container_width=True, type="primary" if gesamt > 0 else "secondary"):
+            st.session_state.show_eingaenge_center = True
+            st.rerun()
+
+        # Mini-Übersicht
+        if gesamt > 0:
+            cols = st.columns(4)
+            typ_icons = {
+                EingangTyp.NACHRICHT.value: "✉️",
+                EingangTyp.DOKUMENT.value: "📄",
+                EingangTyp.TERMIN.value: "📅",
+                EingangTyp.FRIST.value: "⏰"
+            }
+            col_idx = 0
+            for typ, icon in typ_icons.items():
+                if zaehler.get(typ, 0) > 0:
+                    with cols[col_idx % 4]:
+                        st.caption(f"{icon} {zaehler[typ]}")
+                    col_idx += 1
+
+
+def render_eingaenge_center(user_id: str):
+    """Zeigt das vollständige Eingänge-Center als Modal/Overlay"""
+    if not st.session_state.get('show_eingaenge_center', False):
+        return
+
+    st.markdown("---")
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.subheader("📬 Eingänge-Center")
+    with col2:
+        if st.button("✖️ Schließen", key="close_eingaenge"):
+            st.session_state.show_eingaenge_center = False
+            st.rerun()
+
+    # Tabs für verschiedene Ansichten
+    tabs = st.tabs([
+        "📥 Alle Eingänge",
+        "✉️ Nachrichten",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⏰ Fristen",
+        "✅ Freigaben",
+        "📋 Erledigt"
+    ])
+
+    eingaenge = list(st.session_state.get('eingaenge', {}).values())
+    user_eingaenge = [e for e in eingaenge if e.empfaenger_id == user_id]
+
+    with tabs[0]:
+        _render_eingaenge_liste(user_eingaenge, "alle")
+
+    with tabs[1]:
+        nachrichten = [e for e in user_eingaenge if e.typ == EingangTyp.NACHRICHT.value]
+        _render_eingaenge_liste(nachrichten, "nachrichten")
+
+    with tabs[2]:
+        dokumente = [e for e in user_eingaenge if e.typ == EingangTyp.DOKUMENT.value]
+        _render_eingaenge_liste(dokumente, "dokumente")
+
+    with tabs[3]:
+        termine = [e for e in user_eingaenge if e.typ == EingangTyp.TERMIN.value]
+        _render_eingaenge_liste(termine, "termine")
+
+    with tabs[4]:
+        fristen = [e for e in user_eingaenge if e.typ == EingangTyp.FRIST.value]
+        _render_eingaenge_liste(fristen, "fristen")
+
+    with tabs[5]:
+        freigaben = [e for e in user_eingaenge if e.typ == EingangTyp.FREIGABE.value]
+        _render_eingaenge_liste(freigaben, "freigaben")
+
+    with tabs[6]:
+        erledigte = [e for e in user_eingaenge if e.status in [EingangStatus.ERLEDIGT.value, EingangStatus.ARCHIVIERT.value]]
+        _render_eingaenge_liste(erledigte, "erledigt")
+
+
+def _render_eingaenge_liste(eingaenge: List, kontext: str):
+    """Rendert eine Liste von Eingängen"""
+    # Sortierung
+    sort_option = st.selectbox(
+        "Sortieren nach",
+        ["Neueste zuerst", "Älteste zuerst", "Priorität", "Fälligkeit"],
+        key=f"sort_{kontext}"
+    )
+
+    if sort_option == "Neueste zuerst":
+        eingaenge.sort(key=lambda e: e.erstellt_am, reverse=True)
+    elif sort_option == "Älteste zuerst":
+        eingaenge.sort(key=lambda e: e.erstellt_am)
+    elif sort_option == "Priorität":
+        prio_order = {NachrichtenPrioritaet.DRINGEND.value: 0, NachrichtenPrioritaet.HOCH.value: 1, NachrichtenPrioritaet.NORMAL.value: 2}
+        eingaenge.sort(key=lambda e: prio_order.get(e.prioritaet, 2))
+    elif sort_option == "Fälligkeit":
+        eingaenge.sort(key=lambda e: e.faellig_am or datetime.max)
+
+    # Nur neue filtern (außer bei erledigt)
+    if kontext != "erledigt":
+        nur_neue = st.checkbox("Nur ungelesene", value=True, key=f"nur_neue_{kontext}")
+        if nur_neue:
+            eingaenge = [e for e in eingaenge if e.status == EingangStatus.NEU.value]
+
+    if not eingaenge:
+        st.info("Keine Eingänge vorhanden.")
+        return
+
+    st.caption(f"{len(eingaenge)} Eingang/Eingänge")
+
+    for eingang in eingaenge:
+        _render_eingang_card(eingang)
+
+
+def _render_eingang_card(eingang: Eingang):
+    """Rendert eine einzelne Eingangs-Karte"""
+    # Status-Icons
+    status_icons = {
+        EingangStatus.NEU.value: "🔵",
+        EingangStatus.GELESEN.value: "⚪",
+        EingangStatus.BEARBEITET.value: "🟡",
+        EingangStatus.ERLEDIGT.value: "🟢",
+        EingangStatus.ARCHIVIERT.value: "📁"
+    }
+
+    # Typ-Icons
+    typ_icons = {
+        EingangTyp.NACHRICHT.value: "✉️",
+        EingangTyp.DOKUMENT.value: "📄",
+        EingangTyp.TERMIN.value: "📅",
+        EingangTyp.FREIGABE.value: "✅",
+        EingangTyp.FRIST.value: "⏰",
+        EingangTyp.ANFORDERUNG.value: "📋",
+        EingangTyp.SYSTEM.value: "🔔"
+    }
+
+    # Prioritäts-Farben
+    prio_colors = {
+        NachrichtenPrioritaet.DRINGEND.value: "#dc3545",
+        NachrichtenPrioritaet.HOCH.value: "#fd7e14",
+        NachrichtenPrioritaet.NORMAL.value: "#6c757d"
+    }
+
+    status_icon = status_icons.get(eingang.status, "⚪")
+    typ_icon = typ_icons.get(eingang.typ, "📨")
+    prio_color = prio_colors.get(eingang.prioritaet, "#6c757d")
+
+    # Absender-Name holen
+    absender_name = "System"
+    if eingang.absender_id and eingang.absender_id in st.session_state.get('users', {}):
+        absender_name = st.session_state.users[eingang.absender_id].name
+
+    # Projekt-Name holen
+    projekt_name = ""
+    if eingang.projekt_id and eingang.projekt_id in st.session_state.get('projekte', {}):
+        projekt_name = st.session_state.projekte[eingang.projekt_id].name
+
+    with st.expander(f"{status_icon} {typ_icon} **{eingang.titel}**", expanded=eingang.status == EingangStatus.NEU.value):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**Von:** {absender_name}")
+            if projekt_name:
+                st.markdown(f"**Projekt:** {projekt_name}")
+            st.markdown(f"**Datum:** {eingang.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+            if eingang.faellig_am:
+                tage_bis = (eingang.faellig_am - datetime.now()).days
+                if tage_bis < 0:
+                    st.error(f"⚠️ Überfällig seit {abs(tage_bis)} Tagen!")
+                elif tage_bis == 0:
+                    st.warning("⏰ Heute fällig!")
+                elif tage_bis <= 3:
+                    st.warning(f"⏰ Fällig in {tage_bis} Tagen")
+                else:
+                    st.caption(f"Fällig am: {eingang.faellig_am.strftime('%d.%m.%Y')}")
+
+            if eingang.beschreibung:
+                st.markdown("---")
+                st.markdown(eingang.beschreibung)
+
+        with col2:
+            st.markdown(f"<span style='color: {prio_color}; font-weight: bold;'>{eingang.prioritaet}</span>", unsafe_allow_html=True)
+            st.caption(f"Status: {eingang.status}")
+
+        # Aktionen
+        st.markdown("---")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if eingang.status == EingangStatus.NEU.value:
+                if st.button("👁️ Gelesen", key=f"read_{eingang.eingang_id}"):
+                    eingang.status = EingangStatus.GELESEN.value
+                    eingang.gelesen_am = datetime.now()
+                    st.rerun()
+
+        with col2:
+            if st.button("💬 Antworten", key=f"reply_{eingang.eingang_id}"):
+                st.session_state[f'reply_to_{eingang.eingang_id}'] = True
+                st.rerun()
+
+        with col3:
+            if eingang.status not in [EingangStatus.ERLEDIGT.value, EingangStatus.ARCHIVIERT.value]:
+                if st.button("✅ Erledigt", key=f"done_{eingang.eingang_id}"):
+                    eingang.status = EingangStatus.ERLEDIGT.value
+                    eingang.bearbeitet_am = datetime.now()
+                    st.rerun()
+
+        with col4:
+            if st.button("📁 Archiv", key=f"archive_{eingang.eingang_id}"):
+                eingang.status = EingangStatus.ARCHIVIERT.value
+                st.rerun()
+
+        # Antwort-Formular
+        if st.session_state.get(f'reply_to_{eingang.eingang_id}', False):
+            _render_antwort_formular(eingang)
+
+
+def _render_antwort_formular(eingang: Eingang):
+    """Rendert das Antwort-Formular mit Vorlagen"""
+    st.markdown("### 💬 Antwort verfassen")
+
+    # Vorlagen filtern nach Typ
+    vorlagen = [v for v in st.session_state.get('antwort_vorlagen', {}).values()
+                if eingang.typ in v.fuer_typen or not v.fuer_typen]
+
+    vorlage_options = ["-- Keine Vorlage --"] + [v.name for v in vorlagen]
+    selected_vorlage = st.selectbox("Vorlage verwenden", vorlage_options, key=f"vorlage_{eingang.eingang_id}")
+
+    # Betreff und Text vorbelegen
+    betreff = f"Re: {eingang.titel}"
+    text = ""
+
+    if selected_vorlage != "-- Keine Vorlage --":
+        vorlage = next((v for v in vorlagen if v.name == selected_vorlage), None)
+        if vorlage:
+            betreff = vorlage.betreff_template
+            text = vorlage.text_template
+
+            # Platzhalter ersetzen (wo möglich)
+            absender = st.session_state.get('users', {}).get(eingang.absender_id)
+            if absender:
+                betreff = betreff.replace("{empfaenger_name}", absender.name)
+                text = text.replace("{empfaenger_name}", absender.name)
+
+    with st.form(key=f"reply_form_{eingang.eingang_id}"):
+        antwort_betreff = st.text_input("Betreff", value=betreff)
+        antwort_text = st.text_area("Nachricht", value=text, height=200)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("📤 Senden", type="primary"):
+                if eingang.absender_id:
+                    # Neue Nachricht erstellen
+                    erstelle_eingang(
+                        empfaenger_id=eingang.absender_id,
+                        typ=EingangTyp.NACHRICHT.value,
+                        titel=antwort_betreff,
+                        beschreibung=antwort_text,
+                        absender_id=st.session_state.current_user.user_id,
+                        projekt_id=eingang.projekt_id,
+                        referenz_id=eingang.eingang_id,
+                        referenz_typ="antwort"
+                    )
+                    eingang.status = EingangStatus.BEARBEITET.value
+                    eingang.bearbeitet_am = datetime.now()
+                    st.session_state[f'reply_to_{eingang.eingang_id}'] = False
+                    st.success("✅ Antwort gesendet!")
+                    st.rerun()
+
+        with col2:
+            if st.form_submit_button("❌ Abbrechen"):
+                st.session_state[f'reply_to_{eingang.eingang_id}'] = False
+                st.rerun()
+
+
+# ============================================================================
+# FINANZIERUNGS- UND LEGAL-GATING
+# ============================================================================
+
+def erstelle_standard_gating_pruefungen(projekt_id: str):
+    """Erstellt die Standard-Gating-Prüfungen für ein Projekt"""
+    if 'gating_pruefungen' not in st.session_state:
+        st.session_state.gating_pruefungen = {}
+
+    projekt = st.session_state.get('projekte', {}).get(projekt_id)
+    if not projekt:
+        return
+
+    # Standard-Prüfungen definieren
+    pruefungen = [
+        # Legal-Gating für Käufer
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Widerrufsbelehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 1,
+            "erforderlich": True
+        },
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Verbraucherschutzbelehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 2,
+            "erforderlich": True
+        },
+        {
+            "typ": "legal",
+            "bezeichnung": "Käufer: Geldwäschegesetz-Belehrung akzeptiert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 3,
+            "erforderlich": True
+        },
+        {
+            "typ": "dokument",
+            "bezeichnung": "Käufer: Legitimation vollständig",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 4,
+            "erforderlich": True
+        },
+        # Legal-Gating für Verkäufer
+        {
+            "typ": "legal",
+            "bezeichnung": "Verkäufer: Geldwäschegesetz-Belehrung akzeptiert",
+            "user_rolle": "verkaeufer",
+            "reihenfolge": 5,
+            "erforderlich": True
+        },
+        {
+            "typ": "dokument",
+            "bezeichnung": "Verkäufer: Legitimation vollständig",
+            "user_rolle": "verkaeufer",
+            "reihenfolge": 6,
+            "erforderlich": True
+        },
+        # Finanzierungs-Gating (erst nach Legal möglich)
+        {
+            "typ": "finanzierung",
+            "bezeichnung": "Finanzierungsbestätigung der Bank",
+            "user_rolle": "finanzierer",
+            "reihenfolge": 10,
+            "erforderlich": True,
+            "vorgaenger": [1, 2, 3, 4]  # Alle Käufer-Legal-Prüfungen
+        },
+        {
+            "typ": "finanzierung",
+            "bezeichnung": "Kaufpreisfinanzierung gesichert",
+            "user_rolle": "kaeufer",
+            "reihenfolge": 11,
+            "erforderlich": True,
+            "vorgaenger": [10]
+        },
+    ]
+
+    # User-IDs zuordnen
+    user_ids = {
+        "kaeufer": projekt.kaeufer_id,
+        "verkaeufer": projekt.verkaeufer_id,
+        "finanzierer": projekt.finanzierer_id,
+        "notar": projekt.notar_id,
+        "makler": projekt.makler_id
+    }
+
+    created_pruefungen = {}
+
+    for idx, p in enumerate(pruefungen):
+        user_id = user_ids.get(p["user_rolle"], "")
+        if not user_id:
+            continue
+
+        pruefung_id = f"gating_{projekt_id}_{idx}"
+
+        vorgaenger_ids = []
+        if "vorgaenger" in p:
+            for v_idx in p["vorgaenger"]:
+                v_id = f"gating_{projekt_id}_{v_idx - 1}"
+                if v_id in created_pruefungen:
+                    vorgaenger_ids.append(v_id)
+
+        pruefung = GatingPruefung(
+            pruefung_id=pruefung_id,
+            projekt_id=projekt_id,
+            user_id=user_id,
+            typ=p["typ"],
+            bezeichnung=p["bezeichnung"],
+            reihenfolge=p["reihenfolge"],
+            vorgaenger_ids=vorgaenger_ids,
+            erforderlich=p["erforderlich"]
+        )
+
+        # Status auf "wartet" setzen wenn Vorgänger existieren
+        if vorgaenger_ids:
+            pruefung.status = GatingStatus.WARTET.value
+
+        st.session_state.gating_pruefungen[pruefung_id] = pruefung
+        created_pruefungen[pruefung_id] = pruefung
+
+
+def get_gating_status(projekt_id: str) -> Dict:
+    """Ermittelt den Gating-Status für ein Projekt"""
+    pruefungen = [p for p in st.session_state.get('gating_pruefungen', {}).values()
+                  if p.projekt_id == projekt_id]
+
+    if not pruefungen:
+        return {
+            "legal_status": "nicht_konfiguriert",
+            "finanzierung_status": "nicht_konfiguriert",
+            "fortschritt": 0,
+            "naechste_schritte": [],
+            "blockiert": False
+        }
+
+    legal_pruefungen = [p for p in pruefungen if p.typ == "legal"]
+    finanz_pruefungen = [p for p in pruefungen if p.typ == "finanzierung"]
+
+    legal_freigegeben = all(p.status == GatingStatus.FREIGEGEBEN.value for p in legal_pruefungen if p.erforderlich)
+    finanz_freigegeben = all(p.status == GatingStatus.FREIGEGEBEN.value for p in finanz_pruefungen if p.erforderlich)
+
+    gesamt = len([p for p in pruefungen if p.erforderlich])
+    erledigt = len([p for p in pruefungen if p.erforderlich and p.status == GatingStatus.FREIGEGEBEN.value])
+    fortschritt = (erledigt / gesamt * 100) if gesamt > 0 else 0
+
+    # Nächste Schritte ermitteln
+    naechste_schritte = []
+    for p in pruefungen:
+        if p.status in [GatingStatus.OFFEN.value, GatingStatus.IN_PRUEFUNG.value]:
+            # Prüfen ob Vorgänger erledigt
+            vorgaenger_erledigt = all(
+                st.session_state.gating_pruefungen.get(v_id, GatingPruefung("", "", "", "", "")).status == GatingStatus.FREIGEGEBEN.value
+                for v_id in p.vorgaenger_ids
+            )
+            if vorgaenger_erledigt:
+                naechste_schritte.append(p)
+
+    return {
+        "legal_status": "freigegeben" if legal_freigegeben else "offen",
+        "finanzierung_status": "freigegeben" if finanz_freigegeben else ("blockiert" if not legal_freigegeben else "offen"),
+        "fortschritt": fortschritt,
+        "naechste_schritte": naechste_schritte,
+        "blockiert": not legal_freigegeben and any(p.typ == "finanzierung" and p.status == GatingStatus.WARTET.value for p in pruefungen)
+    }
+
+
+def render_gating_uebersicht(projekt_id: str, user_rolle: str):
+    """Zeigt die Gating-Übersicht für ein Projekt"""
+    st.subheader("🔐 Freigabe-Status")
+
+    status = get_gating_status(projekt_id)
+
+    # Fortschrittsanzeige
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if status["legal_status"] == "freigegeben":
+            st.success("✅ Legal-Prüfung abgeschlossen")
+        else:
+            st.warning("⏳ Legal-Prüfung ausstehend")
+
+    with col2:
+        if status["finanzierung_status"] == "freigegeben":
+            st.success("✅ Finanzierung gesichert")
+        elif status["finanzierung_status"] == "blockiert":
+            st.error("🔒 Finanzierung blockiert (Legal-Prüfung erforderlich)")
+        else:
+            st.warning("⏳ Finanzierung ausstehend")
+
+    with col3:
+        st.metric("Fortschritt", f"{status['fortschritt']:.0f}%")
+
+    st.progress(status['fortschritt'] / 100)
+
+    # Detaillierte Prüfungen
+    st.markdown("### 📋 Prüfungen im Detail")
+
+    pruefungen = [p for p in st.session_state.get('gating_pruefungen', {}).values()
+                  if p.projekt_id == projekt_id]
+    pruefungen.sort(key=lambda p: p.reihenfolge)
+
+    for pruefung in pruefungen:
+        _render_gating_pruefung(pruefung, user_rolle)
+
+    # Nächste Schritte
+    if status["naechste_schritte"]:
+        st.markdown("### ⏭️ Nächste Schritte")
+        for schritt in status["naechste_schritte"]:
+            user = st.session_state.get('users', {}).get(schritt.user_id)
+            user_name = user.name if user else "Unbekannt"
+            st.info(f"**{schritt.bezeichnung}** - Verantwortlich: {user_name}")
+
+
+def _render_gating_pruefung(pruefung: GatingPruefung, user_rolle: str):
+    """Rendert eine einzelne Gating-Prüfung"""
+    status_icons = {
+        GatingStatus.OFFEN.value: "⚪",
+        GatingStatus.IN_PRUEFUNG.value: "🔵",
+        GatingStatus.FREIGEGEBEN.value: "🟢",
+        GatingStatus.ABGELEHNT.value: "🔴",
+        GatingStatus.WARTET.value: "⏸️"
+    }
+
+    typ_icons = {
+        "legal": "⚖️",
+        "finanzierung": "💰",
+        "dokument": "📄"
+    }
+
+    icon = status_icons.get(pruefung.status, "⚪")
+    typ_icon = typ_icons.get(pruefung.typ, "📋")
+
+    user = st.session_state.get('users', {}).get(pruefung.user_id)
+    user_name = user.name if user else "Unbekannt"
+
+    with st.expander(f"{icon} {typ_icon} {pruefung.bezeichnung}"):
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**Verantwortlich:** {user_name}")
+            st.markdown(f"**Status:** {pruefung.status}")
+            if pruefung.geprueft_am:
+                st.markdown(f"**Geprüft am:** {pruefung.geprueft_am.strftime('%d.%m.%Y %H:%M')}")
+            if pruefung.kommentar:
+                st.markdown(f"**Kommentar:** {pruefung.kommentar}")
+
+        with col2:
+            # Aktionen nur für berechtigte User
+            current_user = st.session_state.current_user
+            kann_bearbeiten = (
+                current_user.user_id == pruefung.user_id or
+                user_rolle in ["notar", "admin"]
+            )
+
+            if kann_bearbeiten and pruefung.status in [GatingStatus.OFFEN.value, GatingStatus.IN_PRUEFUNG.value]:
+                if st.button("✅ Freigeben", key=f"approve_{pruefung.pruefung_id}"):
+                    pruefung.status = GatingStatus.FREIGEGEBEN.value
+                    pruefung.geprueft_von = current_user.user_id
+                    pruefung.geprueft_am = datetime.now()
+                    _aktualisiere_abhaengige_pruefungen(pruefung.pruefung_id)
+                    st.success("Freigabe erteilt!")
+                    st.rerun()
+
+                if st.button("❌ Ablehnen", key=f"reject_{pruefung.pruefung_id}"):
+                    pruefung.status = GatingStatus.ABGELEHNT.value
+                    pruefung.geprueft_von = current_user.user_id
+                    pruefung.geprueft_am = datetime.now()
+                    st.rerun()
+
+
+def _aktualisiere_abhaengige_pruefungen(pruefung_id: str):
+    """Aktualisiert abhängige Prüfungen wenn eine Prüfung freigegeben wurde"""
+    for pruefung in st.session_state.get('gating_pruefungen', {}).values():
+        if pruefung_id in pruefung.vorgaenger_ids:
+            # Prüfen ob alle Vorgänger erledigt
+            alle_vorgaenger_erledigt = all(
+                st.session_state.gating_pruefungen.get(v_id, GatingPruefung("", "", "", "", "")).status == GatingStatus.FREIGEGEBEN.value
+                for v_id in pruefung.vorgaenger_ids
+            )
+            if alle_vorgaenger_erledigt and pruefung.status == GatingStatus.WARTET.value:
+                pruefung.status = GatingStatus.OFFEN.value
+
+
+# ============================================================================
+# FRISTENMANAGEMENT
+# ============================================================================
+
+def erstelle_standard_fristen(projekt_id: str, beurkundungsdatum: datetime = None):
+    """Erstellt Standard-Fristen für ein Projekt"""
+    if 'fristen' not in st.session_state:
+        st.session_state.fristen = {}
+
+    projekt = st.session_state.get('projekte', {}).get(projekt_id)
+    if not projekt:
+        return
+
+    # Basis-Datum ist entweder Beurkundungsdatum oder heute
+    basis = beurkundungsdatum or datetime.now()
+
+    standard_fristen = [
+        {
+            "typ": FristTyp.WIDERRUFSFRIST.value,
+            "bezeichnung": "Widerrufsfrist Käufer",
+            "tage_offset": 14,
+            "verantwortlich": projekt.kaeufer_id,
+            "erinnerung_tage": 3
+        },
+        {
+            "typ": FristTyp.KAUFPREISZAHLUNG.value,
+            "bezeichnung": "Kaufpreiszahlung",
+            "tage_offset": 30,
+            "verantwortlich": projekt.kaeufer_id,
+            "erinnerung_tage": 7
+        },
+        {
+            "typ": FristTyp.GRUNDBUCHEINTRAGUNG.value,
+            "bezeichnung": "Auflassungsvormerkung eintragen",
+            "tage_offset": 7,
+            "verantwortlich": projekt.notar_id,
+            "erinnerung_tage": 2
+        },
+        {
+            "typ": FristTyp.UEBERGABE.value,
+            "bezeichnung": "Objektübergabe",
+            "tage_offset": 60,
+            "verantwortlich": projekt.makler_id,
+            "erinnerung_tage": 14
+        }
+    ]
+
+    for idx, f in enumerate(standard_fristen):
+        if not f["verantwortlich"]:
+            continue
+
+        frist_id = f"frist_{projekt_id}_{idx}"
+
+        frist = Frist(
+            frist_id=frist_id,
+            projekt_id=projekt_id,
+            typ=f["typ"],
+            bezeichnung=f["bezeichnung"],
+            faellig_am=basis + timedelta(days=f["tage_offset"]),
+            verantwortlich_id=f["verantwortlich"],
+            erinnerung_tage=f["erinnerung_tage"],
+            automatisch_berechnet=True,
+            basis_datum=basis,
+            tage_offset=f["tage_offset"]
+        )
+
+        st.session_state.fristen[frist_id] = frist
+
+
+def get_faellige_fristen(user_id: str = None, projekt_id: str = None, tage_voraus: int = 7) -> List[Frist]:
+    """Ermittelt fällige Fristen"""
+    fristen = list(st.session_state.get('fristen', {}).values())
+
+    if user_id:
+        fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+    if projekt_id:
+        fristen = [f for f in fristen if f.projekt_id == projekt_id]
+
+    # Nur offene Fristen
+    fristen = [f for f in fristen if f.status == "offen"]
+
+    # Fällige oder bald fällige
+    jetzt = datetime.now()
+    grenze = jetzt + timedelta(days=tage_voraus)
+
+    faellige = [f for f in fristen if f.faellig_am and f.faellig_am <= grenze]
+    faellige.sort(key=lambda f: f.faellig_am)
+
+    return faellige
+
+
+def render_fristenmanagement(projekt_id: str = None, user_id: str = None):
+    """Rendert die Fristenverwaltung"""
+    st.subheader("⏰ Fristenmanagement")
+
+    tabs = st.tabs(["📋 Übersicht", "➕ Neue Frist", "📊 Kalender"])
+
+    with tabs[0]:
+        # Filter
+        col1, col2 = st.columns(2)
+        with col1:
+            tage_filter = st.selectbox("Zeitraum", ["7 Tage", "14 Tage", "30 Tage", "Alle"], key="frist_zeitraum")
+            tage = {"7 Tage": 7, "14 Tage": 14, "30 Tage": 30, "Alle": 365}.get(tage_filter, 7)
+
+        with col2:
+            status_filter = st.selectbox("Status", ["Alle", "Offen", "Überfällig", "Erledigt"], key="frist_status")
+
+        fristen = list(st.session_state.get('fristen', {}).values())
+        if projekt_id:
+            fristen = [f for f in fristen if f.projekt_id == projekt_id]
+        if user_id:
+            fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+
+        # Status-Filter anwenden
+        jetzt = datetime.now()
+        if status_filter == "Offen":
+            fristen = [f for f in fristen if f.status == "offen"]
+        elif status_filter == "Überfällig":
+            fristen = [f for f in fristen if f.status == "offen" and f.faellig_am and f.faellig_am < jetzt]
+        elif status_filter == "Erledigt":
+            fristen = [f for f in fristen if f.status == "erledigt"]
+
+        # Zeitfilter
+        if tage_filter != "Alle":
+            grenze = jetzt + timedelta(days=tage)
+            fristen = [f for f in fristen if not f.faellig_am or f.faellig_am <= grenze]
+
+        fristen.sort(key=lambda f: f.faellig_am or datetime.max)
+
+        if not fristen:
+            st.info("Keine Fristen im ausgewählten Zeitraum.")
+        else:
+            for frist in fristen:
+                _render_frist_card(frist)
+
+    with tabs[1]:
+        _render_neue_frist_formular(projekt_id)
+
+    with tabs[2]:
+        _render_fristen_kalender(projekt_id, user_id)
+
+
+def _render_frist_card(frist: Frist):
+    """Rendert eine Frist-Karte"""
+    jetzt = datetime.now()
+
+    if frist.status == "erledigt":
+        status_color = "🟢"
+        bg_color = "#d4edda"
+    elif frist.faellig_am and frist.faellig_am < jetzt:
+        status_color = "🔴"
+        bg_color = "#f8d7da"
+    elif frist.faellig_am and (frist.faellig_am - jetzt).days <= frist.erinnerung_tage:
+        status_color = "🟡"
+        bg_color = "#fff3cd"
+    else:
+        status_color = "⚪"
+        bg_color = "#f8f9fa"
+
+    verantwortlich = st.session_state.get('users', {}).get(frist.verantwortlich_id)
+    verantwortlich_name = verantwortlich.name if verantwortlich else "Unbekannt"
+
+    projekt = st.session_state.get('projekte', {}).get(frist.projekt_id)
+    projekt_name = projekt.name if projekt else ""
+
+    with st.container():
+        col1, col2, col3 = st.columns([3, 2, 1])
+
+        with col1:
+            st.markdown(f"{status_color} **{frist.bezeichnung}**")
+            if projekt_name:
+                st.caption(f"Projekt: {projekt_name}")
+
+        with col2:
+            if frist.faellig_am:
+                tage_bis = (frist.faellig_am - jetzt).days
+                if tage_bis < 0:
+                    st.error(f"⚠️ Überfällig: {frist.faellig_am.strftime('%d.%m.%Y')}")
+                elif tage_bis == 0:
+                    st.warning(f"⏰ Heute fällig!")
+                else:
+                    st.info(f"📅 {frist.faellig_am.strftime('%d.%m.%Y')} ({tage_bis} Tage)")
+            st.caption(f"Verantwortlich: {verantwortlich_name}")
+
+        with col3:
+            if frist.status == "offen":
+                if st.button("✅", key=f"done_frist_{frist.frist_id}", help="Als erledigt markieren"):
+                    frist.status = "erledigt"
+                    frist.erledigt_am = datetime.now()
+                    st.rerun()
+
+
+def _render_neue_frist_formular(projekt_id: str = None):
+    """Formular für neue Frist"""
+    st.markdown("### ➕ Neue Frist erstellen")
+
+    with st.form("neue_frist_form"):
+        # Projekt auswählen wenn nicht vorgegeben
+        if not projekt_id:
+            projekte = list(st.session_state.get('projekte', {}).values())
+            projekt_options = {p.name: p.projekt_id for p in projekte}
+            selected_projekt = st.selectbox("Projekt", list(projekt_options.keys()))
+            projekt_id = projekt_options.get(selected_projekt)
+
+        bezeichnung = st.text_input("Bezeichnung *")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            typ = st.selectbox("Fristtyp", [f.value for f in FristTyp])
+            faellig_am = st.date_input("Fällig am *")
+
+        with col2:
+            erinnerung_tage = st.number_input("Erinnerung (Tage vorher)", min_value=0, max_value=30, value=3)
+
+            # Verantwortlichen auswählen
+            users = list(st.session_state.get('users', {}).values())
+            user_options = {u.name: u.user_id for u in users}
+            selected_user = st.selectbox("Verantwortlich *", list(user_options.keys()))
+
+        notizen = st.text_area("Notizen")
+
+        if st.form_submit_button("💾 Frist erstellen", type="primary"):
+            if bezeichnung and faellig_am and selected_user:
+                frist_id = f"frist_{uuid.uuid4().hex[:8]}"
+                frist = Frist(
+                    frist_id=frist_id,
+                    projekt_id=projekt_id or "",
+                    typ=typ,
+                    bezeichnung=bezeichnung,
+                    faellig_am=datetime.combine(faellig_am, datetime.min.time()),
+                    verantwortlich_id=user_options[selected_user],
+                    erinnerung_tage=erinnerung_tage,
+                    notizen=notizen
+                )
+
+                if 'fristen' not in st.session_state:
+                    st.session_state.fristen = {}
+                st.session_state.fristen[frist_id] = frist
+
+                st.success("✅ Frist erstellt!")
+                st.rerun()
+            else:
+                st.error("Bitte alle Pflichtfelder ausfüllen!")
+
+
+def _render_fristen_kalender(projekt_id: str = None, user_id: str = None):
+    """Zeigt Fristen im Kalenderformat"""
+    st.markdown("### 📅 Fristen-Kalender")
+
+    fristen = list(st.session_state.get('fristen', {}).values())
+    if projekt_id:
+        fristen = [f for f in fristen if f.projekt_id == projekt_id]
+    if user_id:
+        fristen = [f for f in fristen if f.verantwortlich_id == user_id]
+
+    fristen = [f for f in fristen if f.status == "offen" and f.faellig_am]
+
+    if not fristen:
+        st.info("Keine anstehenden Fristen.")
+        return
+
+    # Nach Wochen gruppieren
+    jetzt = datetime.now()
+    wochen = {}
+
+    for frist in fristen:
+        kw = frist.faellig_am.isocalendar()[1]
+        jahr = frist.faellig_am.year
+        key = f"{jahr}-KW{kw:02d}"
+        if key not in wochen:
+            wochen[key] = []
+        wochen[key].append(frist)
+
+    for woche, woche_fristen in sorted(wochen.items()):
+        with st.expander(f"📅 {woche} ({len(woche_fristen)} Fristen)", expanded=True):
+            for frist in sorted(woche_fristen, key=lambda f: f.faellig_am):
+                tage_bis = (frist.faellig_am - jetzt).days
+                status = "🔴" if tage_bis < 0 else ("🟡" if tage_bis <= 3 else "⚪")
+                st.markdown(f"{status} **{frist.faellig_am.strftime('%d.%m.')}** - {frist.bezeichnung}")
+
+
+# ============================================================================
+# REPORTING & KPIs
+# ============================================================================
+
+def berechne_kpis(user_id: str) -> Dict:
+    """Berechnet die KPIs für einen Benutzer"""
+    user = st.session_state.get('users', {}).get(user_id)
+    if not user:
+        return {}
+
+    projekte = list(st.session_state.get('projekte', {}).values())
+
+    # Projekte nach Rolle filtern
+    if user.rolle == UserRole.MAKLER.value:
+        user_projekte = [p for p in projekte if p.makler_id == user_id]
+    elif user.rolle == UserRole.NOTAR.value:
+        user_projekte = [p for p in projekte if p.notar_id == user_id]
+    else:
+        user_projekte = [p for p in projekte if user_id in [p.kaeufer_id, p.verkaeufer_id]]
+
+    # Projekt-KPIs
+    projekte_gesamt = len(user_projekte)
+    projekte_aktiv = len([p for p in user_projekte if p.status not in ["Abgeschlossen", "Storniert"]])
+    projekte_abgeschlossen = len([p for p in user_projekte if p.status == "Abgeschlossen"])
+
+    # Durchschnittliche Dauer berechnen
+    dauern = []
+    for p in user_projekte:
+        if p.status == "Abgeschlossen" and hasattr(p, 'erstellt_am') and hasattr(p, 'abgeschlossen_am'):
+            if p.abgeschlossen_am and p.erstellt_am:
+                dauer = (p.abgeschlossen_am - p.erstellt_am).days
+                dauern.append(dauer)
+    durchschnittliche_dauer = sum(dauern) / len(dauern) if dauern else 0
+
+    # Umsatz-KPIs (für Makler)
+    umsatz_monat = 0
+    umsatz_jahr = 0
+    provision_offen = 0
+
+    if user.rolle == UserRole.MAKLER.value:
+        jetzt = datetime.now()
+        for p in user_projekte:
+            if p.status == "Abgeschlossen" and p.kaufpreis:
+                provision = p.kaufpreis * 0.0357  # 3.57% Provision
+                if hasattr(p, 'abgeschlossen_am') and p.abgeschlossen_am:
+                    if p.abgeschlossen_am.year == jetzt.year:
+                        umsatz_jahr += provision
+                        if p.abgeschlossen_am.month == jetzt.month:
+                            umsatz_monat += provision
+            elif p.status not in ["Storniert"] and p.kaufpreis:
+                provision_offen += p.kaufpreis * 0.0357
+
+    return {
+        "projekte_gesamt": projekte_gesamt,
+        "projekte_aktiv": projekte_aktiv,
+        "projekte_abgeschlossen": projekte_abgeschlossen,
+        "durchschnittliche_dauer_tage": durchschnittliche_dauer,
+        "umsatz_monat": umsatz_monat,
+        "umsatz_jahr": umsatz_jahr,
+        "provision_offen": provision_offen
+    }
+
+
+def render_reporting_dashboard(user_id: str):
+    """Zeigt das Reporting-Dashboard"""
+    st.subheader("📊 Reporting & Statistiken")
+
+    kpis = berechne_kpis(user_id)
+    user = st.session_state.get('users', {}).get(user_id)
+
+    # KPI-Karten
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Projekte gesamt", kpis.get("projekte_gesamt", 0))
+    with col2:
+        st.metric("Aktive Projekte", kpis.get("projekte_aktiv", 0))
+    with col3:
+        st.metric("Abgeschlossen", kpis.get("projekte_abgeschlossen", 0))
+    with col4:
+        st.metric("Ø Dauer (Tage)", f"{kpis.get('durchschnittliche_dauer_tage', 0):.0f}")
+
+    # Umsatz-KPIs für Makler
+    if user and user.rolle == UserRole.MAKLER.value:
+        st.markdown("---")
+        st.markdown("### 💰 Umsatz-Übersicht")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Umsatz Monat", f"{kpis.get('umsatz_monat', 0):,.2f} €")
+        with col2:
+            st.metric("Umsatz Jahr", f"{kpis.get('umsatz_jahr', 0):,.2f} €")
+        with col3:
+            st.metric("Provision offen", f"{kpis.get('provision_offen', 0):,.2f} €")
+
+    # Diagramme
+    st.markdown("---")
+    st.markdown("### 📈 Projekt-Entwicklung")
+
+    # Projekt-Status-Verteilung
+    projekte = list(st.session_state.get('projekte', {}).values())
+    if user.rolle == UserRole.MAKLER.value:
+        projekte = [p for p in projekte if p.makler_id == user_id]
+    elif user.rolle == UserRole.NOTAR.value:
+        projekte = [p for p in projekte if p.notar_id == user_id]
+
+    status_counts = {}
+    for p in projekte:
+        status_counts[p.status] = status_counts.get(p.status, 0) + 1
+
+    if status_counts:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Projekte nach Status**")
+            for status, count in sorted(status_counts.items(), key=lambda x: -x[1]):
+                prozent = (count / len(projekte) * 100) if projekte else 0
+                st.progress(prozent / 100, text=f"{status}: {count} ({prozent:.0f}%)")
+
+        with col2:
+            st.markdown("**Aktivitäten**")
+            # Aktivitäten aus Audit-Log zählen
+            logs = st.session_state.get('audit_log', [])
+            user_logs = [l for l in logs if hasattr(l, 'user_id') and l.user_id == user_id]
+
+            aktionen = {}
+            for log in user_logs[-100:]:  # Letzte 100
+                if hasattr(log, 'aktion'):
+                    aktionen[log.aktion] = aktionen.get(log.aktion, 0) + 1
+
+            if aktionen:
+                for aktion, count in sorted(aktionen.items(), key=lambda x: -x[1])[:5]:
+                    st.markdown(f"• {aktion}: **{count}**")
+            else:
+                st.caption("Keine Aktivitäten erfasst.")
+
+
+# ============================================================================
+# DOKUMENTEN-VERSIONIERUNG
+# ============================================================================
+
+def erstelle_dokument_version(
+    dokument_id: str,
+    dateiname: str,
+    datei_data: bytes,
+    dateityp: str,
+    aenderungen: str = "",
+    erstellt_von: str = ""
+) -> DokumentVersionierung:
+    """Erstellt eine neue Dokumentenversion"""
+    if 'dokument_versionen' not in st.session_state:
+        st.session_state.dokument_versionen = {}
+
+    # Höchste Version finden
+    bestehende = [v for v in st.session_state.dokument_versionen.values() if v.dokument_id == dokument_id]
+    naechste_version = max([v.version_nummer for v in bestehende], default=0) + 1
+
+    version_id = f"version_{dokument_id}_{naechste_version}"
+
+    version = DokumentVersionierung(
+        version_id=version_id,
+        dokument_id=dokument_id,
+        version_nummer=naechste_version,
+        dateiname=dateiname,
+        datei_data=datei_data,
+        dateityp=dateityp,
+        dateigroesse=len(datei_data) if datei_data else 0,
+        aenderungen=aenderungen,
+        erstellt_von=erstellt_von,
+        wasserzeichen=True  # Entwürfe haben Wasserzeichen
+    )
+
+    st.session_state.dokument_versionen[version_id] = version
+    return version
+
+
+def render_dokument_versionen(dokument_id: str, user_rolle: str):
+    """Zeigt alle Versionen eines Dokuments"""
+    st.markdown("### 📚 Dokumentenversionen")
+
+    versionen = [v for v in st.session_state.get('dokument_versionen', {}).values()
+                 if v.dokument_id == dokument_id]
+    versionen.sort(key=lambda v: v.version_nummer, reverse=True)
+
+    if not versionen:
+        st.info("Keine Versionen vorhanden.")
+        return
+
+    for version in versionen:
+        ersteller = st.session_state.get('users', {}).get(version.erstellt_von)
+        ersteller_name = ersteller.name if ersteller else "Unbekannt"
+
+        status_icons = {
+            DokumentVersion.ENTWURF.value: "📝",
+            DokumentVersion.ZUR_PRUEFUNG.value: "👁️",
+            DokumentVersion.FREIGEGEBEN.value: "✅",
+            DokumentVersion.SIGNIERT.value: "✍️",
+            DokumentVersion.ARCHIVIERT.value: "📁"
+        }
+
+        icon = status_icons.get(version.status, "📄")
+
+        with st.expander(f"{icon} Version {version.version_nummer} - {version.status}", expanded=version.version_nummer == versionen[0].version_nummer):
+            col1, col2 = st.columns([3, 1])
+
+            with col1:
+                st.markdown(f"**Datei:** {version.dateiname}")
+                st.markdown(f"**Erstellt von:** {ersteller_name}")
+                st.markdown(f"**Datum:** {version.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                if version.aenderungen:
+                    st.markdown(f"**Änderungen:** {version.aenderungen}")
+                if version.freigegeben_von:
+                    freigeber = st.session_state.get('users', {}).get(version.freigegeben_von)
+                    st.markdown(f"**Freigegeben von:** {freigeber.name if freigeber else 'Unbekannt'} am {version.freigegeben_am.strftime('%d.%m.%Y')}")
+
+            with col2:
+                # Download-Button
+                if version.datei_data:
+                    st.download_button(
+                        "⬇️ Download",
+                        data=version.datei_data,
+                        file_name=version.dateiname,
+                        mime=version.dateityp,
+                        key=f"download_{version.version_id}"
+                    )
+
+                # Status-Aktionen
+                if user_rolle in ["notar", "admin"]:
+                    if version.status == DokumentVersion.ENTWURF.value:
+                        if st.button("👁️ Zur Prüfung", key=f"review_{version.version_id}"):
+                            version.status = DokumentVersion.ZUR_PRUEFUNG.value
+                            st.rerun()
+                    elif version.status == DokumentVersion.ZUR_PRUEFUNG.value:
+                        if st.button("✅ Freigeben", key=f"approve_{version.version_id}"):
+                            version.status = DokumentVersion.FREIGEGEBEN.value
+                            version.freigegeben_von = st.session_state.current_user.user_id
+                            version.freigegeben_am = datetime.now()
+                            version.wasserzeichen = False
+                            st.rerun()
+
+
+def render_audit_log(user_id: str, akte_id: str = None, projekt_id: str = None):
+    """Zeigt das Aktivitätsprotokoll an"""
+    st.subheader("📋 Aktivitätsprotokoll")
+
+    # Filter
+    log_eintraege = st.session_state.audit_log.copy()
+
+    if akte_id:
+        log_eintraege = [e for e in log_eintraege if e.akte_id == akte_id]
+    if projekt_id:
+        log_eintraege = [e for e in log_eintraege if e.projekt_id == projekt_id]
+
+    # Sortieren nach Datum (neueste zuerst)
+    log_eintraege.sort(key=lambda e: e.timestamp, reverse=True)
+
+    # Limitieren
+    max_eintraege = st.slider("Anzahl Einträge", 10, 100, 50)
+    log_eintraege = log_eintraege[:max_eintraege]
+
+    if log_eintraege:
+        st.markdown("| Datum/Zeit | Benutzer | Aktion | Objekt | Details |")
+        st.markdown("|------------|----------|--------|--------|---------|")
+
+        for eintrag in log_eintraege:
+            st.markdown(f"| {eintrag.timestamp.strftime('%d.%m.%Y %H:%M')} | {eintrag.user_name} | {eintrag.aktion} | {eintrag.objekt_typ}: {eintrag.objekt_name} | {eintrag.details[:50] if eintrag.details else '-'} |")
+    else:
+        st.info("Keine Aktivitäten protokolliert.")
+
+
+# ============================================================================
+# MANDANTEN-PORTAL
+# ============================================================================
+
+def render_mandanten_portal(user_id: str, user_rolle: str):
+    """Zentrales Mandanten-Portal mit Übersicht aller relevanten Informationen"""
+    st.markdown("## 🏠 Willkommen im Mandanten-Portal")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden.")
+        return
+
+    st.markdown(f"**Guten Tag, {user.name}!** Hier finden Sie alle wichtigen Informationen zu Ihrer Immobilientransaktion.")
+
+    # Projekte des Mandanten finden
+    if user_rolle == UserRole.KAEUFER.value:
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+        rolle_text = "Käufer"
+    else:
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+        rolle_text = "Verkäufer"
+
+    if not projekte:
+        st.info("Sie sind noch keinem Projekt zugewiesen. Sobald Sie einem Projekt zugewiesen werden, erscheinen hier alle relevanten Informationen.")
+        return
+
+    # ===== SCHNELLÜBERSICHT =====
+    st.markdown("### 📊 Schnellübersicht")
+
+    # Zähler für verschiedene Bereiche
+    eingaenge = st.session_state.get('eingaenge', {})
+    ungelesene_eingaenge = len([e for e in eingaenge.values()
+                                if e.empfaenger_id == user_id and e.status == EingangStatus.NEU.value])
+
+    fristen = st.session_state.get('fristen', {})
+    offene_fristen = []
+    for p in projekte:
+        projekt_fristen = [f for f in fristen.values()
+                          if f.projekt_id == p.projekt_id and f.status == "offen"]
+        offene_fristen.extend(projekt_fristen)
+
+    # Anstehende Termine
+    termine_count = 0
+    for p in projekte:
+        projekt_termine = [t for t in st.session_state.termine.values()
+                          if t.projekt_id == p.projekt_id and t.status != "abgesagt"]
+        termine_count += len(projekt_termine)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            label="📁 Aktive Projekte",
+            value=len(projekte)
+        )
+
+    with col2:
+        st.metric(
+            label="📬 Ungelesene Nachrichten",
+            value=ungelesene_eingaenge,
+            delta="Neu" if ungelesene_eingaenge > 0 else None
+        )
+
+    with col3:
+        st.metric(
+            label="⏰ Offene Fristen",
+            value=len(offene_fristen),
+            delta="Achtung" if len(offene_fristen) > 3 else None,
+            delta_color="inverse" if len(offene_fristen) > 3 else "normal"
+        )
+
+    with col4:
+        st.metric(
+            label="📅 Anstehende Termine",
+            value=termine_count
+        )
+
+    st.markdown("---")
+
+    # ===== DRINGENDE AUFGABEN =====
+    st.markdown("### ⚠️ Dringende Aufgaben")
+
+    dringende_aufgaben = []
+
+    # Ungelesene Eingänge
+    if ungelesene_eingaenge > 0:
+        dringende_aufgaben.append(f"📬 **{ungelesene_eingaenge} ungelesene Nachrichten** - Bitte prüfen Sie Ihren Posteingang")
+
+    # Ausweis fehlt?
+    personal_key = f"personal_{user_id}"
+    if personal_key not in st.session_state:
+        dringende_aufgaben.append("🪪 **Ausweisdaten fehlen** - Bitte laden Sie Ihren Ausweis hoch")
+
+    # Fristen die bald ablaufen
+    heute = datetime.now()
+    for frist in offene_fristen:
+        if frist.faellig_am:
+            tage_bis = (frist.faellig_am - heute).days
+            if tage_bis <= 3 and tage_bis >= 0:
+                dringende_aufgaben.append(f"⏰ **Frist '{frist.bezeichnung}'** läuft in {tage_bis} Tag(en) ab")
+
+    # Wirtschaftsdaten für Käufer
+    if user_rolle == UserRole.KAEUFER.value:
+        wirtschaftsdaten = [w for w in st.session_state.wirtschaftsdaten.values() if w.kaeufer_id == user_id]
+        if not wirtschaftsdaten:
+            dringende_aufgaben.append("💼 **Bonitätsnachweise fehlen** - Bitte laden Sie Ihre Unterlagen hoch")
+
+    if dringende_aufgaben:
+        for aufgabe in dringende_aufgaben:
+            st.warning(aufgabe)
+    else:
+        st.success("✅ Keine dringenden Aufgaben - Alles im grünen Bereich!")
+
+    st.markdown("---")
+
+    # ===== PROJEKT-STATUS =====
+    st.markdown("### 📁 Ihre Projekte")
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ **{projekt.name}**", expanded=True):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown(f"**Adresse:** {projekt.adresse or 'Nicht angegeben'}")
+                st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €" if projekt.kaufpreis > 0 else "**Kaufpreis:** Noch nicht festgelegt")
+                st.markdown(f"**Status:** {projekt.status}")
+                st.markdown(f"**Ihre Rolle:** {rolle_text}")
+
+            with col2:
+                # Fortschrittsanzeige
+                gating_status = get_gating_status(projekt.projekt_id)
+
+                st.markdown("**Transaktionsfortschritt:**")
+                if gating_status['legal_vollstaendig']:
+                    st.success("✅ Rechtliche Prüfung abgeschlossen")
+                else:
+                    st.warning(f"⏳ Rechtliche Prüfung: {gating_status['legal_prozent']}%")
+
+                if gating_status['finanzierung_vollstaendig']:
+                    st.success("✅ Finanzierung gesichert")
+                else:
+                    st.warning(f"⏳ Finanzierung: {gating_status['finanzierung_prozent']}%")
+
+            # Beteiligte Parteien
+            st.markdown("**Beteiligte Parteien:**")
+            col_p1, col_p2, col_p3 = st.columns(3)
+
+            with col_p1:
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    st.markdown(f"👔 **Makler:** {makler.name if makler else 'Unbekannt'}")
+
+            with col_p2:
+                if projekt.notar_id:
+                    notar = st.session_state.users.get(projekt.notar_id)
+                    st.markdown(f"⚖️ **Notar:** {notar.name if notar else 'Unbekannt'}")
+
+            with col_p3:
+                for fid in projekt.finanzierer_ids:
+                    finanzierer = st.session_state.users.get(fid)
+                    if finanzierer:
+                        st.markdown(f"🏦 **Finanzierer:** {finanzierer.name}")
+
+    st.markdown("---")
+
+    # ===== NÄCHSTE SCHRITTE =====
+    st.markdown("### 🎯 Nächste Schritte")
+
+    naechste_schritte = []
+
+    for projekt in projekte:
+        # Prüfe verschiedene Status
+        gating_status = get_gating_status(projekt.projekt_id)
+
+        if not gating_status['legal_vollstaendig']:
+            naechste_schritte.append({
+                'projekt': projekt.name,
+                'schritt': "Rechtliche Dokumente akzeptieren",
+                'beschreibung': "Bitte prüfen und akzeptieren Sie die erforderlichen rechtlichen Dokumente.",
+                'prioritaet': 'hoch'
+            })
+
+        if user_rolle == UserRole.KAEUFER.value:
+            wirtschaftsdaten = [w for w in st.session_state.wirtschaftsdaten.values()
+                               if w.kaeufer_id == user_id and w.kaeufer_id in projekt.kaeufer_ids]
+            if not wirtschaftsdaten:
+                naechste_schritte.append({
+                    'projekt': projekt.name,
+                    'schritt': "Bonitätsnachweise hochladen",
+                    'beschreibung': "Laden Sie Ihre Einkommensnachweise und weitere Bonitätsunterlagen hoch.",
+                    'prioritaet': 'hoch'
+                })
+
+            if not gating_status['finanzierung_vollstaendig']:
+                naechste_schritte.append({
+                    'projekt': projekt.name,
+                    'schritt': "Finanzierung klären",
+                    'beschreibung': "Kontaktieren Sie einen Finanzierer, um Ihre Finanzierung zu sichern.",
+                    'prioritaet': 'mittel'
+                })
+
+    if naechste_schritte:
+        for schritt in naechste_schritte[:5]:  # Max 5 Schritte anzeigen
+            prioritaet_icon = "🔴" if schritt['prioritaet'] == 'hoch' else "🟡" if schritt['prioritaet'] == 'mittel' else "🟢"
+            st.info(f"{prioritaet_icon} **{schritt['schritt']}** ({schritt['projekt']})\n\n{schritt['beschreibung']}")
+    else:
+        st.success("🎉 Alle wichtigen Schritte wurden erledigt!")
+
+    st.markdown("---")
+
+    # ===== KONTAKT & HILFE =====
+    st.markdown("### 📞 Kontakt & Hilfe")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("""
+        **Haben Sie Fragen?**
+
+        Nutzen Sie den Tab **Nachrichten**, um direkt mit Ihrem Makler, Notar oder Finanzierer zu kommunizieren.
+        """)
+
+    with col2:
+        st.markdown("""
+        **Wichtige Dokumente**
+
+        Alle Ihre Dokumente finden Sie im Tab **Dokumente**. Dort können Sie auch neue Unterlagen hochladen.
+        """)
+
+
+# ============================================================================
+# VORLAGEN-MANAGEMENT SYSTEM
+# ============================================================================
+
+@dataclass
+class DokumentVorlage:
+    """Vorlage für Dokumente und Textbausteine"""
+    vorlage_id: str
+    name: str
+    kategorie: str  # z.B. "Kaufvertrag", "Brief", "E-Mail"
+    beschreibung: str = ""
+    inhalt: str = ""
+    platzhalter: List[str] = field(default_factory=list)  # z.B. ["{{KAEUFER}}", "{{VERKAEUFER}}"]
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+    ist_system_vorlage: bool = False
+
+
+def init_vorlagen_system():
+    """Initialisiert das Vorlagen-System mit Standard-Vorlagen"""
+    if 'dokument_vorlagen' not in st.session_state:
+        st.session_state.dokument_vorlagen = {}
+
+    # System-Vorlagen erstellen, falls nicht vorhanden
+    system_vorlagen = [
+        DokumentVorlage(
+            vorlage_id="sys_1",
+            name="Standard Kaufvertrag",
+            kategorie="Kaufvertrag",
+            beschreibung="Basis-Vorlage für einen Immobilien-Kaufvertrag",
+            inhalt="""KAUFVERTRAG
+
+Zwischen
+
+{{VERKAEUFER_NAME}}, geboren am {{VERKAEUFER_GEBURTSDATUM}}, wohnhaft {{VERKAEUFER_ADRESSE}}
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+{{KAEUFER_NAME}}, geboren am {{KAEUFER_GEBURTSDATUM}}, wohnhaft {{KAEUFER_ADRESSE}}
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück {{ADRESSE}} eingetragen im Grundbuch von {{GRUNDBUCHAMT}}, Blatt {{GRUNDBUCHBLATT}}.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt {{KAUFPREIS}} € (in Worten: {{KAUFPREIS_WORT}} Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 14 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen auf das Notaranderkonto zu zahlen.
+
+{{WEITERE_KLAUSELN}}
+
+Ort, Datum: _______________
+
+Unterschrift Verkäufer: _______________
+
+Unterschrift Käufer: _______________
+""",
+            platzhalter=["{{VERKAEUFER_NAME}}", "{{VERKAEUFER_GEBURTSDATUM}}", "{{VERKAEUFER_ADRESSE}}",
+                        "{{KAEUFER_NAME}}", "{{KAEUFER_GEBURTSDATUM}}", "{{KAEUFER_ADRESSE}}",
+                        "{{ADRESSE}}", "{{GRUNDBUCHAMT}}", "{{GRUNDBUCHBLATT}}",
+                        "{{KAUFPREIS}}", "{{KAUFPREIS_WORT}}", "{{WEITERE_KLAUSELN}}"],
+            ist_system_vorlage=True
+        ),
+        DokumentVorlage(
+            vorlage_id="sys_2",
+            name="Terminbestätigung",
+            kategorie="Brief",
+            beschreibung="Bestätigung eines Beurkundungstermins",
+            inhalt="""Sehr geehrte(r) {{EMPFAENGER_NAME}},
+
+hiermit bestätigen wir Ihnen den Beurkundungstermin:
+
+Datum: {{TERMIN_DATUM}}
+Uhrzeit: {{TERMIN_UHRZEIT}}
+Ort: {{TERMIN_ORT}}
+
+Betreff: {{PROJEKT_NAME}}
+
+Bitte bringen Sie folgende Unterlagen mit:
+- Gültigen Personalausweis oder Reisepass
+- {{WEITERE_UNTERLAGEN}}
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+
+{{NOTAR_NAME}}
+Notar
+""",
+            platzhalter=["{{EMPFAENGER_NAME}}", "{{TERMIN_DATUM}}", "{{TERMIN_UHRZEIT}}",
+                        "{{TERMIN_ORT}}", "{{PROJEKT_NAME}}", "{{WEITERE_UNTERLAGEN}}", "{{NOTAR_NAME}}"],
+            ist_system_vorlage=True
+        ),
+        DokumentVorlage(
+            vorlage_id="sys_3",
+            name="Unterlagenerinnerung",
+            kategorie="E-Mail",
+            beschreibung="Erinnerung an fehlende Unterlagen",
+            inhalt="""Betreff: Erinnerung: Fehlende Unterlagen für {{PROJEKT_NAME}}
+
+Sehr geehrte(r) {{EMPFAENGER_NAME}},
+
+in Bezug auf den geplanten Kaufvertrag für {{PROJEKT_NAME}} fehlen uns noch folgende Unterlagen:
+
+{{FEHLENDE_UNTERLAGEN}}
+
+Bitte übermitteln Sie uns diese Unterlagen bis zum {{FRIST_DATUM}}.
+
+Falls Sie Fragen haben, stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+{{ABSENDER_NAME}}
+""",
+            platzhalter=["{{PROJEKT_NAME}}", "{{EMPFAENGER_NAME}}", "{{FEHLENDE_UNTERLAGEN}}",
+                        "{{FRIST_DATUM}}", "{{ABSENDER_NAME}}"],
+            ist_system_vorlage=True
+        )
+    ]
+
+    for vorlage in system_vorlagen:
+        if vorlage.vorlage_id not in st.session_state.dokument_vorlagen:
+            st.session_state.dokument_vorlagen[vorlage.vorlage_id] = vorlage
+
+
+def render_vorlagen_management(user_id: str):
+    """Verwaltung von Dokumentenvorlagen"""
+    st.subheader("📋 Vorlagen-Management")
+
+    # Initialisierung
+    init_vorlagen_system()
+
+    sub_tabs = st.tabs(["📚 Vorlagen-Bibliothek", "➕ Neue Vorlage", "⚙️ Platzhalter-Hilfe"])
+
+    with sub_tabs[0]:
+        render_vorlagen_bibliothek(user_id)
+
+    with sub_tabs[1]:
+        render_neue_vorlage(user_id)
+
+    with sub_tabs[2]:
+        render_platzhalter_hilfe()
+
+
+def render_vorlagen_bibliothek(user_id: str):
+    """Zeigt alle verfügbaren Vorlagen"""
+    st.markdown("### 📚 Vorlagen-Bibliothek")
+
+    vorlagen = list(st.session_state.dokument_vorlagen.values())
+
+    # Filter
+    kategorien = list(set(v.kategorie for v in vorlagen))
+    filter_kategorie = st.selectbox("Kategorie filtern", ["Alle"] + kategorien)
+
+    if filter_kategorie != "Alle":
+        vorlagen = [v for v in vorlagen if v.kategorie == filter_kategorie]
+
+    if not vorlagen:
+        st.info("Keine Vorlagen gefunden.")
+        return
+
+    for vorlage in vorlagen:
+        with st.expander(f"{'🔒' if vorlage.ist_system_vorlage else '📄'} {vorlage.name} ({vorlage.kategorie})"):
+            st.markdown(f"**Beschreibung:** {vorlage.beschreibung}")
+            st.markdown(f"**Platzhalter:** {', '.join(vorlage.platzhalter) if vorlage.platzhalter else 'Keine'}")
+
+            # Vorschau
+            with st.container():
+                st.markdown("**Vorschau:**")
+                st.code(vorlage.inhalt[:500] + ("..." if len(vorlage.inhalt) > 500 else ""), language=None)
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                if st.button("📝 Verwenden", key=f"use_vorlage_{vorlage.vorlage_id}"):
+                    st.session_state.aktive_vorlage = vorlage.vorlage_id
+                    st.success("Vorlage ausgewählt! Gehen Sie zum Tab 'Neue Vorlage' um sie anzupassen.")
+
+            with col2:
+                if not vorlage.ist_system_vorlage:
+                    if st.button("✏️ Bearbeiten", key=f"edit_vorlage_{vorlage.vorlage_id}"):
+                        st.session_state.edit_vorlage = vorlage.vorlage_id
+                        st.rerun()
+
+            with col3:
+                if not vorlage.ist_system_vorlage:
+                    if st.button("🗑️ Löschen", key=f"del_vorlage_{vorlage.vorlage_id}"):
+                        del st.session_state.dokument_vorlagen[vorlage.vorlage_id]
+                        st.success("Vorlage gelöscht!")
+                        st.rerun()
+
+
+def render_neue_vorlage(user_id: str):
+    """Erstellen einer neuen Vorlage"""
+    st.markdown("### ➕ Neue Vorlage erstellen")
+
+    # Prüfen ob eine Vorlage bearbeitet wird
+    edit_id = st.session_state.get('edit_vorlage')
+    vorlage_zum_bearbeiten = None
+    if edit_id:
+        vorlage_zum_bearbeiten = st.session_state.dokument_vorlagen.get(edit_id)
+
+    with st.form("neue_vorlage_form"):
+        name = st.text_input(
+            "Vorlagen-Name*",
+            value=vorlage_zum_bearbeiten.name if vorlage_zum_bearbeiten else ""
+        )
+
+        kategorie = st.selectbox(
+            "Kategorie*",
+            ["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"],
+            index=["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"].index(
+                vorlage_zum_bearbeiten.kategorie) if vorlage_zum_bearbeiten and vorlage_zum_bearbeiten.kategorie in
+                ["Kaufvertrag", "Brief", "E-Mail", "Checkliste", "Sonstiges"] else 0
+        )
+
+        beschreibung = st.text_area(
+            "Beschreibung",
+            value=vorlage_zum_bearbeiten.beschreibung if vorlage_zum_bearbeiten else ""
+        )
+
+        inhalt = st.text_area(
+            "Vorlagen-Inhalt*",
+            height=300,
+            value=vorlage_zum_bearbeiten.inhalt if vorlage_zum_bearbeiten else "",
+            help="Verwenden Sie {{PLATZHALTER}} für variable Inhalte"
+        )
+
+        # Platzhalter automatisch erkennen
+        import re
+        gefundene_platzhalter = re.findall(r'\{\{[A-Z_]+\}\}', inhalt)
+        if gefundene_platzhalter:
+            st.info(f"Erkannte Platzhalter: {', '.join(set(gefundene_platzhalter))}")
+
+        submitted = st.form_submit_button("💾 Vorlage speichern")
+
+        if submitted:
+            if not name or not inhalt:
+                st.error("Bitte füllen Sie alle Pflichtfelder aus.")
+            else:
+                vorlage_id = edit_id if edit_id else str(uuid.uuid4())[:8]
+
+                neue_vorlage = DokumentVorlage(
+                    vorlage_id=vorlage_id,
+                    name=name,
+                    kategorie=kategorie,
+                    beschreibung=beschreibung,
+                    inhalt=inhalt,
+                    platzhalter=list(set(gefundene_platzhalter)),
+                    erstellt_von=user_id,
+                    ist_system_vorlage=False
+                )
+
+                st.session_state.dokument_vorlagen[vorlage_id] = neue_vorlage
+
+                if edit_id:
+                    st.session_state.pop('edit_vorlage', None)
+                    st.success("Vorlage aktualisiert!")
+                else:
+                    st.success("Neue Vorlage erstellt!")
+
+                st.rerun()
+
+    if edit_id:
+        if st.button("❌ Bearbeitung abbrechen"):
+            st.session_state.pop('edit_vorlage', None)
+            st.rerun()
+
+
+def render_platzhalter_hilfe():
+    """Hilfe zu Platzhaltern"""
+    st.markdown("### ℹ️ Platzhalter-Hilfe")
+
+    st.markdown("""
+    Platzhalter werden automatisch durch die tatsächlichen Werte ersetzt, wenn ein Dokument aus einer Vorlage erstellt wird.
+
+    **Format:** `{{PLATZHALTER_NAME}}`
+
+    **Verfügbare Standard-Platzhalter:**
+    """)
+
+    platzhalter_liste = {
+        "Personen": [
+            ("{{KAEUFER_NAME}}", "Name des Käufers"),
+            ("{{KAEUFER_GEBURTSDATUM}}", "Geburtsdatum des Käufers"),
+            ("{{KAEUFER_ADRESSE}}", "Vollständige Adresse des Käufers"),
+            ("{{VERKAEUFER_NAME}}", "Name des Verkäufers"),
+            ("{{VERKAEUFER_GEBURTSDATUM}}", "Geburtsdatum des Verkäufers"),
+            ("{{VERKAEUFER_ADRESSE}}", "Vollständige Adresse des Verkäufers"),
+            ("{{NOTAR_NAME}}", "Name des Notars"),
+            ("{{MAKLER_NAME}}", "Name des Maklers"),
+        ],
+        "Objekt": [
+            ("{{ADRESSE}}", "Objektadresse"),
+            ("{{KAUFPREIS}}", "Kaufpreis in Euro"),
+            ("{{KAUFPREIS_WORT}}", "Kaufpreis in Worten"),
+            ("{{GRUNDBUCHAMT}}", "Zuständiges Grundbuchamt"),
+            ("{{GRUNDBUCHBLATT}}", "Grundbuchblatt-Nummer"),
+            ("{{FLURSTÜCK}}", "Flurstücksnummer"),
+        ],
+        "Termine": [
+            ("{{TERMIN_DATUM}}", "Datum des Termins"),
+            ("{{TERMIN_UHRZEIT}}", "Uhrzeit des Termins"),
+            ("{{TERMIN_ORT}}", "Ort des Termins"),
+            ("{{FRIST_DATUM}}", "Fristdatum"),
+        ],
+        "Allgemein": [
+            ("{{PROJEKT_NAME}}", "Name des Projekts"),
+            ("{{HEUTE_DATUM}}", "Aktuelles Datum"),
+            ("{{EMPFAENGER_NAME}}", "Name des Empfängers"),
+            ("{{ABSENDER_NAME}}", "Name des Absenders"),
+        ]
+    }
+
+    for kategorie, platzhalter in platzhalter_liste.items():
+        st.markdown(f"**{kategorie}:**")
+        for ph, beschreibung in platzhalter:
+            st.markdown(f"- `{ph}` - {beschreibung}")
+
+
+# ============================================================================
+# VERTRAGSVERSIONEN-VERGLEICH (SIDE-BY-SIDE DIFF)
+# ============================================================================
+
+def inject_diff_css():
+    """CSS für die Diff-Hervorhebungen"""
+    st.markdown("""
+    <style>
+    /* Diff Container */
+    .diff-container {
+        display: flex;
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .diff-pane {
+        flex: 1;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .diff-pane-header {
+        font-weight: bold;
+        padding: 10px 15px;
+        background: #e9ecef;
+        border-radius: 8px 8px 0 0;
+        margin: -15px -15px 15px -15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    /* Änderungstypen */
+    .diff-added {
+        background-color: #ffe0e6 !important;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+    .diff-deleted {
+        background-color: #ffd0d6 !important;
+        text-decoration: line-through;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+    .diff-changed {
+        background-color: #ffccd5 !important;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+
+    /* Tooltip */
+    .diff-tooltip {
+        visibility: hidden;
+        position: absolute;
+        z-index: 1000;
+        background: #333;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-size: 12px;
+        white-space: nowrap;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 5px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        font-family: sans-serif;
+        text-decoration: none;
+    }
+    .diff-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+    .diff-added:hover .diff-tooltip,
+    .diff-deleted:hover .diff-tooltip,
+    .diff-changed:hover .diff-tooltip {
+        visibility: visible;
+    }
+
+    /* Legende */
+    .diff-legend {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 15px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+    .diff-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .legend-added {
+        width: 20px;
+        height: 16px;
+        background: #ffe0e6;
+        border-radius: 3px;
+    }
+    .legend-deleted {
+        width: 20px;
+        height: 16px;
+        background: #ffd0d6;
+        border-radius: 3px;
+        position: relative;
+    }
+    .legend-deleted::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: #666;
+    }
+    .legend-changed {
+        width: 20px;
+        height: 16px;
+        background: #ffccd5;
+        border-radius: 3px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def berechne_text_diff(alter_text: str, neuer_text: str) -> List[dict]:
+    """
+    Berechnet die Unterschiede zwischen zwei Texten.
+    Verwendet einen einfachen zeilenbasierten Diff-Algorithmus.
+
+    Returns: Liste von Diff-Einträgen mit typ, alter_text, neuer_text
+    """
+    import difflib
+
+    alter_zeilen = alter_text.splitlines(keepends=True)
+    neuer_zeilen = neuer_text.splitlines(keepends=True)
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+    diff_ergebnis = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            for zeile in alter_zeilen[i1:i2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.UNVERAENDERT.value,
+                    'alter_text': zeile,
+                    'neuer_text': zeile
+                })
+        elif tag == 'delete':
+            for zeile in alter_zeilen[i1:i2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.GELOESCHT.value,
+                    'alter_text': zeile,
+                    'neuer_text': ''
+                })
+        elif tag == 'insert':
+            for zeile in neuer_zeilen[j1:j2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                    'alter_text': '',
+                    'neuer_text': zeile
+                })
+        elif tag == 'replace':
+            # Zeilen wurden geändert
+            alte = alter_zeilen[i1:i2]
+            neue = neuer_zeilen[j1:j2]
+            max_len = max(len(alte), len(neue))
+            for idx in range(max_len):
+                alt = alte[idx] if idx < len(alte) else ''
+                neu = neue[idx] if idx < len(neue) else ''
+                if alt and not neu:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.GELOESCHT.value,
+                        'alter_text': alt,
+                        'neuer_text': ''
+                    })
+                elif neu and not alt:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                        'alter_text': '',
+                        'neuer_text': neu
+                    })
+                else:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.GEAENDERT.value,
+                        'alter_text': alt,
+                        'neuer_text': neu
+                    })
+
+    return diff_ergebnis
+
+
+def berechne_wort_diff(alter_text: str, neuer_text: str) -> List[dict]:
+    """
+    Berechnet die Unterschiede auf Wort-Ebene für genauere Hervorhebung.
+    """
+    import difflib
+
+    alte_woerter = alter_text.split()
+    neue_woerter = neuer_text.split()
+
+    differ = difflib.SequenceMatcher(None, alte_woerter, neue_woerter)
+    diff_ergebnis = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.UNVERAENDERT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+        elif tag == 'delete':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.GELOESCHT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+        elif tag == 'insert':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                'text': ' '.join(neue_woerter[j1:j2])
+            })
+        elif tag == 'replace':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.GELOESCHT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                'text': ' '.join(neue_woerter[j1:j2])
+            })
+
+    return diff_ergebnis
+
+
+def erstelle_vertrags_version(
+    vertrag_id: str,
+    titel: str,
+    text_inhalt: str,
+    erstellt_von: str,
+    aenderungsbeschreibung: str = "",
+    basiert_auf_version: str = ""
+) -> VertragsVersion:
+    """Erstellt eine neue Vertragsversion"""
+    if 'vertrags_versionen' not in st.session_state:
+        st.session_state.vertrags_versionen = {}
+
+    # Höchste Version finden
+    bestehende = [v for v in st.session_state.vertrags_versionen.values()
+                  if v.vertrag_id == vertrag_id]
+    naechste_version = max([v.version_nummer for v in bestehende], default=0) + 1
+
+    version_id = f"vversion_{vertrag_id}_{naechste_version}"
+
+    version = VertragsVersion(
+        version_id=version_id,
+        vertrag_id=vertrag_id,
+        version_nummer=naechste_version,
+        titel=titel,
+        text_inhalt=text_inhalt,
+        erstellt_von=erstellt_von,
+        aenderungsbeschreibung=aenderungsbeschreibung,
+        basiert_auf_version=basiert_auf_version
+    )
+
+    st.session_state.vertrags_versionen[version_id] = version
+    return version
+
+
+def erstelle_text_aenderung(
+    version_id: str,
+    typ: str,
+    alter_text: str,
+    neuer_text: str,
+    geaendert_von: str,
+    grund: str = "",
+    referenz_dokument_id: str = "",
+    referenz_dokument_typ: str = ""
+) -> TextAenderung:
+    """Erstellt eine Textänderung mit Metadaten"""
+    if 'text_aenderungen' not in st.session_state:
+        st.session_state.text_aenderungen = {}
+
+    aenderung_id = f"aend_{uuid.uuid4().hex[:8]}"
+
+    aenderung = TextAenderung(
+        aenderung_id=aenderung_id,
+        version_id=version_id,
+        typ=typ,
+        alter_text=alter_text,
+        neuer_text=neuer_text,
+        geaendert_von=geaendert_von,
+        grund=grund,
+        referenz_dokument_id=referenz_dokument_id,
+        referenz_dokument_typ=referenz_dokument_typ
+    )
+
+    st.session_state.text_aenderungen[aenderung_id] = aenderung
+    return aenderung
+
+
+def get_aenderung_tooltip_html(
+    aenderung_typ: str,
+    geaendert_von: str,
+    geaendert_am: datetime,
+    grund: str = "",
+    referenz_dokument_typ: str = "",
+    referenz_sichtbar: bool = False
+) -> str:
+    """Generiert den HTML-Inhalt für das Tooltip"""
+    user = st.session_state.users.get(geaendert_von)
+    user_name = user.name if user else "Unbekannt"
+
+    tooltip_parts = [f"<strong>Geändert von:</strong> {user_name}"]
+
+    if geaendert_am:
+        tooltip_parts.append(f"<strong>Am:</strong> {geaendert_am.strftime('%d.%m.%Y %H:%M')}")
+
+    if grund:
+        tooltip_parts.append(f"<strong>Grund:</strong> {grund}")
+
+    if referenz_sichtbar and referenz_dokument_typ:
+        tooltip_parts.append(f"<strong>Auf Basis von:</strong> {referenz_dokument_typ}")
+
+    return "<br>".join(tooltip_parts)
+
+
+def render_diff_html(
+    alter_text: str,
+    neuer_text: str,
+    aenderungen_meta: dict = None,
+    zeige_referenzen: bool = False
+) -> tuple:
+    """
+    Rendert HTML für Side-by-Side Diff mit Hervorhebungen.
+
+    Returns: (linke_seite_html, rechte_seite_html)
+    """
+    import html
+    import difflib
+
+    # Zeilenweiser Diff
+    alter_zeilen = alter_text.splitlines()
+    neuer_zeilen = neuer_text.splitlines()
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+
+    linke_html = []
+    rechte_html = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            for zeile in alter_zeilen[i1:i2]:
+                escaped = html.escape(zeile)
+                linke_html.append(escaped)
+                rechte_html.append(escaped)
+        elif tag == 'delete':
+            for zeile in alter_zeilen[i1:i2]:
+                escaped = html.escape(zeile)
+                tooltip = "Gelöschter Text"
+                linke_html.append(f'<span class="diff-deleted">{escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+                rechte_html.append('<span style="color: #999;">—</span>')
+        elif tag == 'insert':
+            for zeile in neuer_zeilen[j1:j2]:
+                escaped = html.escape(zeile)
+                tooltip = "Hinzugefügter Text"
+                linke_html.append('<span style="color: #999;">—</span>')
+                rechte_html.append(f'<span class="diff-added">{escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+        elif tag == 'replace':
+            alte = alter_zeilen[i1:i2]
+            neue = neuer_zeilen[j1:j2]
+            max_len = max(len(alte), len(neue))
+
+            for idx in range(max_len):
+                if idx < len(alte) and idx < len(neue):
+                    # Beide Zeilen existieren - zeige Änderung
+                    alt_escaped = html.escape(alte[idx])
+                    neu_escaped = html.escape(neue[idx])
+
+                    # Wort-Level Diff für bessere Hervorhebung
+                    wort_diff = berechne_inline_diff(alte[idx], neue[idx])
+
+                    tooltip = "Geänderter Text"
+                    linke_html.append(f'<span class="diff-changed">{wort_diff["alt"]}<span class="diff-tooltip">{tooltip}</span></span>')
+                    rechte_html.append(f'<span class="diff-changed">{wort_diff["neu"]}<span class="diff-tooltip">{tooltip}</span></span>')
+                elif idx < len(alte):
+                    # Nur alte Zeile
+                    alt_escaped = html.escape(alte[idx])
+                    tooltip = "Gelöschter Text"
+                    linke_html.append(f'<span class="diff-deleted">{alt_escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+                    rechte_html.append('<span style="color: #999;">—</span>')
+                else:
+                    # Nur neue Zeile
+                    neu_escaped = html.escape(neue[idx])
+                    tooltip = "Hinzugefügter Text"
+                    linke_html.append('<span style="color: #999;">—</span>')
+                    rechte_html.append(f'<span class="diff-added">{neu_escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+
+    return ('\n'.join(linke_html), '\n'.join(rechte_html))
+
+
+def berechne_inline_diff(alte_zeile: str, neue_zeile: str) -> dict:
+    """Berechnet Wort-Level Diff für eine einzelne Zeile"""
+    import html
+    import difflib
+
+    alte_woerter = alte_zeile.split()
+    neue_woerter = neue_zeile.split()
+
+    differ = difflib.SequenceMatcher(None, alte_woerter, neue_woerter)
+
+    alt_html = []
+    neu_html = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            text = ' '.join(alte_woerter[i1:i2])
+            alt_html.append(html.escape(text))
+            neu_html.append(html.escape(text))
+        elif tag == 'delete':
+            text = ' '.join(alte_woerter[i1:i2])
+            alt_html.append(f'<strong style="background:#ffb3c1;">{html.escape(text)}</strong>')
+        elif tag == 'insert':
+            text = ' '.join(neue_woerter[j1:j2])
+            neu_html.append(f'<strong style="background:#ffb3c1;">{html.escape(text)}</strong>')
+        elif tag == 'replace':
+            alt_text = ' '.join(alte_woerter[i1:i2])
+            neu_text = ' '.join(neue_woerter[j1:j2])
+            alt_html.append(f'<strong style="background:#ffb3c1;">{html.escape(alt_text)}</strong>')
+            neu_html.append(f'<strong style="background:#ffb3c1;">{html.escape(neu_text)}</strong>')
+
+    return {
+        'alt': ' '.join(alt_html),
+        'neu': ' '.join(neu_html)
+    }
+
+
+def render_vertragsvergleich(
+    vertrag_id: str,
+    user_id: str,
+    user_rolle: str
+):
+    """Hauptfunktion zum Rendern des Vertragsvergleichs"""
+    inject_diff_css()
+
+    st.subheader("📄 Vertragsversionen vergleichen")
+
+    # Versionen für diesen Vertrag laden
+    versionen = [v for v in st.session_state.get('vertrags_versionen', {}).values()
+                 if v.vertrag_id == vertrag_id]
+    versionen.sort(key=lambda v: v.version_nummer, reverse=True)
+
+    if len(versionen) < 1:
+        st.info("Noch keine Vertragsversionen vorhanden.")
+
+        # Demo-Daten erstellen Button für Testzwecke
+        if st.button("📝 Demo-Versionen erstellen"):
+            _erstelle_demo_vertragsversionen(vertrag_id, user_id)
+            st.rerun()
+        return
+
+    # Legende anzeigen
+    st.markdown("""
+    <div class="diff-legend">
+        <div class="diff-legend-item">
+            <div class="legend-added"></div>
+            <span>Hinzugefügt</span>
+        </div>
+        <div class="diff-legend-item">
+            <div class="legend-deleted"></div>
+            <span>Gelöscht</span>
+        </div>
+        <div class="diff-legend-item">
+            <div class="legend-changed"></div>
+            <span>Geändert</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Version-Auswahl
+    col1, col2 = st.columns(2)
+
+    version_optionen = {v.version_id: f"Version {v.version_nummer} - {v.titel} ({v.erstellt_am.strftime('%d.%m.%Y')})"
+                       for v in versionen}
+
+    with col1:
+        st.markdown("**📄 Ältere Version (links)**")
+        if len(versionen) >= 2:
+            default_links = versionen[1].version_id
+        else:
+            default_links = versionen[0].version_id
+
+        version_links_id = st.selectbox(
+            "Version wählen",
+            list(version_optionen.keys()),
+            format_func=lambda x: version_optionen[x],
+            index=list(version_optionen.keys()).index(default_links) if default_links in version_optionen else 0,
+            key=f"diff_links_{vertrag_id}"
+        )
+
+    with col2:
+        st.markdown("**📄 Neuere Version (rechts)**")
+        version_rechts_id = st.selectbox(
+            "Version wählen",
+            list(version_optionen.keys()),
+            format_func=lambda x: version_optionen[x],
+            index=0,
+            key=f"diff_rechts_{vertrag_id}"
+        )
+
+    if version_links_id == version_rechts_id:
+        st.warning("⚠️ Bitte wählen Sie zwei unterschiedliche Versionen zum Vergleichen.")
+        return
+
+    version_links = st.session_state.vertrags_versionen.get(version_links_id)
+    version_rechts = st.session_state.vertrags_versionen.get(version_rechts_id)
+
+    if not version_links or not version_rechts:
+        st.error("Versionen konnten nicht geladen werden.")
+        return
+
+    # Notar-Freigabe für Referenz-Anzeige
+    zeige_referenzen = version_rechts.referenz_freigabe_durch_notar
+    if user_rolle == UserRole.NOTAR.value:
+        zeige_referenzen = True  # Notar sieht immer alles
+
+    # Metadaten anzeigen
+    st.markdown("---")
+    col_meta1, col_meta2 = st.columns(2)
+
+    with col_meta1:
+        ersteller_links = st.session_state.users.get(version_links.erstellt_von)
+        st.markdown(f"""
+        **Version {version_links.version_nummer}** - {version_links.titel}
+        - Erstellt von: {ersteller_links.name if ersteller_links else 'Unbekannt'}
+        - Datum: {version_links.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+        - Status: {version_links.status}
+        """)
+
+    with col_meta2:
+        ersteller_rechts = st.session_state.users.get(version_rechts.erstellt_von)
+        st.markdown(f"""
+        **Version {version_rechts.version_nummer}** - {version_rechts.titel}
+        - Erstellt von: {ersteller_rechts.name if ersteller_rechts else 'Unbekannt'}
+        - Datum: {version_rechts.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+        - Status: {version_rechts.status}
+        """)
+
+    if version_rechts.aenderungsbeschreibung:
+        st.info(f"📝 **Änderungsbeschreibung:** {version_rechts.aenderungsbeschreibung}")
+
+    st.markdown("---")
+
+    # Side-by-Side Diff rendern
+    linke_html, rechte_html = render_diff_html(
+        version_links.text_inhalt,
+        version_rechts.text_inhalt,
+        zeige_referenzen=zeige_referenzen
+    )
+
+    # Änderungsstatistik
+    diff_stats = berechne_diff_statistik(version_links.text_inhalt, version_rechts.text_inhalt)
+    col_stat1, col_stat2, col_stat3 = st.columns(3)
+    with col_stat1:
+        st.metric("➕ Hinzugefügt", f"{diff_stats['hinzugefuegt']} Zeilen")
+    with col_stat2:
+        st.metric("➖ Gelöscht", f"{diff_stats['geloescht']} Zeilen")
+    with col_stat3:
+        st.metric("✏️ Geändert", f"{diff_stats['geaendert']} Zeilen")
+
+    st.markdown("---")
+
+    # Side-by-Side Ansicht
+    st.markdown(f"""
+    <div class="diff-container">
+        <div class="diff-pane">
+            <div class="diff-pane-header">📄 Version {version_links.version_nummer}</div>
+            {linke_html}
+        </div>
+        <div class="diff-pane">
+            <div class="diff-pane-header">📄 Version {version_rechts.version_nummer}</div>
+            {rechte_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Notar-Optionen für Referenz-Freigabe
+    if user_rolle == UserRole.NOTAR.value:
+        st.markdown("---")
+        st.markdown("### ⚖️ Notar-Optionen")
+
+        freigabe_aktuell = version_rechts.referenz_freigabe_durch_notar
+        neue_freigabe = st.checkbox(
+            "🔓 Änderungsreferenzen für alle Parteien sichtbar machen",
+            value=freigabe_aktuell,
+            help="Wenn aktiviert, können alle Parteien sehen, auf welches Dokument sich eine Änderung bezieht."
+        )
+
+        if neue_freigabe != freigabe_aktuell:
+            if st.button("💾 Freigabe-Einstellung speichern"):
+                version_rechts.referenz_freigabe_durch_notar = neue_freigabe
+                st.session_state.vertrags_versionen[version_rechts_id] = version_rechts
+                st.success("✅ Einstellung gespeichert!")
+                st.rerun()
+
+
+def berechne_diff_statistik(alter_text: str, neuer_text: str) -> dict:
+    """Berechnet Statistiken über die Unterschiede"""
+    import difflib
+
+    alter_zeilen = alter_text.splitlines()
+    neuer_zeilen = neuer_text.splitlines()
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+
+    stats = {
+        'hinzugefuegt': 0,
+        'geloescht': 0,
+        'geaendert': 0,
+        'unveraendert': 0
+    }
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            stats['unveraendert'] += (i2 - i1)
+        elif tag == 'delete':
+            stats['geloescht'] += (i2 - i1)
+        elif tag == 'insert':
+            stats['hinzugefuegt'] += (j2 - j1)
+        elif tag == 'replace':
+            stats['geaendert'] += max(i2 - i1, j2 - j1)
+
+    return stats
+
+
+def _erstelle_demo_vertragsversionen(vertrag_id: str, user_id: str):
+    """Erstellt Demo-Vertragsversionen für Testzwecke"""
+    # Version 1 - Original
+    v1_text = """KAUFVERTRAG
+
+Zwischen
+
+Max Mustermann, geboren am 01.01.1970, wohnhaft Musterstraße 1, 12345 Musterstadt
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+Erika Musterfrau, geboren am 15.05.1985, wohnhaft Beispielweg 10, 54321 Beispielstadt
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück Musterstraße 5, 12345 Musterstadt,
+eingetragen im Grundbuch von Musterstadt, Blatt 1234.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt 350.000,00 € (in Worten: dreihundertfünfzigtausend Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 14 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen
+auf das Notaranderkonto zu zahlen.
+
+§ 4 Übergabe
+Die Übergabe erfolgt am Tag der vollständigen Kaufpreiszahlung.
+"""
+
+    erstelle_vertrags_version(
+        vertrag_id=vertrag_id,
+        titel="Erster Entwurf",
+        text_inhalt=v1_text,
+        erstellt_von=user_id,
+        aenderungsbeschreibung="Initialer Vertragsentwurf"
+    )
+
+    # Version 2 - Mit Änderungen
+    v2_text = """KAUFVERTRAG
+
+Zwischen
+
+Max Mustermann, geboren am 01.01.1970, wohnhaft Musterstraße 1, 12345 Musterstadt
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+Erika Musterfrau, geboren am 15.05.1985, wohnhaft Beispielweg 10, 54321 Beispielstadt
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück Musterstraße 5, 12345 Musterstadt,
+eingetragen im Grundbuch von Musterstadt, Blatt 1234, Flurstück 567/8.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt 345.000,00 € (in Worten: dreihundertfünfundvierzigtausend Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 21 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen
+auf das Notaranderkonto bei der Musterbank (IBAN: DE12 3456 7890 1234 5678 90) zu zahlen.
+
+§ 4 Übergabe
+Die Übergabe erfolgt am 01.03.2025.
+
+§ 5 Gewährleistung
+Der Verkauf erfolgt unter Ausschluss jeglicher Gewährleistung für Sachmängel.
+Diese Vereinbarung gilt nicht für arglistig verschwiegene Mängel.
+"""
+
+    erstelle_vertrags_version(
+        vertrag_id=vertrag_id,
+        titel="Zweiter Entwurf nach Käuferanfrage",
+        text_inhalt=v2_text,
+        erstellt_von=user_id,
+        aenderungsbeschreibung="Kaufpreis angepasst auf Käuferwunsch, Gewährleistungsklausel hinzugefügt, Zahlungsfrist verlängert"
+    )
+
+    st.success("✅ Demo-Versionen wurden erstellt!")
+
+
+def render_vertragsvergleich_tab(projekt_id: str, user_id: str, user_rolle: str):
+    """Tab-Wrapper für den Vertragsvergleich"""
+    st.markdown("### 📑 Vertragsversionen vergleichen")
+    st.markdown("""
+    Hier können Sie verschiedene Versionen des Kaufvertrags nebeneinander vergleichen.
+    Änderungen werden farblich hervorgehoben:
+    - **Rosa hinterlegt**: Hinzugefügter oder geänderter Text
+    - **Durchgestrichen**: Gelöschter Text
+
+    Fahren Sie mit dem Cursor über markierte Stellen, um Details zur Änderung zu sehen.
+    """)
+
+    render_vertragsvergleich(projekt_id, user_id, user_rolle)
+
+
+# ============================================================================
+# PAPIERKORB-SYSTEM FUNKTIONEN
+# ============================================================================
+
+def verschiebe_in_papierkorb(
+    objekt_id: str,
+    objekt_typ: str,
+    objekt_daten: Dict,
+    original_name: str,
+    user_id: str,
+    loeschgrund: str = "",
+    urspruenglicher_pfad: str = ""
+) -> str:
+    """
+    Verschiebt ein Objekt in den Papierkorb statt es zu löschen.
+
+    Returns:
+        Papierkorb-ID des erstellten Elements
+    """
+    # Benutzer-Einstellungen oder System-Einstellungen laden
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    aufbewahrungsstunden = einstellungen.standard_aufbewahrungsstunden
+
+    papierkorb_id = str(uuid.uuid4())
+    jetzt = datetime.now()
+
+    # Dateigröße berechnen (falls vorhanden)
+    dateigroesse = 0
+    if isinstance(objekt_daten, dict):
+        if 'datei_data' in objekt_daten and objekt_daten['datei_data']:
+            dateigroesse = len(objekt_daten['datei_data'])
+        elif 'data' in objekt_daten and objekt_daten['data']:
+            dateigroesse = len(objekt_daten['data'])
+
+    element = PapierkorbElement(
+        papierkorb_id=papierkorb_id,
+        objekt_id=objekt_id,
+        objekt_typ=objekt_typ,
+        objekt_daten=objekt_daten,
+        original_name=original_name,
+        geloescht_von=user_id,
+        geloescht_am=jetzt,
+        loeschgrund=loeschgrund,
+        endgueltig_loeschen_am=jetzt + timedelta(hours=aufbewahrungsstunden),
+        aufbewahrungsstunden=aufbewahrungsstunden,
+        urspruenglicher_pfad=urspruenglicher_pfad,
+        dateigroesse=dateigroesse,
+        preview_verfuegbar=objekt_typ in [
+            PapierkorbObjektTyp.DOKUMENT.value,
+            PapierkorbObjektTyp.TEXTBAUSTEIN.value
+        ]
+    )
+
+    st.session_state.papierkorb[papierkorb_id] = element
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_verschoben',
+            'objekt_typ': objekt_typ,
+            'objekt_id': objekt_id,
+            'user_id': user_id,
+            'zeitpunkt': jetzt.isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    return papierkorb_id
+
+
+def reaktiviere_aus_papierkorb(papierkorb_id: str, user_id: str) -> Tuple[bool, str, Dict]:
+    """
+    Reaktiviert ein Element aus dem Papierkorb.
+
+    Returns:
+        Tuple: (Erfolg, Fehlermeldung, Objekt-Daten)
+    """
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False, "Element nicht im Papierkorb gefunden", {}
+
+    if element.reaktiviert:
+        return False, "Element wurde bereits reaktiviert", {}
+
+    # Element als reaktiviert markieren
+    element.reaktiviert = True
+    element.reaktiviert_von = user_id
+    element.reaktiviert_am = datetime.now()
+
+    # Aus Papierkorb entfernen
+    objekt_daten = element.objekt_daten
+    del st.session_state.papierkorb[papierkorb_id]
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_reaktiviert',
+            'objekt_typ': element.objekt_typ,
+            'objekt_id': element.objekt_id,
+            'user_id': user_id,
+            'zeitpunkt': datetime.now().isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    return True, "", objekt_daten
+
+
+def endgueltig_loeschen(papierkorb_id: str, user_id: str) -> Tuple[bool, str]:
+    """
+    Löscht ein Element endgültig aus dem Papierkorb.
+
+    Returns:
+        Tuple: (Erfolg, Fehlermeldung)
+    """
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False, "Element nicht im Papierkorb gefunden"
+
+    # Prüfen ob Berechtigung zum sofortigen Löschen
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    if not einstellungen.sofort_loeschen_erlaubt:
+        return False, "Keine Berechtigung zum sofortigen Löschen"
+
+    # Audit-Log vor dem Löschen
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_endgueltig_geloescht',
+            'objekt_typ': element.objekt_typ,
+            'objekt_id': element.objekt_id,
+            'original_name': element.original_name,
+            'user_id': user_id,
+            'zeitpunkt': datetime.now().isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    # Endgültig löschen
+    del st.session_state.papierkorb[papierkorb_id]
+
+    return True, ""
+
+
+def papierkorb_aufbewahrung_aendern(papierkorb_id: str, neue_stunden: int, user_id: str) -> bool:
+    """Ändert die Aufbewahrungszeit für ein Element im Papierkorb."""
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False
+
+    # Neues Enddatum berechnen
+    element.aufbewahrungsstunden = neue_stunden
+    element.endgueltig_loeschen_am = element.geloescht_am + timedelta(hours=neue_stunden)
+
+    return True
+
+
+def bereinige_papierkorb():
+    """Löscht abgelaufene Elemente aus dem Papierkorb (automatisch)."""
+    jetzt = datetime.now()
+    zu_loeschen = []
+
+    for papierkorb_id, element in st.session_state.papierkorb.items():
+        if element.endgueltig_loeschen_am and element.endgueltig_loeschen_am <= jetzt:
+            zu_loeschen.append(papierkorb_id)
+
+    for papierkorb_id in zu_loeschen:
+        element = st.session_state.papierkorb[papierkorb_id]
+        # Audit-Log
+        if hasattr(st.session_state, 'audit_log'):
+            st.session_state.audit_log.append({
+                'aktion': 'papierkorb_automatisch_geloescht',
+                'objekt_typ': element.objekt_typ,
+                'objekt_id': element.objekt_id,
+                'original_name': element.original_name,
+                'zeitpunkt': jetzt.isoformat(),
+                'papierkorb_id': papierkorb_id
+            })
+        del st.session_state.papierkorb[papierkorb_id]
+
+    return len(zu_loeschen)
+
+
+def get_papierkorb_statistik(user_id: str = None) -> Dict:
+    """Gibt Statistiken über den Papierkorb zurück."""
+    elemente = st.session_state.papierkorb.values()
+
+    if user_id:
+        elemente = [e for e in elemente if e.geloescht_von == user_id]
+
+    elemente = list(elemente)
+
+    return {
+        'anzahl': len(elemente),
+        'gesamtgroesse_bytes': sum(e.dateigroesse for e in elemente),
+        'nach_typ': {
+            typ.value: len([e for e in elemente if e.objekt_typ == typ.value])
+            for typ in PapierkorbObjektTyp
+        },
+        'bald_ablaufend': len([
+            e for e in elemente
+            if e.endgueltig_loeschen_am and
+            e.endgueltig_loeschen_am <= datetime.now() + timedelta(hours=24)
+        ])
+    }
+
+
+def render_papierkorb_ui(user_id: str, ist_admin: bool = False):
+    """Rendert die Papierkorb-Oberfläche."""
+    st.markdown("### 🗑️ Papierkorb")
+
+    # Automatisch abgelaufene Elemente bereinigen
+    geloescht = bereinige_papierkorb()
+    if geloescht > 0:
+        st.info(f"ℹ️ {geloescht} abgelaufene Element(e) wurden automatisch gelöscht.")
+
+    # Einstellungen laden
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    # Statistiken anzeigen
+    stats = get_papierkorb_statistik(user_id if not ist_admin else None)
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📦 Elemente", stats['anzahl'])
+    with col2:
+        groesse_mb = stats['gesamtgroesse_bytes'] / (1024 * 1024)
+        st.metric("💾 Größe", f"{groesse_mb:.2f} MB")
+    with col3:
+        st.metric("⚠️ Bald ablaufend", stats['bald_ablaufend'])
+    with col4:
+        st.metric("⏱️ Standard-Zeit", f"{einstellungen.standard_aufbewahrungsstunden}h")
+
+    st.markdown("---")
+
+    # Elemente filtern
+    col_filter1, col_filter2 = st.columns(2)
+    with col_filter1:
+        typ_filter = st.selectbox(
+            "Nach Typ filtern",
+            options=["Alle"] + [t.value for t in PapierkorbObjektTyp],
+            key="papierkorb_typ_filter"
+        )
+    with col_filter2:
+        sortierung = st.selectbox(
+            "Sortierung",
+            options=["Neueste zuerst", "Älteste zuerst", "Bald ablaufend", "Name A-Z"],
+            key="papierkorb_sortierung"
+        )
+
+    # Elemente abrufen
+    elemente = list(st.session_state.papierkorb.values())
+
+    if not ist_admin:
+        elemente = [e for e in elemente if e.geloescht_von == user_id]
+
+    if typ_filter != "Alle":
+        elemente = [e for e in elemente if e.objekt_typ == typ_filter]
+
+    # Sortieren
+    if sortierung == "Neueste zuerst":
+        elemente.sort(key=lambda e: e.geloescht_am, reverse=True)
+    elif sortierung == "Älteste zuerst":
+        elemente.sort(key=lambda e: e.geloescht_am)
+    elif sortierung == "Bald ablaufend":
+        elemente.sort(key=lambda e: e.endgueltig_loeschen_am or datetime.max)
+    else:
+        elemente.sort(key=lambda e: e.original_name.lower())
+
+    if not elemente:
+        st.info("🗑️ Der Papierkorb ist leer.")
+        return
+
+    # Elemente anzeigen
+    for element in elemente:
+        with st.expander(
+            f"{'📄' if element.objekt_typ == 'Dokument' else '📁'} {element.original_name}",
+            expanded=False
+        ):
+            col_info, col_actions = st.columns([2, 1])
+
+            with col_info:
+                st.markdown(f"**Typ:** {element.objekt_typ}")
+                st.markdown(f"**Gelöscht am:** {element.geloescht_am.strftime('%d.%m.%Y %H:%M')}")
+
+                if element.loeschgrund:
+                    st.markdown(f"**Grund:** {element.loeschgrund}")
+
+                # Verbleibende Zeit berechnen
+                if element.endgueltig_loeschen_am:
+                    verbleibend = element.endgueltig_loeschen_am - datetime.now()
+                    if verbleibend.total_seconds() > 0:
+                        stunden = int(verbleibend.total_seconds() / 3600)
+                        minuten = int((verbleibend.total_seconds() % 3600) / 60)
+                        st.markdown(f"**Endgültige Löschung in:** {stunden}h {minuten}min")
+                    else:
+                        st.warning("⚠️ Wird gleich gelöscht...")
+
+                if element.dateigroesse > 0:
+                    if element.dateigroesse > 1024 * 1024:
+                        groesse_str = f"{element.dateigroesse / (1024*1024):.2f} MB"
+                    elif element.dateigroesse > 1024:
+                        groesse_str = f"{element.dateigroesse / 1024:.2f} KB"
+                    else:
+                        groesse_str = f"{element.dateigroesse} Bytes"
+                    st.markdown(f"**Größe:** {groesse_str}")
+
+            with col_actions:
+                # Aufbewahrungszeit ändern
+                neue_stunden = st.slider(
+                    "Aufbewahrungszeit (Stunden)",
+                    min_value=1,
+                    max_value=720,
+                    value=element.aufbewahrungsstunden,
+                    step=1,
+                    key=f"aufbewahrung_{element.papierkorb_id}"
+                )
+
+                if neue_stunden != element.aufbewahrungsstunden:
+                    if st.button("⏱️ Zeit ändern", key=f"zeit_{element.papierkorb_id}"):
+                        if papierkorb_aufbewahrung_aendern(element.papierkorb_id, neue_stunden, user_id):
+                            st.success("✅ Aufbewahrungszeit geändert")
+                            st.rerun()
+
+                st.markdown("---")
+
+                # Reaktivieren
+                if st.button("♻️ Wiederherstellen", key=f"reaktiv_{element.papierkorb_id}", type="primary"):
+                    erfolg, fehler, daten = reaktiviere_aus_papierkorb(element.papierkorb_id, user_id)
+                    if erfolg:
+                        st.success(f"✅ '{element.original_name}' wurde wiederhergestellt")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Fehler: {fehler}")
+
+                # Endgültig löschen (nur für Admins/Notare)
+                if ist_admin or einstellungen.sofort_loeschen_erlaubt:
+                    if st.button("🗑️ Endgültig löschen", key=f"endgueltig_{element.papierkorb_id}"):
+                        erfolg, fehler = endgueltig_loeschen(element.papierkorb_id, user_id)
+                        if erfolg:
+                            st.success("✅ Endgültig gelöscht")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Fehler: {fehler}")
+
+    # Papierkorb leeren (Admin)
+    if ist_admin and len(elemente) > 0:
+        st.markdown("---")
+        st.warning("⚠️ Admin-Bereich")
+        if st.button("🗑️ Gesamten Papierkorb leeren", type="secondary"):
+            for element in elemente:
+                del st.session_state.papierkorb[element.papierkorb_id]
+            st.success("✅ Papierkorb wurde geleert")
+            st.rerun()
+
+
+def render_papierkorb_einstellungen(user_id: str, ist_system: bool = False):
+    """Rendert die Papierkorb-Einstellungen."""
+    st.markdown("### ⚙️ Papierkorb-Einstellungen")
+
+    if ist_system:
+        einstellungen = st.session_state.papierkorb_system_einstellungen
+        st.info("ℹ️ Diese Einstellungen gelten systemweit als Standard.")
+    else:
+        if user_id not in st.session_state.papierkorb_einstellungen:
+            # Kopie der System-Einstellungen erstellen
+            st.session_state.papierkorb_einstellungen[user_id] = PapierkorbEinstellungen(
+                einstellung_id=str(uuid.uuid4()),
+                user_id=user_id,
+                standard_aufbewahrungsstunden=st.session_state.papierkorb_system_einstellungen.standard_aufbewahrungsstunden
+            )
+        einstellungen = st.session_state.papierkorb_einstellungen[user_id]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### ⏱️ Aufbewahrungszeit")
+
+        neue_standard_stunden = st.slider(
+            "Standard-Aufbewahrungszeit (Stunden)",
+            min_value=1,
+            max_value=720,
+            value=einstellungen.standard_aufbewahrungsstunden,
+            step=1,
+            help="Wie lange sollen gelöschte Elemente standardmäßig im Papierkorb bleiben?",
+            key=f"standard_aufbewahrung_{user_id}"
+        )
+
+        # Schnellauswahl
+        st.markdown("**Schnellauswahl:**")
+        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+        with col_btn1:
+            if st.button("1h", key=f"1h_{user_id}"):
+                neue_standard_stunden = 1
+        with col_btn2:
+            if st.button("24h", key=f"24h_{user_id}"):
+                neue_standard_stunden = 24
+        with col_btn3:
+            if st.button("48h", key=f"48h_{user_id}"):
+                neue_standard_stunden = 48
+        with col_btn4:
+            if st.button("7 Tage", key=f"7d_{user_id}"):
+                neue_standard_stunden = 168
+
+        auto_loeschen = st.checkbox(
+            "Automatisches Löschen aktiviert",
+            value=einstellungen.auto_loeschen_aktiv,
+            key=f"auto_loeschen_{user_id}"
+        )
+
+    with col2:
+        st.markdown("#### 🔔 Benachrichtigungen")
+
+        benachrichtigung = st.checkbox(
+            "Vor endgültiger Löschung benachrichtigen",
+            value=einstellungen.benachrichtigung_vor_loeschen,
+            key=f"benachrichtigung_{user_id}"
+        )
+
+        benachrichtigung_stunden = st.number_input(
+            "Stunden vor Löschung benachrichtigen",
+            min_value=1,
+            max_value=48,
+            value=einstellungen.benachrichtigung_stunden_vorher,
+            key=f"benachrichtigung_stunden_{user_id}"
+        )
+
+        st.markdown("#### 🔐 Berechtigungen")
+
+        reaktivierung = st.checkbox(
+            "Wiederherstellung erlaubt",
+            value=einstellungen.reaktivierung_erlaubt,
+            key=f"reaktivierung_{user_id}"
+        )
+
+        sofort_loeschen = st.checkbox(
+            "Sofortiges endgültiges Löschen erlaubt",
+            value=einstellungen.sofort_loeschen_erlaubt,
+            key=f"sofort_loeschen_{user_id}"
+        )
+
+    if st.button("💾 Einstellungen speichern", key=f"save_papierkorb_{user_id}"):
+        einstellungen.standard_aufbewahrungsstunden = neue_standard_stunden
+        einstellungen.auto_loeschen_aktiv = auto_loeschen
+        einstellungen.benachrichtigung_vor_loeschen = benachrichtigung
+        einstellungen.benachrichtigung_stunden_vorher = benachrichtigung_stunden
+        einstellungen.reaktivierung_erlaubt = reaktivierung
+        einstellungen.sofort_loeschen_erlaubt = sofort_loeschen
+
+        st.success("✅ Einstellungen gespeichert")
+
+
+# ============================================================================
+# TEXT-TO-SPEECH (VORLESEN) FUNKTIONEN
+# ============================================================================
+
+def inject_tts_javascript():
+    """Injiziert das JavaScript für Text-to-Speech."""
+    tts_js = """
+    <script>
+    // Text-to-Speech Manager
+    class TTSManager {
+        constructor() {
+            this.synth = window.speechSynthesis;
+            this.utterance = null;
+            this.isPlaying = false;
+            this.isPaused = false;
+            this.currentRate = 1.0;
+            this.currentVoice = null;
+            this.voices = [];
+            this.loadVoices();
+        }
+
+        loadVoices() {
+            this.voices = this.synth.getVoices();
+            if (this.voices.length === 0) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    this.voices = this.synth.getVoices();
+                };
+            }
+        }
+
+        getGermanVoice() {
+            // Suche nach deutscher Stimme
+            const germanVoice = this.voices.find(v => v.lang.startsWith('de'));
+            return germanVoice || this.voices[0];
+        }
+
+        speak(text, rate = 1.0) {
+            this.stop();
+            this.utterance = new SpeechSynthesisUtterance(text);
+            this.utterance.rate = rate;
+            this.utterance.lang = 'de-DE';
+
+            const voice = this.getGermanVoice();
+            if (voice) {
+                this.utterance.voice = voice;
+            }
+
+            this.utterance.onend = () => {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.updateUI();
+            };
+
+            this.utterance.onpause = () => {
+                this.isPaused = true;
+                this.updateUI();
+            };
+
+            this.utterance.onresume = () => {
+                this.isPaused = false;
+                this.updateUI();
+            };
+
+            this.synth.speak(this.utterance);
+            this.isPlaying = true;
+            this.isPaused = false;
+            this.currentRate = rate;
+            this.updateUI();
+        }
+
+        pause() {
+            if (this.isPlaying && !this.isPaused) {
+                this.synth.pause();
+                this.isPaused = true;
+                this.updateUI();
+            }
+        }
+
+        resume() {
+            if (this.isPaused) {
+                this.synth.resume();
+                this.isPaused = false;
+                this.updateUI();
+            }
+        }
+
+        stop() {
+            this.synth.cancel();
+            this.isPlaying = false;
+            this.isPaused = false;
+            this.updateUI();
+        }
+
+        setRate(rate) {
+            this.currentRate = rate;
+            if (this.utterance) {
+                // Leider kann man die Rate während des Sprechens nicht ändern
+                // Man müsste neu starten
+            }
+        }
+
+        updateUI() {
+            // Status an Streamlit senden
+            const statusEl = document.getElementById('tts-status');
+            if (statusEl) {
+                if (this.isPlaying && !this.isPaused) {
+                    statusEl.textContent = '🔊 Wird vorgelesen...';
+                } else if (this.isPaused) {
+                    statusEl.textContent = '⏸️ Pausiert';
+                } else {
+                    statusEl.textContent = '⏹️ Gestoppt';
+                }
+            }
+        }
+    }
+
+    // Globale Instanz
+    if (!window.ttsManager) {
+        window.ttsManager = new TTSManager();
+    }
+
+    // Hilfsfunktionen für Streamlit
+    function ttsSpeak(text, rate) {
+        window.ttsManager.speak(text, rate);
+    }
+
+    function ttsPause() {
+        window.ttsManager.pause();
+    }
+
+    function ttsResume() {
+        window.ttsManager.resume();
+    }
+
+    function ttsStop() {
+        window.ttsManager.stop();
+    }
+
+    function ttsSetRate(rate) {
+        window.ttsManager.setRate(rate);
+    }
+    </script>
+    """
+    st.markdown(tts_js, unsafe_allow_html=True)
+
+
+def inject_tts_css():
+    """Injiziert CSS für TTS-Hervorhebungen."""
+    tts_css = """
+    <style>
+    .tts-highlight {
+        background-color: #fff3cd;
+        transition: background-color 0.3s ease;
+    }
+
+    .tts-controls {
+        position: sticky;
+        top: 0;
+        background: white;
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 100;
+        margin-bottom: 15px;
+    }
+
+    .tts-speed-slider {
+        width: 100%;
+    }
+
+    .tts-button {
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+    .tts-button-play {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .tts-button-pause {
+        background-color: #ff9800;
+        color: white;
+    }
+
+    .tts-button-stop {
+        background-color: #f44336;
+        color: white;
+    }
+
+    .tts-status {
+        font-size: 14px;
+        color: #666;
+        margin-top: 8px;
+    }
+    </style>
+    """
+    st.markdown(tts_css, unsafe_allow_html=True)
+
+
+def get_tts_einstellungen(user_id: str) -> TTSEinstellungen:
+    """Holt oder erstellt TTS-Einstellungen für einen Benutzer."""
+    if user_id not in st.session_state.tts_einstellungen:
+        st.session_state.tts_einstellungen[user_id] = TTSEinstellungen(
+            einstellung_id=str(uuid.uuid4()),
+            user_id=user_id
+        )
+    return st.session_state.tts_einstellungen[user_id]
+
+
+def render_tts_controls(text: str, dokument_id: str, user_id: str):
+    """Rendert die TTS-Steuerelemente für ein Dokument."""
+    inject_tts_javascript()
+    inject_tts_css()
+
+    einstellungen = get_tts_einstellungen(user_id)
+
+    st.markdown("#### 🔊 Dokument vorlesen")
+
+    col1, col2, col3 = st.columns([2, 2, 1])
+
+    with col1:
+        # Geschwindigkeitsregler (0.25 bis 2.0 in 0.25er Schritten)
+        geschwindigkeit = st.slider(
+            "Geschwindigkeit",
+            min_value=0.25,
+            max_value=2.0,
+            value=einstellungen.geschwindigkeit,
+            step=0.25,
+            format="%.2fx",
+            key=f"tts_speed_{dokument_id}",
+            help="Geschwindigkeit des Vorlesens (0.25x bis 2.0x)"
+        )
+
+        # Geschwindigkeit speichern
+        if geschwindigkeit != einstellungen.geschwindigkeit:
+            einstellungen.geschwindigkeit = geschwindigkeit
+
+    with col2:
+        # Voreinstellungen
+        st.markdown("**Schnellauswahl:**")
+        speed_cols = st.columns(4)
+        with speed_cols[0]:
+            if st.button("0.5x", key=f"speed_05_{dokument_id}"):
+                einstellungen.geschwindigkeit = 0.5
+                st.rerun()
+        with speed_cols[1]:
+            if st.button("1.0x", key=f"speed_10_{dokument_id}"):
+                einstellungen.geschwindigkeit = 1.0
+                st.rerun()
+        with speed_cols[2]:
+            if st.button("1.5x", key=f"speed_15_{dokument_id}"):
+                einstellungen.geschwindigkeit = 1.5
+                st.rerun()
+        with speed_cols[3]:
+            if st.button("2.0x", key=f"speed_20_{dokument_id}"):
+                einstellungen.geschwindigkeit = 2.0
+                st.rerun()
+
+    with col3:
+        st.markdown("**Status:**")
+        st.markdown(f'<div id="tts-status" class="tts-status">⏹️ Bereit</div>', unsafe_allow_html=True)
+
+    # Steuerung
+    st.markdown("---")
+
+    # Text für JavaScript vorbereiten (escapen)
+    escaped_text = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ").replace("\r", "")
+    escaped_text = escaped_text[:10000]  # Limit für Browser
+
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+    with col_btn1:
+        # Vorlesen starten
+        start_js = f"""
+        <script>
+        function startTTS_{dokument_id.replace('-', '_')}() {{
+            const text = '{escaped_text}';
+            const rate = {geschwindigkeit};
+            window.ttsManager.speak(text, rate);
+        }}
+        </script>
+        <button onclick="startTTS_{dokument_id.replace('-', '_')}()"
+                class="tts-button tts-button-play"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ▶️ Vorlesen
+        </button>
+        """
+        st.markdown(start_js, unsafe_allow_html=True)
+
+    with col_btn2:
+        # Pause/Fortsetzen
+        pause_js = """
+        <button onclick="window.ttsManager.isPaused ? window.ttsManager.resume() : window.ttsManager.pause()"
+                class="tts-button tts-button-pause"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #ff9800; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ⏸️ Pause
+        </button>
+        """
+        st.markdown(pause_js, unsafe_allow_html=True)
+
+    with col_btn3:
+        # Stoppen
+        stop_js = """
+        <button onclick="window.ttsManager.stop()"
+                class="tts-button tts-button-stop"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ⏹️ Stopp
+        </button>
+        """
+        st.markdown(stop_js, unsafe_allow_html=True)
+
+    # Info
+    with st.expander("ℹ️ Hinweise zum Vorlesen", expanded=False):
+        st.markdown("""
+        - Die Vorlesefunktion nutzt die Text-to-Speech-Funktion Ihres Browsers
+        - Die Qualität der Stimme hängt vom Browser und Betriebssystem ab
+        - Für beste Ergebnisse empfehlen wir Chrome oder Edge
+        - Die Geschwindigkeit kann in 0,25er-Schritten eingestellt werden
+        - Bei langen Dokumenten wird nur ein Teil vorgelesen (Browser-Limit)
+        """)
+
+
+def render_tts_einstellungen(user_id: str):
+    """Rendert die TTS-Einstellungen für einen Benutzer."""
+    st.markdown("### 🔊 Vorlese-Einstellungen")
+
+    einstellungen = get_tts_einstellungen(user_id)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Geschwindigkeit")
+
+        geschwindigkeit = st.slider(
+            "Standard-Geschwindigkeit",
+            min_value=0.25,
+            max_value=2.0,
+            value=einstellungen.geschwindigkeit,
+            step=0.25,
+            format="%.2fx",
+            key=f"tts_default_speed_{user_id}"
+        )
+
+        st.markdown("#### Lautstärke")
+        lautstaerke = st.slider(
+            "Lautstärke",
+            min_value=0.0,
+            max_value=1.0,
+            value=einstellungen.lautstaerke,
+            step=0.1,
+            format="%.0f%%",
+            key=f"tts_volume_{user_id}"
+        )
+
+    with col2:
+        st.markdown("#### Verhalten")
+
+        auto_scroll = st.checkbox(
+            "Beim Vorlesen automatisch scrollen",
+            value=einstellungen.auto_scroll,
+            key=f"tts_auto_scroll_{user_id}"
+        )
+
+        hervorheben = st.checkbox(
+            "Gelesenen Text hervorheben",
+            value=einstellungen.hervorheben_bei_vorlesen,
+            key=f"tts_highlight_{user_id}"
+        )
+
+        pause_absatz = st.slider(
+            "Pause zwischen Absätzen (Sekunden)",
+            min_value=0.0,
+            max_value=2.0,
+            value=einstellungen.pause_zwischen_absaetzen,
+            step=0.25,
+            key=f"tts_pause_{user_id}"
+        )
+
+    if st.button("💾 TTS-Einstellungen speichern", key=f"save_tts_{user_id}"):
+        einstellungen.geschwindigkeit = geschwindigkeit
+        einstellungen.lautstaerke = lautstaerke
+        einstellungen.auto_scroll = auto_scroll
+        einstellungen.hervorheben_bei_vorlesen = hervorheben
+        einstellungen.pause_zwischen_absaetzen = pause_absatz
+
+        st.success("✅ Einstellungen gespeichert")
+
+
+def render_dokument_mit_tts(
+    dokument_text: str,
+    dokument_id: str,
+    dokument_name: str,
+    user_id: str,
+    show_download: bool = True
+):
+    """Rendert ein Dokument mit integrierter TTS-Funktion."""
+    st.markdown(f"### 📄 {dokument_name}")
+
+    # TTS-Steuerung
+    with st.container():
+        render_tts_controls(dokument_text, dokument_id, user_id)
+
+    st.markdown("---")
+
+    # Dokument-Text anzeigen
+    st.markdown(
+        f'<div id="doc-content-{dokument_id}" style="padding: 15px; background: #f9f9f9; border-radius: 8px; max-height: 500px; overflow-y: auto;">{dokument_text}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Download-Option
+    if show_download:
+        st.download_button(
+            label="📥 Text herunterladen",
+            data=dokument_text,
+            file_name=f"{dokument_name}.txt",
+            mime="text/plain",
+            key=f"download_{dokument_id}"
+        )
+
+
+def render_papierkorb_tab(user_id: str, ist_notar: bool = False):
+    """Tab-Wrapper für Papierkorb und Einstellungen."""
+    tab1, tab2 = st.tabs(["🗑️ Papierkorb", "⚙️ Einstellungen"])
+
+    with tab1:
+        render_papierkorb_ui(user_id, ist_admin=ist_notar)
+
+    with tab2:
+        render_papierkorb_einstellungen(user_id, ist_system=ist_notar)
+        if ist_notar:
+            st.markdown("---")
+            st.markdown("#### 🌐 System-Einstellungen")
+            render_papierkorb_einstellungen("", ist_system=True)
+
+
+# ============================================================================
+# DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG FUNKTIONEN
+# ============================================================================
+
+def registriere_personenbezogene_daten(
+    betroffener_id: str,
+    kategorie: str,
+    beschreibung: str,
+    datenfelder: List[str],
+    erfasst_von_id: str,
+    herkunft: str,
+    rechtsgrundlage: str = "Vertragserfüllung",
+    speicherort: str = "",
+    referenz_id: str = "",
+    aufbewahrungsfrist_jahre: int = 0
+) -> str:
+    """
+    Registriert personenbezogene Daten für DSGVO-Tracking.
+
+    Returns:
+        Daten-ID
+    """
+    daten_id = str(uuid.uuid4())
+
+    daten = PersonenbezogeneDaten(
+        daten_id=daten_id,
+        betroffener_id=betroffener_id,
+        kategorie=kategorie,
+        beschreibung=beschreibung,
+        datenfelder=datenfelder,
+        herkunft=herkunft,
+        erfasst_von_id=erfasst_von_id,
+        erfasst_am=datetime.now(),
+        rechtsgrundlage=rechtsgrundlage,
+        speicherort=speicherort,
+        referenz_id=referenz_id,
+        aufbewahrungsfrist_jahre=aufbewahrungsfrist_jahre
+    )
+
+    if aufbewahrungsfrist_jahre > 0:
+        daten.loeschung_geplant_am = datetime.now() + timedelta(days=aufbewahrungsfrist_jahre * 365)
+
+    st.session_state.personenbezogene_daten[daten_id] = daten
+
+    # Log-Eintrag
+    st.session_state.daten_herkunft_log.append({
+        'zeitpunkt': datetime.now().isoformat(),
+        'aktion': 'erfasst',
+        'daten_id': daten_id,
+        'betroffener_id': betroffener_id,
+        'kategorie': kategorie,
+        'erfasst_von': erfasst_von_id,
+        'herkunft': herkunft
+    })
+
+    return daten_id
+
+
+def sammle_personenbezogene_daten_fuer_user(betroffener_id: str) -> Dict:
+    """
+    Sammelt alle personenbezogenen Daten für einen Benutzer.
+    Für DSGVO-Auskunft (Art. 15).
+
+    Returns:
+        Dictionary mit allen Daten kategorisiert
+    """
+    user = st.session_state.users.get(betroffener_id)
+    if not user:
+        return {}
+
+    daten = {
+        'stammdaten': {
+            'name': user.name,
+            'email': user.email,
+            'telefon': getattr(user, 'telefon', ''),
+            'rolle': user.role,
+            'registriert_am': user.created_at.isoformat() if hasattr(user, 'created_at') else '',
+        },
+        'kontaktdaten': {},
+        'finanzdaten': {},
+        'ausweisdaten': {},
+        'dokumente': [],
+        'nachrichten': [],
+        'projekte': [],
+        'aktivitaeten': [],
+        'registrierte_daten': []
+    }
+
+    # Registrierte personenbezogene Daten
+    for pb_daten in st.session_state.personenbezogene_daten.values():
+        if pb_daten.betroffener_id == betroffener_id and not pb_daten.ist_geloescht:
+            daten['registrierte_daten'].append({
+                'kategorie': pb_daten.kategorie,
+                'beschreibung': pb_daten.beschreibung,
+                'erfasst_am': pb_daten.erfasst_am.isoformat(),
+                'herkunft': pb_daten.herkunft,
+                'rechtsgrundlage': pb_daten.rechtsgrundlage
+            })
+
+    # Projekte
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            daten['projekte'].append({
+                'name': projekt.name,
+                'rolle': 'Käufer' if betroffener_id in projekt.kaeufer_ids else 'Verkäufer',
+                'status': projekt.status,
+                'erstellt_am': projekt.erstellt_am.isoformat() if hasattr(projekt, 'erstellt_am') else ''
+            })
+
+    # Nachrichten
+    for nachricht in st.session_state.nachrichten.values():
+        if hasattr(nachricht, 'absender_id') and nachricht.absender_id == betroffener_id:
+            daten['nachrichten'].append({
+                'betreff': getattr(nachricht, 'betreff', ''),
+                'gesendet_am': getattr(nachricht, 'gesendet_am', ''),
+                'typ': 'gesendet'
+            })
+        if hasattr(nachricht, 'empfaenger_id') and nachricht.empfaenger_id == betroffener_id:
+            daten['nachrichten'].append({
+                'betreff': getattr(nachricht, 'betreff', ''),
+                'gesendet_am': getattr(nachricht, 'gesendet_am', ''),
+                'typ': 'empfangen'
+            })
+
+    # Audit-Log (Aktivitäten)
+    for log_eintrag in st.session_state.audit_log:
+        if log_eintrag.get('user_id') == betroffener_id:
+            daten['aktivitaeten'].append({
+                'aktion': log_eintrag.get('aktion', ''),
+                'zeitpunkt': log_eintrag.get('zeitpunkt', '')
+            })
+
+    return daten
+
+
+def pruefe_loesch_hindernisse(betroffener_id: str, daten_id: str = None) -> List[Dict]:
+    """
+    Prüft ob Lösch-Hindernisse für Daten eines Benutzers bestehen.
+
+    Returns:
+        Liste von Hindernissen mit Begründung
+    """
+    hindernisse = []
+    user = st.session_state.users.get(betroffener_id)
+
+    if not user:
+        return hindernisse
+
+    # 1. Prüfe laufende Verträge
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status not in [ProjektStatus.ABGESCHLOSSEN.value, ProjektStatus.STORNIERT.value]:
+                hindernisse.append({
+                    'hindernis': LoeschHindernis.LAUFENDER_VERTRAG.value,
+                    'kategorie': DatenKategorie.VERTRAGSDATEN.value,
+                    'beschreibung': f"Laufendes Projekt: {projekt.name}",
+                    'begruendung': "Personenbezogene Daten werden für die Vertragserfüllung benötigt",
+                    'referenz': projekt.projekt_id,
+                    'aufbewahrung_bis': None
+                })
+
+    # 2. Prüfe notarielle Pflichten (30 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status == ProjektStatus.ABGESCHLOSSEN.value:
+                # Notarielle Aufbewahrungspflicht
+                if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                    aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=30*365)
+                    if aufbewahrung_bis > datetime.now():
+                        hindernisse.append({
+                            'hindernis': LoeschHindernis.NOTARIELLE_PFLICHT.value,
+                            'kategorie': DatenKategorie.VERTRAGSDATEN.value,
+                            'beschreibung': f"Beurkundetes Projekt: {projekt.name}",
+                            'begruendung': "Notarielle Aufbewahrungspflicht (30 Jahre nach Beurkundung)",
+                            'referenz': projekt.projekt_id,
+                            'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                        })
+
+    # 3. Prüfe steuerrechtliche Pflichten (10 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status == ProjektStatus.ABGESCHLOSSEN.value:
+                if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                    aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=10*365)
+                    if aufbewahrung_bis > datetime.now():
+                        hindernisse.append({
+                            'hindernis': LoeschHindernis.STEUERRECHT.value,
+                            'kategorie': DatenKategorie.FINANZDATEN.value,
+                            'beschreibung': f"Finanzdaten aus Projekt: {projekt.name}",
+                            'begruendung': "Steuerrechtliche Aufbewahrungspflicht (10 Jahre)",
+                            'referenz': projekt.projekt_id,
+                            'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                        })
+
+    # 4. Prüfe Geldwäschegesetz (5 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=5*365)
+                if aufbewahrung_bis > datetime.now():
+                    hindernisse.append({
+                        'hindernis': LoeschHindernis.GELDWAESCHE.value,
+                        'kategorie': DatenKategorie.AUSWEISDATEN.value,
+                        'beschreibung': "Identifikationsdaten",
+                        'begruendung': "Geldwäschegesetz - Aufbewahrungspflicht (5 Jahre)",
+                        'referenz': projekt.projekt_id,
+                        'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                    })
+
+    # 5. Prüfe registrierte personenbezogene Daten
+    for pb_daten in st.session_state.personenbezogene_daten.values():
+        if pb_daten.betroffener_id == betroffener_id and not pb_daten.ist_geloescht:
+            if pb_daten.aufbewahrungsfrist_jahre > 0:
+                if pb_daten.loeschung_geplant_am and pb_daten.loeschung_geplant_am > datetime.now():
+                    hindernisse.append({
+                        'hindernis': LoeschHindernis.GESETZLICHE_AUFBEWAHRUNG.value,
+                        'kategorie': pb_daten.kategorie,
+                        'beschreibung': pb_daten.beschreibung,
+                        'begruendung': f"Aufbewahrungsfrist: {pb_daten.aufbewahrungsfrist_jahre} Jahre",
+                        'referenz': pb_daten.daten_id,
+                        'aufbewahrung_bis': pb_daten.loeschung_geplant_am.isoformat()
+                    })
+
+    return hindernisse
+
+
+def erstelle_loesch_anfrage(
+    betroffener_id: str,
+    angefragt_von: str,
+    loeschgrund: str,
+    umfang: str = "alle",
+    spezifische_daten: List[str] = None,
+    kontakt_email: str = ""
+) -> str:
+    """
+    Erstellt eine neue Löschanfrage nach Art. 17 DSGVO.
+
+    Returns:
+        Anfrage-ID
+    """
+    anfrage_id = str(uuid.uuid4())
+
+    anfrage = LoeschAnfrage(
+        anfrage_id=anfrage_id,
+        betroffener_id=betroffener_id,
+        angefragt_von=angefragt_von,
+        angefragt_am=datetime.now(),
+        kontakt_email=kontakt_email,
+        loeschgrund=loeschgrund,
+        umfang=umfang,
+        spezifische_daten=spezifische_daten or [],
+        status=LoeschStatus.ANGEFRAGT.value,
+        frist_bis=datetime.now() + timedelta(days=30)  # 30 Tage Frist
+    )
+
+    st.session_state.loesch_anfragen[anfrage_id] = anfrage
+
+    # Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'dsgvo_loeschanfrage_erstellt',
+            'anfrage_id': anfrage_id,
+            'betroffener_id': betroffener_id,
+            'angefragt_von': angefragt_von,
+            'zeitpunkt': datetime.now().isoformat()
+        })
+
+    return anfrage_id
+
+
+def pruefe_nachweis_dokument(anfrage_id: str) -> Tuple[bool, str]:
+    """
+    Prüft ob ein gültiges Nachweis-Dokument für die Löschanfrage vorliegt.
+
+    Returns:
+        Tuple: (ist_gueltig, Fehlermeldung)
+    """
+    anfrage = st.session_state.loesch_anfragen.get(anfrage_id)
+    if not anfrage:
+        return False, "Löschanfrage nicht gefunden"
+
+    # Prüfe ob Nachweis hochgeladen wurde
+    if not anfrage.nachweis_hochgeladen or not anfrage.nachweis_dokument_id:
+        return False, "Kein Nachweis-Dokument hochgeladen. Bitte laden Sie das Auskunfts- oder Löschungsschreiben des Berechtigten hoch."
+
+    # Nachweis-Dokument laden
+    nachweis = st.session_state.dsgvo_nachweisdokumente.get(anfrage.nachweis_dokument_id)
+    if not nachweis:
+        return False, "Nachweis-Dokument nicht gefunden. Bitte laden Sie das Dokument erneut hoch."
+
+    # Prüfe ob Identität verifiziert wurde
+    if not nachweis.identitaet_geprueft:
+        return False, "Die Identität des Löschberechtigten wurde noch nicht geprüft. Bitte verifizieren Sie die Identität."
+
+    # Prüfe ob Dokument verifiziert wurde
+    if not nachweis.ist_verifiziert:
+        return False, "Das Nachweis-Dokument wurde noch nicht verifiziert. Bitte prüfen und verifizieren Sie das Dokument."
+
+    # Prüfe Akte-Zuordnung
+    if not nachweis.akte_id:
+        return False, "Das Nachweis-Dokument wurde keiner Akte zugeordnet. Bitte ordnen Sie das Dokument einer Akte zu."
+
+    return True, ""
+
+
+def fuehre_loeschung_durch(
+    anfrage_id: str,
+    bearbeiter_id: str,
+    loeschen_was_moeglich: bool = True
+) -> Tuple[str, List[Dict], List[Dict]]:
+    """
+    Führt die Löschung durch und erstellt ein Protokoll.
+
+    WICHTIG: Löschung nur möglich wenn:
+    - Nachweis-Dokument (Auskunfts-/Löschungsschreiben) hochgeladen
+    - Identität des Berechtigten geprüft
+    - Dokument verifiziert
+    - Dokument einer Akte zugeordnet
+
+    Returns:
+        Tuple: (Protokoll-ID, gelöschte Daten, nicht gelöschte Daten)
+    """
+    anfrage = st.session_state.loesch_anfragen.get(anfrage_id)
+    if not anfrage:
+        return None, [], []
+
+    # PFLICHT: Nachweis-Dokument prüfen
+    nachweis_ok, nachweis_fehler = pruefe_nachweis_dokument(anfrage_id)
+    if not nachweis_ok:
+        # Löschung nicht möglich ohne Nachweis
+        return None, [], [{'fehler': nachweis_fehler}]
+
+    betroffener_id = anfrage.betroffener_id
+    geloeschte_daten = []
+    nicht_geloeschte_daten = []
+
+    # Hindernisse prüfen
+    hindernisse = pruefe_loesch_hindernisse(betroffener_id)
+
+    # Kategorisieren welche Daten betroffen sind
+    hindernisse_kategorien = set()
+    for h in hindernisse:
+        hindernisse_kategorien.add(h['kategorie'])
+        nicht_geloeschte_daten.append({
+            'kategorie': h['kategorie'],
+            'beschreibung': h['beschreibung'],
+            'hindernis': h['hindernis'],
+            'begruendung': h['begruendung'],
+            'aufbewahrung_bis': h.get('aufbewahrung_bis', 'Unbestimmt')
+        })
+
+    if loeschen_was_moeglich:
+        # Lösche was möglich ist
+        jetzt = datetime.now()
+
+        # Registrierte personenbezogene Daten löschen
+        for daten in st.session_state.personenbezogene_daten.values():
+            if daten.betroffener_id == betroffener_id and not daten.ist_geloescht:
+                if daten.kategorie not in hindernisse_kategorien:
+                    daten.ist_geloescht = True
+                    daten.geloescht_am = jetzt
+                    daten.geloescht_von = bearbeiter_id
+                    geloeschte_daten.append({
+                        'kategorie': daten.kategorie,
+                        'beschreibung': daten.beschreibung,
+                        'geloescht_am': jetzt.isoformat()
+                    })
+
+        # Lösche Kommunikationsdaten (Nachrichten) wenn nicht geschützt
+        if DatenKategorie.KOMMUNIKATION.value not in hindernisse_kategorien:
+            nachrichten_zu_loeschen = []
+            for n_id, nachricht in st.session_state.nachrichten.items():
+                if hasattr(nachricht, 'absender_id') and nachricht.absender_id == betroffener_id:
+                    nachrichten_zu_loeschen.append(n_id)
+                if hasattr(nachricht, 'empfaenger_id') and nachricht.empfaenger_id == betroffener_id:
+                    nachrichten_zu_loeschen.append(n_id)
+
+            for n_id in set(nachrichten_zu_loeschen):
+                # In Papierkorb verschieben statt direkt löschen
+                nachricht = st.session_state.nachrichten.get(n_id)
+                if nachricht:
+                    verschiebe_in_papierkorb(
+                        objekt_id=n_id,
+                        objekt_typ=PapierkorbObjektTyp.NACHRICHT.value,
+                        objekt_daten={'nachricht': asdict(nachricht) if hasattr(nachricht, '__dataclass_fields__') else str(nachricht)},
+                        original_name=getattr(nachricht, 'betreff', 'Nachricht'),
+                        user_id=bearbeiter_id,
+                        loeschgrund=f"DSGVO-Löschanfrage {anfrage_id}"
+                    )
+                    del st.session_state.nachrichten[n_id]
+                    geloeschte_daten.append({
+                        'kategorie': DatenKategorie.KOMMUNIKATION.value,
+                        'beschreibung': f"Nachricht: {getattr(nachricht, 'betreff', 'Unbekannt')}",
+                        'geloescht_am': jetzt.isoformat()
+                    })
+
+    # Protokoll erstellen
+    protokoll_id = str(uuid.uuid4())
+
+    # Status ermitteln
+    if len(geloeschte_daten) == 0 and len(nicht_geloeschte_daten) > 0:
+        status = LoeschStatus.ABGELEHNT.value
+    elif len(nicht_geloeschte_daten) > 0:
+        status = LoeschStatus.TEILWEISE_GELOESCHT.value
+    else:
+        status = LoeschStatus.VOLLSTAENDIG_GELOESCHT.value
+
+    # Protokoll-Text generieren
+    protokoll_text = f"""
+LÖSCHPROTOKOLL NACH ART. 17 DSGVO
+=================================
+
+Protokoll-Nr.: {protokoll_id}
+Datum: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+
+ANFRAGE-DETAILS
+---------------
+Anfrage-ID: {anfrage_id}
+Betroffene Person: {betroffener_id}
+Angefragt von: {anfrage.angefragt_von}
+Angefragt am: {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}
+Löschgrund: {anfrage.loeschgrund}
+
+BEARBEITUNG
+-----------
+Bearbeitet von: {bearbeiter_id}
+Bearbeitet am: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+Status: {status}
+
+GELÖSCHTE DATEN ({len(geloeschte_daten)} Datensätze)
+---------------------------------------------------
+"""
+
+    for idx, daten in enumerate(geloeschte_daten, 1):
+        protokoll_text += f"{idx}. {daten['kategorie']}: {daten['beschreibung']} (gelöscht am {daten['geloescht_am']})\n"
+
+    if nicht_geloeschte_daten:
+        protokoll_text += f"""
+
+NICHT GELÖSCHTE DATEN ({len(nicht_geloeschte_daten)} Datensätze)
+----------------------------------------------------------------
+Die folgenden Daten konnten aufgrund gesetzlicher Aufbewahrungspflichten
+nicht gelöscht werden:
+
+"""
+        for idx, daten in enumerate(nicht_geloeschte_daten, 1):
+            protokoll_text += f"""
+{idx}. Kategorie: {daten['kategorie']}
+   Beschreibung: {daten['beschreibung']}
+   Löschhindernis: {daten['hindernis']}
+   Begründung: {daten['begruendung']}
+   Aufbewahrung bis: {daten['aufbewahrung_bis']}
+"""
+
+    hinweise = ""
+    if nicht_geloeschte_daten:
+        hinweise = """
+HINWEISE:
+---------
+Gemäß Art. 17 Abs. 3 DSGVO besteht das Recht auf Löschung nicht, soweit
+die Verarbeitung erforderlich ist zur Erfüllung einer rechtlichen
+Verpflichtung oder zur Geltendmachung, Ausübung oder Verteidigung von
+Rechtsansprüchen.
+
+Die betroffene Person wird über die nicht gelöschten Daten und die
+Gründe für deren Aufbewahrung informiert. Nach Ablauf der jeweiligen
+Aufbewahrungsfristen werden die Daten automatisch zur Löschung vorgemerkt.
+"""
+
+    protokoll = LoeschProtokoll(
+        protokoll_id=protokoll_id,
+        anfrage_id=anfrage_id,
+        betroffener_id=betroffener_id,
+        angefragt_von=anfrage.angefragt_von,
+        angefragt_am=anfrage.angefragt_am,
+        grund_anfrage=anfrage.loeschgrund,
+        bearbeitet_von=bearbeiter_id,
+        bearbeitet_am=datetime.now(),
+        status=status,
+        geloeschte_daten=geloeschte_daten,
+        nicht_geloeschte_daten=nicht_geloeschte_daten,
+        protokoll_text=protokoll_text,
+        hinweise=hinweise
+    )
+
+    st.session_state.loesch_protokolle[protokoll_id] = protokoll
+
+    # Anfrage aktualisieren
+    anfrage.status = status
+    anfrage.bearbeiter_id = bearbeiter_id
+    anfrage.bearbeitet_am = datetime.now()
+    anfrage.protokoll_id = protokoll_id
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'dsgvo_loeschung_durchgefuehrt',
+            'anfrage_id': anfrage_id,
+            'protokoll_id': protokoll_id,
+            'betroffener_id': betroffener_id,
+            'bearbeiter_id': bearbeiter_id,
+            'status': status,
+            'geloescht': len(geloeschte_daten),
+            'nicht_geloescht': len(nicht_geloeschte_daten),
+            'zeitpunkt': datetime.now().isoformat()
+        })
+
+    return protokoll_id, geloeschte_daten, nicht_geloeschte_daten
+
+
+def render_dsgvo_admin_ui(admin_user_id: str, ist_notar: bool = True):
+    """Rendert die DSGVO-Administration für Notar oder Makler."""
+    st.markdown("### 🔒 DSGVO-Datenverwaltung")
+
+    st.markdown("""
+    Verwaltung personenbezogener Daten gemäß Datenschutz-Grundverordnung (DSGVO).
+    Hier können Sie:
+    - Auskunft über gespeicherte Daten erteilen (Art. 15 DSGVO)
+    - Löschanfragen bearbeiten (Art. 17 DSGVO)
+    - Löschprotokolle einsehen und exportieren
+    """)
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👤 Personenauskunft",
+        "🗑️ Löschanfragen",
+        "📋 Protokolle",
+        "⚙️ Einstellungen"
+    ])
+
+    with tab1:
+        render_dsgvo_personenauskunft(admin_user_id, ist_notar)
+
+    with tab2:
+        render_dsgvo_loeschanfragen(admin_user_id, ist_notar)
+
+    with tab3:
+        render_dsgvo_protokolle(admin_user_id)
+
+    with tab4:
+        render_dsgvo_einstellungen(admin_user_id, ist_notar)
+
+
+def render_dsgvo_personenauskunft(admin_user_id: str, ist_notar: bool):
+    """Rendert die Personenauskunft nach Art. 15 DSGVO."""
+    st.markdown("#### 👤 Auskunft über gespeicherte Daten")
+
+    # Benutzer auswählen
+    if ist_notar:
+        # Notar kann alle Benutzer sehen
+        benutzer_liste = list(st.session_state.users.values())
+    else:
+        # Makler kann nur Benutzer aus seinen Projekten sehen
+        benutzer_ids = set()
+        for projekt in st.session_state.projekte.values():
+            if projekt.makler_id == admin_user_id:
+                benutzer_ids.update(projekt.kaeufer_ids)
+                benutzer_ids.update(projekt.verkaeufer_ids)
+        benutzer_liste = [u for u in st.session_state.users.values() if u.user_id in benutzer_ids]
+
+    if not benutzer_liste:
+        st.info("Keine Benutzer zur Auswahl verfügbar.")
+        return
+
+    benutzer_optionen = {u.user_id: f"{u.name} ({u.email})" for u in benutzer_liste}
+
+    selected_user_id = st.selectbox(
+        "Betroffene Person auswählen",
+        options=list(benutzer_optionen.keys()),
+        format_func=lambda x: benutzer_optionen[x],
+        key="dsgvo_person_select"
+    )
+
+    if st.button("📊 Datenauskunft erstellen", key="dsgvo_auskunft_btn"):
+        with st.spinner("Sammle Daten..."):
+            daten = sammle_personenbezogene_daten_fuer_user(selected_user_id)
+
+            if daten:
+                st.success("✅ Datenauskunft erstellt")
+
+                # Stammdaten
+                with st.expander("📋 Stammdaten", expanded=True):
+                    for key, value in daten['stammdaten'].items():
+                        if value:
+                            st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+
+                # Projekte
+                if daten['projekte']:
+                    with st.expander(f"🏠 Projekte ({len(daten['projekte'])})", expanded=False):
+                        for projekt in daten['projekte']:
+                            st.markdown(f"- **{projekt['name']}** (Rolle: {projekt['rolle']}, Status: {projekt['status']})")
+
+                # Registrierte Daten
+                if daten['registrierte_daten']:
+                    with st.expander(f"📊 Registrierte Daten ({len(daten['registrierte_daten'])})", expanded=False):
+                        for rd in daten['registrierte_daten']:
+                            st.markdown(f"- **{rd['kategorie']}**: {rd['beschreibung']} (Herkunft: {rd['herkunft']})")
+
+                # Nachrichten
+                if daten['nachrichten']:
+                    with st.expander(f"💬 Nachrichten ({len(daten['nachrichten'])})", expanded=False):
+                        for n in daten['nachrichten'][:10]:  # Max 10 anzeigen
+                            st.markdown(f"- {n['typ']}: {n['betreff']}")
+                        if len(daten['nachrichten']) > 10:
+                            st.caption(f"... und {len(daten['nachrichten']) - 10} weitere")
+
+                # Aktivitäten
+                if daten['aktivitaeten']:
+                    with st.expander(f"📝 Aktivitäten ({len(daten['aktivitaeten'])})", expanded=False):
+                        for a in daten['aktivitaeten'][:10]:
+                            st.markdown(f"- {a['aktion']} ({a['zeitpunkt']})")
+                        if len(daten['aktivitaeten']) > 10:
+                            st.caption(f"... und {len(daten['aktivitaeten']) - 10} weitere")
+
+                # Export
+                st.markdown("---")
+                daten_json = json.dumps(daten, default=str, indent=2, ensure_ascii=False)
+                st.download_button(
+                    label="📥 Daten als JSON exportieren",
+                    data=daten_json,
+                    file_name=f"dsgvo_auskunft_{selected_user_id}_{datetime.now().strftime('%Y%m%d')}.json",
+                    mime="application/json"
+                )
+
+
+def render_dsgvo_nachweis_upload(anfrage: LoeschAnfrage, admin_user_id: str):
+    """Rendert den Upload und die Verwaltung des Nachweis-Dokuments."""
+    st.markdown("##### 📄 Nachweis-Dokument (PFLICHT)")
+
+    st.warning("""
+    **Wichtig:** Eine Löschung nach DSGVO ist nur möglich, wenn ein entsprechendes
+    Auskunfts- oder Löschungsschreiben des Löschberechtigten hochgeladen und der Akte
+    zugeordnet wurde.
+    """)
+
+    # Prüfen ob bereits ein Nachweis vorhanden ist
+    nachweis = None
+    if anfrage.nachweis_dokument_id:
+        nachweis = st.session_state.dsgvo_nachweisdokumente.get(anfrage.nachweis_dokument_id)
+
+    if nachweis:
+        # Vorhandenes Dokument anzeigen
+        st.success(f"✅ Nachweis hochgeladen: {nachweis.dateiname}")
+
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            st.markdown(f"**Dokumenttyp:** {nachweis.dokument_typ}")
+            st.markdown(f"**Absender:** {nachweis.absender_name or 'Nicht angegeben'}")
+            if nachweis.schreiben_datum:
+                st.markdown(f"**Datum des Schreibens:** {nachweis.schreiben_datum.strftime('%d.%m.%Y')}")
+            st.markdown(f"**Hochgeladen am:** {nachweis.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+
+        with col_n2:
+            # Status-Anzeige
+            if nachweis.identitaet_geprueft:
+                st.success(f"✅ Identität geprüft ({nachweis.identitaet_nachweis})")
+            else:
+                st.error("❌ Identität nicht geprüft")
+
+            if nachweis.ist_verifiziert:
+                st.success("✅ Dokument verifiziert")
+            else:
+                st.error("❌ Dokument nicht verifiziert")
+
+            if nachweis.akte_id:
+                st.success(f"✅ Akte zugeordnet: {nachweis.akte_name}")
+            else:
+                st.error("❌ Keine Akte zugeordnet")
+
+        # Identitätsprüfung
+        if not nachweis.identitaet_geprueft:
+            st.markdown("---")
+            st.markdown("**🪪 Identitätsprüfung:**")
+            id_nachweis = st.selectbox(
+                "Identitätsnachweis",
+                options=["Personalausweis", "Reisepass", "Vollmacht mit Ausweis", "Notariell beglaubigt"],
+                key=f"id_nachweis_{anfrage.anfrage_id}"
+            )
+            if st.button("✅ Identität bestätigen", key=f"id_confirm_{anfrage.anfrage_id}"):
+                nachweis.identitaet_geprueft = True
+                nachweis.identitaet_geprueft_von = admin_user_id
+                nachweis.identitaet_geprueft_am = datetime.now()
+                nachweis.identitaet_nachweis = id_nachweis
+                st.success("✅ Identität bestätigt")
+                st.rerun()
+
+        # Dokument-Verifizierung
+        if nachweis.identitaet_geprueft and not nachweis.ist_verifiziert:
+            st.markdown("---")
+            st.markdown("**📋 Dokument-Verifizierung:**")
+            verif_kommentar = st.text_area(
+                "Verifizierungs-Kommentar",
+                placeholder="Optional: Anmerkungen zur Verifizierung...",
+                key=f"verif_komm_{anfrage.anfrage_id}"
+            )
+            if st.button("✅ Dokument verifizieren", key=f"verif_{anfrage.anfrage_id}"):
+                nachweis.ist_verifiziert = True
+                nachweis.verifiziert_von = admin_user_id
+                nachweis.verifiziert_am = datetime.now()
+                nachweis.verifizierungs_kommentar = verif_kommentar
+                anfrage.nachweis_verifiziert = True
+                st.success("✅ Dokument verifiziert")
+                st.rerun()
+
+        # Akte-Zuordnung
+        if nachweis.ist_verifiziert and not nachweis.akte_id:
+            st.markdown("---")
+            st.markdown("**📁 Akte-Zuordnung:**")
+
+            # Projekte als Akten anbieten
+            projekte_liste = []
+            betroffener_id = anfrage.betroffener_id
+            for p in st.session_state.projekte.values():
+                if betroffener_id in p.kaeufer_ids or betroffener_id in p.verkaeufer_ids:
+                    projekte_liste.append(p)
+
+            if projekte_liste:
+                projekt_optionen = {p.projekt_id: f"{p.name} ({p.status})" for p in projekte_liste}
+                selected_akte = st.selectbox(
+                    "Akte/Projekt auswählen",
+                    options=list(projekt_optionen.keys()),
+                    format_func=lambda x: projekt_optionen[x],
+                    key=f"akte_select_{anfrage.anfrage_id}"
+                )
+
+                if st.button("📁 Akte zuordnen", key=f"akte_assign_{anfrage.anfrage_id}"):
+                    nachweis.akte_id = selected_akte
+                    nachweis.akte_name = projekt_optionen[selected_akte]
+                    st.success(f"✅ Dokument der Akte '{projekt_optionen[selected_akte]}' zugeordnet")
+                    st.rerun()
+            else:
+                st.warning("Keine Projekte/Akten für diese Person gefunden.")
+
+        # Download des Dokuments
+        if nachweis.datei_data:
+            st.markdown("---")
+            st.download_button(
+                label=f"📥 {nachweis.dateiname} herunterladen",
+                data=nachweis.datei_data,
+                file_name=nachweis.dateiname,
+                mime=nachweis.dateityp,
+                key=f"dl_nachweis_{anfrage.anfrage_id}"
+            )
+
+    else:
+        # Dokument hochladen
+        st.markdown("**📤 Nachweis-Dokument hochladen:**")
+
+        dokument_typ = st.selectbox(
+            "Dokumenttyp",
+            options=[t.value for t in DSGVODokumentTyp],
+            key=f"dok_typ_{anfrage.anfrage_id}"
+        )
+
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            absender_name = st.text_input(
+                "Name des Absenders (Löschberechtigter)",
+                placeholder="Max Mustermann",
+                key=f"absender_{anfrage.anfrage_id}"
+            )
+        with col_u2:
+            schreiben_datum = st.date_input(
+                "Datum des Schreibens",
+                value=datetime.now().date(),
+                key=f"schreiben_dat_{anfrage.anfrage_id}"
+            )
+
+        absender_adresse = st.text_input(
+            "Adresse des Absenders",
+            placeholder="Musterstraße 1, 12345 Musterstadt",
+            key=f"absender_adr_{anfrage.anfrage_id}"
+        )
+
+        uploaded_file = st.file_uploader(
+            "Dokument auswählen (PDF, JPG, PNG)",
+            type=["pdf", "jpg", "jpeg", "png"],
+            key=f"upload_{anfrage.anfrage_id}"
+        )
+
+        if uploaded_file and absender_name:
+            if st.button("📤 Hochladen und speichern", key=f"save_upload_{anfrage.anfrage_id}", type="primary"):
+                # Neues Nachweis-Dokument erstellen
+                dokument_id = str(uuid.uuid4())
+                file_data = uploaded_file.read()
+
+                neues_nachweis = DSGVONachweisdokument(
+                    dokument_id=dokument_id,
+                    anfrage_id=anfrage.anfrage_id,
+                    dokument_typ=dokument_typ,
+                    dateiname=uploaded_file.name,
+                    dateityp=uploaded_file.type,
+                    datei_data=file_data,
+                    dateigroesse=len(file_data),
+                    hochgeladen_von=admin_user_id,
+                    hochgeladen_am=datetime.now(),
+                    absender_name=absender_name,
+                    absender_adresse=absender_adresse,
+                    schreiben_datum=datetime.combine(schreiben_datum, datetime.min.time()),
+                    eingangsdatum=datetime.now()
+                )
+
+                st.session_state.dsgvo_nachweisdokumente[dokument_id] = neues_nachweis
+
+                # Anfrage aktualisieren
+                anfrage.nachweis_dokument_id = dokument_id
+                anfrage.nachweis_hochgeladen = True
+
+                st.success(f"✅ Nachweis-Dokument '{uploaded_file.name}' hochgeladen")
+                st.rerun()
+        elif uploaded_file and not absender_name:
+            st.warning("Bitte geben Sie den Namen des Absenders an.")
+
+
+def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
+    """Rendert die Verwaltung von Löschanfragen."""
+    st.markdown("#### 🗑️ Löschanfragen bearbeiten")
+
+    st.info("""
+    **DSGVO-Löschprozess:**
+    1. Löschanfrage erstellen
+    2. Nachweis-Dokument (Auskunfts-/Löschungsschreiben) hochladen
+    3. Identität des Löschberechtigten prüfen
+    4. Dokument verifizieren
+    5. Dokument der Akte zuordnen
+    6. Löschung durchführen
+    """)
+
+    # Neue Anfrage erstellen
+    with st.expander("➕ Neue Löschanfrage erstellen", expanded=False):
+        if ist_notar:
+            benutzer_liste = list(st.session_state.users.values())
+        else:
+            benutzer_ids = set()
+            for projekt in st.session_state.projekte.values():
+                if projekt.makler_id == admin_user_id:
+                    benutzer_ids.update(projekt.kaeufer_ids)
+                    benutzer_ids.update(projekt.verkaeufer_ids)
+            benutzer_liste = [u for u in st.session_state.users.values() if u.user_id in benutzer_ids]
+
+        if benutzer_liste:
+            benutzer_optionen = {u.user_id: f"{u.name} ({u.email})" for u in benutzer_liste}
+
+            col1, col2 = st.columns(2)
+            with col1:
+                neue_anfrage_user = st.selectbox(
+                    "Betroffene Person",
+                    options=list(benutzer_optionen.keys()),
+                    format_func=lambda x: benutzer_optionen[x],
+                    key="neue_anfrage_user"
+                )
+
+            with col2:
+                loeschgrund = st.selectbox(
+                    "Löschgrund",
+                    options=[
+                        "Widerruf der Einwilligung",
+                        "Zweck der Verarbeitung erfüllt",
+                        "Unrechtmäßige Verarbeitung",
+                        "Rechtliche Verpflichtung",
+                        "Sonstiges"
+                    ],
+                    key="neue_anfrage_grund"
+                )
+
+            kontakt_email = st.text_input(
+                "Kontakt-E-Mail für Rückmeldung",
+                value=benutzer_optionen.get(neue_anfrage_user, '').split('(')[-1].rstrip(')') if neue_anfrage_user else "",
+                key="neue_anfrage_email"
+            )
+
+            if st.button("📝 Löschanfrage erstellen", key="create_loesch_anfrage"):
+                anfrage_id = erstelle_loesch_anfrage(
+                    betroffener_id=neue_anfrage_user,
+                    angefragt_von=admin_user_id,
+                    loeschgrund=loeschgrund,
+                    kontakt_email=kontakt_email
+                )
+                st.success(f"✅ Löschanfrage {anfrage_id[:8]}... erstellt. Bitte laden Sie nun das Nachweis-Dokument hoch.")
+                st.rerun()
+
+    st.markdown("---")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.loesch_anfragen.values()
+                if a.status in [LoeschStatus.ANGEFRAGT.value, LoeschStatus.IN_PRUEFUNG.value]]
+
+    if not anfragen:
+        st.info("Keine offenen Löschanfragen vorhanden.")
+        return
+
+    for anfrage in anfragen:
+        betroffener = st.session_state.users.get(anfrage.betroffener_id)
+        betroffener_name = betroffener.name if betroffener else "Unbekannt"
+
+        tage_verbleibend = (anfrage.frist_bis - datetime.now()).days if anfrage.frist_bis else 0
+
+        # Status-Icons für Nachweis
+        nachweis_status = "❌" if not anfrage.nachweis_hochgeladen else ("✅" if anfrage.nachweis_verifiziert else "⏳")
+
+        with st.expander(
+            f"{'🔴' if tage_verbleibend < 7 else '🟡' if tage_verbleibend < 14 else '🟢'} "
+            f"Anfrage vom {anfrage.angefragt_am.strftime('%d.%m.%Y')} - {betroffener_name} "
+            f"[Nachweis: {nachweis_status}]",
+            expanded=True
+        ):
+            # Nachweis-Dokument Upload/Verwaltung
+            render_dsgvo_nachweis_upload(anfrage, admin_user_id)
+
+            st.markdown("---")
+
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.markdown(f"**Betroffene Person:** {betroffener_name}")
+                st.markdown(f"**Löschgrund:** {anfrage.loeschgrund}")
+                st.markdown(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}")
+                st.markdown(f"**Frist bis:** {anfrage.frist_bis.strftime('%d.%m.%Y')} ({tage_verbleibend} Tage)")
+                st.markdown(f"**Status:** {anfrage.status}")
+
+                # Hindernisse anzeigen
+                st.markdown("---")
+                st.markdown("**🔍 Prüfung der Löschhindernisse:**")
+                hindernisse = pruefe_loesch_hindernisse(anfrage.betroffener_id)
+
+                if hindernisse:
+                    st.warning(f"⚠️ {len(hindernisse)} Löschhindernis(se) gefunden:")
+                    for h in hindernisse:
+                        st.markdown(f"- **{h['hindernis']}**: {h['beschreibung']}")
+                        st.caption(f"  Begründung: {h['begruendung']}")
+                else:
+                    st.success("✅ Keine Löschhindernisse - vollständige Löschung möglich")
+
+            with col2:
+                st.markdown("**Aktionen:**")
+
+                # Prüfen ob Nachweis vollständig
+                nachweis_ok, nachweis_fehler = pruefe_nachweis_dokument(anfrage.anfrage_id)
+
+                if nachweis_ok:
+                    if st.button("✅ Löschung durchführen", key=f"loesch_{anfrage.anfrage_id}", type="primary"):
+                        protokoll_id, geloescht, nicht_geloescht = fuehre_loeschung_durch(
+                            anfrage.anfrage_id,
+                            admin_user_id
+                        )
+
+                        if protokoll_id:
+                            st.success(f"✅ Löschung durchgeführt!")
+                            st.info(f"Gelöscht: {len(geloescht)} | Nicht gelöscht: {len(nicht_geloescht)}")
+                            st.caption(f"Protokoll-ID: {protokoll_id[:8]}...")
+                            st.rerun()
+                        else:
+                            # Fehler bei Löschung
+                            if nicht_geloescht and 'fehler' in nicht_geloescht[0]:
+                                st.error(nicht_geloescht[0]['fehler'])
+                else:
+                    st.error("🚫 Löschung nicht möglich")
+                    st.caption(nachweis_fehler)
+
+                if st.button("📋 Nur prüfen", key=f"pruef_{anfrage.anfrage_id}"):
+                    anfrage.status = LoeschStatus.IN_PRUEFUNG.value
+                    st.rerun()
+
+
+def render_dsgvo_protokolle(admin_user_id: str):
+    """Rendert die Übersicht der Löschprotokolle."""
+    st.markdown("#### 📋 Löschprotokolle")
+
+    protokolle = list(st.session_state.loesch_protokolle.values())
+    protokolle.sort(key=lambda p: p.bearbeitet_am or p.angefragt_am, reverse=True)
+
+    if not protokolle:
+        st.info("Noch keine Löschprotokolle vorhanden.")
+        return
+
+    for protokoll in protokolle:
+        betroffener = st.session_state.users.get(protokoll.betroffener_id)
+        betroffener_name = betroffener.name if betroffener else "Unbekannt"
+
+        status_icon = {
+            LoeschStatus.VOLLSTAENDIG_GELOESCHT.value: "✅",
+            LoeschStatus.TEILWEISE_GELOESCHT.value: "⚠️",
+            LoeschStatus.ABGELEHNT.value: "❌",
+            LoeschStatus.GESPERRT.value: "🔒"
+        }.get(protokoll.status, "📋")
+
+        with st.expander(
+            f"{status_icon} Protokoll {protokoll.protokoll_id[:8]}... - {betroffener_name} "
+            f"({protokoll.bearbeitet_am.strftime('%d.%m.%Y') if protokoll.bearbeitet_am else 'Ausstehend'})",
+            expanded=False
+        ):
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.markdown(f"**Status:** {protokoll.status}")
+                st.markdown(f"**Betroffene Person:** {betroffener_name}")
+                st.markdown(f"**Löschgrund:** {protokoll.grund_anfrage}")
+
+                if protokoll.geloeschte_daten:
+                    st.markdown(f"**✅ Gelöschte Daten:** {len(protokoll.geloeschte_daten)}")
+
+                if protokoll.nicht_geloeschte_daten:
+                    st.markdown(f"**⚠️ Nicht gelöschte Daten:** {len(protokoll.nicht_geloeschte_daten)}")
+                    for ng in protokoll.nicht_geloeschte_daten:
+                        st.caption(f"  - {ng['kategorie']}: {ng['hindernis']}")
+
+            with col2:
+                # Protokoll-Export
+                st.download_button(
+                    label="📥 Protokoll (TXT)",
+                    data=protokoll.protokoll_text,
+                    file_name=f"loeschprotokoll_{protokoll.protokoll_id[:8]}_{datetime.now().strftime('%Y%m%d')}.txt",
+                    mime="text/plain",
+                    key=f"dl_txt_{protokoll.protokoll_id}"
+                )
+
+                # JSON-Export
+                protokoll_dict = {
+                    'protokoll_id': protokoll.protokoll_id,
+                    'anfrage_id': protokoll.anfrage_id,
+                    'betroffener_id': protokoll.betroffener_id,
+                    'status': protokoll.status,
+                    'angefragt_am': protokoll.angefragt_am.isoformat() if protokoll.angefragt_am else None,
+                    'bearbeitet_am': protokoll.bearbeitet_am.isoformat() if protokoll.bearbeitet_am else None,
+                    'geloeschte_daten': protokoll.geloeschte_daten,
+                    'nicht_geloeschte_daten': protokoll.nicht_geloeschte_daten,
+                    'hinweise': protokoll.hinweise
+                }
+
+                st.download_button(
+                    label="📥 Protokoll (JSON)",
+                    data=json.dumps(protokoll_dict, indent=2, ensure_ascii=False),
+                    file_name=f"loeschprotokoll_{protokoll.protokoll_id[:8]}_{datetime.now().strftime('%Y%m%d')}.json",
+                    mime="application/json",
+                    key=f"dl_json_{protokoll.protokoll_id}"
+                )
+
+
+def render_dsgvo_einstellungen(admin_user_id: str, ist_notar: bool):
+    """Rendert die DSGVO-Einstellungen."""
+    st.markdown("#### ⚙️ DSGVO-Einstellungen")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### Aufbewahrungsfristen")
+        st.info("""
+        Die folgenden gesetzlichen Aufbewahrungsfristen werden automatisch berücksichtigt:
+
+        - **Notarielle Urkunden:** 30 Jahre
+        - **Steuerrechtliche Unterlagen:** 10 Jahre
+        - **Handelsrechtliche Unterlagen:** 6 Jahre
+        - **Geldwäschegesetz (Identifikation):** 5 Jahre
+        """)
+
+    with col2:
+        st.markdown("##### Automatische Löschung")
+
+        st.checkbox(
+            "Automatische Erinnerung bei Ablauf von Aufbewahrungsfristen",
+            value=True,
+            key="dsgvo_auto_erinnerung"
+        )
+
+        st.checkbox(
+            "Benachrichtigung bei neuen Löschanfragen",
+            value=True,
+            key="dsgvo_benachrichtigung"
+        )
+
+    st.markdown("---")
+    st.markdown("##### Statistiken")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Registrierte Datensätze",
+            len(st.session_state.personenbezogene_daten)
+        )
+
+    with col2:
+        offene_anfragen = len([a for a in st.session_state.loesch_anfragen.values()
+                               if a.status in [LoeschStatus.ANGEFRAGT.value, LoeschStatus.IN_PRUEFUNG.value]])
+        st.metric("Offene Löschanfragen", offene_anfragen)
+
+    with col3:
+        st.metric("Erstellte Protokolle", len(st.session_state.loesch_protokolle))
+
+    with col4:
+        dringend = len([a for a in st.session_state.loesch_anfragen.values()
+                        if a.frist_bis and (a.frist_bis - datetime.now()).days < 7
+                        and a.status == LoeschStatus.ANGEFRAGT.value])
+        st.metric("Dringend (< 7 Tage)", dringend)
+
+
+def render_dsgvo_tab_notar(user_id: str):
+    """Tab-Wrapper für DSGVO-Verwaltung im Notar-Dashboard."""
+    render_dsgvo_admin_ui(user_id, ist_notar=True)
+
+
+def render_dsgvo_tab_makler(user_id: str):
+    """Tab-Wrapper für DSGVO-Verwaltung im Makler-Dashboard."""
+    st.markdown("### 🔒 DSGVO-Datenverwaltung")
+    st.info("Als Makler können Sie nur Daten verwalten, die Sie selbst erfasst haben oder die zu Ihren Projekten gehören.")
+
+    render_dsgvo_admin_ui(user_id, ist_notar=False)
 
 
 def main():

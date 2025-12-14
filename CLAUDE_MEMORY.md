@@ -1,14 +1,14 @@
 # Claude Code Memory File - Immobilien-Transaktionsplattform
 
-**Letzte Aktualisierung:** 2025-12-12
+**Letzte Aktualisierung:** 2025-12-13
 **Branch:** `claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt`
-**Letzter Commit:** `2b27870` - Feature: Dynamische Unterbereich-Auswahl in Aktenanlage
+**Letzter Commit:** Feature: Umfassende Erweiterungen - Benachrichtigungen, Gating, Fristenmanagement, Mandanten-Portal
 
 ---
 
 ## Projekt-Übersicht
 
-Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~25.000+ Zeilen), die die Kommunikation zwischen folgenden Parteien koordiniert:
+Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~28.500+ Zeilen), die die Kommunikation zwischen folgenden Parteien koordiniert:
 - **Makler** - Erstellt Projekte, verwaltet Exposés, koordiniert Termine, kann Ausweise scannen, Parteien-Verwaltung
 - **Käufer** - Lädt Bonitätsunterlagen hoch, akzeptiert Dokumente, bestätigt Termine, muss Rechtsdokumente akzeptieren
 - **Verkäufer** - Stellt Unterlagen bereit, akzeptiert Dokumente, bestätigt Termine, muss Rechtsdokumente akzeptieren
@@ -31,9 +31,79 @@ Dies ist eine **Streamlit-basierte Immobilien-Transaktionsplattform** (~25.000+ 
 
 ---
 
-## Kürzlich implementierte Features (2025-12-12)
+## Kürzlich implementierte Features (2025-12-13)
 
-### 1. Akten-Management mit Gesellschaften
+### 0. NEUESTE ERWEITERUNGEN (aktuell)
+
+#### Benachrichtigungs-Center mit Badge
+- **Badge in Sidebar**: Zeigt Anzahl ungelesener Eingänge an
+- **Typen**: Nachrichten, Dokumente, Termine, Freigaben, Fristen, Anforderungen, System
+- **Antwortvorlagen**: 6 System-Vorlagen für schnelle Antworten
+- **Funktionen**: `render_benachrichtigungs_badge()`, `render_eingaenge_center()`
+
+#### Finanzierungs- und Legal-Gating
+- **Gating-Prüfungen**: Workflow mit Abhängigkeiten (vorgaenger_ids)
+- **Status**: OFFEN, IN_PRUEFUNG, FREIGEGEBEN, ABGELEHNT, WARTET
+- **8 Standard-Prüfungen**: Identitätsnachweis, Datenschutz, Bonitätsprüfung, etc.
+- **Funktionen**: `render_gating_uebersicht()`, `get_gating_status()`
+
+#### Fristenmanagement
+- **Automatische Fristenberechnung**: Ab Beurkundungsdatum
+- **Fristtypen**: Widerrufsfrist, Zahlungsfrist, Grundbucheintragung, etc.
+- **Erinnerungen**: Konfigurierbare Tage vor Ablauf
+- **Funktionen**: `render_fristenmanagement()`, `erstelle_standard_fristen()`
+
+#### Reporting-Dashboard
+- **KPIs**: Projekte, Umsatz, Beurkundungen, Durchlaufzeit
+- **Visualisierungen**: Metriken, Diagramme, Trends
+- **Funktionen**: `render_reporting_dashboard()`, `berechne_kpis()`
+
+#### Dokumenten-Versionierung
+- **Versionskontrolle**: Entwurf, Zur Prüfung, Freigegeben, Signiert, Archiviert
+- **Wasserzeichen**: Automatisch für nicht-finale Versionen
+- **Funktionen**: `render_dokument_versionen()`, `erstelle_dokument_version()`
+
+#### Mandanten-Portal (Käufer/Verkäufer)
+- **Schnellübersicht**: KPIs (Projekte, Nachrichten, Fristen, Termine)
+- **Dringende Aufgaben**: Fehlende Unterlagen, ablaufende Fristen
+- **Projekt-Status**: Gating-Fortschritt, beteiligte Parteien
+- **Nächste Schritte**: Priorisierte Aufgabenliste
+- **Funktionen**: `render_mandanten_portal()`
+
+#### Vorlagen-Management System
+- **Dokumentenvorlagen**: Kaufvertrag, Brief, E-Mail, Checkliste
+- **Platzhalter-System**: `{{KAEUFER_NAME}}`, `{{KAUFPREIS}}`, etc.
+- **System-Vorlagen**: 3 Standard-Vorlagen enthalten
+- **Funktionen**: `render_vorlagen_management()`, `init_vorlagen_system()`
+
+### 1. Kommunikations-Erweiterungen
+- **Briefkopf-Administration**: Kanzlei-Logo, Firmenname, Adresse, Kontaktdaten, Bankverbindung, Design-Einstellungen
+- **E-Mail-Signaturen**: Text- und HTML-Signaturen, Vorlagen für verschiedene Anlässe
+- **Makler-Mitarbeiterverwaltung**: Mitarbeiter mit Rollen, Berechtigungen, Projekt-Zuweisungen
+- **Kommunikationszentrale**: Posteingang, Postausgang, Entwürfe, Nachrichtenkategorien und -prioritäten
+- **Intelligente Ordnerstruktur**: Templates für verschiedene Vertragstypen (Kaufvertrag, Testament, etc.)
+- **Such- und Filterfunktionen**: Erweiterte Suche, gespeicherte Suchen, Volltextsuche
+- **Sicherheitsfeatures**: Sicherheitsstufen (Öffentlich, Intern, Vertraulich, Streng vertraulich), Audit-Log
+
+#### Neue Datenstrukturen:
+```python
+class NachrichtenPrioritaet(Enum): NORMAL, HOCH, DRINGEND
+class NachrichtenKategorie(Enum): ANFRAGE, INFORMATION, DOKUMENT, TERMIN, FREIGABE, ERINNERUNG
+class Sicherheitsstufe(Enum): OEFFENTLICH, INTERN, VERTRAULICH, STRENG_VERTRAULICH
+class MaklerBerechtigungTyp(Enum): 18 verschiedene Berechtigungen
+class MaklerMitarbeiterRolle(Enum): MITARBEITER, TEAMLEITER, PARTNER
+
+@dataclass Briefkopf: Logo, Firmenname, Adresse, Kontakt, Bank, Design
+@dataclass EmailSignatur: Text/HTML, Vorlagen, Standard-Kennzeichnung
+@dataclass MaklerMitarbeiter: Rolle, Berechtigungen, Projekt-Zuweisungen
+@dataclass KommunikationsNachricht: Empfänger, Priorität, Kategorie, Sicherheitsstufe
+@dataclass KommunikationsAnlage: Dateien mit Sicherheitsklassifizierung
+@dataclass AktenOrdner: Hierarchische Ordnerstruktur für Akten
+@dataclass GespeicherteSuche: Wiederverwendbare Suchabfragen
+@dataclass AuditLogEintrag: Protokollierung aller Aktionen
+```
+
+### 2. Akten-Management mit Gesellschaften
 - **Automatische Aktenzeichen-Generierung**: Format `Nummer/Jahr Verkäufer / Käufer`
 - **Gesellschaften als Vertragsparteien**: GmbH, UG, AG, KG, OHG, GbR, eG, SE, KGaA
 - **Organe/Vertretungsberechtigte**: Geschäftsführer, Vorstand, Prokurist mit Einzelvertretungsbefugnis
@@ -109,7 +179,7 @@ class AktenStatus(Enum):
 
 ## Dashboard-Struktur
 
-### Notar-Dashboard (20 Tabs, Zeile ~17510)
+### Notar-Dashboard (21 Tabs, Zeile ~17886)
 | Tab | Inhalt |
 |-----|--------|
 | 0 | Timeline |
@@ -131,20 +201,23 @@ class AktenStatus(Enum):
 | 16 | Ausweisdaten |
 | 17 | Rechtsdokumente |
 | 18 | Aktenimport |
-| 19 | Einstellungen |
+| 19 | **Nachrichten (NEU)** - Kommunikationszentrale |
+| 20 | Einstellungen (mit Briefkopf, E-Mail-Signaturen) |
 
-### Makler-Dashboard (11 Tabs, Zeile ~10983)
+### Makler-Dashboard (13 Tabs, Zeile ~11341)
 | Tab | Inhalt |
 |-----|--------|
-| 0-2 | Timeline, Projekte (mit Parteien-Verwaltung), Kommunikation |
-| 3-5 | Preisverhandlung, Finanzierungsübersicht, Teilnehmer-Status |
-| 6-8 | Einladungen, Aktentasche, Profil |
-| 9 | Dokumenten-Freigaben |
-| 10 | Termin-Übersicht |
+| 0-2 | Timeline, Projekte, Marktanalyse |
+| 3-5 | Profil, Bankenmappe, Rechtliche Dokumente |
+| 6-8 | Teilnehmer-Status, Einladungen, Kommentare |
+| 9 | Ausweisdaten erfassen |
+| 10 | Termine |
+| 11 | **Mitarbeiter (NEU)** - Mitarbeiterverwaltung |
+| 12 | **Nachrichten (NEU)** - Kommunikationszentrale |
 
 ---
 
-## Session State Strukturen (Zeilen ~4740-4747)
+## Session State Strukturen (Zeilen ~5105-5126)
 
 ```python
 st.session_state.users = {}              # User-ID -> User
@@ -156,6 +229,16 @@ st.session_state.organe = {}             # Organ-ID -> Organ
 st.session_state.hr_eintraege = {}       # HR-ID -> HandelsregisterEintrag
 st.session_state.parteien = {}           # Partei-ID -> Partei
 st.session_state.aktenzeichen_zaehler = {}  # "notar_id_jahr" -> Nummer
+
+# ===== KOMMUNIKATIONS-ERWEITERUNGEN (NEU) =====
+st.session_state.briefkoepfe = {}        # Briefkopf-ID -> Briefkopf
+st.session_state.email_signaturen = {}   # Signatur-ID -> EmailSignatur
+st.session_state.makler_mitarbeiter = {} # Mitarbeiter-ID -> MaklerMitarbeiter
+st.session_state.nachrichten = {}        # Nachricht-ID -> KommunikationsNachricht
+st.session_state.kommunikations_anlagen = {}  # Anlage-ID -> KommunikationsAnlage
+st.session_state.akten_ordner = {}       # Ordner-ID -> AktenOrdner
+st.session_state.gespeicherte_suchen = {} # Suche-ID -> GespeicherteSuche
+st.session_state.audit_log = []          # Liste von AuditLogEintrag
 ```
 
 ---
@@ -185,6 +268,23 @@ def render_organ_verwaltung(gesellschaft: Gesellschaft)
 ### Akten-Untertypen (Zeile ~5673)
 ```python
 def get_verfuegbare_untertypen(hauptbereich: str, notar_id: str) -> List[str]
+```
+
+### Kommunikations-Funktionen (Zeilen ~25334-26313)
+```python
+def audit_log_eintrag(user_id: str, aktion: str, objekt_typ: str, objekt_id: str, details: str = "")
+def render_briefkopf_administration(user_id: str)
+def render_email_signaturen(user_id: str)
+def render_makler_mitarbeiter_verwaltung(makler_id: str)
+def render_kommunikationszentrale(user_id: str, projekt_id: str = None)
+def _render_nachrichten_liste(user_id: str, typ: str)
+def _render_neue_nachricht_form(user_id: str)
+def _get_user_projekte(user_id: str) -> List[Projekt]
+def _get_moegliche_empfaenger(user_id: str, projekt_id: str) -> List[User]
+def render_akten_ordner_struktur(akte_id: str)
+def _erstelle_ordner_struktur(akte_id: str, template_name: str)
+def render_erweiterte_suche(user_id: str, kontext: str)
+def render_audit_log(user_id: str = None)
 ```
 
 ---
@@ -229,11 +329,12 @@ git push -u origin claude/add-financing-legal-gating-01AEscKnmtL6eoduFCZPhBPt
 
 | Hash | Beschreibung |
 |------|--------------|
+| 4fc846f | Feature: Kommunikations-Features in Dashboards integriert |
+| ca6b488 | Docs: Vorschläge für Kommunikations-Erweiterungen |
+| 9906756 | Docs: Aktualisierte Gedächtnisdatei mit neuen Features |
 | 2b27870 | Feature: Dynamische Unterbereich-Auswahl in Aktenanlage |
 | 26cf550 | Fix: Doppelte AktenStatus Enum-Definition entfernt |
 | d05f658 | Fix: Gesellschaft Dataclass-Feldreihenfolge korrigiert |
-| 3ca1d0b | Feature: Akten-Management mit Gesellschaften und Parteien-Verwaltung |
-| a86ccc0 | Fix: Doppelte Tab-Indices in Dashboards korrigiert |
 
 ---
 
