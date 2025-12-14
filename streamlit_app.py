@@ -3754,18 +3754,7 @@ class AktenDokument:
     geprueft_am: Optional[datetime] = None
     notizen: str = ""
 
-@dataclass
-class AktenOrdner:
-    """Ein Ordner/Kategorie innerhalb einer Akte"""
-    ordner_id: str
-    akte_id: str
-    name: str
-    beschreibung: str = ""
-    reihenfolge: int = 0  # Für Sortierung
-    dokument_ids: List[str] = field(default_factory=list)
-
-    # Standard-Ordner für Notarakten
-    ist_standard_ordner: bool = False
+# AktenOrdner class is defined later in the file (line ~4810) with all fields
 
 # ============================================================================
 # GESELLSCHAFTEN & PARTEIEN-VERWALTUNG
@@ -4812,7 +4801,7 @@ class AktenOrdner:
     ordner_id: str
     akte_id: str
     name: str
-    pfad: str  # z.B. "/01_Stammdaten" oder "/05_Korrespondenz/Eingehend"
+    pfad: str = ""  # z.B. "/01_Stammdaten" oder "/05_Korrespondenz/Eingehend"
 
     # Hierarchie
     parent_ordner_id: str = ""
@@ -4822,6 +4811,10 @@ class AktenOrdner:
     beschreibung: str = ""
     erstellt_am: datetime = field(default_factory=datetime.now)
     erstellt_von: str = ""
+
+    # Standard-Ordner Flag (für Kompatibilität)
+    ist_standard_ordner: bool = False
+    dokument_ids: List[str] = field(default_factory=list)
 
     # Automatische Zuordnung
     auto_zuordnung_typen: List[str] = field(default_factory=list)  # Dokumenttypen die automatisch hier landen
