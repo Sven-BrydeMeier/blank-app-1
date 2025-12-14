@@ -26915,6 +26915,10 @@ def _render_neue_nachricht_form(user_id: str, projekt_id: str = None):
     """Formular für neue Nachricht"""
     user = st.session_state.users.get(user_id)
 
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
     with st.form("neue_nachricht_form"):
         # Projekt auswählen (wenn nicht vorgegeben)
         if not projekt_id:
