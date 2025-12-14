@@ -2358,23 +2358,64 @@ class VorkaufsrechtAnfrage:
 
 class DokumentTyp(Enum):
     """Typen von Dokumenten für automatische Zuordnung"""
+    # === ALLGEMEIN / PERSÖNLICH ===
     PERSONALAUSWEIS = "Personalausweis"
     REISEPASS = "Reisepass"
+    VOLLMACHT = "Vollmacht"
+    SONSTIGES = "Sonstiges"
+
+    # === IMMOBILIEN / KAUFVERTRAG ===
     GRUNDBUCHAUSZUG = "Grundbuchauszug"
     FLURKARTE = "Flurkarte"
     ENERGIEAUSWEIS = "Energieausweis"
     KAUFVERTRAG = "Kaufvertrag"
-    FINANZIERUNGSBESTAETIGUNG = "Finanzierungsbestätigung"
-    GEHALTSNACHWEIS = "Gehaltsnachweis"
-    STEUERBESCHEID = "Steuerbescheid"
-    KONTOAUSZUG = "Kontoauszug"
     BAULASTENVERZEICHNIS = "Baulastenverzeichnis"
     TEILUNGSERKLAERUNG = "Teilungserklärung"
     PROTOKOLL_WEG = "Protokoll WEG"
     WIRTSCHAFTSPLAN = "Wirtschaftsplan"
     EXPOSE = "Exposé"
-    VOLLMACHT = "Vollmacht"
-    SONSTIGES = "Sonstiges"
+
+    # === FINANZIERUNG ===
+    FINANZIERUNGSBESTAETIGUNG = "Finanzierungsbestätigung"
+    GEHALTSNACHWEIS = "Gehaltsnachweis"
+    STEUERBESCHEID = "Steuerbescheid"
+    KONTOAUSZUG = "Kontoauszug"
+
+    # === ERBRECHT ===
+    TESTAMENT = "Testament"
+    ERBVERTRAG = "Erbvertrag"
+    ERBSCHEIN = "Erbschein"
+    NACHLASSVERZEICHNIS = "Nachlassverzeichnis"
+    STERBEURKUNDE = "Sterbeurkunde"
+    ERBAUSSCHLAGUNG = "Erbausschlagung"
+    ERBSCHAFTSSTEUERBESCHEID = "Erbschaftssteuerbescheid"
+    PFLICHTTEILSBERECHNUNG = "Pflichtteilsberechnung"
+    TESTAMENTSVOLLSTRECKER_ZEUGNIS = "Testamentsvollstreckerzeugnis"
+
+    # === GESELLSCHAFTSRECHT ===
+    GESELLSCHAFTSVERTRAG = "Gesellschaftsvertrag"
+    HANDELSREGISTERAUSZUG = "Handelsregisterauszug"
+    GESCHAEFTSFUEHRERBESTELLUNG = "Geschäftsführerbestellung"
+    GESELLSCHAFTERLISTE = "Gesellschafterliste"
+    GEWINNVERWENDUNGSBESCHLUSS = "Gewinnverwendungsbeschluss"
+    JAHRESABSCHLUSS = "Jahresabschluss"
+    BILANZ = "Bilanz"
+    SATZUNG = "Satzung"
+    PROTOKOLL_GESELLSCHAFTERVERSAMMLUNG = "Protokoll Gesellschafterversammlung"
+    ANTEILSKAUFVERTRAG = "Anteilskaufvertrag"
+
+    # === FAMILIENRECHT ===
+    EHEVERTRAG = "Ehevertrag"
+    SCHEIDUNGSURTEIL = "Scheidungsurteil"
+    HEIRATSURKUNDE = "Heiratsurkunde"
+    GEBURTSURKUNDE = "Geburtsurkunde"
+    UNTERHALTSTITEL = "Unterhaltstitel"
+    SORGERECHTSBESCHLUSS = "Sorgerechtsbeschluss"
+    UMGANGSREGELUNG = "Umgangsregelung"
+    VATERSCHAFTSANERKENNUNG = "Vaterschaftsanerkennung"
+    GUETERRECHTSVERTRAG = "Güterrechtsvertrag"
+    VERSORGUNGSAUSGLEICH = "Versorgungsausgleich"
+    ZUGEWINNAUSGLEICH = "Zugewinnausgleich"
 
 
 # Standard-Ordnerstruktur pro Rolle
@@ -2401,12 +2442,20 @@ STANDARD_ORDNER = {
         {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
     ],
     UserRole.NOTAR.value: [
+        # === Allgemein ===
         {"name": "Ausweisdokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Vollmachten", "typen": [DokumentTyp.VOLLMACHT]},
+        # === Immobilienrecht ===
         {"name": "Grundbuch & Kataster", "typen": [DokumentTyp.GRUNDBUCHAUSZUG, DokumentTyp.FLURKARTE, DokumentTyp.BAULASTENVERZEICHNIS]},
         {"name": "Kaufvertrag", "typen": [DokumentTyp.KAUFVERTRAG]},
-        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG]},
+        {"name": "WEG-Unterlagen", "typen": [DokumentTyp.TEILUNGSERKLAERUNG, DokumentTyp.PROTOKOLL_WEG, DokumentTyp.WIRTSCHAFTSPLAN]},
         {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG]},
-        {"name": "Vollmachten", "typen": [DokumentTyp.VOLLMACHT]},
+        # === Erbrecht ===
+        {"name": "Erbrecht", "typen": [DokumentTyp.TESTAMENT, DokumentTyp.ERBVERTRAG, DokumentTyp.ERBSCHEIN, DokumentTyp.NACHLASSVERZEICHNIS, DokumentTyp.STERBEURKUNDE, DokumentTyp.ERBAUSSCHLAGUNG, DokumentTyp.ERBSCHAFTSSTEUERBESCHEID, DokumentTyp.PFLICHTTEILSBERECHNUNG, DokumentTyp.TESTAMENTSVOLLSTRECKER_ZEUGNIS]},
+        # === Gesellschaftsrecht ===
+        {"name": "Gesellschaftsrecht", "typen": [DokumentTyp.GESELLSCHAFTSVERTRAG, DokumentTyp.HANDELSREGISTERAUSZUG, DokumentTyp.GESCHAEFTSFUEHRERBESTELLUNG, DokumentTyp.GESELLSCHAFTERLISTE, DokumentTyp.GEWINNVERWENDUNGSBESCHLUSS, DokumentTyp.JAHRESABSCHLUSS, DokumentTyp.BILANZ, DokumentTyp.SATZUNG, DokumentTyp.PROTOKOLL_GESELLSCHAFTERVERSAMMLUNG, DokumentTyp.ANTEILSKAUFVERTRAG]},
+        # === Familienrecht ===
+        {"name": "Familienrecht", "typen": [DokumentTyp.EHEVERTRAG, DokumentTyp.SCHEIDUNGSURTEIL, DokumentTyp.HEIRATSURKUNDE, DokumentTyp.GEBURTSURKUNDE, DokumentTyp.UNTERHALTSTITEL, DokumentTyp.SORGERECHTSBESCHLUSS, DokumentTyp.UMGANGSREGELUNG, DokumentTyp.VATERSCHAFTSANERKENNUNG, DokumentTyp.GUETERRECHTSVERTRAG, DokumentTyp.VERSORGUNGSAUSGLEICH, DokumentTyp.ZUGEWINNAUSGLEICH]},
         {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
     ],
     UserRole.FINANZIERER.value: [
@@ -2467,22 +2516,104 @@ class GescanntesDokument:
 
 # Schlüsselwörter für automatische Dokumenttyp-Erkennung
 DOKUMENT_ERKENNUNGS_KEYWORDS = {
+    # === ALLGEMEIN / PERSÖNLICH ===
     DokumentTyp.PERSONALAUSWEIS.value: ["personalausweis", "identity card", "ausweisnummer", "gültig bis", "staatsangehörigkeit"],
     DokumentTyp.REISEPASS.value: ["reisepass", "passport", "passnummer", "nationality"],
+    DokumentTyp.VOLLMACHT.value: ["vollmacht", "bevollmächtigt", "vertretung", "handeln im namen"],
+
+    # === IMMOBILIEN / KAUFVERTRAG ===
     DokumentTyp.GRUNDBUCHAUSZUG.value: ["grundbuch", "abteilung i", "abteilung ii", "abteilung iii", "eigentümer", "flur", "flurstück"],
     DokumentTyp.FLURKARTE.value: ["flurkarte", "liegenschaftskarte", "kataster", "gemarkung", "flurstück"],
     DokumentTyp.ENERGIEAUSWEIS.value: ["energieausweis", "energiebedarf", "energieverbrauch", "kwh", "endenergie", "primärenergie"],
     DokumentTyp.KAUFVERTRAG.value: ["kaufvertrag", "verkauf", "veräußerung", "übereignung", "auflassung", "notar"],
-    DokumentTyp.FINANZIERUNGSBESTAETIGUNG.value: ["finanzierungsbestätigung", "darlehen", "kredit", "finanzierung zugesagt", "kreditbetrag"],
-    DokumentTyp.GEHALTSNACHWEIS.value: ["gehaltsabrechnung", "lohnabrechnung", "brutto", "netto", "steuerklasse", "arbeitgeber"],
-    DokumentTyp.STEUERBESCHEID.value: ["steuerbescheid", "einkommensteuer", "finanzamt", "steuernummer", "festsetzung"],
-    DokumentTyp.KONTOAUSZUG.value: ["kontoauszug", "kontostand", "saldo", "buchung", "iban", "bic"],
     DokumentTyp.BAULASTENVERZEICHNIS.value: ["baulastenverzeichnis", "baulast", "bauamt", "bauordnung"],
     DokumentTyp.TEILUNGSERKLAERUNG.value: ["teilungserklärung", "wohnungseigentum", "miteigentum", "sondereigentum", "gemeinschaftseigentum"],
     DokumentTyp.PROTOKOLL_WEG.value: ["eigentümerversammlung", "protokoll", "weg", "beschluss", "wohnungseigentümer"],
     DokumentTyp.WIRTSCHAFTSPLAN.value: ["wirtschaftsplan", "hausgeld", "rücklage", "instandhaltung", "betriebskosten"],
     DokumentTyp.EXPOSE.value: ["exposé", "objekt", "immobilie", "verkaufspreis", "wohnfläche", "zimmer"],
-    DokumentTyp.VOLLMACHT.value: ["vollmacht", "bevollmächtigt", "vertretung", "handeln im namen"]
+
+    # === FINANZIERUNG ===
+    DokumentTyp.FINANZIERUNGSBESTAETIGUNG.value: ["finanzierungsbestätigung", "darlehen", "kredit", "finanzierung zugesagt", "kreditbetrag"],
+    DokumentTyp.GEHALTSNACHWEIS.value: ["gehaltsabrechnung", "lohnabrechnung", "brutto", "netto", "steuerklasse", "arbeitgeber"],
+    DokumentTyp.STEUERBESCHEID.value: ["steuerbescheid", "einkommensteuer", "finanzamt", "steuernummer", "festsetzung"],
+    DokumentTyp.KONTOAUSZUG.value: ["kontoauszug", "kontostand", "saldo", "buchung", "iban", "bic"],
+
+    # === ERBRECHT ===
+    DokumentTyp.TESTAMENT.value: ["testament", "letzter wille", "vermächtnis", "erblasser", "testierfähigkeit"],
+    DokumentTyp.ERBVERTRAG.value: ["erbvertrag", "bindende verfügung", "verzicht", "erbfolge"],
+    DokumentTyp.ERBSCHEIN.value: ["erbschein", "nachlassgericht", "erbe zu", "alleinerbe", "miterbe"],
+    DokumentTyp.NACHLASSVERZEICHNIS.value: ["nachlassverzeichnis", "nachlass", "inventar", "aktiva", "passiva", "vermögen"],
+    DokumentTyp.STERBEURKUNDE.value: ["sterbeurkunde", "tod", "verstorben", "standesamt", "todesfall"],
+    DokumentTyp.ERBAUSSCHLAGUNG.value: ["erbausschlagung", "ausschlagung", "annahme der erbschaft", "verzicht auf erbe"],
+    DokumentTyp.ERBSCHAFTSSTEUERBESCHEID.value: ["erbschaftssteuer", "schenkungssteuer", "freibetrag", "steuerklasse"],
+    DokumentTyp.PFLICHTTEILSBERECHNUNG.value: ["pflichtteil", "pflichtteilsanspruch", "pflichtteilsberechnung", "enterbung"],
+    DokumentTyp.TESTAMENTSVOLLSTRECKER_ZEUGNIS.value: ["testamentsvollstrecker", "vollstreckung", "nachlassverwaltung"],
+
+    # === GESELLSCHAFTSRECHT ===
+    DokumentTyp.GESELLSCHAFTSVERTRAG.value: ["gesellschaftsvertrag", "gmbh", "gesellschafter", "stammkapital", "geschäftsanteil"],
+    DokumentTyp.HANDELSREGISTERAUSZUG.value: ["handelsregister", "hrb", "hra", "amtsgericht", "registergericht"],
+    DokumentTyp.GESCHAEFTSFUEHRERBESTELLUNG.value: ["geschäftsführer", "bestellung", "abberufung", "prokura"],
+    DokumentTyp.GESELLSCHAFTERLISTE.value: ["gesellschafterliste", "anteilseigner", "gesellschafter", "geschäftsanteile"],
+    DokumentTyp.GEWINNVERWENDUNGSBESCHLUSS.value: ["gewinnverwendung", "dividende", "ausschüttung", "jahresüberschuss"],
+    DokumentTyp.JAHRESABSCHLUSS.value: ["jahresabschluss", "bilanz", "gewinn", "verlust", "geschäftsjahr"],
+    DokumentTyp.BILANZ.value: ["bilanz", "aktiva", "passiva", "eigenkapital", "verbindlichkeiten"],
+    DokumentTyp.SATZUNG.value: ["satzung", "vereinsregister", "zweck", "mitgliederversammlung"],
+    DokumentTyp.PROTOKOLL_GESELLSCHAFTERVERSAMMLUNG.value: ["gesellschafterversammlung", "beschluss", "abstimmung", "stimmrecht"],
+    DokumentTyp.ANTEILSKAUFVERTRAG.value: ["anteilskaufvertrag", "geschäftsanteil", "abtretung", "kaufpreis"],
+
+    # === FAMILIENRECHT ===
+    DokumentTyp.EHEVERTRAG.value: ["ehevertrag", "güterstand", "zugewinn", "gütertrennung"],
+    DokumentTyp.SCHEIDUNGSURTEIL.value: ["scheidung", "scheidungsurteil", "familiengericht", "rechtskräftig"],
+    DokumentTyp.HEIRATSURKUNDE.value: ["heiratsurkunde", "eheschließung", "standesamt", "eheurkunde"],
+    DokumentTyp.GEBURTSURKUNDE.value: ["geburtsurkunde", "geburt", "standesamt", "eltern"],
+    DokumentTyp.UNTERHALTSTITEL.value: ["unterhalt", "kindesunterhalt", "ehegattenunterhalt", "düsseldorfer tabelle"],
+    DokumentTyp.SORGERECHTSBESCHLUSS.value: ["sorgerecht", "sorgeberechtigt", "umgangsrecht", "familiengericht"],
+    DokumentTyp.UMGANGSREGELUNG.value: ["umgangsregelung", "umgangsrecht", "besuchsrecht", "wechselmodell"],
+    DokumentTyp.VATERSCHAFTSANERKENNUNG.value: ["vaterschaft", "anerkennung", "abstammung", "kindesvater"],
+    DokumentTyp.GUETERRECHTSVERTRAG.value: ["güterrechtsvertrag", "güterstand", "gütertrennung", "gütergemeinschaft"],
+    DokumentTyp.VERSORGUNGSAUSGLEICH.value: ["versorgungsausgleich", "rentenanwartschaft", "rente", "pension"],
+    DokumentTyp.ZUGEWINNAUSGLEICH.value: ["zugewinnausgleich", "zugewinn", "anfangsvermögen", "endvermögen"],
+
+    # === MIETRECHT ===
+    DokumentTyp.MIETVERTRAG.value: ["mietvertrag", "miete", "vermieter", "mieter", "kaltmiete", "warmmiete"],
+    DokumentTyp.KUENDIGUNGSSCHREIBEN.value: ["kündigung", "mietverhältnis", "kündigungsfrist", "räumung"],
+    DokumentTyp.UEBERGABEPROTOKOLL.value: ["übergabeprotokoll", "wohnungsübergabe", "mängel", "zählerstand"],
+    DokumentTyp.NEBENKOSTENABRECHNUNG.value: ["nebenkostenabrechnung", "betriebskosten", "nachzahlung", "guthaben"],
+    DokumentTyp.MIETKAUTION_NACHWEIS.value: ["kaution", "mietkaution", "kautionskonto", "bürgschaft"],
+    DokumentTyp.MIETMINDERUNGSSCHREIBEN.value: ["mietminderung", "mangel", "minderung", "mietmangel"],
+    DokumentTyp.EIGENBEDARFSKUENDIGUNG.value: ["eigenbedarf", "eigenbedarfskündigung", "selbstnutzung"],
+    DokumentTyp.MIETAUFHEBUNGSVERTRAG.value: ["mietaufhebung", "aufhebungsvertrag", "einvernehmlich", "auszug"],
+    DokumentTyp.WOHNUNGSGEBERBESTAETIGUNG.value: ["wohnungsgeberbestätigung", "einzug", "meldebehörde", "anmeldung"],
+    DokumentTyp.MIETSPIEGEL.value: ["mietspiegel", "ortsübliche vergleichsmiete", "mieterhöhung"],
+    DokumentTyp.MAENGELANZEIGE.value: ["mängelanzeige", "mangel", "schaden", "instandsetzung"],
+
+    # === STRAFRECHT ===
+    DokumentTyp.STRAFANZEIGE.value: ["strafanzeige", "anzeige", "straftat", "verdacht"],
+    DokumentTyp.ANKLAGESCHRIFT.value: ["anklageschrift", "anklage", "staatsanwaltschaft", "angeklagter"],
+    DokumentTyp.STRAFBEFEHL.value: ["strafbefehl", "geldstrafe", "tagessätze", "einspruch"],
+    DokumentTyp.URTEIL_STRAF.value: ["urteil", "freispruch", "verurteilung", "strafmaß", "bewährung"],
+    DokumentTyp.HAFTBEFEHL.value: ["haftbefehl", "untersuchungshaft", "fluchtgefahr", "verdunkelungsgefahr"],
+    DokumentTyp.FUEHRUNGSZEUGNIS.value: ["führungszeugnis", "bundeszentralregister", "unbeschränkt", "vorstrafe"],
+    DokumentTyp.BEWÄHRUNGSBESCHLUSS.value: ["bewährung", "bewährungszeit", "auflagen", "widerruf"],
+    DokumentTyp.EINSTELLUNGSVERFUEGUNG.value: ["einstellung", "§170", "absehen", "opportunität"],
+    DokumentTyp.NEBENKLAGE.value: ["nebenklage", "nebenkläger", "opfer", "verletzter"],
+    DokumentTyp.TAETER_OPFER_AUSGLEICH.value: ["täter-opfer-ausgleich", "toa", "wiedergutmachung", "schlichtung"],
+
+    # === BAURECHT ===
+    DokumentTyp.BAUVERTRAG.value: ["bauvertrag", "vob", "werkvertrag", "bauleistung", "auftragnehmer"],
+    DokumentTyp.BAUGENEMIGUNG.value: ["baugenehmigung", "bauamt", "bauvorhaben", "genehmigung"],
+    DokumentTyp.BAUPLAENE.value: ["bauplan", "grundriss", "schnitt", "ansicht", "maßstab"],
+    DokumentTyp.STATIK.value: ["statik", "tragwerk", "statische berechnung", "standsicherheit"],
+    DokumentTyp.BAUBESCHREIBUNG.value: ["baubeschreibung", "leistungsverzeichnis", "ausstattung", "baustandard"],
+    DokumentTyp.ABNAHMEPROTOKOLL.value: ["abnahme", "abnahmeprotokoll", "mängel", "fertigstellung"],
+    DokumentTyp.MAENGELRUEGE.value: ["mängelrüge", "nachbesserung", "gewährleistung", "baumangel"],
+    DokumentTyp.ARCHITEKTENVERTRAG.value: ["architektenvertrag", "architekt", "hoai", "planungsleistung"],
+    DokumentTyp.BAUHANDWERKERSICHERUNG.value: ["bauhandwerkersicherung", "§650f", "sicherheit", "bürge"],
+    DokumentTyp.BAUTRAEGERVERTRAG.value: ["bauträgervertrag", "maklerv", "bauträger", "fertigstellung"],
+    DokumentTyp.ERSCHLIESSUNGSVERTRAG.value: ["erschließung", "erschließungsvertrag", "anschluss", "kanal"],
+    DokumentTyp.NACHBARSCHAFTSZUSTIMMUNG.value: ["nachbarzustimmung", "grenzbebauung", "abstandsfläche"],
+    DokumentTyp.WEGERECHT.value: ["wegerecht", "dienstbarkeit", "grundbuch", "gehrecht", "fahrrecht"],
+    DokumentTyp.LEITUNGSRECHT.value: ["leitungsrecht", "dienstbarkeit", "versorgungsleitung", "grundstück"]
 }
 
 
@@ -5060,41 +5191,170 @@ class Aktentasche:
 
 class VertragsTyp(Enum):
     """Vertragstypen für Kategorisierung von Textbausteinen"""
+    # === IMMOBILIENRECHT ===
     KAUFVERTRAG = "Kaufvertrag"
     UEBERLASSUNGSVERTRAG = "Überlassungsvertrag"
-    ERBVERTRAG = "Erbvertrag"
-    SCHENKUNGSVERTRAG = "Schenkungsvertrag"
-    MIETVERTRAG = "Mietvertrag"
     GRUNDSTUECKSKAUFVERTRAG = "Grundstückskaufvertrag"
     WOHNUNGSKAUFVERTRAG = "Wohnungskaufvertrag"
     BAUTRAEGERVERTRAG = "Bauträgervertrag"
     TEILUNGSERKLAERUNG = "Teilungserklärung"
+
+    # === ERBRECHT ===
+    ERBVERTRAG = "Erbvertrag"
+    TESTAMENT = "Testament"
+    SCHENKUNGSVERTRAG = "Schenkungsvertrag"
+    ERBAUSEINANDERSETZUNG = "Erbauseinandersetzung"
+    PFLICHTTEILSVERZICHT = "Pflichtteilsverzicht"
+
+    # === GESELLSCHAFTSRECHT ===
+    GESELLSCHAFTSVERTRAG_GMBH = "Gesellschaftsvertrag GmbH"
+    GESELLSCHAFTSVERTRAG_UG = "Gesellschaftsvertrag UG"
+    GESELLSCHAFTSVERTRAG_GBR = "Gesellschaftsvertrag GbR"
+    GESELLSCHAFTSVERTRAG_KG = "Gesellschaftsvertrag KG"
+    ANTEILSKAUFVERTRAG = "Anteilskaufvertrag"
+    GESCHAEFTSFUEHRERVERTRAG = "Geschäftsführervertrag"
+    GESELLSCHAFTERBESCHLUSS = "Gesellschafterbeschluss"
+
+    # === FAMILIENRECHT ===
+    EHEVERTRAG = "Ehevertrag"
+    SCHEIDUNGSFOLGENVEREINBARUNG = "Scheidungsfolgenvereinbarung"
+    TRENNUNGSVEREINBARUNG = "Trennungsvereinbarung"
+    UNTERHALTSVEREINBARUNG = "Unterhaltsvereinbarung"
+    GUETERRECHTSVERTRAG = "Güterrechtsvertrag"
+    SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
+
+    # === MIETRECHT ===
+    MIETVERTRAG = "Mietvertrag"
+    GEWERBEMIETVERTRAG = "Gewerbemietvertrag"
+    PACHTVERTRAG = "Pachtvertrag"
+    MIETAUFHEBUNGSVERTRAG = "Mietaufhebungsvertrag"
+    UNTERMIETVERTRAG = "Untermietvertrag"
+
+    # === BAURECHT ===
+    BAUVERTRAG = "Bauvertrag"
+    ARCHITEKTENVERTRAG = "Architektenvertrag"
+    WERKVERTRAG = "Werkvertrag"
+    ERSCHLIESSUNGSVERTRAG = "Erschließungsvertrag"
+    NACHBARSCHAFTSVEREINBARUNG = "Nachbarschaftsvereinbarung"
+
+    # === VORSORGE ===
+    VORSORGEVOLLMACHT = "Vorsorgevollmacht"
+    PATIENTENVERFUEGUNG = "Patientenverfügung"
+    BETREUUNGSVERFUEGUNG = "Betreuungsverfügung"
+
+    # === SONSTIGES ===
     VOLLMACHT = "Vollmacht"
     SONSTIGES = "Sonstiges"
 
 class TextbausteinKategorie(Enum):
     """Kategorien für Textbausteine (Regelungsinhalte)"""
+    # === ALLGEMEIN ===
     VERTRAGSPARTEIEN = "Vertragsparteien"
+    VOLLMACHTEN = "Vollmachten"
+    SCHLUSSBESTIMMUNGEN = "Schlussbestimmungen"
+    SALVATORISCH = "Salvatorische Klausel"
+    KOSTEN = "Kosten & Steuern"
+    HAFTUNG = "Haftung & Gewährleistung"
+    RUECKTRITT = "Rücktritt & Aufhebung"
+    VERTRAGSSTRAFE = "Vertragsstrafe"
+    SONSTIGES = "Sonstiges"
+
+    # === IMMOBILIENRECHT ===
     KAUFGEGENSTAND = "Kaufgegenstand"
     KAUFPREIS = "Kaufpreis & Zahlung"
     ZAHLUNGSMODALITAETEN = "Zahlungsmodalitäten"
     FÄLLIGKEIT = "Fälligkeit"
     AUFLASSUNG = "Auflassung & Eigentumsübergang"
     BESITZUEBERGANG = "Besitzübergang"
-    HAFTUNG = "Haftung & Gewährleistung"
     MAENGEL = "Mängelhaftung"
-    RUECKTRITT = "Rücktritt & Aufhebung"
-    VERTRAGSSTRAFE = "Vertragsstrafe"
-    KOSTEN = "Kosten & Steuern"
     BELASTUNGEN = "Belastungen & Lasten"
     GRUNDBUCH = "Grundbuch"
     ERSCHLIESSUNG = "Erschließung"
     BAULAST = "Baulasten"
     VORKAUFSRECHT = "Vorkaufsrecht"
-    VOLLMACHTEN = "Vollmachten"
-    SCHLUSSBESTIMMUNGEN = "Schlussbestimmungen"
-    SALVATORISCH = "Salvatorische Klausel"
-    SONSTIGES = "Sonstiges"
+    DIENSTBARKEITEN = "Dienstbarkeiten & Wegerechte"
+
+    # === ERBRECHT ===
+    ERBEINSETZUNG = "Erbeinsetzung"
+    ERSATZERBE = "Ersatzerbe"
+    VERMAECHTNIS = "Vermächtnis"
+    AUFLAGEN = "Auflagen"
+    PFLICHTTEIL = "Pflichtteil"
+    TESTAMENTSVOLLSTRECKUNG = "Testamentsvollstreckung"
+    TEILUNGSANORDNUNG = "Teilungsanordnung"
+    ERBAUSEINANDERSETZUNG = "Erbauseinandersetzung"
+    NACHLASSVERZEICHNIS = "Nachlassverzeichnis"
+    ENTERBUNG = "Enterbung"
+    VORERBSCHAFT = "Vor- und Nacherbschaft"
+
+    # === GESELLSCHAFTSRECHT ===
+    FIRMA_SITZ = "Firma & Sitz"
+    UNTERNEHMENSGEGENSTAND = "Unternehmensgegenstand"
+    STAMMKAPITAL = "Stammkapital"
+    GESCHAEFTSANTEILE = "Geschäftsanteile"
+    GESCHAEFTSFUEHRUNG = "Geschäftsführung"
+    VERTRETUNG = "Vertretung"
+    GESELLSCHAFTERVERSAMMLUNG = "Gesellschafterversammlung"
+    GEWINNVERWENDUNG = "Gewinnverwendung"
+    EINZIEHUNG = "Einziehung von Geschäftsanteilen"
+    VERFUEGUNG_ANTEILE = "Verfügung über Anteile"
+    WETTBEWERBSVERBOT = "Wettbewerbsverbot"
+    NACHFOLGE = "Nachfolgeregelung"
+    AUFLOESUNG = "Auflösung & Liquidation"
+
+    # === FAMILIENRECHT ===
+    GUETERSTAND = "Güterstand"
+    ZUGEWINNAUSGLEICH = "Zugewinnausgleich"
+    VERMOEGENSZUORDNUNG = "Vermögenszuordnung"
+    UNTERHALT = "Unterhalt"
+    KINDESUNTERHALT = "Kindesunterhalt"
+    EHEGATTENUNTERHALT = "Ehegattenunterhalt"
+    SORGERECHT = "Sorgerecht"
+    UMGANGSRECHT = "Umgangsrecht"
+    VERSORGUNGSAUSGLEICH = "Versorgungsausgleich"
+    EHEWOHNUNG = "Ehewohnung"
+    HAUSRAT = "Hausrat"
+    VATERSCHAFT = "Vaterschaft"
+    ADOPTIONSREGELUNG = "Adoptionsregelung"
+
+    # === MIETRECHT ===
+    MIETGEGENSTAND = "Mietgegenstand"
+    MIETZINS = "Mietzins"
+    MIETDAUER = "Mietdauer"
+    KUENDIGUNGSFRISTEN = "Kündigungsfristen"
+    KAUTION = "Kaution"
+    BETRIEBSKOSTEN = "Betriebskosten"
+    SCHOENHEITSREPARATUREN = "Schönheitsreparaturen"
+    UNTERVERMIETUNG = "Untervermietung"
+    TIERHALTUNG = "Tierhaltung"
+    HAUSORDNUNG = "Hausordnung"
+    MIETMINDERUNG = "Mietminderung"
+    RUECKGABE = "Rückgabe"
+
+    # === BAURECHT ===
+    BAULEISTUNG = "Bauleistung"
+    BAUZEIT = "Bauzeit"
+    VERGUETUNG = "Vergütung"
+    ABSCHLAGSZAHLUNGEN = "Abschlagszahlungen"
+    SICHERHEITSLEISTUNG = "Sicherheitsleistung"
+    ABNAHME = "Abnahme"
+    GEWAEHRLEISTUNG_BAU = "Gewährleistung (Bau)"
+    NACHTRAEGE = "Nachträge"
+    BEHINDERUNG_UNTERBRECHUNG = "Behinderung & Unterbrechung"
+    ARCHITEKTENLEISTUNG = "Architektenleistung"
+    HOAI = "HOAI-Regelungen"
+    VOB = "VOB-Regelungen"
+
+    # === VORSORGE ===
+    VOLLMACHTGEBER = "Vollmachtgeber"
+    BEVOLLMAECHTIGTER = "Bevollmächtigter"
+    GESUNDHEITSSORGE = "Gesundheitssorge"
+    VERMOEGENSSORGE = "Vermögenssorge"
+    AUFENTHALTSBESTIMMUNG = "Aufenthaltsbestimmung"
+    LEBENSERHALTENDE_MASSNAHMEN = "Lebenserhaltende Maßnahmen"
+    ORGANSPENDE = "Organspende"
+    BETREUERWUNSCH = "Betreuerwunsch"
+    BESTATTUNGSWUNSCH = "Bestattungswunsch"
 
 class TextbausteinStatus(Enum):
     """Status eines Textbausteins"""
@@ -5115,6 +5375,7 @@ class AktenHauptbereich(Enum):
     ERBRECHT = "Erbrecht"
     GESELLSCHAFTSRECHT = "Gesellschaftsrecht"
     ZIVILRECHT = "Zivilrecht"
+    FAMILIENRECHT = "Familienrecht"
     SONSTIGE = "Sonstige"
 
 
@@ -5145,6 +5406,21 @@ class AktenTypZivilrecht(Enum):
     SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
 
 
+class AktenTypFamilienrecht(Enum):
+    """Untertypen für Familienrecht"""
+    EHEVERTRAG = "Ehevertrag"
+    SCHEIDUNGSFOLGENVEREINBARUNG = "Scheidungsfolgenvereinbarung"
+    GUETERRECHTSVERTRAG = "Güterrechtsvertrag"
+    TRENNUNGSVEREINBARUNG = "Trennungsvereinbarung"
+    UNTERHALTSVEREINBARUNG = "Unterhaltsvereinbarung"
+    SORGERECHTSVERFUEGUNG = "Sorgerechtsverfügung"
+    UMGANGSREGELUNG = "Umgangsregelung"
+    VATERSCHAFTSANERKENNUNG = "Vaterschaftsanerkennung"
+    ADOPTIONSVERFAHREN = "Adoptionsverfahren"
+    VERSORGUNGSAUSGLEICH = "Versorgungsausgleich"
+    ZUGEWINNAUSGLEICH = "Zugewinnausgleich"
+
+
 # AktenStatus ist bereits oben definiert (Zeile ~3713)
 # Enthält: IMPORTIERT, IN_BEARBEITUNG, VOLLSTAENDIG, BEURKUNDET, ABGESCHLOSSEN, ARCHIVIERT
 
@@ -5154,6 +5430,7 @@ AKTEN_UNTERTYPEN = {
     AktenHauptbereich.ERBRECHT.value: [e.value for e in AktenTypErbrecht],
     AktenHauptbereich.GESELLSCHAFTSRECHT.value: [e.value for e in AktenTypGesellschaftsrecht],
     AktenHauptbereich.ZIVILRECHT.value: [e.value for e in AktenTypZivilrecht],
+    AktenHauptbereich.FAMILIENRECHT.value: [e.value for e in AktenTypFamilienrecht],
     AktenHauptbereich.SONSTIGE.value: ["Sonstiges"],
 }
 
@@ -5339,6 +5616,348 @@ VERTRAGSTYP_TEMPLATES = {
             {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
             {"kategorie": TextbausteinKategorie.SONSTIGES.value, "pflicht": True, "mehrfach": True},
             {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # ERBRECHT TEMPLATES
+    # ============================================================================
+    VertragsTyp.TESTAMENT.value: {
+        "name": "Testament",
+        "beschreibung": "Letztwillige Verfügung (Einzel- oder Ehegattentestament)",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ERBEINSETZUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.ERSATZERBE.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VERMAECHTNIS.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFLAGEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.PFLICHTTEIL.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.TESTAMENTSVOLLSTRECKUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.TEILUNGSANORDNUNG.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VORERBSCHAFT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ERBAUSEINANDERSETZUNG.value: {
+        "name": "Erbauseinandersetzung",
+        "beschreibung": "Vertrag über die Aufteilung eines Nachlasses",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.NACHLASSVERZEICHNIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ERBAUSEINANDERSETZUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.PFLICHTTEIL.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.PFLICHTTEILSVERZICHT.value: {
+        "name": "Pflichtteilsverzicht",
+        "beschreibung": "Notarieller Pflichtteilsverzichtsvertrag",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.PFLICHTTEIL.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # GESELLSCHAFTSRECHT TEMPLATES
+    # ============================================================================
+    VertragsTyp.GESELLSCHAFTSVERTRAG_GMBH.value: {
+        "name": "Gesellschaftsvertrag GmbH",
+        "beschreibung": "Satzung für eine Gesellschaft mit beschränkter Haftung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.FIRMA_SITZ.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UNTERNEHMENSGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.STAMMKAPITAL.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESCHAEFTSANTEILE.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.GESCHAEFTSFUEHRUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERTRETUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESELLSCHAFTERVERSAMMLUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GEWINNVERWENDUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.EINZIEHUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERFUEGUNG_ANTEILE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.WETTBEWERBSVERBOT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.NACHFOLGE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLOESUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.GESELLSCHAFTSVERTRAG_UG.value: {
+        "name": "Gesellschaftsvertrag UG",
+        "beschreibung": "Satzung für eine Unternehmergesellschaft (haftungsbeschränkt)",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.FIRMA_SITZ.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UNTERNEHMENSGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.STAMMKAPITAL.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESCHAEFTSFUEHRUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERTRETUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESELLSCHAFTERVERSAMMLUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ANTEILSKAUFVERTRAG.value: {
+        "name": "Anteilskaufvertrag",
+        "beschreibung": "Vertrag über den Kauf von Gesellschaftsanteilen",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESCHAEFTSANTEILE.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFPREIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZAHLUNGSMODALITAETEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.WETTBEWERBSVERBOT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # FAMILIENRECHT TEMPLATES
+    # ============================================================================
+    VertragsTyp.EHEVERTRAG.value: {
+        "name": "Ehevertrag",
+        "beschreibung": "Notarieller Ehevertrag mit Güterstandsregelung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GUETERSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZUGEWINNAUSGLEICH.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERMOEGENSZUORDNUNG.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.UNTERHALT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERSORGUNGSAUSGLEICH.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SALVATORISCH.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.SCHEIDUNGSFOLGENVEREINBARUNG.value: {
+        "name": "Scheidungsfolgenvereinbarung",
+        "beschreibung": "Vereinbarung über die Folgen einer Ehescheidung",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ZUGEWINNAUSGLEICH.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERMOEGENSZUORDNUNG.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.EHEWOHNUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAUSRAT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.EHEGATTENUNTERHALT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KINDESUNTERHALT.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.SORGERECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UMGANGSRECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERSORGUNGSAUSGLEICH.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.UNTERHALTSVEREINBARUNG.value: {
+        "name": "Unterhaltsvereinbarung",
+        "beschreibung": "Vereinbarung über Unterhaltsleistungen",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KINDESUNTERHALT.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.EHEGATTENUNTERHALT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UNTERHALT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.SORGERECHTSVERFUEGUNG.value: {
+        "name": "Sorgerechtsverfügung",
+        "beschreibung": "Verfügung über das Sorgerecht für minderjährige Kinder",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SORGERECHT.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.UMGANGSRECHT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # MIETRECHT TEMPLATES
+    # ============================================================================
+    VertragsTyp.MIETVERTRAG.value: {
+        "name": "Wohnraummietvertrag",
+        "beschreibung": "Mietvertrag für Wohnraum",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETZINS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BETRIEBSKOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUTION.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETDAUER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KUENDIGUNGSFRISTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHOENHEITSREPARATUREN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UNTERVERMIETUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.TIERHALTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAUSORDNUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKGABE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.GEWERBEMIETVERTRAG.value: {
+        "name": "Gewerbemietvertrag",
+        "beschreibung": "Mietvertrag für Gewerberäume",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETZINS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BETRIEBSKOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUTION.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETDAUER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KUENDIGUNGSFRISTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.WETTBEWERBSVERBOT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.UNTERVERMIETUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKGABE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.MIETAUFHEBUNGSVERTRAG.value: {
+        "name": "Mietaufhebungsvertrag",
+        "beschreibung": "Einvernehmliche Beendigung eines Mietverhältnisses",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETDAUER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUTION.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKGABE.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.PACHTVERTRAG.value: {
+        "name": "Pachtvertrag",
+        "beschreibung": "Vertrag zur Überlassung einer Sache mit Fruchtziehungsrecht",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETZINS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BETRIEBSKOSTEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.MIETDAUER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KUENDIGUNGSFRISTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKGABE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # BAURECHT TEMPLATES
+    # ============================================================================
+    VertragsTyp.BAUVERTRAG.value: {
+        "name": "Bauvertrag",
+        "beschreibung": "Vertrag über die Ausführung von Bauleistungen",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BAULEISTUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.BAUZEIT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERGUETUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ABSCHLAGSZAHLUNGEN.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SICHERHEITSLEISTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ABNAHME.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GEWAEHRLEISTUNG_BAU.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.NACHTRAEGE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BEHINDERUNG_UNTERBRECHUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VOB.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERTRAGSSTRAFE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ARCHITEKTENVERTRAG.value: {
+        "name": "Architektenvertrag",
+        "beschreibung": "Vertrag über Architekten- und Planungsleistungen",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ARCHITEKTENLEISTUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.HOAI.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERGUETUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BAUZEIT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.HAFTUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.ERSCHLIESSUNGSVERTRAG.value: {
+        "name": "Erschließungsvertrag",
+        "beschreibung": "Vertrag über die Erschließung eines Grundstücks",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ERSCHLIESSUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BAUZEIT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.DIENSTBARKEITEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.NACHBARSCHAFTSVEREINBARUNG.value: {
+        "name": "Nachbarschaftsvereinbarung",
+        "beschreibung": "Vereinbarung zwischen Grundstücksnachbarn",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.DIENSTBARKEITEN.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.BAULAST.value, "pflicht": False, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.BAUTRAEGERVERTRAG.value: {
+        "name": "Bauträgervertrag",
+        "beschreibung": "Vertrag über Erwerb und Errichtung einer Immobilie",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VERTRAGSPARTEIEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KAUFGEGENSTAND.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GRUNDBUCH.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BAULEISTUNG.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.KAUFPREIS.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ABSCHLAGSZAHLUNGEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SICHERHEITSLEISTUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BAUZEIT.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ABNAHME.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFLASSUNG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESITZUEBERGANG.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GEWAEHRLEISTUNG_BAU.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.RUECKTRITT.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.KOSTEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+
+    # ============================================================================
+    # VORSORGE TEMPLATES
+    # ============================================================================
+    VertragsTyp.VORSORGEVOLLMACHT.value: {
+        "name": "Vorsorgevollmacht",
+        "beschreibung": "Vollmacht für den Fall der Geschäftsunfähigkeit",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VOLLMACHTGEBER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BEVOLLMAECHTIGTER.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.VERMOEGENSSORGE.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESUNDHEITSSORGE.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.AUFENTHALTSBESTIMMUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.PATIENTENVERFUEGUNG.value: {
+        "name": "Patientenverfügung",
+        "beschreibung": "Verfügung über medizinische Maßnahmen am Lebensende",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VOLLMACHTGEBER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.LEBENSERHALTENDE_MASSNAHMEN.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESUNDHEITSSORGE.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.ORGANSPENDE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BESTATTUNGSWUNSCH.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
+        ]
+    },
+    VertragsTyp.BETREUUNGSVERFUEGUNG.value: {
+        "name": "Betreuungsverfügung",
+        "beschreibung": "Verfügung über die Person des Betreuers",
+        "kategorien_reihenfolge": [
+            {"kategorie": TextbausteinKategorie.VOLLMACHTGEBER.value, "pflicht": True, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.BETREUERWUNSCH.value, "pflicht": True, "mehrfach": True},
+            {"kategorie": TextbausteinKategorie.AUFENTHALTSBESTIMMUNG.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.VERMOEGENSSORGE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.GESUNDHEITSSORGE.value, "pflicht": False, "mehrfach": False},
+            {"kategorie": TextbausteinKategorie.SCHLUSSBESTIMMUNGEN.value, "pflicht": False, "mehrfach": False},
         ]
     },
 }
