@@ -4328,6 +4328,204 @@ class VorleseSession:
     stimme: str = TTSStimme.DEUTSCH_DE.value
 
 # ============================================================================
+# DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG
+# ============================================================================
+
+class DatenKategorie(Enum):
+    """Kategorien personenbezogener Daten nach DSGVO"""
+    STAMMDATEN = "Stammdaten"  # Name, Geburtsdatum, etc.
+    KONTAKTDATEN = "Kontaktdaten"  # E-Mail, Telefon, Adresse
+    FINANZDATEN = "Finanzdaten"  # Bankverbindung, Gehalt, Schulden
+    AUSWEISDATEN = "Ausweisdaten"  # Personalausweis, Reisepass
+    GESUNDHEITSDATEN = "Gesundheitsdaten"  # Besondere Kategorie
+    KOMMUNIKATION = "Kommunikation"  # Nachrichten, E-Mails
+    DOKUMENTE = "Dokumente"  # Hochgeladene Dateien
+    NUTZUNGSDATEN = "Nutzungsdaten"  # Login-Zeiten, Aktivitäten
+    VERTRAGSDATEN = "Vertragsdaten"  # Vertragsinhalte
+    TRANSAKTIONSDATEN = "Transaktionsdaten"  # Zahlungen, Überweisungen
+
+class LoeschHindernis(Enum):
+    """Gründe die eine Löschung verhindern können"""
+    GESETZLICHE_AUFBEWAHRUNG = "Gesetzliche Aufbewahrungspflicht"
+    STEUERRECHT = "Steuerrechtliche Aufbewahrungspflicht (10 Jahre)"
+    HANDELSRECHT = "Handelsrechtliche Aufbewahrungspflicht (6 Jahre)"
+    LAUFENDER_VERTRAG = "Laufender Vertrag"
+    OFFENE_FORDERUNG = "Offene Forderung"
+    RECHTSTREIT = "Laufender Rechtsstreit"
+    BEWEISSICHERUNG = "Beweissicherungspflicht"
+    NOTARIELLE_PFLICHT = "Notarielle Aufbewahrungspflicht"
+    GRUNDBUCH = "Grundbuchrelevante Daten"
+    GELDWAESCHE = "Geldwäschegesetz (5 Jahre)"
+
+class DatenHerkunft(Enum):
+    """Herkunft der personenbezogenen Daten"""
+    BETROFFENER_SELBST = "Vom Betroffenen selbst eingegeben"
+    NOTAR = "Vom Notar erfasst"
+    MAKLER = "Vom Makler erfasst"
+    FINANZIERER = "Vom Finanzierer erfasst"
+    BEHOERDE = "Von Behörde übermittelt"
+    DRITTPARTEI = "Von Drittpartei übermittelt"
+    AUTOMATISCH = "Automatisch generiert"
+    OCR = "Durch OCR-Erkennung erfasst"
+
+class LoeschStatus(Enum):
+    """Status einer Löschanfrage"""
+    ANGEFRAGT = "Löschung angefragt"
+    IN_PRUEFUNG = "In Prüfung"
+    TEILWEISE_GELOESCHT = "Teilweise gelöscht"
+    VOLLSTAENDIG_GELOESCHT = "Vollständig gelöscht"
+    ABGELEHNT = "Löschung abgelehnt"
+    GESPERRT = "Daten gesperrt (statt Löschung)"
+
+@dataclass
+class PersonenbezogeneDaten:
+    """Tracking personenbezogener Daten für DSGVO-Compliance"""
+    daten_id: str
+    betroffener_id: str  # User-ID der betroffenen Person
+    kategorie: str  # DatenKategorie
+
+    # Beschreibung der Daten
+    beschreibung: str = ""
+    datenfelder: List[str] = field(default_factory=list)  # z.B. ["name", "email", "telefon"]
+
+    # Herkunft und Verantwortung
+    herkunft: str = DatenHerkunft.BETROFFENER_SELBST.value
+    erfasst_von_id: str = ""  # User-ID des Erfassers
+    erfasst_am: datetime = field(default_factory=datetime.now)
+
+    # Rechtsgrundlage
+    rechtsgrundlage: str = ""  # z.B. "Einwilligung", "Vertragserfüllung", "Gesetzliche Pflicht"
+    einwilligung_erteilt: bool = False
+    einwilligung_am: datetime = None
+
+    # Speicherort
+    speicherort: str = ""  # z.B. "users", "dokumente", "nachrichten"
+    referenz_id: str = ""  # ID des zugehörigen Objekts
+
+    # Aufbewahrung
+    aufbewahrungsfrist_jahre: int = 0  # 0 = unbegrenzt bis Widerruf
+    loeschung_geplant_am: datetime = None
+
+    # Status
+    ist_geloescht: bool = False
+    geloescht_am: datetime = None
+    geloescht_von: str = ""
+
+@dataclass
+class LoeschProtokoll:
+    """Protokoll über Datenlöschungen nach DSGVO"""
+    protokoll_id: str
+    anfrage_id: str  # Referenz zur Löschanfrage
+    betroffener_id: str
+
+    # Anfrage-Details
+    angefragt_von: str = ""  # Wer hat die Löschung angefragt
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    grund_anfrage: str = ""  # z.B. "Widerruf der Einwilligung", "Auskunftsersuchen"
+
+    # Durchführung
+    bearbeitet_von: str = ""  # User-ID des Bearbeiters
+    bearbeitet_am: datetime = None
+    status: str = LoeschStatus.ANGEFRAGT.value
+
+    # Gelöschte Daten
+    geloeschte_daten: List[Dict] = field(default_factory=list)
+    # Format: [{"kategorie": "...", "beschreibung": "...", "geloescht_am": "..."}]
+
+    # Nicht gelöschte Daten mit Begründung
+    nicht_geloeschte_daten: List[Dict] = field(default_factory=list)
+    # Format: [{"kategorie": "...", "beschreibung": "...", "hindernis": "...", "begruendung": "...", "aufbewahrung_bis": "..."}]
+
+    # Protokoll-Text
+    protokoll_text: str = ""
+    hinweise: str = ""
+
+    # Signatur/Bestätigung
+    bestaetigt: bool = False
+    bestaetigt_von: str = ""
+    bestaetigt_am: datetime = None
+
+    # PDF-Export
+    pdf_erstellt: bool = False
+    pdf_erstellt_am: datetime = None
+
+@dataclass
+class DSGVOAuskunft:
+    """Auskunftsersuchen nach Art. 15 DSGVO"""
+    auskunft_id: str
+    betroffener_id: str
+
+    # Anfrage
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    angefragt_ueber: str = ""  # z.B. "E-Mail", "Portal", "Brief"
+
+    # Bearbeitung
+    bearbeitet_von: str = ""
+    bearbeitet_am: datetime = None
+    frist_bis: datetime = None  # 30 Tage nach Anfrage
+
+    # Ergebnis
+    daten_kategorien: List[str] = field(default_factory=list)
+    daten_export: Dict = field(default_factory=dict)  # Exportierte Daten
+
+    # Status
+    status: str = "angefragt"  # angefragt, in_bearbeitung, erledigt
+    export_erstellt: bool = False
+    export_zugestellt: bool = False
+    zugestellt_am: datetime = None
+
+@dataclass
+class DSGVOEinwilligung:
+    """Einwilligung zur Datenverarbeitung"""
+    einwilligung_id: str
+    betroffener_id: str
+
+    # Einwilligung
+    zweck: str = ""  # Wofür wird eingewilligt
+    kategorien: List[str] = field(default_factory=list)  # Welche Datenkategorien
+
+    # Erteilung
+    erteilt_am: datetime = field(default_factory=datetime.now)
+    erteilt_ueber: str = ""  # z.B. "Portal-Checkbox", "Unterschrift"
+
+    # Widerruf
+    widerrufen: bool = False
+    widerrufen_am: datetime = None
+    widerrufen_grund: str = ""
+
+    # Text der Einwilligung
+    einwilligungstext: str = ""
+    version: str = "1.0"
+
+@dataclass
+class LoeschAnfrage:
+    """Löschanfrage nach Art. 17 DSGVO (Recht auf Löschung)"""
+    anfrage_id: str
+    betroffener_id: str
+
+    # Anfrage-Details
+    angefragt_von: str = ""  # User-ID oder "betroffener"
+    angefragt_am: datetime = field(default_factory=datetime.now)
+    kontakt_email: str = ""
+
+    # Begründung
+    loeschgrund: str = ""  # z.B. "Widerruf", "Zweck erfüllt", "Unrechtmäßig"
+    umfang: str = "alle"  # "alle" oder "spezifisch"
+    spezifische_daten: List[str] = field(default_factory=list)  # Wenn umfang="spezifisch"
+
+    # Status
+    status: str = LoeschStatus.ANGEFRAGT.value
+    frist_bis: datetime = None  # 30 Tage nach Anfrage
+
+    # Bearbeitung
+    bearbeiter_id: str = ""
+    bearbeitet_am: datetime = None
+
+    # Ergebnis
+    protokoll_id: str = ""  # Referenz zum Löschprotokoll
+    abschluss_kommentar: str = ""
+
+# ============================================================================
 # REPORTING & KPI DATENSTRUKTUREN
 # ============================================================================
 
@@ -5542,6 +5740,14 @@ def init_session_state():
         st.session_state.tts_einstellungen = {}  # User-ID -> TTSEinstellungen
         st.session_state.vorlese_sessions = {}  # Session-ID -> VorleseSession
         st.session_state.tts_aktiv = False  # Globaler Status ob TTS gerade läuft
+
+        # ===== DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG =====
+        st.session_state.personenbezogene_daten = {}  # Daten-ID -> PersonenbezogeneDaten
+        st.session_state.loesch_protokolle = {}  # Protokoll-ID -> LoeschProtokoll
+        st.session_state.loesch_anfragen = {}  # Anfrage-ID -> LoeschAnfrage
+        st.session_state.dsgvo_auskuenfte = {}  # Auskunft-ID -> DSGVOAuskunft
+        st.session_state.dsgvo_einwilligungen = {}  # Einwilligung-ID -> DSGVOEinwilligung
+        st.session_state.daten_herkunft_log = []  # Liste von Datenerfassungs-Events
 
         # System-Antwortvorlagen initialisieren
         _initialisiere_system_antwortvorlagen()
@@ -11799,7 +12005,8 @@ def makler_dashboard():
         "⏰ Fristen",  # NEU: Fristenmanagement
         "📈 Reporting",  # NEU: KPIs und Berichte
         "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
+        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
+        "🔒 DSGVO"  # NEU: DSGVO-Datenverwaltung
     ])
 
     with tabs[0]:
@@ -11904,6 +12111,10 @@ def makler_dashboard():
         Die Geschwindigkeit kann angepasst werden.
         """
         render_tts_controls(demo_text, "makler_demo_tts", user_id)
+
+    with tabs[18]:
+        # DSGVO-Datenverwaltung für Makler
+        render_dsgvo_tab_makler(user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -18533,6 +18744,7 @@ def notar_dashboard():
         "📋 Vorlagen",  # NEU: Vorlagen-Management
         "🗑️ Papierkorb",  # NEU: Papierkorb-System
         "🔊 Vorlesen",  # NEU: TTS-Einstellungen
+        "🔒 DSGVO",  # NEU: DSGVO-Datenverwaltung
         "⚙️ Einstellungen"
     ])
 
@@ -18649,6 +18861,10 @@ def notar_dashboard():
         render_tts_controls(demo_text, "notar_demo_tts", user_id)
 
     with tabs[26]:
+        # DSGVO-Datenverwaltung
+        render_dsgvo_tab_notar(user_id)
+
+    with tabs[27]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -30515,6 +30731,848 @@ def render_papierkorb_tab(user_id: str, ist_notar: bool = False):
             st.markdown("---")
             st.markdown("#### 🌐 System-Einstellungen")
             render_papierkorb_einstellungen("", ist_system=True)
+
+
+# ============================================================================
+# DSGVO - DATENSCHUTZ-GRUNDVERORDNUNG FUNKTIONEN
+# ============================================================================
+
+def registriere_personenbezogene_daten(
+    betroffener_id: str,
+    kategorie: str,
+    beschreibung: str,
+    datenfelder: List[str],
+    erfasst_von_id: str,
+    herkunft: str,
+    rechtsgrundlage: str = "Vertragserfüllung",
+    speicherort: str = "",
+    referenz_id: str = "",
+    aufbewahrungsfrist_jahre: int = 0
+) -> str:
+    """
+    Registriert personenbezogene Daten für DSGVO-Tracking.
+
+    Returns:
+        Daten-ID
+    """
+    daten_id = str(uuid.uuid4())
+
+    daten = PersonenbezogeneDaten(
+        daten_id=daten_id,
+        betroffener_id=betroffener_id,
+        kategorie=kategorie,
+        beschreibung=beschreibung,
+        datenfelder=datenfelder,
+        herkunft=herkunft,
+        erfasst_von_id=erfasst_von_id,
+        erfasst_am=datetime.now(),
+        rechtsgrundlage=rechtsgrundlage,
+        speicherort=speicherort,
+        referenz_id=referenz_id,
+        aufbewahrungsfrist_jahre=aufbewahrungsfrist_jahre
+    )
+
+    if aufbewahrungsfrist_jahre > 0:
+        daten.loeschung_geplant_am = datetime.now() + timedelta(days=aufbewahrungsfrist_jahre * 365)
+
+    st.session_state.personenbezogene_daten[daten_id] = daten
+
+    # Log-Eintrag
+    st.session_state.daten_herkunft_log.append({
+        'zeitpunkt': datetime.now().isoformat(),
+        'aktion': 'erfasst',
+        'daten_id': daten_id,
+        'betroffener_id': betroffener_id,
+        'kategorie': kategorie,
+        'erfasst_von': erfasst_von_id,
+        'herkunft': herkunft
+    })
+
+    return daten_id
+
+
+def sammle_personenbezogene_daten_fuer_user(betroffener_id: str) -> Dict:
+    """
+    Sammelt alle personenbezogenen Daten für einen Benutzer.
+    Für DSGVO-Auskunft (Art. 15).
+
+    Returns:
+        Dictionary mit allen Daten kategorisiert
+    """
+    user = st.session_state.users.get(betroffener_id)
+    if not user:
+        return {}
+
+    daten = {
+        'stammdaten': {
+            'name': user.name,
+            'email': user.email,
+            'telefon': getattr(user, 'telefon', ''),
+            'rolle': user.role,
+            'registriert_am': user.created_at.isoformat() if hasattr(user, 'created_at') else '',
+        },
+        'kontaktdaten': {},
+        'finanzdaten': {},
+        'ausweisdaten': {},
+        'dokumente': [],
+        'nachrichten': [],
+        'projekte': [],
+        'aktivitaeten': [],
+        'registrierte_daten': []
+    }
+
+    # Registrierte personenbezogene Daten
+    for pb_daten in st.session_state.personenbezogene_daten.values():
+        if pb_daten.betroffener_id == betroffener_id and not pb_daten.ist_geloescht:
+            daten['registrierte_daten'].append({
+                'kategorie': pb_daten.kategorie,
+                'beschreibung': pb_daten.beschreibung,
+                'erfasst_am': pb_daten.erfasst_am.isoformat(),
+                'herkunft': pb_daten.herkunft,
+                'rechtsgrundlage': pb_daten.rechtsgrundlage
+            })
+
+    # Projekte
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            daten['projekte'].append({
+                'name': projekt.name,
+                'rolle': 'Käufer' if betroffener_id in projekt.kaeufer_ids else 'Verkäufer',
+                'status': projekt.status,
+                'erstellt_am': projekt.erstellt_am.isoformat() if hasattr(projekt, 'erstellt_am') else ''
+            })
+
+    # Nachrichten
+    for nachricht in st.session_state.nachrichten.values():
+        if hasattr(nachricht, 'absender_id') and nachricht.absender_id == betroffener_id:
+            daten['nachrichten'].append({
+                'betreff': getattr(nachricht, 'betreff', ''),
+                'gesendet_am': getattr(nachricht, 'gesendet_am', ''),
+                'typ': 'gesendet'
+            })
+        if hasattr(nachricht, 'empfaenger_id') and nachricht.empfaenger_id == betroffener_id:
+            daten['nachrichten'].append({
+                'betreff': getattr(nachricht, 'betreff', ''),
+                'gesendet_am': getattr(nachricht, 'gesendet_am', ''),
+                'typ': 'empfangen'
+            })
+
+    # Audit-Log (Aktivitäten)
+    for log_eintrag in st.session_state.audit_log:
+        if log_eintrag.get('user_id') == betroffener_id:
+            daten['aktivitaeten'].append({
+                'aktion': log_eintrag.get('aktion', ''),
+                'zeitpunkt': log_eintrag.get('zeitpunkt', '')
+            })
+
+    return daten
+
+
+def pruefe_loesch_hindernisse(betroffener_id: str, daten_id: str = None) -> List[Dict]:
+    """
+    Prüft ob Lösch-Hindernisse für Daten eines Benutzers bestehen.
+
+    Returns:
+        Liste von Hindernissen mit Begründung
+    """
+    hindernisse = []
+    user = st.session_state.users.get(betroffener_id)
+
+    if not user:
+        return hindernisse
+
+    # 1. Prüfe laufende Verträge
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status not in [ProjektStatus.ABGESCHLOSSEN.value, ProjektStatus.STORNIERT.value]:
+                hindernisse.append({
+                    'hindernis': LoeschHindernis.LAUFENDER_VERTRAG.value,
+                    'kategorie': DatenKategorie.VERTRAGSDATEN.value,
+                    'beschreibung': f"Laufendes Projekt: {projekt.name}",
+                    'begruendung': "Personenbezogene Daten werden für die Vertragserfüllung benötigt",
+                    'referenz': projekt.projekt_id,
+                    'aufbewahrung_bis': None
+                })
+
+    # 2. Prüfe notarielle Pflichten (30 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status == ProjektStatus.ABGESCHLOSSEN.value:
+                # Notarielle Aufbewahrungspflicht
+                if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                    aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=30*365)
+                    if aufbewahrung_bis > datetime.now():
+                        hindernisse.append({
+                            'hindernis': LoeschHindernis.NOTARIELLE_PFLICHT.value,
+                            'kategorie': DatenKategorie.VERTRAGSDATEN.value,
+                            'beschreibung': f"Beurkundetes Projekt: {projekt.name}",
+                            'begruendung': "Notarielle Aufbewahrungspflicht (30 Jahre nach Beurkundung)",
+                            'referenz': projekt.projekt_id,
+                            'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                        })
+
+    # 3. Prüfe steuerrechtliche Pflichten (10 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if projekt.status == ProjektStatus.ABGESCHLOSSEN.value:
+                if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                    aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=10*365)
+                    if aufbewahrung_bis > datetime.now():
+                        hindernisse.append({
+                            'hindernis': LoeschHindernis.STEUERRECHT.value,
+                            'kategorie': DatenKategorie.FINANZDATEN.value,
+                            'beschreibung': f"Finanzdaten aus Projekt: {projekt.name}",
+                            'begruendung': "Steuerrechtliche Aufbewahrungspflicht (10 Jahre)",
+                            'referenz': projekt.projekt_id,
+                            'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                        })
+
+    # 4. Prüfe Geldwäschegesetz (5 Jahre)
+    for projekt in st.session_state.projekte.values():
+        if betroffener_id in projekt.kaeufer_ids or betroffener_id in projekt.verkaeufer_ids:
+            if hasattr(projekt, 'abgeschlossen_am') and projekt.abgeschlossen_am:
+                aufbewahrung_bis = projekt.abgeschlossen_am + timedelta(days=5*365)
+                if aufbewahrung_bis > datetime.now():
+                    hindernisse.append({
+                        'hindernis': LoeschHindernis.GELDWAESCHE.value,
+                        'kategorie': DatenKategorie.AUSWEISDATEN.value,
+                        'beschreibung': "Identifikationsdaten",
+                        'begruendung': "Geldwäschegesetz - Aufbewahrungspflicht (5 Jahre)",
+                        'referenz': projekt.projekt_id,
+                        'aufbewahrung_bis': aufbewahrung_bis.isoformat()
+                    })
+
+    # 5. Prüfe registrierte personenbezogene Daten
+    for pb_daten in st.session_state.personenbezogene_daten.values():
+        if pb_daten.betroffener_id == betroffener_id and not pb_daten.ist_geloescht:
+            if pb_daten.aufbewahrungsfrist_jahre > 0:
+                if pb_daten.loeschung_geplant_am and pb_daten.loeschung_geplant_am > datetime.now():
+                    hindernisse.append({
+                        'hindernis': LoeschHindernis.GESETZLICHE_AUFBEWAHRUNG.value,
+                        'kategorie': pb_daten.kategorie,
+                        'beschreibung': pb_daten.beschreibung,
+                        'begruendung': f"Aufbewahrungsfrist: {pb_daten.aufbewahrungsfrist_jahre} Jahre",
+                        'referenz': pb_daten.daten_id,
+                        'aufbewahrung_bis': pb_daten.loeschung_geplant_am.isoformat()
+                    })
+
+    return hindernisse
+
+
+def erstelle_loesch_anfrage(
+    betroffener_id: str,
+    angefragt_von: str,
+    loeschgrund: str,
+    umfang: str = "alle",
+    spezifische_daten: List[str] = None,
+    kontakt_email: str = ""
+) -> str:
+    """
+    Erstellt eine neue Löschanfrage nach Art. 17 DSGVO.
+
+    Returns:
+        Anfrage-ID
+    """
+    anfrage_id = str(uuid.uuid4())
+
+    anfrage = LoeschAnfrage(
+        anfrage_id=anfrage_id,
+        betroffener_id=betroffener_id,
+        angefragt_von=angefragt_von,
+        angefragt_am=datetime.now(),
+        kontakt_email=kontakt_email,
+        loeschgrund=loeschgrund,
+        umfang=umfang,
+        spezifische_daten=spezifische_daten or [],
+        status=LoeschStatus.ANGEFRAGT.value,
+        frist_bis=datetime.now() + timedelta(days=30)  # 30 Tage Frist
+    )
+
+    st.session_state.loesch_anfragen[anfrage_id] = anfrage
+
+    # Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'dsgvo_loeschanfrage_erstellt',
+            'anfrage_id': anfrage_id,
+            'betroffener_id': betroffener_id,
+            'angefragt_von': angefragt_von,
+            'zeitpunkt': datetime.now().isoformat()
+        })
+
+    return anfrage_id
+
+
+def fuehre_loeschung_durch(
+    anfrage_id: str,
+    bearbeiter_id: str,
+    loeschen_was_moeglich: bool = True
+) -> Tuple[str, List[Dict], List[Dict]]:
+    """
+    Führt die Löschung durch und erstellt ein Protokoll.
+
+    Returns:
+        Tuple: (Protokoll-ID, gelöschte Daten, nicht gelöschte Daten)
+    """
+    anfrage = st.session_state.loesch_anfragen.get(anfrage_id)
+    if not anfrage:
+        return None, [], []
+
+    betroffener_id = anfrage.betroffener_id
+    geloeschte_daten = []
+    nicht_geloeschte_daten = []
+
+    # Hindernisse prüfen
+    hindernisse = pruefe_loesch_hindernisse(betroffener_id)
+
+    # Kategorisieren welche Daten betroffen sind
+    hindernisse_kategorien = set()
+    for h in hindernisse:
+        hindernisse_kategorien.add(h['kategorie'])
+        nicht_geloeschte_daten.append({
+            'kategorie': h['kategorie'],
+            'beschreibung': h['beschreibung'],
+            'hindernis': h['hindernis'],
+            'begruendung': h['begruendung'],
+            'aufbewahrung_bis': h.get('aufbewahrung_bis', 'Unbestimmt')
+        })
+
+    if loeschen_was_moeglich:
+        # Lösche was möglich ist
+        jetzt = datetime.now()
+
+        # Registrierte personenbezogene Daten löschen
+        for daten in st.session_state.personenbezogene_daten.values():
+            if daten.betroffener_id == betroffener_id and not daten.ist_geloescht:
+                if daten.kategorie not in hindernisse_kategorien:
+                    daten.ist_geloescht = True
+                    daten.geloescht_am = jetzt
+                    daten.geloescht_von = bearbeiter_id
+                    geloeschte_daten.append({
+                        'kategorie': daten.kategorie,
+                        'beschreibung': daten.beschreibung,
+                        'geloescht_am': jetzt.isoformat()
+                    })
+
+        # Lösche Kommunikationsdaten (Nachrichten) wenn nicht geschützt
+        if DatenKategorie.KOMMUNIKATION.value not in hindernisse_kategorien:
+            nachrichten_zu_loeschen = []
+            for n_id, nachricht in st.session_state.nachrichten.items():
+                if hasattr(nachricht, 'absender_id') and nachricht.absender_id == betroffener_id:
+                    nachrichten_zu_loeschen.append(n_id)
+                if hasattr(nachricht, 'empfaenger_id') and nachricht.empfaenger_id == betroffener_id:
+                    nachrichten_zu_loeschen.append(n_id)
+
+            for n_id in set(nachrichten_zu_loeschen):
+                # In Papierkorb verschieben statt direkt löschen
+                nachricht = st.session_state.nachrichten.get(n_id)
+                if nachricht:
+                    verschiebe_in_papierkorb(
+                        objekt_id=n_id,
+                        objekt_typ=PapierkorbObjektTyp.NACHRICHT.value,
+                        objekt_daten={'nachricht': asdict(nachricht) if hasattr(nachricht, '__dataclass_fields__') else str(nachricht)},
+                        original_name=getattr(nachricht, 'betreff', 'Nachricht'),
+                        user_id=bearbeiter_id,
+                        loeschgrund=f"DSGVO-Löschanfrage {anfrage_id}"
+                    )
+                    del st.session_state.nachrichten[n_id]
+                    geloeschte_daten.append({
+                        'kategorie': DatenKategorie.KOMMUNIKATION.value,
+                        'beschreibung': f"Nachricht: {getattr(nachricht, 'betreff', 'Unbekannt')}",
+                        'geloescht_am': jetzt.isoformat()
+                    })
+
+    # Protokoll erstellen
+    protokoll_id = str(uuid.uuid4())
+
+    # Status ermitteln
+    if len(geloeschte_daten) == 0 and len(nicht_geloeschte_daten) > 0:
+        status = LoeschStatus.ABGELEHNT.value
+    elif len(nicht_geloeschte_daten) > 0:
+        status = LoeschStatus.TEILWEISE_GELOESCHT.value
+    else:
+        status = LoeschStatus.VOLLSTAENDIG_GELOESCHT.value
+
+    # Protokoll-Text generieren
+    protokoll_text = f"""
+LÖSCHPROTOKOLL NACH ART. 17 DSGVO
+=================================
+
+Protokoll-Nr.: {protokoll_id}
+Datum: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+
+ANFRAGE-DETAILS
+---------------
+Anfrage-ID: {anfrage_id}
+Betroffene Person: {betroffener_id}
+Angefragt von: {anfrage.angefragt_von}
+Angefragt am: {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}
+Löschgrund: {anfrage.loeschgrund}
+
+BEARBEITUNG
+-----------
+Bearbeitet von: {bearbeiter_id}
+Bearbeitet am: {datetime.now().strftime('%d.%m.%Y %H:%M')}
+Status: {status}
+
+GELÖSCHTE DATEN ({len(geloeschte_daten)} Datensätze)
+---------------------------------------------------
+"""
+
+    for idx, daten in enumerate(geloeschte_daten, 1):
+        protokoll_text += f"{idx}. {daten['kategorie']}: {daten['beschreibung']} (gelöscht am {daten['geloescht_am']})\n"
+
+    if nicht_geloeschte_daten:
+        protokoll_text += f"""
+
+NICHT GELÖSCHTE DATEN ({len(nicht_geloeschte_daten)} Datensätze)
+----------------------------------------------------------------
+Die folgenden Daten konnten aufgrund gesetzlicher Aufbewahrungspflichten
+nicht gelöscht werden:
+
+"""
+        for idx, daten in enumerate(nicht_geloeschte_daten, 1):
+            protokoll_text += f"""
+{idx}. Kategorie: {daten['kategorie']}
+   Beschreibung: {daten['beschreibung']}
+   Löschhindernis: {daten['hindernis']}
+   Begründung: {daten['begruendung']}
+   Aufbewahrung bis: {daten['aufbewahrung_bis']}
+"""
+
+    hinweise = ""
+    if nicht_geloeschte_daten:
+        hinweise = """
+HINWEISE:
+---------
+Gemäß Art. 17 Abs. 3 DSGVO besteht das Recht auf Löschung nicht, soweit
+die Verarbeitung erforderlich ist zur Erfüllung einer rechtlichen
+Verpflichtung oder zur Geltendmachung, Ausübung oder Verteidigung von
+Rechtsansprüchen.
+
+Die betroffene Person wird über die nicht gelöschten Daten und die
+Gründe für deren Aufbewahrung informiert. Nach Ablauf der jeweiligen
+Aufbewahrungsfristen werden die Daten automatisch zur Löschung vorgemerkt.
+"""
+
+    protokoll = LoeschProtokoll(
+        protokoll_id=protokoll_id,
+        anfrage_id=anfrage_id,
+        betroffener_id=betroffener_id,
+        angefragt_von=anfrage.angefragt_von,
+        angefragt_am=anfrage.angefragt_am,
+        grund_anfrage=anfrage.loeschgrund,
+        bearbeitet_von=bearbeiter_id,
+        bearbeitet_am=datetime.now(),
+        status=status,
+        geloeschte_daten=geloeschte_daten,
+        nicht_geloeschte_daten=nicht_geloeschte_daten,
+        protokoll_text=protokoll_text,
+        hinweise=hinweise
+    )
+
+    st.session_state.loesch_protokolle[protokoll_id] = protokoll
+
+    # Anfrage aktualisieren
+    anfrage.status = status
+    anfrage.bearbeiter_id = bearbeiter_id
+    anfrage.bearbeitet_am = datetime.now()
+    anfrage.protokoll_id = protokoll_id
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'dsgvo_loeschung_durchgefuehrt',
+            'anfrage_id': anfrage_id,
+            'protokoll_id': protokoll_id,
+            'betroffener_id': betroffener_id,
+            'bearbeiter_id': bearbeiter_id,
+            'status': status,
+            'geloescht': len(geloeschte_daten),
+            'nicht_geloescht': len(nicht_geloeschte_daten),
+            'zeitpunkt': datetime.now().isoformat()
+        })
+
+    return protokoll_id, geloeschte_daten, nicht_geloeschte_daten
+
+
+def render_dsgvo_admin_ui(admin_user_id: str, ist_notar: bool = True):
+    """Rendert die DSGVO-Administration für Notar oder Makler."""
+    st.markdown("### 🔒 DSGVO-Datenverwaltung")
+
+    st.markdown("""
+    Verwaltung personenbezogener Daten gemäß Datenschutz-Grundverordnung (DSGVO).
+    Hier können Sie:
+    - Auskunft über gespeicherte Daten erteilen (Art. 15 DSGVO)
+    - Löschanfragen bearbeiten (Art. 17 DSGVO)
+    - Löschprotokolle einsehen und exportieren
+    """)
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👤 Personenauskunft",
+        "🗑️ Löschanfragen",
+        "📋 Protokolle",
+        "⚙️ Einstellungen"
+    ])
+
+    with tab1:
+        render_dsgvo_personenauskunft(admin_user_id, ist_notar)
+
+    with tab2:
+        render_dsgvo_loeschanfragen(admin_user_id, ist_notar)
+
+    with tab3:
+        render_dsgvo_protokolle(admin_user_id)
+
+    with tab4:
+        render_dsgvo_einstellungen(admin_user_id, ist_notar)
+
+
+def render_dsgvo_personenauskunft(admin_user_id: str, ist_notar: bool):
+    """Rendert die Personenauskunft nach Art. 15 DSGVO."""
+    st.markdown("#### 👤 Auskunft über gespeicherte Daten")
+
+    # Benutzer auswählen
+    if ist_notar:
+        # Notar kann alle Benutzer sehen
+        benutzer_liste = list(st.session_state.users.values())
+    else:
+        # Makler kann nur Benutzer aus seinen Projekten sehen
+        benutzer_ids = set()
+        for projekt in st.session_state.projekte.values():
+            if projekt.makler_id == admin_user_id:
+                benutzer_ids.update(projekt.kaeufer_ids)
+                benutzer_ids.update(projekt.verkaeufer_ids)
+        benutzer_liste = [u for u in st.session_state.users.values() if u.user_id in benutzer_ids]
+
+    if not benutzer_liste:
+        st.info("Keine Benutzer zur Auswahl verfügbar.")
+        return
+
+    benutzer_optionen = {u.user_id: f"{u.name} ({u.email})" for u in benutzer_liste}
+
+    selected_user_id = st.selectbox(
+        "Betroffene Person auswählen",
+        options=list(benutzer_optionen.keys()),
+        format_func=lambda x: benutzer_optionen[x],
+        key="dsgvo_person_select"
+    )
+
+    if st.button("📊 Datenauskunft erstellen", key="dsgvo_auskunft_btn"):
+        with st.spinner("Sammle Daten..."):
+            daten = sammle_personenbezogene_daten_fuer_user(selected_user_id)
+
+            if daten:
+                st.success("✅ Datenauskunft erstellt")
+
+                # Stammdaten
+                with st.expander("📋 Stammdaten", expanded=True):
+                    for key, value in daten['stammdaten'].items():
+                        if value:
+                            st.markdown(f"**{key.replace('_', ' ').title()}:** {value}")
+
+                # Projekte
+                if daten['projekte']:
+                    with st.expander(f"🏠 Projekte ({len(daten['projekte'])})", expanded=False):
+                        for projekt in daten['projekte']:
+                            st.markdown(f"- **{projekt['name']}** (Rolle: {projekt['rolle']}, Status: {projekt['status']})")
+
+                # Registrierte Daten
+                if daten['registrierte_daten']:
+                    with st.expander(f"📊 Registrierte Daten ({len(daten['registrierte_daten'])})", expanded=False):
+                        for rd in daten['registrierte_daten']:
+                            st.markdown(f"- **{rd['kategorie']}**: {rd['beschreibung']} (Herkunft: {rd['herkunft']})")
+
+                # Nachrichten
+                if daten['nachrichten']:
+                    with st.expander(f"💬 Nachrichten ({len(daten['nachrichten'])})", expanded=False):
+                        for n in daten['nachrichten'][:10]:  # Max 10 anzeigen
+                            st.markdown(f"- {n['typ']}: {n['betreff']}")
+                        if len(daten['nachrichten']) > 10:
+                            st.caption(f"... und {len(daten['nachrichten']) - 10} weitere")
+
+                # Aktivitäten
+                if daten['aktivitaeten']:
+                    with st.expander(f"📝 Aktivitäten ({len(daten['aktivitaeten'])})", expanded=False):
+                        for a in daten['aktivitaeten'][:10]:
+                            st.markdown(f"- {a['aktion']} ({a['zeitpunkt']})")
+                        if len(daten['aktivitaeten']) > 10:
+                            st.caption(f"... und {len(daten['aktivitaeten']) - 10} weitere")
+
+                # Export
+                st.markdown("---")
+                daten_json = json.dumps(daten, default=str, indent=2, ensure_ascii=False)
+                st.download_button(
+                    label="📥 Daten als JSON exportieren",
+                    data=daten_json,
+                    file_name=f"dsgvo_auskunft_{selected_user_id}_{datetime.now().strftime('%Y%m%d')}.json",
+                    mime="application/json"
+                )
+
+
+def render_dsgvo_loeschanfragen(admin_user_id: str, ist_notar: bool):
+    """Rendert die Verwaltung von Löschanfragen."""
+    st.markdown("#### 🗑️ Löschanfragen bearbeiten")
+
+    # Neue Anfrage erstellen
+    with st.expander("➕ Neue Löschanfrage erstellen", expanded=False):
+        if ist_notar:
+            benutzer_liste = list(st.session_state.users.values())
+        else:
+            benutzer_ids = set()
+            for projekt in st.session_state.projekte.values():
+                if projekt.makler_id == admin_user_id:
+                    benutzer_ids.update(projekt.kaeufer_ids)
+                    benutzer_ids.update(projekt.verkaeufer_ids)
+            benutzer_liste = [u for u in st.session_state.users.values() if u.user_id in benutzer_ids]
+
+        if benutzer_liste:
+            benutzer_optionen = {u.user_id: f"{u.name} ({u.email})" for u in benutzer_liste}
+
+            col1, col2 = st.columns(2)
+            with col1:
+                neue_anfrage_user = st.selectbox(
+                    "Betroffene Person",
+                    options=list(benutzer_optionen.keys()),
+                    format_func=lambda x: benutzer_optionen[x],
+                    key="neue_anfrage_user"
+                )
+
+            with col2:
+                loeschgrund = st.selectbox(
+                    "Löschgrund",
+                    options=[
+                        "Widerruf der Einwilligung",
+                        "Zweck der Verarbeitung erfüllt",
+                        "Unrechtmäßige Verarbeitung",
+                        "Rechtliche Verpflichtung",
+                        "Sonstiges"
+                    ],
+                    key="neue_anfrage_grund"
+                )
+
+            kontakt_email = st.text_input(
+                "Kontakt-E-Mail für Rückmeldung",
+                value=benutzer_optionen.get(neue_anfrage_user, '').split('(')[-1].rstrip(')') if neue_anfrage_user else "",
+                key="neue_anfrage_email"
+            )
+
+            if st.button("📝 Löschanfrage erstellen", key="create_loesch_anfrage"):
+                anfrage_id = erstelle_loesch_anfrage(
+                    betroffener_id=neue_anfrage_user,
+                    angefragt_von=admin_user_id,
+                    loeschgrund=loeschgrund,
+                    kontakt_email=kontakt_email
+                )
+                st.success(f"✅ Löschanfrage {anfrage_id[:8]}... erstellt")
+                st.rerun()
+
+    st.markdown("---")
+
+    # Bestehende Anfragen
+    anfragen = [a for a in st.session_state.loesch_anfragen.values()
+                if a.status in [LoeschStatus.ANGEFRAGT.value, LoeschStatus.IN_PRUEFUNG.value]]
+
+    if not anfragen:
+        st.info("Keine offenen Löschanfragen vorhanden.")
+        return
+
+    for anfrage in anfragen:
+        betroffener = st.session_state.users.get(anfrage.betroffener_id)
+        betroffener_name = betroffener.name if betroffener else "Unbekannt"
+
+        tage_verbleibend = (anfrage.frist_bis - datetime.now()).days if anfrage.frist_bis else 0
+
+        with st.expander(
+            f"{'🔴' if tage_verbleibend < 7 else '🟡' if tage_verbleibend < 14 else '🟢'} "
+            f"Anfrage vom {anfrage.angefragt_am.strftime('%d.%m.%Y')} - {betroffener_name}",
+            expanded=True
+        ):
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.markdown(f"**Betroffene Person:** {betroffener_name}")
+                st.markdown(f"**Löschgrund:** {anfrage.loeschgrund}")
+                st.markdown(f"**Angefragt am:** {anfrage.angefragt_am.strftime('%d.%m.%Y %H:%M')}")
+                st.markdown(f"**Frist bis:** {anfrage.frist_bis.strftime('%d.%m.%Y')} ({tage_verbleibend} Tage)")
+                st.markdown(f"**Status:** {anfrage.status}")
+
+                # Hindernisse anzeigen
+                st.markdown("---")
+                st.markdown("**🔍 Prüfung der Löschhindernisse:**")
+                hindernisse = pruefe_loesch_hindernisse(anfrage.betroffener_id)
+
+                if hindernisse:
+                    st.warning(f"⚠️ {len(hindernisse)} Löschhindernis(se) gefunden:")
+                    for h in hindernisse:
+                        st.markdown(f"- **{h['hindernis']}**: {h['beschreibung']}")
+                        st.caption(f"  Begründung: {h['begruendung']}")
+                else:
+                    st.success("✅ Keine Löschhindernisse - vollständige Löschung möglich")
+
+            with col2:
+                st.markdown("**Aktionen:**")
+
+                if st.button("✅ Löschung durchführen", key=f"loesch_{anfrage.anfrage_id}", type="primary"):
+                    protokoll_id, geloescht, nicht_geloescht = fuehre_loeschung_durch(
+                        anfrage.anfrage_id,
+                        admin_user_id
+                    )
+
+                    if protokoll_id:
+                        st.success(f"✅ Löschung durchgeführt!")
+                        st.info(f"Gelöscht: {len(geloescht)} | Nicht gelöscht: {len(nicht_geloescht)}")
+                        st.caption(f"Protokoll-ID: {protokoll_id[:8]}...")
+                        st.rerun()
+
+                if st.button("📋 Nur prüfen", key=f"pruef_{anfrage.anfrage_id}"):
+                    anfrage.status = LoeschStatus.IN_PRUEFUNG.value
+                    st.rerun()
+
+
+def render_dsgvo_protokolle(admin_user_id: str):
+    """Rendert die Übersicht der Löschprotokolle."""
+    st.markdown("#### 📋 Löschprotokolle")
+
+    protokolle = list(st.session_state.loesch_protokolle.values())
+    protokolle.sort(key=lambda p: p.bearbeitet_am or p.angefragt_am, reverse=True)
+
+    if not protokolle:
+        st.info("Noch keine Löschprotokolle vorhanden.")
+        return
+
+    for protokoll in protokolle:
+        betroffener = st.session_state.users.get(protokoll.betroffener_id)
+        betroffener_name = betroffener.name if betroffener else "Unbekannt"
+
+        status_icon = {
+            LoeschStatus.VOLLSTAENDIG_GELOESCHT.value: "✅",
+            LoeschStatus.TEILWEISE_GELOESCHT.value: "⚠️",
+            LoeschStatus.ABGELEHNT.value: "❌",
+            LoeschStatus.GESPERRT.value: "🔒"
+        }.get(protokoll.status, "📋")
+
+        with st.expander(
+            f"{status_icon} Protokoll {protokoll.protokoll_id[:8]}... - {betroffener_name} "
+            f"({protokoll.bearbeitet_am.strftime('%d.%m.%Y') if protokoll.bearbeitet_am else 'Ausstehend'})",
+            expanded=False
+        ):
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.markdown(f"**Status:** {protokoll.status}")
+                st.markdown(f"**Betroffene Person:** {betroffener_name}")
+                st.markdown(f"**Löschgrund:** {protokoll.grund_anfrage}")
+
+                if protokoll.geloeschte_daten:
+                    st.markdown(f"**✅ Gelöschte Daten:** {len(protokoll.geloeschte_daten)}")
+
+                if protokoll.nicht_geloeschte_daten:
+                    st.markdown(f"**⚠️ Nicht gelöschte Daten:** {len(protokoll.nicht_geloeschte_daten)}")
+                    for ng in protokoll.nicht_geloeschte_daten:
+                        st.caption(f"  - {ng['kategorie']}: {ng['hindernis']}")
+
+            with col2:
+                # Protokoll-Export
+                st.download_button(
+                    label="📥 Protokoll (TXT)",
+                    data=protokoll.protokoll_text,
+                    file_name=f"loeschprotokoll_{protokoll.protokoll_id[:8]}_{datetime.now().strftime('%Y%m%d')}.txt",
+                    mime="text/plain",
+                    key=f"dl_txt_{protokoll.protokoll_id}"
+                )
+
+                # JSON-Export
+                protokoll_dict = {
+                    'protokoll_id': protokoll.protokoll_id,
+                    'anfrage_id': protokoll.anfrage_id,
+                    'betroffener_id': protokoll.betroffener_id,
+                    'status': protokoll.status,
+                    'angefragt_am': protokoll.angefragt_am.isoformat() if protokoll.angefragt_am else None,
+                    'bearbeitet_am': protokoll.bearbeitet_am.isoformat() if protokoll.bearbeitet_am else None,
+                    'geloeschte_daten': protokoll.geloeschte_daten,
+                    'nicht_geloeschte_daten': protokoll.nicht_geloeschte_daten,
+                    'hinweise': protokoll.hinweise
+                }
+
+                st.download_button(
+                    label="📥 Protokoll (JSON)",
+                    data=json.dumps(protokoll_dict, indent=2, ensure_ascii=False),
+                    file_name=f"loeschprotokoll_{protokoll.protokoll_id[:8]}_{datetime.now().strftime('%Y%m%d')}.json",
+                    mime="application/json",
+                    key=f"dl_json_{protokoll.protokoll_id}"
+                )
+
+
+def render_dsgvo_einstellungen(admin_user_id: str, ist_notar: bool):
+    """Rendert die DSGVO-Einstellungen."""
+    st.markdown("#### ⚙️ DSGVO-Einstellungen")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### Aufbewahrungsfristen")
+        st.info("""
+        Die folgenden gesetzlichen Aufbewahrungsfristen werden automatisch berücksichtigt:
+
+        - **Notarielle Urkunden:** 30 Jahre
+        - **Steuerrechtliche Unterlagen:** 10 Jahre
+        - **Handelsrechtliche Unterlagen:** 6 Jahre
+        - **Geldwäschegesetz (Identifikation):** 5 Jahre
+        """)
+
+    with col2:
+        st.markdown("##### Automatische Löschung")
+
+        st.checkbox(
+            "Automatische Erinnerung bei Ablauf von Aufbewahrungsfristen",
+            value=True,
+            key="dsgvo_auto_erinnerung"
+        )
+
+        st.checkbox(
+            "Benachrichtigung bei neuen Löschanfragen",
+            value=True,
+            key="dsgvo_benachrichtigung"
+        )
+
+    st.markdown("---")
+    st.markdown("##### Statistiken")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Registrierte Datensätze",
+            len(st.session_state.personenbezogene_daten)
+        )
+
+    with col2:
+        offene_anfragen = len([a for a in st.session_state.loesch_anfragen.values()
+                               if a.status in [LoeschStatus.ANGEFRAGT.value, LoeschStatus.IN_PRUEFUNG.value]])
+        st.metric("Offene Löschanfragen", offene_anfragen)
+
+    with col3:
+        st.metric("Erstellte Protokolle", len(st.session_state.loesch_protokolle))
+
+    with col4:
+        dringend = len([a for a in st.session_state.loesch_anfragen.values()
+                        if a.frist_bis and (a.frist_bis - datetime.now()).days < 7
+                        and a.status == LoeschStatus.ANGEFRAGT.value])
+        st.metric("Dringend (< 7 Tage)", dringend)
+
+
+def render_dsgvo_tab_notar(user_id: str):
+    """Tab-Wrapper für DSGVO-Verwaltung im Notar-Dashboard."""
+    render_dsgvo_admin_ui(user_id, ist_notar=True)
+
+
+def render_dsgvo_tab_makler(user_id: str):
+    """Tab-Wrapper für DSGVO-Verwaltung im Makler-Dashboard."""
+    st.markdown("### 🔒 DSGVO-Datenverwaltung")
+    st.info("Als Makler können Sie nur Daten verwalten, die Sie selbst erfasst haben oder die zu Ihren Projekten gehören.")
+
+    render_dsgvo_admin_ui(user_id, ist_notar=False)
 
 
 def main():
