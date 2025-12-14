@@ -4186,6 +4186,148 @@ class DokumentVersionierung:
     wasserzeichen: bool = True  # Bei Entwürfen
 
 # ============================================================================
+# PAPIERKORB-SYSTEM
+# ============================================================================
+
+class PapierkorbObjektTyp(Enum):
+    """Typen von Objekten im Papierkorb"""
+    DOKUMENT = "Dokument"
+    NACHRICHT = "Nachricht"
+    AKTE = "Akte"
+    PROJEKT = "Projekt"
+    TEXTBAUSTEIN = "Textbaustein"
+    VORLAGE = "Vorlage"
+    NOTIZ = "Notiz"
+    TERMIN = "Termin"
+
+@dataclass
+class PapierkorbElement:
+    """Ein Element im Papierkorb"""
+    papierkorb_id: str
+    objekt_id: str  # Original-ID des gelöschten Objekts
+    objekt_typ: str  # PapierkorbObjektTyp
+    objekt_daten: Dict = field(default_factory=dict)  # Serialisierte Objektdaten
+
+    # Metadaten
+    original_name: str = ""
+    geloescht_von: str = ""
+    geloescht_am: datetime = field(default_factory=datetime.now)
+    loeschgrund: str = ""
+
+    # Automatisches Löschen
+    endgueltig_loeschen_am: datetime = None  # Berechnetes Datum für endgültiges Löschen
+    aufbewahrungsstunden: int = 48  # Standard: 48 Stunden
+
+    # Reaktivierung
+    reaktiviert: bool = False
+    reaktiviert_von: str = ""
+    reaktiviert_am: datetime = None
+
+    # Zusätzliche Infos
+    urspruenglicher_pfad: str = ""  # z.B. Projekt-ID oder Akte-ID
+    dateigroesse: int = 0
+    preview_verfuegbar: bool = False
+
+@dataclass
+class PapierkorbEinstellungen:
+    """Benutzer- oder systemweite Papierkorb-Einstellungen"""
+    einstellung_id: str
+    user_id: str  # Leer für Systemeinstellungen
+
+    # Aufbewahrungszeit
+    standard_aufbewahrungsstunden: int = 48  # Standard: 48 Stunden
+    min_aufbewahrungsstunden: int = 1  # Minimum: 1 Stunde
+    max_aufbewahrungsstunden: int = 720  # Maximum: 30 Tage
+
+    # Automatisches Löschen
+    auto_loeschen_aktiv: bool = True
+    benachrichtigung_vor_loeschen: bool = True
+    benachrichtigung_stunden_vorher: int = 24  # 24 Stunden vor endgültigem Löschen
+
+    # Kapazität
+    max_elemente: int = 100
+    max_speicher_mb: float = 500.0
+
+    # Berechtigungen
+    reaktivierung_erlaubt: bool = True
+    sofort_loeschen_erlaubt: bool = True  # Für Admins/Notare
+
+    # Logging
+    loeschung_protokollieren: bool = True
+
+# ============================================================================
+# TEXT-TO-SPEECH (VORLESEN)
+# ============================================================================
+
+class TTSGeschwindigkeit(Enum):
+    """Voreingestellte TTS-Geschwindigkeiten"""
+    SEHR_LANGSAM = 0.5
+    LANGSAM = 0.75
+    NORMAL = 1.0
+    SCHNELL = 1.25
+    SEHR_SCHNELL = 1.5
+    DOPPELT = 2.0
+
+class TTSStimme(Enum):
+    """Verfügbare TTS-Stimmen (Browser-abhängig)"""
+    STANDARD = "default"
+    MAENNLICH = "male"
+    WEIBLICH = "female"
+    DEUTSCH_DE = "de-DE"
+    DEUTSCH_AT = "de-AT"
+    DEUTSCH_CH = "de-CH"
+
+@dataclass
+class TTSEinstellungen:
+    """Text-to-Speech Einstellungen pro Benutzer"""
+    einstellung_id: str
+    user_id: str
+
+    # Geschwindigkeit (0.25 bis 2.0 in 0.25er Schritten)
+    geschwindigkeit: float = 1.0
+    min_geschwindigkeit: float = 0.25
+    max_geschwindigkeit: float = 2.0
+    geschwindigkeit_schritt: float = 0.25
+
+    # Stimme
+    stimme: str = TTSStimme.DEUTSCH_DE.value
+    lautstaerke: float = 1.0  # 0.0 bis 1.0
+    tonhoehe: float = 1.0  # 0.5 bis 2.0
+
+    # Verhalten
+    auto_scroll: bool = True  # Beim Vorlesen automatisch scrollen
+    hervorheben_bei_vorlesen: bool = True  # Gelesenen Text hervorheben
+    pause_zwischen_absaetzen: float = 0.5  # Sekunden Pause
+
+    # Tastenkürzel
+    tastenkuerzel_start_stop: str = "Space"
+    tastenkuerzel_schneller: str = "ArrowUp"
+    tastenkuerzel_langsamer: str = "ArrowDown"
+
+@dataclass
+class VorleseSession:
+    """Aktive Vorlese-Session"""
+    session_id: str
+    user_id: str
+    dokument_id: str
+    dokument_typ: str
+
+    # Status
+    aktiv: bool = False
+    pausiert: bool = False
+    position: int = 0  # Aktuelle Position im Text
+    gesamtlaenge: int = 0
+
+    # Zeitstempel
+    gestartet_am: datetime = field(default_factory=datetime.now)
+    pausiert_am: datetime = None
+    beendet_am: datetime = None
+
+    # Einstellungen für diese Session
+    geschwindigkeit: float = 1.0
+    stimme: str = TTSStimme.DEUTSCH_DE.value
+
+# ============================================================================
 # REPORTING & KPI DATENSTRUKTUREN
 # ============================================================================
 
@@ -5385,6 +5527,21 @@ def init_session_state():
         # ===== VERTRAGSVERSIONEN & VERGLEICH =====
         st.session_state.vertrags_versionen = {}  # Version-ID -> VertragsVersion
         st.session_state.text_aenderungen = {}  # Aenderung-ID -> TextAenderung
+
+        # ===== PAPIERKORB-SYSTEM =====
+        st.session_state.papierkorb = {}  # Papierkorb-ID -> PapierkorbElement
+        st.session_state.papierkorb_einstellungen = {}  # User-ID -> PapierkorbEinstellungen
+        st.session_state.papierkorb_system_einstellungen = PapierkorbEinstellungen(
+            einstellung_id="system",
+            user_id="",
+            standard_aufbewahrungsstunden=48,
+            auto_loeschen_aktiv=True
+        )
+
+        # ===== TEXT-TO-SPEECH (VORLESEN) =====
+        st.session_state.tts_einstellungen = {}  # User-ID -> TTSEinstellungen
+        st.session_state.vorlese_sessions = {}  # Session-ID -> VorleseSession
+        st.session_state.tts_aktiv = False  # Globaler Status ob TTS gerade läuft
 
         # System-Antwortvorlagen initialisieren
         _initialisiere_system_antwortvorlagen()
@@ -11640,7 +11797,9 @@ def makler_dashboard():
         "📨 Nachrichten",
         "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "⏰ Fristen",  # NEU: Fristenmanagement
-        "📈 Reporting"  # NEU: KPIs und Berichte
+        "📈 Reporting",  # NEU: KPIs und Berichte
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
     ])
 
     with tabs[0]:
@@ -11726,6 +11885,25 @@ def makler_dashboard():
     with tabs[15]:
         # Reporting Dashboard
         render_reporting_dashboard(user_id)
+
+    with tabs[16]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[17]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Text-to-Speech Einstellungen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Dokument vorlesen testen")
+
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Makler können Sie Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann angepasst werden.
+        """
+        render_tts_controls(demo_text, "makler_demo_tts", user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -12859,7 +13037,9 @@ def kaeufer_dashboard():
         "💬 Nachrichten",
         "📄 Dokumente",
         "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
-        "📅 Termine"
+        "📅 Termine",
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
     ])
 
     with tabs[0]:
@@ -12931,6 +13111,27 @@ def kaeufer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[11]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[12]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Kaufvertrag vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
+        So können Sie den Inhalt besser verstehen und prüfen.
+        """
+        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -16413,7 +16614,7 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine"])
+    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine", "🗑️ Papierkorb", "🔊 Vorlesen"])
 
     with tabs[0]:
         # Mandanten-Portal Übersicht
@@ -16485,6 +16686,27 @@ def verkaeufer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[12]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[13]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Vertragsdokumente vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
 
 
 def verkaeufer_preisfindung_view():
@@ -17796,7 +18018,9 @@ def finanzierer_dashboard():
         "📋 Wirtschaftsdaten Käufer",
         "💰 Finanzierungsangebote erstellen",
         "📜 Meine Angebote",
-        "📅 Termine"
+        "📅 Termine",
+        "🗑️ Papierkorb",
+        "🔊 Vorlesen"
     ])
 
     with tabs[0]:
@@ -17830,6 +18054,26 @@ def finanzierer_dashboard():
                         render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
             else:
                 st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[5]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[6]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Finanzierungsdokumente vorlesen")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -18287,6 +18531,8 @@ def notar_dashboard():
         "⏰ Fristen",  # NEU: Fristenmanagement
         "📈 Reporting",  # NEU: KPIs und Berichte
         "📋 Vorlagen",  # NEU: Vorlagen-Management
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
         "⚙️ Einstellungen"
     ])
 
@@ -18382,6 +18628,27 @@ def notar_dashboard():
         render_vorlagen_management(user_id)
 
     with tabs[24]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=True)
+
+    with tabs[25]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Text-to-Speech Einstellungen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Dokument vorlesen testen")
+
+        # Demo-Text zum Testen
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Der Kaufvertrag wird zwischen den Parteien geschlossen.
+        Der Kaufpreis beträgt einhunderttausend Euro.
+        Die Übergabe erfolgt zum vereinbarten Termin.
+        """
+        render_tts_controls(demo_text, "notar_demo_tts", user_id)
+
+    with tabs[26]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -29345,6 +29612,909 @@ def render_vertragsvergleich_tab(projekt_id: str, user_id: str, user_rolle: str)
     """)
 
     render_vertragsvergleich(projekt_id, user_id, user_rolle)
+
+
+# ============================================================================
+# PAPIERKORB-SYSTEM FUNKTIONEN
+# ============================================================================
+
+def verschiebe_in_papierkorb(
+    objekt_id: str,
+    objekt_typ: str,
+    objekt_daten: Dict,
+    original_name: str,
+    user_id: str,
+    loeschgrund: str = "",
+    urspruenglicher_pfad: str = ""
+) -> str:
+    """
+    Verschiebt ein Objekt in den Papierkorb statt es zu löschen.
+
+    Returns:
+        Papierkorb-ID des erstellten Elements
+    """
+    # Benutzer-Einstellungen oder System-Einstellungen laden
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    aufbewahrungsstunden = einstellungen.standard_aufbewahrungsstunden
+
+    papierkorb_id = str(uuid.uuid4())
+    jetzt = datetime.now()
+
+    # Dateigröße berechnen (falls vorhanden)
+    dateigroesse = 0
+    if isinstance(objekt_daten, dict):
+        if 'datei_data' in objekt_daten and objekt_daten['datei_data']:
+            dateigroesse = len(objekt_daten['datei_data'])
+        elif 'data' in objekt_daten and objekt_daten['data']:
+            dateigroesse = len(objekt_daten['data'])
+
+    element = PapierkorbElement(
+        papierkorb_id=papierkorb_id,
+        objekt_id=objekt_id,
+        objekt_typ=objekt_typ,
+        objekt_daten=objekt_daten,
+        original_name=original_name,
+        geloescht_von=user_id,
+        geloescht_am=jetzt,
+        loeschgrund=loeschgrund,
+        endgueltig_loeschen_am=jetzt + timedelta(hours=aufbewahrungsstunden),
+        aufbewahrungsstunden=aufbewahrungsstunden,
+        urspruenglicher_pfad=urspruenglicher_pfad,
+        dateigroesse=dateigroesse,
+        preview_verfuegbar=objekt_typ in [
+            PapierkorbObjektTyp.DOKUMENT.value,
+            PapierkorbObjektTyp.TEXTBAUSTEIN.value
+        ]
+    )
+
+    st.session_state.papierkorb[papierkorb_id] = element
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_verschoben',
+            'objekt_typ': objekt_typ,
+            'objekt_id': objekt_id,
+            'user_id': user_id,
+            'zeitpunkt': jetzt.isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    return papierkorb_id
+
+
+def reaktiviere_aus_papierkorb(papierkorb_id: str, user_id: str) -> Tuple[bool, str, Dict]:
+    """
+    Reaktiviert ein Element aus dem Papierkorb.
+
+    Returns:
+        Tuple: (Erfolg, Fehlermeldung, Objekt-Daten)
+    """
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False, "Element nicht im Papierkorb gefunden", {}
+
+    if element.reaktiviert:
+        return False, "Element wurde bereits reaktiviert", {}
+
+    # Element als reaktiviert markieren
+    element.reaktiviert = True
+    element.reaktiviert_von = user_id
+    element.reaktiviert_am = datetime.now()
+
+    # Aus Papierkorb entfernen
+    objekt_daten = element.objekt_daten
+    del st.session_state.papierkorb[papierkorb_id]
+
+    # Audit-Log
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_reaktiviert',
+            'objekt_typ': element.objekt_typ,
+            'objekt_id': element.objekt_id,
+            'user_id': user_id,
+            'zeitpunkt': datetime.now().isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    return True, "", objekt_daten
+
+
+def endgueltig_loeschen(papierkorb_id: str, user_id: str) -> Tuple[bool, str]:
+    """
+    Löscht ein Element endgültig aus dem Papierkorb.
+
+    Returns:
+        Tuple: (Erfolg, Fehlermeldung)
+    """
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False, "Element nicht im Papierkorb gefunden"
+
+    # Prüfen ob Berechtigung zum sofortigen Löschen
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    if not einstellungen.sofort_loeschen_erlaubt:
+        return False, "Keine Berechtigung zum sofortigen Löschen"
+
+    # Audit-Log vor dem Löschen
+    if hasattr(st.session_state, 'audit_log'):
+        st.session_state.audit_log.append({
+            'aktion': 'papierkorb_endgueltig_geloescht',
+            'objekt_typ': element.objekt_typ,
+            'objekt_id': element.objekt_id,
+            'original_name': element.original_name,
+            'user_id': user_id,
+            'zeitpunkt': datetime.now().isoformat(),
+            'papierkorb_id': papierkorb_id
+        })
+
+    # Endgültig löschen
+    del st.session_state.papierkorb[papierkorb_id]
+
+    return True, ""
+
+
+def papierkorb_aufbewahrung_aendern(papierkorb_id: str, neue_stunden: int, user_id: str) -> bool:
+    """Ändert die Aufbewahrungszeit für ein Element im Papierkorb."""
+    element = st.session_state.papierkorb.get(papierkorb_id)
+
+    if not element:
+        return False
+
+    # Neues Enddatum berechnen
+    element.aufbewahrungsstunden = neue_stunden
+    element.endgueltig_loeschen_am = element.geloescht_am + timedelta(hours=neue_stunden)
+
+    return True
+
+
+def bereinige_papierkorb():
+    """Löscht abgelaufene Elemente aus dem Papierkorb (automatisch)."""
+    jetzt = datetime.now()
+    zu_loeschen = []
+
+    for papierkorb_id, element in st.session_state.papierkorb.items():
+        if element.endgueltig_loeschen_am and element.endgueltig_loeschen_am <= jetzt:
+            zu_loeschen.append(papierkorb_id)
+
+    for papierkorb_id in zu_loeschen:
+        element = st.session_state.papierkorb[papierkorb_id]
+        # Audit-Log
+        if hasattr(st.session_state, 'audit_log'):
+            st.session_state.audit_log.append({
+                'aktion': 'papierkorb_automatisch_geloescht',
+                'objekt_typ': element.objekt_typ,
+                'objekt_id': element.objekt_id,
+                'original_name': element.original_name,
+                'zeitpunkt': jetzt.isoformat(),
+                'papierkorb_id': papierkorb_id
+            })
+        del st.session_state.papierkorb[papierkorb_id]
+
+    return len(zu_loeschen)
+
+
+def get_papierkorb_statistik(user_id: str = None) -> Dict:
+    """Gibt Statistiken über den Papierkorb zurück."""
+    elemente = st.session_state.papierkorb.values()
+
+    if user_id:
+        elemente = [e for e in elemente if e.geloescht_von == user_id]
+
+    elemente = list(elemente)
+
+    return {
+        'anzahl': len(elemente),
+        'gesamtgroesse_bytes': sum(e.dateigroesse for e in elemente),
+        'nach_typ': {
+            typ.value: len([e for e in elemente if e.objekt_typ == typ.value])
+            for typ in PapierkorbObjektTyp
+        },
+        'bald_ablaufend': len([
+            e for e in elemente
+            if e.endgueltig_loeschen_am and
+            e.endgueltig_loeschen_am <= datetime.now() + timedelta(hours=24)
+        ])
+    }
+
+
+def render_papierkorb_ui(user_id: str, ist_admin: bool = False):
+    """Rendert die Papierkorb-Oberfläche."""
+    st.markdown("### 🗑️ Papierkorb")
+
+    # Automatisch abgelaufene Elemente bereinigen
+    geloescht = bereinige_papierkorb()
+    if geloescht > 0:
+        st.info(f"ℹ️ {geloescht} abgelaufene Element(e) wurden automatisch gelöscht.")
+
+    # Einstellungen laden
+    einstellungen = st.session_state.papierkorb_einstellungen.get(
+        user_id,
+        st.session_state.papierkorb_system_einstellungen
+    )
+
+    # Statistiken anzeigen
+    stats = get_papierkorb_statistik(user_id if not ist_admin else None)
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📦 Elemente", stats['anzahl'])
+    with col2:
+        groesse_mb = stats['gesamtgroesse_bytes'] / (1024 * 1024)
+        st.metric("💾 Größe", f"{groesse_mb:.2f} MB")
+    with col3:
+        st.metric("⚠️ Bald ablaufend", stats['bald_ablaufend'])
+    with col4:
+        st.metric("⏱️ Standard-Zeit", f"{einstellungen.standard_aufbewahrungsstunden}h")
+
+    st.markdown("---")
+
+    # Elemente filtern
+    col_filter1, col_filter2 = st.columns(2)
+    with col_filter1:
+        typ_filter = st.selectbox(
+            "Nach Typ filtern",
+            options=["Alle"] + [t.value for t in PapierkorbObjektTyp],
+            key="papierkorb_typ_filter"
+        )
+    with col_filter2:
+        sortierung = st.selectbox(
+            "Sortierung",
+            options=["Neueste zuerst", "Älteste zuerst", "Bald ablaufend", "Name A-Z"],
+            key="papierkorb_sortierung"
+        )
+
+    # Elemente abrufen
+    elemente = list(st.session_state.papierkorb.values())
+
+    if not ist_admin:
+        elemente = [e for e in elemente if e.geloescht_von == user_id]
+
+    if typ_filter != "Alle":
+        elemente = [e for e in elemente if e.objekt_typ == typ_filter]
+
+    # Sortieren
+    if sortierung == "Neueste zuerst":
+        elemente.sort(key=lambda e: e.geloescht_am, reverse=True)
+    elif sortierung == "Älteste zuerst":
+        elemente.sort(key=lambda e: e.geloescht_am)
+    elif sortierung == "Bald ablaufend":
+        elemente.sort(key=lambda e: e.endgueltig_loeschen_am or datetime.max)
+    else:
+        elemente.sort(key=lambda e: e.original_name.lower())
+
+    if not elemente:
+        st.info("🗑️ Der Papierkorb ist leer.")
+        return
+
+    # Elemente anzeigen
+    for element in elemente:
+        with st.expander(
+            f"{'📄' if element.objekt_typ == 'Dokument' else '📁'} {element.original_name}",
+            expanded=False
+        ):
+            col_info, col_actions = st.columns([2, 1])
+
+            with col_info:
+                st.markdown(f"**Typ:** {element.objekt_typ}")
+                st.markdown(f"**Gelöscht am:** {element.geloescht_am.strftime('%d.%m.%Y %H:%M')}")
+
+                if element.loeschgrund:
+                    st.markdown(f"**Grund:** {element.loeschgrund}")
+
+                # Verbleibende Zeit berechnen
+                if element.endgueltig_loeschen_am:
+                    verbleibend = element.endgueltig_loeschen_am - datetime.now()
+                    if verbleibend.total_seconds() > 0:
+                        stunden = int(verbleibend.total_seconds() / 3600)
+                        minuten = int((verbleibend.total_seconds() % 3600) / 60)
+                        st.markdown(f"**Endgültige Löschung in:** {stunden}h {minuten}min")
+                    else:
+                        st.warning("⚠️ Wird gleich gelöscht...")
+
+                if element.dateigroesse > 0:
+                    if element.dateigroesse > 1024 * 1024:
+                        groesse_str = f"{element.dateigroesse / (1024*1024):.2f} MB"
+                    elif element.dateigroesse > 1024:
+                        groesse_str = f"{element.dateigroesse / 1024:.2f} KB"
+                    else:
+                        groesse_str = f"{element.dateigroesse} Bytes"
+                    st.markdown(f"**Größe:** {groesse_str}")
+
+            with col_actions:
+                # Aufbewahrungszeit ändern
+                neue_stunden = st.slider(
+                    "Aufbewahrungszeit (Stunden)",
+                    min_value=1,
+                    max_value=720,
+                    value=element.aufbewahrungsstunden,
+                    step=1,
+                    key=f"aufbewahrung_{element.papierkorb_id}"
+                )
+
+                if neue_stunden != element.aufbewahrungsstunden:
+                    if st.button("⏱️ Zeit ändern", key=f"zeit_{element.papierkorb_id}"):
+                        if papierkorb_aufbewahrung_aendern(element.papierkorb_id, neue_stunden, user_id):
+                            st.success("✅ Aufbewahrungszeit geändert")
+                            st.rerun()
+
+                st.markdown("---")
+
+                # Reaktivieren
+                if st.button("♻️ Wiederherstellen", key=f"reaktiv_{element.papierkorb_id}", type="primary"):
+                    erfolg, fehler, daten = reaktiviere_aus_papierkorb(element.papierkorb_id, user_id)
+                    if erfolg:
+                        st.success(f"✅ '{element.original_name}' wurde wiederhergestellt")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Fehler: {fehler}")
+
+                # Endgültig löschen (nur für Admins/Notare)
+                if ist_admin or einstellungen.sofort_loeschen_erlaubt:
+                    if st.button("🗑️ Endgültig löschen", key=f"endgueltig_{element.papierkorb_id}"):
+                        erfolg, fehler = endgueltig_loeschen(element.papierkorb_id, user_id)
+                        if erfolg:
+                            st.success("✅ Endgültig gelöscht")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Fehler: {fehler}")
+
+    # Papierkorb leeren (Admin)
+    if ist_admin and len(elemente) > 0:
+        st.markdown("---")
+        st.warning("⚠️ Admin-Bereich")
+        if st.button("🗑️ Gesamten Papierkorb leeren", type="secondary"):
+            for element in elemente:
+                del st.session_state.papierkorb[element.papierkorb_id]
+            st.success("✅ Papierkorb wurde geleert")
+            st.rerun()
+
+
+def render_papierkorb_einstellungen(user_id: str, ist_system: bool = False):
+    """Rendert die Papierkorb-Einstellungen."""
+    st.markdown("### ⚙️ Papierkorb-Einstellungen")
+
+    if ist_system:
+        einstellungen = st.session_state.papierkorb_system_einstellungen
+        st.info("ℹ️ Diese Einstellungen gelten systemweit als Standard.")
+    else:
+        if user_id not in st.session_state.papierkorb_einstellungen:
+            # Kopie der System-Einstellungen erstellen
+            st.session_state.papierkorb_einstellungen[user_id] = PapierkorbEinstellungen(
+                einstellung_id=str(uuid.uuid4()),
+                user_id=user_id,
+                standard_aufbewahrungsstunden=st.session_state.papierkorb_system_einstellungen.standard_aufbewahrungsstunden
+            )
+        einstellungen = st.session_state.papierkorb_einstellungen[user_id]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### ⏱️ Aufbewahrungszeit")
+
+        neue_standard_stunden = st.slider(
+            "Standard-Aufbewahrungszeit (Stunden)",
+            min_value=1,
+            max_value=720,
+            value=einstellungen.standard_aufbewahrungsstunden,
+            step=1,
+            help="Wie lange sollen gelöschte Elemente standardmäßig im Papierkorb bleiben?",
+            key=f"standard_aufbewahrung_{user_id}"
+        )
+
+        # Schnellauswahl
+        st.markdown("**Schnellauswahl:**")
+        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+        with col_btn1:
+            if st.button("1h", key=f"1h_{user_id}"):
+                neue_standard_stunden = 1
+        with col_btn2:
+            if st.button("24h", key=f"24h_{user_id}"):
+                neue_standard_stunden = 24
+        with col_btn3:
+            if st.button("48h", key=f"48h_{user_id}"):
+                neue_standard_stunden = 48
+        with col_btn4:
+            if st.button("7 Tage", key=f"7d_{user_id}"):
+                neue_standard_stunden = 168
+
+        auto_loeschen = st.checkbox(
+            "Automatisches Löschen aktiviert",
+            value=einstellungen.auto_loeschen_aktiv,
+            key=f"auto_loeschen_{user_id}"
+        )
+
+    with col2:
+        st.markdown("#### 🔔 Benachrichtigungen")
+
+        benachrichtigung = st.checkbox(
+            "Vor endgültiger Löschung benachrichtigen",
+            value=einstellungen.benachrichtigung_vor_loeschen,
+            key=f"benachrichtigung_{user_id}"
+        )
+
+        benachrichtigung_stunden = st.number_input(
+            "Stunden vor Löschung benachrichtigen",
+            min_value=1,
+            max_value=48,
+            value=einstellungen.benachrichtigung_stunden_vorher,
+            key=f"benachrichtigung_stunden_{user_id}"
+        )
+
+        st.markdown("#### 🔐 Berechtigungen")
+
+        reaktivierung = st.checkbox(
+            "Wiederherstellung erlaubt",
+            value=einstellungen.reaktivierung_erlaubt,
+            key=f"reaktivierung_{user_id}"
+        )
+
+        sofort_loeschen = st.checkbox(
+            "Sofortiges endgültiges Löschen erlaubt",
+            value=einstellungen.sofort_loeschen_erlaubt,
+            key=f"sofort_loeschen_{user_id}"
+        )
+
+    if st.button("💾 Einstellungen speichern", key=f"save_papierkorb_{user_id}"):
+        einstellungen.standard_aufbewahrungsstunden = neue_standard_stunden
+        einstellungen.auto_loeschen_aktiv = auto_loeschen
+        einstellungen.benachrichtigung_vor_loeschen = benachrichtigung
+        einstellungen.benachrichtigung_stunden_vorher = benachrichtigung_stunden
+        einstellungen.reaktivierung_erlaubt = reaktivierung
+        einstellungen.sofort_loeschen_erlaubt = sofort_loeschen
+
+        st.success("✅ Einstellungen gespeichert")
+
+
+# ============================================================================
+# TEXT-TO-SPEECH (VORLESEN) FUNKTIONEN
+# ============================================================================
+
+def inject_tts_javascript():
+    """Injiziert das JavaScript für Text-to-Speech."""
+    tts_js = """
+    <script>
+    // Text-to-Speech Manager
+    class TTSManager {
+        constructor() {
+            this.synth = window.speechSynthesis;
+            this.utterance = null;
+            this.isPlaying = false;
+            this.isPaused = false;
+            this.currentRate = 1.0;
+            this.currentVoice = null;
+            this.voices = [];
+            this.loadVoices();
+        }
+
+        loadVoices() {
+            this.voices = this.synth.getVoices();
+            if (this.voices.length === 0) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    this.voices = this.synth.getVoices();
+                };
+            }
+        }
+
+        getGermanVoice() {
+            // Suche nach deutscher Stimme
+            const germanVoice = this.voices.find(v => v.lang.startsWith('de'));
+            return germanVoice || this.voices[0];
+        }
+
+        speak(text, rate = 1.0) {
+            this.stop();
+            this.utterance = new SpeechSynthesisUtterance(text);
+            this.utterance.rate = rate;
+            this.utterance.lang = 'de-DE';
+
+            const voice = this.getGermanVoice();
+            if (voice) {
+                this.utterance.voice = voice;
+            }
+
+            this.utterance.onend = () => {
+                this.isPlaying = false;
+                this.isPaused = false;
+                this.updateUI();
+            };
+
+            this.utterance.onpause = () => {
+                this.isPaused = true;
+                this.updateUI();
+            };
+
+            this.utterance.onresume = () => {
+                this.isPaused = false;
+                this.updateUI();
+            };
+
+            this.synth.speak(this.utterance);
+            this.isPlaying = true;
+            this.isPaused = false;
+            this.currentRate = rate;
+            this.updateUI();
+        }
+
+        pause() {
+            if (this.isPlaying && !this.isPaused) {
+                this.synth.pause();
+                this.isPaused = true;
+                this.updateUI();
+            }
+        }
+
+        resume() {
+            if (this.isPaused) {
+                this.synth.resume();
+                this.isPaused = false;
+                this.updateUI();
+            }
+        }
+
+        stop() {
+            this.synth.cancel();
+            this.isPlaying = false;
+            this.isPaused = false;
+            this.updateUI();
+        }
+
+        setRate(rate) {
+            this.currentRate = rate;
+            if (this.utterance) {
+                // Leider kann man die Rate während des Sprechens nicht ändern
+                // Man müsste neu starten
+            }
+        }
+
+        updateUI() {
+            // Status an Streamlit senden
+            const statusEl = document.getElementById('tts-status');
+            if (statusEl) {
+                if (this.isPlaying && !this.isPaused) {
+                    statusEl.textContent = '🔊 Wird vorgelesen...';
+                } else if (this.isPaused) {
+                    statusEl.textContent = '⏸️ Pausiert';
+                } else {
+                    statusEl.textContent = '⏹️ Gestoppt';
+                }
+            }
+        }
+    }
+
+    // Globale Instanz
+    if (!window.ttsManager) {
+        window.ttsManager = new TTSManager();
+    }
+
+    // Hilfsfunktionen für Streamlit
+    function ttsSpeak(text, rate) {
+        window.ttsManager.speak(text, rate);
+    }
+
+    function ttsPause() {
+        window.ttsManager.pause();
+    }
+
+    function ttsResume() {
+        window.ttsManager.resume();
+    }
+
+    function ttsStop() {
+        window.ttsManager.stop();
+    }
+
+    function ttsSetRate(rate) {
+        window.ttsManager.setRate(rate);
+    }
+    </script>
+    """
+    st.markdown(tts_js, unsafe_allow_html=True)
+
+
+def inject_tts_css():
+    """Injiziert CSS für TTS-Hervorhebungen."""
+    tts_css = """
+    <style>
+    .tts-highlight {
+        background-color: #fff3cd;
+        transition: background-color 0.3s ease;
+    }
+
+    .tts-controls {
+        position: sticky;
+        top: 0;
+        background: white;
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 100;
+        margin-bottom: 15px;
+    }
+
+    .tts-speed-slider {
+        width: 100%;
+    }
+
+    .tts-button {
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+    .tts-button-play {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .tts-button-pause {
+        background-color: #ff9800;
+        color: white;
+    }
+
+    .tts-button-stop {
+        background-color: #f44336;
+        color: white;
+    }
+
+    .tts-status {
+        font-size: 14px;
+        color: #666;
+        margin-top: 8px;
+    }
+    </style>
+    """
+    st.markdown(tts_css, unsafe_allow_html=True)
+
+
+def get_tts_einstellungen(user_id: str) -> TTSEinstellungen:
+    """Holt oder erstellt TTS-Einstellungen für einen Benutzer."""
+    if user_id not in st.session_state.tts_einstellungen:
+        st.session_state.tts_einstellungen[user_id] = TTSEinstellungen(
+            einstellung_id=str(uuid.uuid4()),
+            user_id=user_id
+        )
+    return st.session_state.tts_einstellungen[user_id]
+
+
+def render_tts_controls(text: str, dokument_id: str, user_id: str):
+    """Rendert die TTS-Steuerelemente für ein Dokument."""
+    inject_tts_javascript()
+    inject_tts_css()
+
+    einstellungen = get_tts_einstellungen(user_id)
+
+    st.markdown("#### 🔊 Dokument vorlesen")
+
+    col1, col2, col3 = st.columns([2, 2, 1])
+
+    with col1:
+        # Geschwindigkeitsregler (0.25 bis 2.0 in 0.25er Schritten)
+        geschwindigkeit = st.slider(
+            "Geschwindigkeit",
+            min_value=0.25,
+            max_value=2.0,
+            value=einstellungen.geschwindigkeit,
+            step=0.25,
+            format="%.2fx",
+            key=f"tts_speed_{dokument_id}",
+            help="Geschwindigkeit des Vorlesens (0.25x bis 2.0x)"
+        )
+
+        # Geschwindigkeit speichern
+        if geschwindigkeit != einstellungen.geschwindigkeit:
+            einstellungen.geschwindigkeit = geschwindigkeit
+
+    with col2:
+        # Voreinstellungen
+        st.markdown("**Schnellauswahl:**")
+        speed_cols = st.columns(4)
+        with speed_cols[0]:
+            if st.button("0.5x", key=f"speed_05_{dokument_id}"):
+                einstellungen.geschwindigkeit = 0.5
+                st.rerun()
+        with speed_cols[1]:
+            if st.button("1.0x", key=f"speed_10_{dokument_id}"):
+                einstellungen.geschwindigkeit = 1.0
+                st.rerun()
+        with speed_cols[2]:
+            if st.button("1.5x", key=f"speed_15_{dokument_id}"):
+                einstellungen.geschwindigkeit = 1.5
+                st.rerun()
+        with speed_cols[3]:
+            if st.button("2.0x", key=f"speed_20_{dokument_id}"):
+                einstellungen.geschwindigkeit = 2.0
+                st.rerun()
+
+    with col3:
+        st.markdown("**Status:**")
+        st.markdown(f'<div id="tts-status" class="tts-status">⏹️ Bereit</div>', unsafe_allow_html=True)
+
+    # Steuerung
+    st.markdown("---")
+
+    # Text für JavaScript vorbereiten (escapen)
+    escaped_text = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ").replace("\r", "")
+    escaped_text = escaped_text[:10000]  # Limit für Browser
+
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+    with col_btn1:
+        # Vorlesen starten
+        start_js = f"""
+        <script>
+        function startTTS_{dokument_id.replace('-', '_')}() {{
+            const text = '{escaped_text}';
+            const rate = {geschwindigkeit};
+            window.ttsManager.speak(text, rate);
+        }}
+        </script>
+        <button onclick="startTTS_{dokument_id.replace('-', '_')}()"
+                class="tts-button tts-button-play"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ▶️ Vorlesen
+        </button>
+        """
+        st.markdown(start_js, unsafe_allow_html=True)
+
+    with col_btn2:
+        # Pause/Fortsetzen
+        pause_js = """
+        <button onclick="window.ttsManager.isPaused ? window.ttsManager.resume() : window.ttsManager.pause()"
+                class="tts-button tts-button-pause"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #ff9800; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ⏸️ Pause
+        </button>
+        """
+        st.markdown(pause_js, unsafe_allow_html=True)
+
+    with col_btn3:
+        # Stoppen
+        stop_js = """
+        <button onclick="window.ttsManager.stop()"
+                class="tts-button tts-button-stop"
+                style="width: 100%; padding: 10px; font-size: 16px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            ⏹️ Stopp
+        </button>
+        """
+        st.markdown(stop_js, unsafe_allow_html=True)
+
+    # Info
+    with st.expander("ℹ️ Hinweise zum Vorlesen", expanded=False):
+        st.markdown("""
+        - Die Vorlesefunktion nutzt die Text-to-Speech-Funktion Ihres Browsers
+        - Die Qualität der Stimme hängt vom Browser und Betriebssystem ab
+        - Für beste Ergebnisse empfehlen wir Chrome oder Edge
+        - Die Geschwindigkeit kann in 0,25er-Schritten eingestellt werden
+        - Bei langen Dokumenten wird nur ein Teil vorgelesen (Browser-Limit)
+        """)
+
+
+def render_tts_einstellungen(user_id: str):
+    """Rendert die TTS-Einstellungen für einen Benutzer."""
+    st.markdown("### 🔊 Vorlese-Einstellungen")
+
+    einstellungen = get_tts_einstellungen(user_id)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Geschwindigkeit")
+
+        geschwindigkeit = st.slider(
+            "Standard-Geschwindigkeit",
+            min_value=0.25,
+            max_value=2.0,
+            value=einstellungen.geschwindigkeit,
+            step=0.25,
+            format="%.2fx",
+            key=f"tts_default_speed_{user_id}"
+        )
+
+        st.markdown("#### Lautstärke")
+        lautstaerke = st.slider(
+            "Lautstärke",
+            min_value=0.0,
+            max_value=1.0,
+            value=einstellungen.lautstaerke,
+            step=0.1,
+            format="%.0f%%",
+            key=f"tts_volume_{user_id}"
+        )
+
+    with col2:
+        st.markdown("#### Verhalten")
+
+        auto_scroll = st.checkbox(
+            "Beim Vorlesen automatisch scrollen",
+            value=einstellungen.auto_scroll,
+            key=f"tts_auto_scroll_{user_id}"
+        )
+
+        hervorheben = st.checkbox(
+            "Gelesenen Text hervorheben",
+            value=einstellungen.hervorheben_bei_vorlesen,
+            key=f"tts_highlight_{user_id}"
+        )
+
+        pause_absatz = st.slider(
+            "Pause zwischen Absätzen (Sekunden)",
+            min_value=0.0,
+            max_value=2.0,
+            value=einstellungen.pause_zwischen_absaetzen,
+            step=0.25,
+            key=f"tts_pause_{user_id}"
+        )
+
+    if st.button("💾 TTS-Einstellungen speichern", key=f"save_tts_{user_id}"):
+        einstellungen.geschwindigkeit = geschwindigkeit
+        einstellungen.lautstaerke = lautstaerke
+        einstellungen.auto_scroll = auto_scroll
+        einstellungen.hervorheben_bei_vorlesen = hervorheben
+        einstellungen.pause_zwischen_absaetzen = pause_absatz
+
+        st.success("✅ Einstellungen gespeichert")
+
+
+def render_dokument_mit_tts(
+    dokument_text: str,
+    dokument_id: str,
+    dokument_name: str,
+    user_id: str,
+    show_download: bool = True
+):
+    """Rendert ein Dokument mit integrierter TTS-Funktion."""
+    st.markdown(f"### 📄 {dokument_name}")
+
+    # TTS-Steuerung
+    with st.container():
+        render_tts_controls(dokument_text, dokument_id, user_id)
+
+    st.markdown("---")
+
+    # Dokument-Text anzeigen
+    st.markdown(
+        f'<div id="doc-content-{dokument_id}" style="padding: 15px; background: #f9f9f9; border-radius: 8px; max-height: 500px; overflow-y: auto;">{dokument_text}</div>',
+        unsafe_allow_html=True
+    )
+
+    # Download-Option
+    if show_download:
+        st.download_button(
+            label="📥 Text herunterladen",
+            data=dokument_text,
+            file_name=f"{dokument_name}.txt",
+            mime="text/plain",
+            key=f"download_{dokument_id}"
+        )
+
+
+def render_papierkorb_tab(user_id: str, ist_notar: bool = False):
+    """Tab-Wrapper für Papierkorb und Einstellungen."""
+    tab1, tab2 = st.tabs(["🗑️ Papierkorb", "⚙️ Einstellungen"])
+
+    with tab1:
+        render_papierkorb_ui(user_id, ist_admin=ist_notar)
+
+    with tab2:
+        render_papierkorb_einstellungen(user_id, ist_system=ist_notar)
+        if ist_notar:
+            st.markdown("---")
+            st.markdown("#### 🌐 System-Einstellungen")
+            render_papierkorb_einstellungen("", ist_system=True)
 
 
 def main():
