@@ -4116,6 +4116,53 @@ class GatingPruefung:
     dokument_ids: List[str] = field(default_factory=list)
     erstellt_am: datetime = field(default_factory=datetime.now)
 
+# ============================================================================
+# VERTRAGSVERSIONEN & VERGLEICH
+# ============================================================================
+
+class AenderungsTyp(Enum):
+    """Typen von Textänderungen"""
+    HINZUGEFUEGT = "Hinzugefügt"
+    GELOESCHT = "Gelöscht"
+    GEAENDERT = "Geändert"
+    UNVERAENDERT = "Unverändert"
+
+@dataclass
+class TextAenderung:
+    """Einzelne Textänderung mit Metadaten"""
+    aenderung_id: str
+    version_id: str
+    typ: str  # AenderungsTyp
+    position_start: int = 0
+    position_ende: int = 0
+    alter_text: str = ""
+    neuer_text: str = ""
+    geaendert_von: str = ""
+    geaendert_am: datetime = field(default_factory=datetime.now)
+    grund: str = ""  # Begründung für die Änderung
+    referenz_dokument_id: str = ""  # Verweis auf Anfrage-Dokument
+    referenz_dokument_typ: str = ""  # z.B. "Käuferanfrage", "Verkäuferanfrage"
+    referenz_sichtbar: bool = False  # Notar-Freigabe für Referenzanzeige
+
+@dataclass
+class VertragsVersion:
+    """Version eines Vertragstextes für Vergleich"""
+    version_id: str
+    vertrag_id: str  # Projekt-ID oder Vertrag-ID
+    version_nummer: int
+
+    titel: str = ""
+    text_inhalt: str = ""  # Der vollständige Vertragstext
+    status: str = DokumentVersion.ENTWURF.value
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aenderungen: List[str] = field(default_factory=list)  # Liste von TextAenderung-IDs
+    aenderungsbeschreibung: str = ""
+    freigegeben_von: str = ""
+    freigegeben_am: datetime = None
+    referenz_freigabe_durch_notar: bool = False  # Notar erlaubt Anzeige von Referenz-Dokumenten
+    basiert_auf_version: str = ""  # Vorgänger-Version-ID
+
 @dataclass
 class DokumentVersionierung:
     """Versionierte Dokumentenverwaltung"""
@@ -5334,6 +5381,10 @@ def init_session_state():
         st.session_state.dokument_versionen = {}  # Version-ID -> DokumentVersionierung
         st.session_state.kpi_snapshots = {}  # Snapshot-ID -> KPISnapshot
         st.session_state.bericht_konfigurationen = {}  # Bericht-ID -> BerichtKonfiguration
+
+        # ===== VERTRAGSVERSIONEN & VERGLEICH =====
+        st.session_state.vertrags_versionen = {}  # Version-ID -> VertragsVersion
+        st.session_state.text_aenderungen = {}  # Aenderung-ID -> TextAenderung
 
         # System-Antwortvorlagen initialisieren
         _initialisiere_system_antwortvorlagen()
@@ -11587,6 +11638,7 @@ def makler_dashboard():
         "📅 Termine",
         "👥 Mitarbeiter",
         "📨 Nachrichten",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "⏰ Fristen",  # NEU: Fristenmanagement
         "📈 Reporting"  # NEU: KPIs und Berichte
     ])
@@ -11650,10 +11702,28 @@ def makler_dashboard():
         render_kommunikationszentrale(user_id)
 
     with tabs[13]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        makler_projekte = [p for p in st.session_state.projekte.values()
+                          if p.makler_id == user_id]
+        if makler_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="makler_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[14]:
         # Fristenmanagement
         render_fristenmanagement(user_id)
 
-    with tabs[14]:
+    with tabs[15]:
         # Reporting Dashboard
         render_reporting_dashboard(user_id)
 
@@ -12788,6 +12858,7 @@ def kaeufer_dashboard():
         "🪪 Ausweis",
         "💬 Nachrichten",
         "📄 Dokumente",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "📅 Termine"
     ])
 
@@ -12822,6 +12893,24 @@ def kaeufer_dashboard():
         kaeufer_dokumente_view()
 
     with tabs[9]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        kaeufer_projekte = [p for p in st.session_state.projekte.values()
+                           if user_id in p.kaeufer_ids]
+        if kaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="kaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with tabs[10]:
         # Termin-Übersicht für Käufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -16324,7 +16413,7 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "📅 Termine"])
+    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine"])
 
     with tabs[0]:
         # Mandanten-Portal Übersicht
@@ -16360,6 +16449,24 @@ def verkaeufer_dashboard():
         verkaeufer_eigene_kosten_view()
 
     with tabs[10]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        verkaeufer_projekte = [p for p in st.session_state.projekte.values()
+                              if user_id in p.verkaeufer_ids]
+        if verkaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="verkaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with tabs[11]:
         # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
         user_id = st.session_state.current_user.user_id
@@ -18169,6 +18276,7 @@ def notar_dashboard():
         "💵 Finanzierungsnachweise",
         "📄 Dokumenten-Freigaben",
         "📜 Kaufvertrag",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "📅 Termine",
         "🤝 Maklerempfehlung",
         "🔧 Handwerker",
@@ -18222,40 +18330,58 @@ def notar_dashboard():
         notar_kaufvertrag_generator()
 
     with tabs[13]:
-        notar_termine()
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        notar_projekte = [p for p in st.session_state.projekte.values()
+                         if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="notar_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.NOTAR.value)
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
 
     with tabs[14]:
-        notar_makler_empfehlung_view()
+        notar_termine()
 
     with tabs[15]:
-        notar_handwerker_view()
+        notar_makler_empfehlung_view()
 
     with tabs[16]:
-        notar_ausweis_erfassung()
+        notar_handwerker_view()
 
     with tabs[17]:
-        notar_rechtsdokumente_view()
+        notar_ausweis_erfassung()
 
     with tabs[18]:
-        notar_aktenimport_view()
+        notar_rechtsdokumente_view()
 
     with tabs[19]:
+        notar_aktenimport_view()
+
+    with tabs[20]:
         # Kommunikationszentrale
         render_kommunikationszentrale(user_id)
 
-    with tabs[20]:
+    with tabs[21]:
         # Fristenmanagement
         render_fristenmanagement(user_id)
 
-    with tabs[21]:
+    with tabs[22]:
         # Reporting Dashboard
         render_reporting_dashboard(user_id)
 
-    with tabs[22]:
+    with tabs[23]:
         # Vorlagen-Management
         render_vorlagen_management(user_id)
 
-    with tabs[23]:
+    with tabs[24]:
         notar_einstellungen_view()
 
 def notar_timeline_view():
@@ -28468,6 +28594,757 @@ def render_platzhalter_hilfe():
         st.markdown(f"**{kategorie}:**")
         for ph, beschreibung in platzhalter:
             st.markdown(f"- `{ph}` - {beschreibung}")
+
+
+# ============================================================================
+# VERTRAGSVERSIONEN-VERGLEICH (SIDE-BY-SIDE DIFF)
+# ============================================================================
+
+def inject_diff_css():
+    """CSS für die Diff-Hervorhebungen"""
+    st.markdown("""
+    <style>
+    /* Diff Container */
+    .diff-container {
+        display: flex;
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .diff-pane {
+        flex: 1;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .diff-pane-header {
+        font-weight: bold;
+        padding: 10px 15px;
+        background: #e9ecef;
+        border-radius: 8px 8px 0 0;
+        margin: -15px -15px 15px -15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    /* Änderungstypen */
+    .diff-added {
+        background-color: #ffe0e6 !important;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+    .diff-deleted {
+        background-color: #ffd0d6 !important;
+        text-decoration: line-through;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+    .diff-changed {
+        background-color: #ffccd5 !important;
+        padding: 2px 4px;
+        border-radius: 3px;
+        position: relative;
+        cursor: pointer;
+    }
+
+    /* Tooltip */
+    .diff-tooltip {
+        visibility: hidden;
+        position: absolute;
+        z-index: 1000;
+        background: #333;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-size: 12px;
+        white-space: nowrap;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 5px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        font-family: sans-serif;
+        text-decoration: none;
+    }
+    .diff-tooltip::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }
+    .diff-added:hover .diff-tooltip,
+    .diff-deleted:hover .diff-tooltip,
+    .diff-changed:hover .diff-tooltip {
+        visibility: visible;
+    }
+
+    /* Legende */
+    .diff-legend {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 15px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+    .diff-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+    }
+    .legend-added {
+        width: 20px;
+        height: 16px;
+        background: #ffe0e6;
+        border-radius: 3px;
+    }
+    .legend-deleted {
+        width: 20px;
+        height: 16px;
+        background: #ffd0d6;
+        border-radius: 3px;
+        position: relative;
+    }
+    .legend-deleted::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: #666;
+    }
+    .legend-changed {
+        width: 20px;
+        height: 16px;
+        background: #ffccd5;
+        border-radius: 3px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def berechne_text_diff(alter_text: str, neuer_text: str) -> List[dict]:
+    """
+    Berechnet die Unterschiede zwischen zwei Texten.
+    Verwendet einen einfachen zeilenbasierten Diff-Algorithmus.
+
+    Returns: Liste von Diff-Einträgen mit typ, alter_text, neuer_text
+    """
+    import difflib
+
+    alter_zeilen = alter_text.splitlines(keepends=True)
+    neuer_zeilen = neuer_text.splitlines(keepends=True)
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+    diff_ergebnis = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            for zeile in alter_zeilen[i1:i2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.UNVERAENDERT.value,
+                    'alter_text': zeile,
+                    'neuer_text': zeile
+                })
+        elif tag == 'delete':
+            for zeile in alter_zeilen[i1:i2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.GELOESCHT.value,
+                    'alter_text': zeile,
+                    'neuer_text': ''
+                })
+        elif tag == 'insert':
+            for zeile in neuer_zeilen[j1:j2]:
+                diff_ergebnis.append({
+                    'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                    'alter_text': '',
+                    'neuer_text': zeile
+                })
+        elif tag == 'replace':
+            # Zeilen wurden geändert
+            alte = alter_zeilen[i1:i2]
+            neue = neuer_zeilen[j1:j2]
+            max_len = max(len(alte), len(neue))
+            for idx in range(max_len):
+                alt = alte[idx] if idx < len(alte) else ''
+                neu = neue[idx] if idx < len(neue) else ''
+                if alt and not neu:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.GELOESCHT.value,
+                        'alter_text': alt,
+                        'neuer_text': ''
+                    })
+                elif neu and not alt:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                        'alter_text': '',
+                        'neuer_text': neu
+                    })
+                else:
+                    diff_ergebnis.append({
+                        'typ': AenderungsTyp.GEAENDERT.value,
+                        'alter_text': alt,
+                        'neuer_text': neu
+                    })
+
+    return diff_ergebnis
+
+
+def berechne_wort_diff(alter_text: str, neuer_text: str) -> List[dict]:
+    """
+    Berechnet die Unterschiede auf Wort-Ebene für genauere Hervorhebung.
+    """
+    import difflib
+
+    alte_woerter = alter_text.split()
+    neue_woerter = neuer_text.split()
+
+    differ = difflib.SequenceMatcher(None, alte_woerter, neue_woerter)
+    diff_ergebnis = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.UNVERAENDERT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+        elif tag == 'delete':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.GELOESCHT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+        elif tag == 'insert':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                'text': ' '.join(neue_woerter[j1:j2])
+            })
+        elif tag == 'replace':
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.GELOESCHT.value,
+                'text': ' '.join(alte_woerter[i1:i2])
+            })
+            diff_ergebnis.append({
+                'typ': AenderungsTyp.HINZUGEFUEGT.value,
+                'text': ' '.join(neue_woerter[j1:j2])
+            })
+
+    return diff_ergebnis
+
+
+def erstelle_vertrags_version(
+    vertrag_id: str,
+    titel: str,
+    text_inhalt: str,
+    erstellt_von: str,
+    aenderungsbeschreibung: str = "",
+    basiert_auf_version: str = ""
+) -> VertragsVersion:
+    """Erstellt eine neue Vertragsversion"""
+    if 'vertrags_versionen' not in st.session_state:
+        st.session_state.vertrags_versionen = {}
+
+    # Höchste Version finden
+    bestehende = [v for v in st.session_state.vertrags_versionen.values()
+                  if v.vertrag_id == vertrag_id]
+    naechste_version = max([v.version_nummer for v in bestehende], default=0) + 1
+
+    version_id = f"vversion_{vertrag_id}_{naechste_version}"
+
+    version = VertragsVersion(
+        version_id=version_id,
+        vertrag_id=vertrag_id,
+        version_nummer=naechste_version,
+        titel=titel,
+        text_inhalt=text_inhalt,
+        erstellt_von=erstellt_von,
+        aenderungsbeschreibung=aenderungsbeschreibung,
+        basiert_auf_version=basiert_auf_version
+    )
+
+    st.session_state.vertrags_versionen[version_id] = version
+    return version
+
+
+def erstelle_text_aenderung(
+    version_id: str,
+    typ: str,
+    alter_text: str,
+    neuer_text: str,
+    geaendert_von: str,
+    grund: str = "",
+    referenz_dokument_id: str = "",
+    referenz_dokument_typ: str = ""
+) -> TextAenderung:
+    """Erstellt eine Textänderung mit Metadaten"""
+    if 'text_aenderungen' not in st.session_state:
+        st.session_state.text_aenderungen = {}
+
+    aenderung_id = f"aend_{uuid.uuid4().hex[:8]}"
+
+    aenderung = TextAenderung(
+        aenderung_id=aenderung_id,
+        version_id=version_id,
+        typ=typ,
+        alter_text=alter_text,
+        neuer_text=neuer_text,
+        geaendert_von=geaendert_von,
+        grund=grund,
+        referenz_dokument_id=referenz_dokument_id,
+        referenz_dokument_typ=referenz_dokument_typ
+    )
+
+    st.session_state.text_aenderungen[aenderung_id] = aenderung
+    return aenderung
+
+
+def get_aenderung_tooltip_html(
+    aenderung_typ: str,
+    geaendert_von: str,
+    geaendert_am: datetime,
+    grund: str = "",
+    referenz_dokument_typ: str = "",
+    referenz_sichtbar: bool = False
+) -> str:
+    """Generiert den HTML-Inhalt für das Tooltip"""
+    user = st.session_state.users.get(geaendert_von)
+    user_name = user.name if user else "Unbekannt"
+
+    tooltip_parts = [f"<strong>Geändert von:</strong> {user_name}"]
+
+    if geaendert_am:
+        tooltip_parts.append(f"<strong>Am:</strong> {geaendert_am.strftime('%d.%m.%Y %H:%M')}")
+
+    if grund:
+        tooltip_parts.append(f"<strong>Grund:</strong> {grund}")
+
+    if referenz_sichtbar and referenz_dokument_typ:
+        tooltip_parts.append(f"<strong>Auf Basis von:</strong> {referenz_dokument_typ}")
+
+    return "<br>".join(tooltip_parts)
+
+
+def render_diff_html(
+    alter_text: str,
+    neuer_text: str,
+    aenderungen_meta: dict = None,
+    zeige_referenzen: bool = False
+) -> tuple:
+    """
+    Rendert HTML für Side-by-Side Diff mit Hervorhebungen.
+
+    Returns: (linke_seite_html, rechte_seite_html)
+    """
+    import html
+    import difflib
+
+    # Zeilenweiser Diff
+    alter_zeilen = alter_text.splitlines()
+    neuer_zeilen = neuer_text.splitlines()
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+
+    linke_html = []
+    rechte_html = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            for zeile in alter_zeilen[i1:i2]:
+                escaped = html.escape(zeile)
+                linke_html.append(escaped)
+                rechte_html.append(escaped)
+        elif tag == 'delete':
+            for zeile in alter_zeilen[i1:i2]:
+                escaped = html.escape(zeile)
+                tooltip = "Gelöschter Text"
+                linke_html.append(f'<span class="diff-deleted">{escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+                rechte_html.append('<span style="color: #999;">—</span>')
+        elif tag == 'insert':
+            for zeile in neuer_zeilen[j1:j2]:
+                escaped = html.escape(zeile)
+                tooltip = "Hinzugefügter Text"
+                linke_html.append('<span style="color: #999;">—</span>')
+                rechte_html.append(f'<span class="diff-added">{escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+        elif tag == 'replace':
+            alte = alter_zeilen[i1:i2]
+            neue = neuer_zeilen[j1:j2]
+            max_len = max(len(alte), len(neue))
+
+            for idx in range(max_len):
+                if idx < len(alte) and idx < len(neue):
+                    # Beide Zeilen existieren - zeige Änderung
+                    alt_escaped = html.escape(alte[idx])
+                    neu_escaped = html.escape(neue[idx])
+
+                    # Wort-Level Diff für bessere Hervorhebung
+                    wort_diff = berechne_inline_diff(alte[idx], neue[idx])
+
+                    tooltip = "Geänderter Text"
+                    linke_html.append(f'<span class="diff-changed">{wort_diff["alt"]}<span class="diff-tooltip">{tooltip}</span></span>')
+                    rechte_html.append(f'<span class="diff-changed">{wort_diff["neu"]}<span class="diff-tooltip">{tooltip}</span></span>')
+                elif idx < len(alte):
+                    # Nur alte Zeile
+                    alt_escaped = html.escape(alte[idx])
+                    tooltip = "Gelöschter Text"
+                    linke_html.append(f'<span class="diff-deleted">{alt_escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+                    rechte_html.append('<span style="color: #999;">—</span>')
+                else:
+                    # Nur neue Zeile
+                    neu_escaped = html.escape(neue[idx])
+                    tooltip = "Hinzugefügter Text"
+                    linke_html.append('<span style="color: #999;">—</span>')
+                    rechte_html.append(f'<span class="diff-added">{neu_escaped}<span class="diff-tooltip">{tooltip}</span></span>')
+
+    return ('\n'.join(linke_html), '\n'.join(rechte_html))
+
+
+def berechne_inline_diff(alte_zeile: str, neue_zeile: str) -> dict:
+    """Berechnet Wort-Level Diff für eine einzelne Zeile"""
+    import html
+    import difflib
+
+    alte_woerter = alte_zeile.split()
+    neue_woerter = neue_zeile.split()
+
+    differ = difflib.SequenceMatcher(None, alte_woerter, neue_woerter)
+
+    alt_html = []
+    neu_html = []
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            text = ' '.join(alte_woerter[i1:i2])
+            alt_html.append(html.escape(text))
+            neu_html.append(html.escape(text))
+        elif tag == 'delete':
+            text = ' '.join(alte_woerter[i1:i2])
+            alt_html.append(f'<strong style="background:#ffb3c1;">{html.escape(text)}</strong>')
+        elif tag == 'insert':
+            text = ' '.join(neue_woerter[j1:j2])
+            neu_html.append(f'<strong style="background:#ffb3c1;">{html.escape(text)}</strong>')
+        elif tag == 'replace':
+            alt_text = ' '.join(alte_woerter[i1:i2])
+            neu_text = ' '.join(neue_woerter[j1:j2])
+            alt_html.append(f'<strong style="background:#ffb3c1;">{html.escape(alt_text)}</strong>')
+            neu_html.append(f'<strong style="background:#ffb3c1;">{html.escape(neu_text)}</strong>')
+
+    return {
+        'alt': ' '.join(alt_html),
+        'neu': ' '.join(neu_html)
+    }
+
+
+def render_vertragsvergleich(
+    vertrag_id: str,
+    user_id: str,
+    user_rolle: str
+):
+    """Hauptfunktion zum Rendern des Vertragsvergleichs"""
+    inject_diff_css()
+
+    st.subheader("📄 Vertragsversionen vergleichen")
+
+    # Versionen für diesen Vertrag laden
+    versionen = [v for v in st.session_state.get('vertrags_versionen', {}).values()
+                 if v.vertrag_id == vertrag_id]
+    versionen.sort(key=lambda v: v.version_nummer, reverse=True)
+
+    if len(versionen) < 1:
+        st.info("Noch keine Vertragsversionen vorhanden.")
+
+        # Demo-Daten erstellen Button für Testzwecke
+        if st.button("📝 Demo-Versionen erstellen"):
+            _erstelle_demo_vertragsversionen(vertrag_id, user_id)
+            st.rerun()
+        return
+
+    # Legende anzeigen
+    st.markdown("""
+    <div class="diff-legend">
+        <div class="diff-legend-item">
+            <div class="legend-added"></div>
+            <span>Hinzugefügt</span>
+        </div>
+        <div class="diff-legend-item">
+            <div class="legend-deleted"></div>
+            <span>Gelöscht</span>
+        </div>
+        <div class="diff-legend-item">
+            <div class="legend-changed"></div>
+            <span>Geändert</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Version-Auswahl
+    col1, col2 = st.columns(2)
+
+    version_optionen = {v.version_id: f"Version {v.version_nummer} - {v.titel} ({v.erstellt_am.strftime('%d.%m.%Y')})"
+                       for v in versionen}
+
+    with col1:
+        st.markdown("**📄 Ältere Version (links)**")
+        if len(versionen) >= 2:
+            default_links = versionen[1].version_id
+        else:
+            default_links = versionen[0].version_id
+
+        version_links_id = st.selectbox(
+            "Version wählen",
+            list(version_optionen.keys()),
+            format_func=lambda x: version_optionen[x],
+            index=list(version_optionen.keys()).index(default_links) if default_links in version_optionen else 0,
+            key=f"diff_links_{vertrag_id}"
+        )
+
+    with col2:
+        st.markdown("**📄 Neuere Version (rechts)**")
+        version_rechts_id = st.selectbox(
+            "Version wählen",
+            list(version_optionen.keys()),
+            format_func=lambda x: version_optionen[x],
+            index=0,
+            key=f"diff_rechts_{vertrag_id}"
+        )
+
+    if version_links_id == version_rechts_id:
+        st.warning("⚠️ Bitte wählen Sie zwei unterschiedliche Versionen zum Vergleichen.")
+        return
+
+    version_links = st.session_state.vertrags_versionen.get(version_links_id)
+    version_rechts = st.session_state.vertrags_versionen.get(version_rechts_id)
+
+    if not version_links or not version_rechts:
+        st.error("Versionen konnten nicht geladen werden.")
+        return
+
+    # Notar-Freigabe für Referenz-Anzeige
+    zeige_referenzen = version_rechts.referenz_freigabe_durch_notar
+    if user_rolle == UserRole.NOTAR.value:
+        zeige_referenzen = True  # Notar sieht immer alles
+
+    # Metadaten anzeigen
+    st.markdown("---")
+    col_meta1, col_meta2 = st.columns(2)
+
+    with col_meta1:
+        ersteller_links = st.session_state.users.get(version_links.erstellt_von)
+        st.markdown(f"""
+        **Version {version_links.version_nummer}** - {version_links.titel}
+        - Erstellt von: {ersteller_links.name if ersteller_links else 'Unbekannt'}
+        - Datum: {version_links.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+        - Status: {version_links.status}
+        """)
+
+    with col_meta2:
+        ersteller_rechts = st.session_state.users.get(version_rechts.erstellt_von)
+        st.markdown(f"""
+        **Version {version_rechts.version_nummer}** - {version_rechts.titel}
+        - Erstellt von: {ersteller_rechts.name if ersteller_rechts else 'Unbekannt'}
+        - Datum: {version_rechts.erstellt_am.strftime('%d.%m.%Y %H:%M')}
+        - Status: {version_rechts.status}
+        """)
+
+    if version_rechts.aenderungsbeschreibung:
+        st.info(f"📝 **Änderungsbeschreibung:** {version_rechts.aenderungsbeschreibung}")
+
+    st.markdown("---")
+
+    # Side-by-Side Diff rendern
+    linke_html, rechte_html = render_diff_html(
+        version_links.text_inhalt,
+        version_rechts.text_inhalt,
+        zeige_referenzen=zeige_referenzen
+    )
+
+    # Änderungsstatistik
+    diff_stats = berechne_diff_statistik(version_links.text_inhalt, version_rechts.text_inhalt)
+    col_stat1, col_stat2, col_stat3 = st.columns(3)
+    with col_stat1:
+        st.metric("➕ Hinzugefügt", f"{diff_stats['hinzugefuegt']} Zeilen")
+    with col_stat2:
+        st.metric("➖ Gelöscht", f"{diff_stats['geloescht']} Zeilen")
+    with col_stat3:
+        st.metric("✏️ Geändert", f"{diff_stats['geaendert']} Zeilen")
+
+    st.markdown("---")
+
+    # Side-by-Side Ansicht
+    st.markdown(f"""
+    <div class="diff-container">
+        <div class="diff-pane">
+            <div class="diff-pane-header">📄 Version {version_links.version_nummer}</div>
+            {linke_html}
+        </div>
+        <div class="diff-pane">
+            <div class="diff-pane-header">📄 Version {version_rechts.version_nummer}</div>
+            {rechte_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Notar-Optionen für Referenz-Freigabe
+    if user_rolle == UserRole.NOTAR.value:
+        st.markdown("---")
+        st.markdown("### ⚖️ Notar-Optionen")
+
+        freigabe_aktuell = version_rechts.referenz_freigabe_durch_notar
+        neue_freigabe = st.checkbox(
+            "🔓 Änderungsreferenzen für alle Parteien sichtbar machen",
+            value=freigabe_aktuell,
+            help="Wenn aktiviert, können alle Parteien sehen, auf welches Dokument sich eine Änderung bezieht."
+        )
+
+        if neue_freigabe != freigabe_aktuell:
+            if st.button("💾 Freigabe-Einstellung speichern"):
+                version_rechts.referenz_freigabe_durch_notar = neue_freigabe
+                st.session_state.vertrags_versionen[version_rechts_id] = version_rechts
+                st.success("✅ Einstellung gespeichert!")
+                st.rerun()
+
+
+def berechne_diff_statistik(alter_text: str, neuer_text: str) -> dict:
+    """Berechnet Statistiken über die Unterschiede"""
+    import difflib
+
+    alter_zeilen = alter_text.splitlines()
+    neuer_zeilen = neuer_text.splitlines()
+
+    differ = difflib.SequenceMatcher(None, alter_zeilen, neuer_zeilen)
+
+    stats = {
+        'hinzugefuegt': 0,
+        'geloescht': 0,
+        'geaendert': 0,
+        'unveraendert': 0
+    }
+
+    for tag, i1, i2, j1, j2 in differ.get_opcodes():
+        if tag == 'equal':
+            stats['unveraendert'] += (i2 - i1)
+        elif tag == 'delete':
+            stats['geloescht'] += (i2 - i1)
+        elif tag == 'insert':
+            stats['hinzugefuegt'] += (j2 - j1)
+        elif tag == 'replace':
+            stats['geaendert'] += max(i2 - i1, j2 - j1)
+
+    return stats
+
+
+def _erstelle_demo_vertragsversionen(vertrag_id: str, user_id: str):
+    """Erstellt Demo-Vertragsversionen für Testzwecke"""
+    # Version 1 - Original
+    v1_text = """KAUFVERTRAG
+
+Zwischen
+
+Max Mustermann, geboren am 01.01.1970, wohnhaft Musterstraße 1, 12345 Musterstadt
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+Erika Musterfrau, geboren am 15.05.1985, wohnhaft Beispielweg 10, 54321 Beispielstadt
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück Musterstraße 5, 12345 Musterstadt,
+eingetragen im Grundbuch von Musterstadt, Blatt 1234.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt 350.000,00 € (in Worten: dreihundertfünfzigtausend Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 14 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen
+auf das Notaranderkonto zu zahlen.
+
+§ 4 Übergabe
+Die Übergabe erfolgt am Tag der vollständigen Kaufpreiszahlung.
+"""
+
+    erstelle_vertrags_version(
+        vertrag_id=vertrag_id,
+        titel="Erster Entwurf",
+        text_inhalt=v1_text,
+        erstellt_von=user_id,
+        aenderungsbeschreibung="Initialer Vertragsentwurf"
+    )
+
+    # Version 2 - Mit Änderungen
+    v2_text = """KAUFVERTRAG
+
+Zwischen
+
+Max Mustermann, geboren am 01.01.1970, wohnhaft Musterstraße 1, 12345 Musterstadt
+- nachfolgend "Verkäufer" genannt -
+
+und
+
+Erika Musterfrau, geboren am 15.05.1985, wohnhaft Beispielweg 10, 54321 Beispielstadt
+- nachfolgend "Käufer" genannt -
+
+wird folgender Kaufvertrag geschlossen:
+
+§ 1 Kaufgegenstand
+Der Verkäufer verkauft an den Käufer das Grundstück Musterstraße 5, 12345 Musterstadt,
+eingetragen im Grundbuch von Musterstadt, Blatt 1234, Flurstück 567/8.
+
+§ 2 Kaufpreis
+Der Kaufpreis beträgt 345.000,00 € (in Worten: dreihundertfünfundvierzigtausend Euro).
+
+§ 3 Zahlung
+Der Kaufpreis ist innerhalb von 21 Tagen nach Vorliegen der Fälligkeitsvoraussetzungen
+auf das Notaranderkonto bei der Musterbank (IBAN: DE12 3456 7890 1234 5678 90) zu zahlen.
+
+§ 4 Übergabe
+Die Übergabe erfolgt am 01.03.2025.
+
+§ 5 Gewährleistung
+Der Verkauf erfolgt unter Ausschluss jeglicher Gewährleistung für Sachmängel.
+Diese Vereinbarung gilt nicht für arglistig verschwiegene Mängel.
+"""
+
+    erstelle_vertrags_version(
+        vertrag_id=vertrag_id,
+        titel="Zweiter Entwurf nach Käuferanfrage",
+        text_inhalt=v2_text,
+        erstellt_von=user_id,
+        aenderungsbeschreibung="Kaufpreis angepasst auf Käuferwunsch, Gewährleistungsklausel hinzugefügt, Zahlungsfrist verlängert"
+    )
+
+    st.success("✅ Demo-Versionen wurden erstellt!")
+
+
+def render_vertragsvergleich_tab(projekt_id: str, user_id: str, user_rolle: str):
+    """Tab-Wrapper für den Vertragsvergleich"""
+    st.markdown("### 📑 Vertragsversionen vergleichen")
+    st.markdown("""
+    Hier können Sie verschiedene Versionen des Kaufvertrags nebeneinander vergleichen.
+    Änderungen werden farblich hervorgehoben:
+    - **Rosa hinterlegt**: Hinzugefügter oder geänderter Text
+    - **Durchgestrichen**: Gelöschter Text
+
+    Fahren Sie mit dem Cursor über markierte Stellen, um Details zur Änderung zu sehen.
+    """)
+
+    render_vertragsvergleich(projekt_id, user_id, user_rolle)
 
 
 def main():
