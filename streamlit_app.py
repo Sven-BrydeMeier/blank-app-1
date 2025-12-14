@@ -3668,6 +3668,17 @@ class ExposeData:
     weg_verwaltung: str = ""
     ruecklage: float = 0.0
 
+    # Grundstücksdaten (für Behördenanfragen und Akte)
+    bundesland: str = ""
+    landkreis: str = ""
+    gemeinde: str = ""
+    gemarkung: str = ""
+    flur: str = ""
+    flurstueck: str = ""
+    grundbuchamt: str = ""
+    grundbuchbezirk: str = ""
+    grundbuchblatt: str = ""
+
     # Marktanalyse / Vergleichsobjekte
     vergleichsobjekte: List[Dict[str, Any]] = field(default_factory=list)
     # Format: [{"titel": "...", "url": "...", "preis": 0, "qm": 0, "quelle": "immoscout/immowelt/..."}]
@@ -7264,6 +7275,111 @@ def get_akte_fuer_projekt(projekt_id: str) -> Optional[Akte]:
         if akte.projekt_id == projekt_id:
             return akte
     return None
+
+
+def get_projekt_immobiliendaten(projekt_id: str) -> Dict[str, Any]:
+    """
+    Sammelt alle relevanten Immobilien- und Projektdaten für Akte und Behördenanfragen.
+
+    Args:
+        projekt_id: ID des Projekts
+
+    Returns:
+        Dictionary mit allen aggregierten Daten:
+        - kaeufer_nachname, verkaeufer_nachname (für Aktenzeichen)
+        - kaufpreis (als Geschäftswert)
+        - adresse, strasse, hausnummer, plz, ort
+        - bundesland, landkreis, gemeinde
+        - gemarkung, flur, flurstueck
+        - grundbuchamt, grundbuchbezirk, grundbuchblatt
+        - kaeufer_ids, verkaeufer_ids (für Steuer-ID Abfragen)
+    """
+    daten = {
+        'kaeufer_nachname': '',
+        'verkaeufer_nachname': '',
+        'kaufpreis': 0.0,
+        'adresse': '',
+        'strasse': '',
+        'hausnummer': '',
+        'plz': '',
+        'ort': '',
+        'bundesland': '',
+        'landkreis': '',
+        'gemeinde': '',
+        'gemarkung': '',
+        'flur': '',
+        'flurstueck': '',
+        'grundbuchamt': '',
+        'grundbuchbezirk': '',
+        'grundbuchblatt': '',
+        'kaeufer_ids': [],
+        'verkaeufer_ids': [],
+        'grundstuecksgroesse_qm': 0.0,
+    }
+
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return daten
+
+    # Basisdaten aus Projekt
+    daten['kaufpreis'] = projekt.kaufpreis
+    daten['adresse'] = projekt.adresse
+    daten['kaeufer_ids'] = projekt.kaeufer_ids
+    daten['verkaeufer_ids'] = projekt.verkaeufer_ids
+
+    # Käufer-Nachname (erster Käufer)
+    if projekt.kaeufer_ids:
+        kaeufer = st.session_state.users.get(projekt.kaeufer_ids[0])
+        if kaeufer:
+            # Nachname aus Name extrahieren (letztes Wort)
+            name_teile = kaeufer.name.strip().split()
+            daten['kaeufer_nachname'] = name_teile[-1] if name_teile else kaeufer.name
+
+    # Verkäufer-Nachname (erster Verkäufer)
+    if projekt.verkaeufer_ids:
+        verkaeufer = st.session_state.users.get(projekt.verkaeufer_ids[0])
+        if verkaeufer:
+            name_teile = verkaeufer.name.strip().split()
+            daten['verkaeufer_nachname'] = name_teile[-1] if name_teile else verkaeufer.name
+
+    # ExposeData holen für detaillierte Daten
+    expose_data = None
+    if projekt.expose_data_id:
+        expose_data = st.session_state.expose_daten.get(projekt.expose_data_id)
+
+    if expose_data:
+        # Adressdaten aus ExposeData
+        daten['strasse'] = expose_data.strasse
+        daten['hausnummer'] = expose_data.hausnummer
+        daten['plz'] = expose_data.plz
+        daten['ort'] = expose_data.ort
+        daten['grundstuecksgroesse_qm'] = expose_data.grundstuecksflaeche
+
+        # Grundstücksdaten aus ExposeData
+        daten['bundesland'] = expose_data.bundesland
+        daten['landkreis'] = expose_data.landkreis
+        daten['gemeinde'] = expose_data.gemeinde
+        daten['gemarkung'] = expose_data.gemarkung
+        daten['flur'] = expose_data.flur
+        daten['flurstueck'] = expose_data.flurstueck
+        daten['grundbuchamt'] = expose_data.grundbuchamt
+        daten['grundbuchbezirk'] = expose_data.grundbuchbezirk
+        daten['grundbuchblatt'] = expose_data.grundbuchblatt
+
+        # Falls Adresse nicht gesetzt, aus Komponenten zusammenbauen
+        if not daten['adresse'] and expose_data.strasse:
+            adresse_teile = []
+            if expose_data.strasse:
+                adresse_teile.append(f"{expose_data.strasse} {expose_data.hausnummer}".strip())
+            if expose_data.plz or expose_data.ort:
+                adresse_teile.append(f"{expose_data.plz} {expose_data.ort}".strip())
+            daten['adresse'] = ", ".join(adresse_teile)
+
+    # Bundesland aus Adresse ermitteln falls nicht in ExposeData
+    if not daten['bundesland'] and daten['adresse']:
+        daten['bundesland'] = _ermittle_bundesland_aus_adresse(daten['adresse']) or ''
+
+    return daten
 
 
 def create_akte_nachricht(
@@ -19811,25 +19927,66 @@ def notar_aktenmanagement_view():
 
         st.markdown("---")
 
+        # Projekt-Auswahl AUSSERHALB des Formulars für automatische Datenübernahme
+        st.markdown("#### Mit Projekt verknüpfen (optional)")
+        projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+        projekt_options = {"-- Kein Projekt --": None}
+        for p in projekte:
+            # Nur Projekte ohne Akte anzeigen
+            if not get_akte_fuer_projekt(p.projekt_id):
+                projekt_options[f"{p.name} ({p.adresse})"] = p.projekt_id
+
+        verknuepftes_projekt = st.selectbox(
+            "Projekt auswählen",
+            list(projekt_options.keys()),
+            key="neue_akte_projekt_auswahl",
+            help="Bei Auswahl eines Projekts werden die Daten automatisch übernommen"
+        )
+
+        # Daten aus Projekt laden für Vorausfüllung
+        projekt_daten = {}
+        selected_projekt_id = projekt_options.get(verknuepftes_projekt)
+        if selected_projekt_id:
+            projekt_daten = get_projekt_immobiliendaten(selected_projekt_id)
+            st.success("📋 Projektdaten werden automatisch übernommen")
+            with st.expander("Übernommene Daten anzeigen", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Verkäufer:** {projekt_daten.get('verkaeufer_nachname', '-')}")
+                    st.write(f"**Käufer:** {projekt_daten.get('kaeufer_nachname', '-')}")
+                with col2:
+                    st.write(f"**Kaufpreis:** {projekt_daten.get('kaufpreis', 0):,.2f} €")
+                    st.write(f"**Adresse:** {projekt_daten.get('adresse', '-')}")
+
+        st.markdown("---")
+
         with st.form("neue_akte_form"):
             st.markdown("#### Parteien")
             col1, col2 = st.columns(2)
             with col1:
                 verkaeufer_nachname = st.text_input(
                     "Nachname Partei 1 (Verkäufer/Erblasser/etc.)",
+                    value=projekt_daten.get('verkaeufer_nachname', ''),
                     placeholder="z.B. Krug"
                 )
             with col2:
                 kaeufer_nachname = st.text_input(
                     "Nachname Partei 2 (Käufer/Erbe/etc.)",
+                    value=projekt_daten.get('kaeufer_nachname', ''),
                     placeholder="z.B. Müller"
                 )
 
             st.markdown("---")
             st.markdown("#### Details")
 
+            # Betreff aus Adresse ableiten
+            default_betreff = ""
+            if projekt_daten.get('adresse'):
+                default_betreff = f"Grundstückskauf {projekt_daten['adresse']}"
+
             betreff = st.text_input(
                 "Betreff / Kurzbeschreibung",
+                value=default_betreff,
                 placeholder="z.B. Grundstückskauf Musterstraße 1"
             )
 
@@ -19838,6 +19995,7 @@ def notar_aktenmanagement_view():
                 geschaeftswert = st.number_input(
                     "Geschäftswert (€)",
                     min_value=0.0,
+                    value=float(projekt_daten.get('kaufpreis', 0.0)),
                     step=1000.0
                 )
             with col2:
@@ -19847,21 +20005,6 @@ def notar_aktenmanagement_view():
                     if ma.notar_id == notar_id and ma.aktiv:
                         mitarbeiter_options[f"{ma.name} ({st.session_state.mitarbeiter_kuerzel.get(ma.mitarbeiter_id, '?')})"] = ma.mitarbeiter_id
                 sachbearbeiter = st.selectbox("Sachbearbeiter zuweisen", list(mitarbeiter_options.keys()))
-
-            # Optional: Mit Projekt verknüpfen
-            st.markdown("---")
-            projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
-            projekt_options = {"-- Kein Projekt --": None}
-            for p in projekte:
-                # Nur Projekte ohne Akte anzeigen
-                if not get_akte_fuer_projekt(p.projekt_id):
-                    projekt_options[f"{p.name} ({p.adresse})"] = p.projekt_id
-
-            verknuepftes_projekt = st.selectbox(
-                "Mit Projekt verknüpfen (optional)",
-                list(projekt_options.keys()),
-                help="Verknüpft diese Akte mit einem Makler-Projekt"
-            )
 
             submitted = st.form_submit_button("📁 Akte anlegen", type="primary")
 
@@ -19877,10 +20020,17 @@ def notar_aktenmanagement_view():
                         verkaeufer_nachname=verkaeufer_nachname,
                         kaeufer_nachname=kaeufer_nachname,
                         sachbearbeiter_id=mitarbeiter_options[sachbearbeiter],
-                        projekt_id=projekt_options[verknuepftes_projekt],
+                        projekt_id=selected_projekt_id,
                         betreff=betreff,
                         geschaeftswert=geschaeftswert
                     )
+
+                    # Wenn mit Projekt verknüpft, auch Projekt-Referenz aktualisieren
+                    if selected_projekt_id:
+                        projekt = st.session_state.projekte.get(selected_projekt_id)
+                        if projekt:
+                            projekt.akte_id = neue_akte.akte_id
+                            projekt.aktenzeichen = neue_akte.aktenzeichen
 
                     st.success(f"✅ Akte angelegt: **{neue_akte.aktenzeichen}**")
                     st.balloons()
@@ -23707,13 +23857,20 @@ def _render_flurkarten_bereich(projekt, notar_id: str):
     st.markdown("### 🗺️ Flurkarten")
     st.caption("Elektronischer Abruf von Flurkarten über die Landesgeoportale.")
 
-    # Bundesland aus Adresse ermitteln
-    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+    # Projektdaten für Vorausfüllung laden
+    projekt_daten = get_projekt_immobiliendaten(projekt.projekt_id)
+
+    # Bundesland aus Adresse oder Projektdaten ermitteln
+    bundesland = projekt_daten.get('bundesland') or (_ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None)
 
     # Geoportal-Info anzeigen
     if bundesland and bundesland in GEOPORTALE:
         portal = GEOPORTALE[bundesland]
         st.info(f"📍 **{bundesland}**: [{portal['name']}]({portal['url']})")
+
+    # Hinweis auf automatische Datenübernahme
+    if projekt_daten.get('gemarkung') or projekt_daten.get('flurstueck'):
+        st.success("📋 Grundstücksdaten aus Projekt werden automatisch übernommen")
 
     # Bestehende Anfragen anzeigen
     anfragen = [a for a in st.session_state.flurkart_anfragen.values()
@@ -23752,19 +23909,44 @@ def _render_flurkarten_bereich(projekt, notar_id: str):
         col1, col2 = st.columns(2)
 
         with col1:
+            # Bundesland mit Vorauswahl aus Projektdaten
+            bundesland_options = list(GEOPORTALE.keys())
+            default_bundesland_idx = 0
+            if bundesland and bundesland in bundesland_options:
+                default_bundesland_idx = bundesland_options.index(bundesland)
             bundesland_input = st.selectbox(
                 "Bundesland",
-                options=list(GEOPORTALE.keys()),
-                index=list(GEOPORTALE.keys()).index(bundesland) if bundesland in GEOPORTALE.keys() else 0,
+                options=bundesland_options,
+                index=default_bundesland_idx,
                 key=f"flurkarte_bundesland_{projekt.projekt_id}"
             )
-            landkreis = st.text_input("Landkreis/Kreisfreie Stadt", key=f"flurkarte_landkreis_{projekt.projekt_id}")
-            gemeinde = st.text_input("Gemeinde", key=f"flurkarte_gemeinde_{projekt.projekt_id}")
+            landkreis = st.text_input(
+                "Landkreis/Kreisfreie Stadt",
+                value=projekt_daten.get('landkreis', ''),
+                key=f"flurkarte_landkreis_{projekt.projekt_id}"
+            )
+            gemeinde = st.text_input(
+                "Gemeinde",
+                value=projekt_daten.get('gemeinde', ''),
+                key=f"flurkarte_gemeinde_{projekt.projekt_id}"
+            )
 
         with col2:
-            gemarkung = st.text_input("Gemarkung", key=f"flurkarte_gemarkung_{projekt.projekt_id}")
-            flur = st.text_input("Flur", key=f"flurkarte_flur_{projekt.projekt_id}")
-            flurstueck = st.text_input("Flurstück", key=f"flurkarte_flurstueck_{projekt.projekt_id}")
+            gemarkung = st.text_input(
+                "Gemarkung",
+                value=projekt_daten.get('gemarkung', ''),
+                key=f"flurkarte_gemarkung_{projekt.projekt_id}"
+            )
+            flur = st.text_input(
+                "Flur",
+                value=projekt_daten.get('flur', ''),
+                key=f"flurkarte_flur_{projekt.projekt_id}"
+            )
+            flurstueck = st.text_input(
+                "Flurstück",
+                value=projekt_daten.get('flurstueck', ''),
+                key=f"flurkarte_flurstueck_{projekt.projekt_id}"
+            )
 
         if st.form_submit_button("🗺️ Flurkarte anfordern", type="primary"):
             if gemarkung and flur and flurstueck:
@@ -23796,8 +23978,11 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
     st.markdown("### 📚 Elektronisches Grundbuch")
     st.caption("Elektronischer Grundbuchabruf über EGVP oder SolumSTAR je nach Bundesland-Unterstützung.")
 
-    # Bundesland aus Adresse ermitteln
-    bundesland = _ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None
+    # Projektdaten für Vorausfüllung laden
+    projekt_daten = get_projekt_immobiliendaten(projekt.projekt_id)
+
+    # Bundesland aus Projektdaten oder Adresse ermitteln
+    bundesland = projekt_daten.get('bundesland') or (_ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None)
 
     # Support-Info anzeigen
     if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT:
@@ -23809,6 +23994,10 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
             st.metric("SolumSTAR", "✅ Ja" if support['solum_star'] else "❌ Nein")
         with col3:
             st.info(f"Portal: {support['portal']}")
+
+    # Hinweis auf automatische Datenübernahme
+    if projekt_daten.get('grundbuchamt') or projekt_daten.get('grundbuchblatt'):
+        st.success("📋 Grundbuchdaten aus Projekt werden automatisch übernommen")
 
     # Bestehende Anfragen
     anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
@@ -23846,17 +24035,34 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
         col1, col2 = st.columns(2)
 
         with col1:
+            # Bundesland mit Vorauswahl aus Projektdaten
+            bundesland_options = list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys())
+            default_bundesland_idx = 0
+            if bundesland and bundesland in bundesland_options:
+                default_bundesland_idx = bundesland_options.index(bundesland)
             bundesland_input = st.selectbox(
                 "Bundesland",
-                options=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()),
-                index=list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys()).index(bundesland) if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT else 0,
+                options=bundesland_options,
+                index=default_bundesland_idx,
                 key=f"grundbuch_bundesland_{projekt.projekt_id}"
             )
-            grundbuchamt = st.text_input("Grundbuchamt", key=f"grundbuch_amt_{projekt.projekt_id}")
-            grundbuchbezirk = st.text_input("Grundbuchbezirk", key=f"grundbuch_bezirk_{projekt.projekt_id}")
+            grundbuchamt = st.text_input(
+                "Grundbuchamt",
+                value=projekt_daten.get('grundbuchamt', ''),
+                key=f"grundbuch_amt_{projekt.projekt_id}"
+            )
+            grundbuchbezirk = st.text_input(
+                "Grundbuchbezirk",
+                value=projekt_daten.get('grundbuchbezirk', ''),
+                key=f"grundbuch_bezirk_{projekt.projekt_id}"
+            )
 
         with col2:
-            grundbuchblatt = st.text_input("Grundbuchblatt", key=f"grundbuch_blatt_{projekt.projekt_id}")
+            grundbuchblatt = st.text_input(
+                "Grundbuchblatt",
+                value=projekt_daten.get('grundbuchblatt', ''),
+                key=f"grundbuch_blatt_{projekt.projekt_id}"
+            )
             band = st.text_input("Band", key=f"grundbuch_band_{projekt.projekt_id}")
             abteilung = st.selectbox(
                 "Abteilung",
@@ -23906,6 +24112,13 @@ def _render_baulasten_bereich(projekt, notar_id: str):
 
     st.info("💡 **Hinweis:** In Bayern und Brandenburg gibt es kein Baulastenverzeichnis - dort werden Baulasten im Grundbuch eingetragen.")
 
+    # Projektdaten für Vorausfüllung laden
+    projekt_daten = get_projekt_immobiliendaten(projekt.projekt_id)
+
+    # Hinweis auf automatische Datenübernahme
+    if projekt_daten.get('gemarkung') or projekt_daten.get('flurstueck') or projekt_daten.get('adresse'):
+        st.success("📋 Grundstücksdaten aus Projekt werden automatisch übernommen")
+
     # Bestehende Anfragen
     anfragen = [a for a in st.session_state.baulasten_anfragen.values()
                 if a.projekt_id == projekt.projekt_id]
@@ -23952,10 +24165,26 @@ def _render_baulasten_bereich(projekt, notar_id: str):
 
         with col2:
             st.markdown("**Grundstücksdaten**")
-            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"baulasten_objekt_{projekt.projekt_id}")
-            gemarkung = st.text_input("Gemarkung", key=f"baulasten_gemarkung_{projekt.projekt_id}")
-            flur = st.text_input("Flur", key=f"baulasten_flur_{projekt.projekt_id}")
-            flurstueck = st.text_input("Flurstück", key=f"baulasten_flurstueck_{projekt.projekt_id}")
+            objekt_adresse = st.text_input(
+                "Objekt-Adresse",
+                value=projekt_daten.get('adresse', '') or projekt.adresse or "",
+                key=f"baulasten_objekt_{projekt.projekt_id}"
+            )
+            gemarkung = st.text_input(
+                "Gemarkung",
+                value=projekt_daten.get('gemarkung', ''),
+                key=f"baulasten_gemarkung_{projekt.projekt_id}"
+            )
+            flur = st.text_input(
+                "Flur",
+                value=projekt_daten.get('flur', ''),
+                key=f"baulasten_flur_{projekt.projekt_id}"
+            )
+            flurstueck = st.text_input(
+                "Flurstück",
+                value=projekt_daten.get('flurstueck', ''),
+                key=f"baulasten_flurstueck_{projekt.projekt_id}"
+            )
 
         if st.form_submit_button("🏗️ Baulasten-Anfrage senden", type="primary"):
             if bauamt_name and flurstueck:
@@ -24205,6 +24434,13 @@ def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
             "Sie muss innerhalb von 2 Monaten nach Anzeige entscheiden, ob sie das Vorkaufsrecht ausübt. "
             "Nach Verzicht erhält der Notar ein Negativzeugnis.")
 
+    # Projektdaten für Vorausfüllung laden
+    projekt_daten = get_projekt_immobiliendaten(projekt.projekt_id)
+
+    # Hinweis auf automatische Datenübernahme
+    if projekt_daten.get('gemarkung') or projekt_daten.get('flurstueck') or projekt_daten.get('kaufpreis'):
+        st.success("📋 Projekt- und Grundstücksdaten werden automatisch übernommen")
+
     # Bestehende Anfragen
     anfragen = [a for a in st.session_state.vorkaufsrecht_anfragen.values()
                 if a.projekt_id == projekt.projekt_id]
@@ -24264,7 +24500,11 @@ def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
 
         with col1:
             st.markdown("**Gemeinde/Stadt**")
-            gemeinde_name = st.text_input("Name der Gemeinde/Stadt", key=f"vkr_gemeinde_{projekt.projekt_id}")
+            gemeinde_name = st.text_input(
+                "Name der Gemeinde/Stadt",
+                value=projekt_daten.get('gemeinde', ''),
+                key=f"vkr_gemeinde_{projekt.projekt_id}"
+            )
             gemeinde_adresse = st.text_input("Adresse", key=f"vkr_adresse_{projekt.projekt_id}")
             gemeinde_telefon = st.text_input("Telefon", key=f"vkr_telefon_{projekt.projekt_id}")
             gemeinde_email = st.text_input("E-Mail", key=f"vkr_email_{projekt.projekt_id}")
@@ -24272,11 +24512,32 @@ def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
 
         with col2:
             st.markdown("**Objektdaten**")
-            objekt_adresse = st.text_input("Objekt-Adresse", value=projekt.adresse or "", key=f"vkr_objekt_{projekt.projekt_id}")
-            gemarkung = st.text_input("Gemarkung", key=f"vkr_gemarkung_{projekt.projekt_id}")
-            flur = st.text_input("Flur", key=f"vkr_flur_{projekt.projekt_id}")
-            flurstueck = st.text_input("Flurstück", key=f"vkr_flurstueck_{projekt.projekt_id}")
-            grundstuecksgroesse = st.number_input("Grundstücksgröße (qm)", min_value=0.0, key=f"vkr_groesse_{projekt.projekt_id}")
+            objekt_adresse = st.text_input(
+                "Objekt-Adresse",
+                value=projekt_daten.get('adresse', '') or projekt.adresse or "",
+                key=f"vkr_objekt_{projekt.projekt_id}"
+            )
+            gemarkung = st.text_input(
+                "Gemarkung",
+                value=projekt_daten.get('gemarkung', ''),
+                key=f"vkr_gemarkung_{projekt.projekt_id}"
+            )
+            flur = st.text_input(
+                "Flur",
+                value=projekt_daten.get('flur', ''),
+                key=f"vkr_flur_{projekt.projekt_id}"
+            )
+            flurstueck = st.text_input(
+                "Flurstück",
+                value=projekt_daten.get('flurstueck', ''),
+                key=f"vkr_flurstueck_{projekt.projekt_id}"
+            )
+            grundstuecksgroesse = st.number_input(
+                "Grundstücksgröße (qm)",
+                min_value=0.0,
+                value=float(projekt_daten.get('grundstuecksgroesse_qm', 0.0)),
+                key=f"vkr_groesse_{projekt.projekt_id}"
+            )
 
         st.markdown("**Kaufvertragsdaten**")
         col3, col4 = st.columns(2)
@@ -24284,7 +24545,7 @@ def _render_vorkaufsrecht_bereich(projekt, notar_id: str):
             kaufpreis = st.number_input(
                 "Kaufpreis (€)",
                 min_value=0.0,
-                value=float(projekt.kaufpreis or 0),
+                value=float(projekt_daten.get('kaufpreis', 0) or projekt.kaufpreis or 0),
                 key=f"vkr_kaufpreis_{projekt.projekt_id}"
             )
             urkundennummer = st.text_input("Urkundennummer", key=f"vkr_urnr_{projekt.projekt_id}")
