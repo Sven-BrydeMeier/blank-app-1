@@ -31948,7 +31948,7 @@ def main():
     if st.session_state.get("is_notar_mitarbeiter", False):
         notarmitarbeiter_dashboard()
     else:
-        role = st.session_state.current_user.role
+        role = st.session_state.current_user.rolle
 
         if role == UserRole.MAKLER.value:
             makler_dashboard()
