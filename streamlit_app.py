@@ -2417,47 +2417,6 @@ class DokumentTyp(Enum):
     VERSORGUNGSAUSGLEICH = "Versorgungsausgleich"
     ZUGEWINNAUSGLEICH = "Zugewinnausgleich"
 
-    # === MIETRECHT ===
-    MIETVERTRAG = "Mietvertrag"
-    KUENDIGUNGSSCHREIBEN = "Kündigungsschreiben"
-    UEBERGABEPROTOKOLL = "Übergabeprotokoll"
-    NEBENKOSTENABRECHNUNG = "Nebenkostenabrechnung"
-    MIETKAUTION_NACHWEIS = "Mietkautionsnachweis"
-    MIETMINDERUNGSSCHREIBEN = "Mietminderungsschreiben"
-    EIGENBEDARFSKUENDIGUNG = "Eigenbedarfskündigung"
-    MIETAUFHEBUNGSVERTRAG = "Mietaufhebungsvertrag"
-    WOHNUNGSGEBERBESTAETIGUNG = "Wohnungsgeberbestätigung"
-    MIETSPIEGEL = "Mietspiegel"
-    MAENGELANZEIGE = "Mängelanzeige"
-
-    # === STRAFRECHT ===
-    STRAFANZEIGE = "Strafanzeige"
-    ANKLAGESCHRIFT = "Anklageschrift"
-    STRAFBEFEHL = "Strafbefehl"
-    URTEIL_STRAF = "Urteil (Strafrecht)"
-    HAFTBEFEHL = "Haftbefehl"
-    FUEHRUNGSZEUGNIS = "Führungszeugnis"
-    BEWÄHRUNGSBESCHLUSS = "Bewährungsbeschluss"
-    EINSTELLUNGSVERFUEGUNG = "Einstellungsverfügung"
-    NEBENKLAGE = "Nebenklage-Schriftsatz"
-    TAETER_OPFER_AUSGLEICH = "Täter-Opfer-Ausgleich"
-
-    # === BAURECHT ===
-    BAUVERTRAG = "Bauvertrag"
-    BAUGENEMIGUNG = "Baugenehmigung"
-    BAUPLAENE = "Baupläne"
-    STATIK = "Statik/Tragwerksplanung"
-    BAUBESCHREIBUNG = "Baubeschreibung"
-    ABNAHMEPROTOKOLL = "Abnahmeprotokoll"
-    MAENGELRUEGE = "Mängelrüge"
-    ARCHITEKTENVERTRAG = "Architektenvertrag"
-    BAUHANDWERKERSICHERUNG = "Bauhandwerkersicherung §650f BGB"
-    BAUTRAEGERVERTRAG = "Bauträgervertrag"
-    ERSCHLIESSUNGSVERTRAG = "Erschließungsvertrag"
-    NACHBARSCHAFTSZUSTIMMUNG = "Nachbarschaftszustimmung"
-    WEGERECHT = "Wegerecht"
-    LEITUNGSRECHT = "Leitungsrecht"
-
 
 # Standard-Ordnerstruktur pro Rolle
 STANDARD_ORDNER = {
@@ -2497,12 +2456,6 @@ STANDARD_ORDNER = {
         {"name": "Gesellschaftsrecht", "typen": [DokumentTyp.GESELLSCHAFTSVERTRAG, DokumentTyp.HANDELSREGISTERAUSZUG, DokumentTyp.GESCHAEFTSFUEHRERBESTELLUNG, DokumentTyp.GESELLSCHAFTERLISTE, DokumentTyp.GEWINNVERWENDUNGSBESCHLUSS, DokumentTyp.JAHRESABSCHLUSS, DokumentTyp.BILANZ, DokumentTyp.SATZUNG, DokumentTyp.PROTOKOLL_GESELLSCHAFTERVERSAMMLUNG, DokumentTyp.ANTEILSKAUFVERTRAG]},
         # === Familienrecht ===
         {"name": "Familienrecht", "typen": [DokumentTyp.EHEVERTRAG, DokumentTyp.SCHEIDUNGSURTEIL, DokumentTyp.HEIRATSURKUNDE, DokumentTyp.GEBURTSURKUNDE, DokumentTyp.UNTERHALTSTITEL, DokumentTyp.SORGERECHTSBESCHLUSS, DokumentTyp.UMGANGSREGELUNG, DokumentTyp.VATERSCHAFTSANERKENNUNG, DokumentTyp.GUETERRECHTSVERTRAG, DokumentTyp.VERSORGUNGSAUSGLEICH, DokumentTyp.ZUGEWINNAUSGLEICH]},
-        # === Mietrecht ===
-        {"name": "Mietrecht", "typen": [DokumentTyp.MIETVERTRAG, DokumentTyp.KUENDIGUNGSSCHREIBEN, DokumentTyp.UEBERGABEPROTOKOLL, DokumentTyp.NEBENKOSTENABRECHNUNG, DokumentTyp.MIETKAUTION_NACHWEIS, DokumentTyp.MIETMINDERUNGSSCHREIBEN, DokumentTyp.EIGENBEDARFSKUENDIGUNG, DokumentTyp.MIETAUFHEBUNGSVERTRAG, DokumentTyp.WOHNUNGSGEBERBESTAETIGUNG, DokumentTyp.MIETSPIEGEL, DokumentTyp.MAENGELANZEIGE]},
-        # === Strafrecht ===
-        {"name": "Strafrecht", "typen": [DokumentTyp.STRAFANZEIGE, DokumentTyp.ANKLAGESCHRIFT, DokumentTyp.STRAFBEFEHL, DokumentTyp.URTEIL_STRAF, DokumentTyp.HAFTBEFEHL, DokumentTyp.FUEHRUNGSZEUGNIS, DokumentTyp.BEWÄHRUNGSBESCHLUSS, DokumentTyp.EINSTELLUNGSVERFUEGUNG, DokumentTyp.NEBENKLAGE, DokumentTyp.TAETER_OPFER_AUSGLEICH]},
-        # === Baurecht ===
-        {"name": "Baurecht", "typen": [DokumentTyp.BAUVERTRAG, DokumentTyp.BAUGENEMIGUNG, DokumentTyp.BAUPLAENE, DokumentTyp.STATIK, DokumentTyp.BAUBESCHREIBUNG, DokumentTyp.ABNAHMEPROTOKOLL, DokumentTyp.MAENGELRUEGE, DokumentTyp.ARCHITEKTENVERTRAG, DokumentTyp.BAUHANDWERKERSICHERUNG, DokumentTyp.BAUTRAEGERVERTRAG, DokumentTyp.ERSCHLIESSUNGSVERTRAG, DokumentTyp.NACHBARSCHAFTSZUSTIMMUNG, DokumentTyp.WEGERECHT, DokumentTyp.LEITUNGSRECHT]},
         {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
     ],
     UserRole.FINANZIERER.value: [
@@ -5423,9 +5376,6 @@ class AktenHauptbereich(Enum):
     GESELLSCHAFTSRECHT = "Gesellschaftsrecht"
     ZIVILRECHT = "Zivilrecht"
     FAMILIENRECHT = "Familienrecht"
-    MIETRECHT = "Mietrecht"
-    STRAFRECHT = "Strafrecht"
-    BAURECHT = "Baurecht"
     SONSTIGE = "Sonstige"
 
 
@@ -5471,58 +5421,6 @@ class AktenTypFamilienrecht(Enum):
     ZUGEWINNAUSGLEICH = "Zugewinnausgleich"
 
 
-class AktenTypMietrecht(Enum):
-    """Untertypen für Mietrecht"""
-    WOHNRAUMMIETVERTRAG = "Wohnraummietvertrag"
-    GEWERBEMIETVERTRAG = "Gewerbemietvertrag"
-    STAFFELMIETVERTRAG = "Staffelmietvertrag"
-    INDEXMIETVERTRAG = "Indexmietvertrag"
-    UNTERMIETVERTRAG = "Untermietvertrag"
-    PACHTVERTRAG = "Pachtvertrag"
-    MIETAUFHEBUNGSVERTRAG = "Mietaufhebungsvertrag"
-    KUENDIGUNG_MIETVERHAELTNIS = "Kündigung Mietverhältnis"
-    MIETMINDERUNG = "Mietminderung"
-    MIETKAUTION = "Mietkautionsvereinbarung"
-    NEBENKOSTENABRECHNUNG = "Nebenkostenabrechnung (Streit)"
-    RAEUMUNGSKLAGE = "Räumungsklage"
-    EIGENBEDARFSKUENDIGUNG = "Eigenbedarfskündigung"
-
-
-class AktenTypStrafrecht(Enum):
-    """Untertypen für Strafrecht (Notarielle Aspekte)"""
-    STRAFANZEIGE = "Strafanzeige"
-    STRAFVERTEIDIGUNG = "Strafverteidigung"
-    NEBENKLAGE = "Nebenklage"
-    ADHAESIONSVERFAHREN = "Adhäsionsverfahren (Schadensersatz)"
-    PRIVATKLAGE = "Privatklage"
-    EINSTELLUNG_GEGEN_AUFLAGE = "Einstellung gegen Auflage"
-    TAETER_OPFER_AUSGLEICH = "Täter-Opfer-Ausgleich"
-    FUEHRUNGSZEUGNIS = "Führungszeugnis-Angelegenheit"
-    REHABILITIERUNG = "Rehabilitierung"
-    WIEDERAUFNAHME = "Wiederaufnahmeverfahren"
-    BEWÄHRUNG = "Bewährungsangelegenheit"
-    MASSREGELUNG = "Maßregelung"
-
-
-class AktenTypBaurecht(Enum):
-    """Untertypen für Baurecht"""
-    BAUTRAEGERVERTRAG = "Bauträgervertrag"
-    BAUVERTRAG = "Bauvertrag (VOB/BGB)"
-    ARCHITEKTENVERTRAG = "Architektenvertrag"
-    INGENIEURVERTRAG = "Ingenieurvertrag"
-    NACHTRAGSVEREINBARUNG = "Nachtragsvereinbarung"
-    ABNAHMEPROTOKOLL = "Abnahmeprotokoll"
-    MAENGELRUEGE = "Mängelrüge"
-    WERKVERTRAG = "Werkvertrag"
-    SUBUNTERNEHMERVERTRAG = "Subunternehmervertrag"
-    BAUGENEMIGUNG = "Baugenehmigung"
-    BAULAST = "Baulastvereinbarung"
-    ERSCHLIESSUNGSVERTRAG = "Erschließungsvertrag"
-    BAUHANDWERKERSICHERUNG = "Bauhandwerkersicherung"
-    DIENSTBARKEIT = "Dienstbarkeit (Leitungsrecht, Wegerecht)"
-    GRENZBEBAUUNG = "Grenzbebauung/Nachbarrecht"
-
-
 # AktenStatus ist bereits oben definiert (Zeile ~3713)
 # Enthält: IMPORTIERT, IN_BEARBEITUNG, VOLLSTAENDIG, BEURKUNDET, ABGESCHLOSSEN, ARCHIVIERT
 
@@ -5533,9 +5431,6 @@ AKTEN_UNTERTYPEN = {
     AktenHauptbereich.GESELLSCHAFTSRECHT.value: [e.value for e in AktenTypGesellschaftsrecht],
     AktenHauptbereich.ZIVILRECHT.value: [e.value for e in AktenTypZivilrecht],
     AktenHauptbereich.FAMILIENRECHT.value: [e.value for e in AktenTypFamilienrecht],
-    AktenHauptbereich.MIETRECHT.value: [e.value for e in AktenTypMietrecht],
-    AktenHauptbereich.STRAFRECHT.value: [e.value for e in AktenTypStrafrecht],
-    AktenHauptbereich.BAURECHT.value: [e.value for e in AktenTypBaurecht],
     AktenHauptbereich.SONSTIGE.value: ["Sonstiges"],
 }
 
