@@ -3205,7 +3205,7 @@ class User:
     user_id: str
     name: str
     email: str
-    role: str
+    rolle: str
     password_hash: str
     projekt_ids: List[str] = field(default_factory=list)
     onboarding_complete: bool = False
@@ -11934,14 +11934,14 @@ def login_page():
                 # Login-Event tracken
                 safe_track_interaktion(
                     interaktions_typ='login',
-                    details={'rolle': user.role, 'remember_me': remember_me},
+                    details={'rolle': user.rolle, 'remember_me': remember_me},
                     nutzer_id=user.user_id
                 )
 
                 create_notification(
                     user.user_id,
                     "Willkommen zurück!",
-                    f"Sie haben sich erfolgreich angemeldet als {user.role}.",
+                    f"Sie haben sich erfolgreich angemeldet als {user.rolle}.",
                     NotificationType.SUCCESS.value
                 )
                 st.rerun()
@@ -12912,7 +12912,7 @@ def makler_teilnehmer_status():
 
             row = {
                 "Name": user.name,
-                "Rolle": user.role,
+                "Rolle": user.rolle,
                 "Maklerauftrag": "✅" if DocumentType.MAKLERAUFTRAG.value in acceptances else "❌",
                 "Datenschutz": "✅" if DocumentType.DATENSCHUTZ.value in acceptances else "❌",
                 "Widerrufsbelehrung": "✅" if DocumentType.WIDERRUFSBELEHRUNG.value in acceptances else "❌",
@@ -30859,7 +30859,7 @@ def sammle_personenbezogene_daten_fuer_user(betroffener_id: str) -> Dict:
             'name': user.name,
             'email': user.email,
             'telefon': getattr(user, 'telefon', ''),
-            'rolle': user.role,
+            'rolle': user.rolle,
             'registriert_am': user.created_at.isoformat() if hasattr(user, 'created_at') else '',
         },
         'kontaktdaten': {},
@@ -31927,7 +31927,7 @@ def main():
             st.caption(f"Rolle: Notar-Mitarbeiter ({st.session_state.current_user.rolle})")
             st.caption(f"E-Mail: {st.session_state.current_user.email}")
         else:
-            st.caption(f"Rolle: {st.session_state.current_user.role}")
+            st.caption(f"Rolle: {st.session_state.current_user.rolle}")
             st.caption(f"E-Mail: {st.session_state.current_user.email}")
 
         if st.button("🚪 Abmelden", use_container_width=True):
