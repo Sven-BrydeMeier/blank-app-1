@@ -1878,6 +1878,7 @@ class ProjektStatus(Enum):
     NOTARTERMIN_VEREINBART = "Notartermin vereinbart"
     KAUFVERTRAG_UNTERZEICHNET = "Kaufvertrag unterzeichnet"
     ABGESCHLOSSEN = "Abgeschlossen"
+    STORNIERT = "Storniert"
 
 class NotificationType(Enum):
     INFO = "info"
@@ -2574,46 +2575,6 @@ DOKUMENT_ERKENNUNGS_KEYWORDS = {
     DokumentTyp.VERSORGUNGSAUSGLEICH.value: ["versorgungsausgleich", "rentenanwartschaft", "rente", "pension"],
     DokumentTyp.ZUGEWINNAUSGLEICH.value: ["zugewinnausgleich", "zugewinn", "anfangsvermögen", "endvermögen"],
 
-    # === MIETRECHT ===
-    DokumentTyp.MIETVERTRAG.value: ["mietvertrag", "miete", "vermieter", "mieter", "kaltmiete", "warmmiete"],
-    DokumentTyp.KUENDIGUNGSSCHREIBEN.value: ["kündigung", "mietverhältnis", "kündigungsfrist", "räumung"],
-    DokumentTyp.UEBERGABEPROTOKOLL.value: ["übergabeprotokoll", "wohnungsübergabe", "mängel", "zählerstand"],
-    DokumentTyp.NEBENKOSTENABRECHNUNG.value: ["nebenkostenabrechnung", "betriebskosten", "nachzahlung", "guthaben"],
-    DokumentTyp.MIETKAUTION_NACHWEIS.value: ["kaution", "mietkaution", "kautionskonto", "bürgschaft"],
-    DokumentTyp.MIETMINDERUNGSSCHREIBEN.value: ["mietminderung", "mangel", "minderung", "mietmangel"],
-    DokumentTyp.EIGENBEDARFSKUENDIGUNG.value: ["eigenbedarf", "eigenbedarfskündigung", "selbstnutzung"],
-    DokumentTyp.MIETAUFHEBUNGSVERTRAG.value: ["mietaufhebung", "aufhebungsvertrag", "einvernehmlich", "auszug"],
-    DokumentTyp.WOHNUNGSGEBERBESTAETIGUNG.value: ["wohnungsgeberbestätigung", "einzug", "meldebehörde", "anmeldung"],
-    DokumentTyp.MIETSPIEGEL.value: ["mietspiegel", "ortsübliche vergleichsmiete", "mieterhöhung"],
-    DokumentTyp.MAENGELANZEIGE.value: ["mängelanzeige", "mangel", "schaden", "instandsetzung"],
-
-    # === STRAFRECHT ===
-    DokumentTyp.STRAFANZEIGE.value: ["strafanzeige", "anzeige", "straftat", "verdacht"],
-    DokumentTyp.ANKLAGESCHRIFT.value: ["anklageschrift", "anklage", "staatsanwaltschaft", "angeklagter"],
-    DokumentTyp.STRAFBEFEHL.value: ["strafbefehl", "geldstrafe", "tagessätze", "einspruch"],
-    DokumentTyp.URTEIL_STRAF.value: ["urteil", "freispruch", "verurteilung", "strafmaß", "bewährung"],
-    DokumentTyp.HAFTBEFEHL.value: ["haftbefehl", "untersuchungshaft", "fluchtgefahr", "verdunkelungsgefahr"],
-    DokumentTyp.FUEHRUNGSZEUGNIS.value: ["führungszeugnis", "bundeszentralregister", "unbeschränkt", "vorstrafe"],
-    DokumentTyp.BEWÄHRUNGSBESCHLUSS.value: ["bewährung", "bewährungszeit", "auflagen", "widerruf"],
-    DokumentTyp.EINSTELLUNGSVERFUEGUNG.value: ["einstellung", "§170", "absehen", "opportunität"],
-    DokumentTyp.NEBENKLAGE.value: ["nebenklage", "nebenkläger", "opfer", "verletzter"],
-    DokumentTyp.TAETER_OPFER_AUSGLEICH.value: ["täter-opfer-ausgleich", "toa", "wiedergutmachung", "schlichtung"],
-
-    # === BAURECHT ===
-    DokumentTyp.BAUVERTRAG.value: ["bauvertrag", "vob", "werkvertrag", "bauleistung", "auftragnehmer"],
-    DokumentTyp.BAUGENEMIGUNG.value: ["baugenehmigung", "bauamt", "bauvorhaben", "genehmigung"],
-    DokumentTyp.BAUPLAENE.value: ["bauplan", "grundriss", "schnitt", "ansicht", "maßstab"],
-    DokumentTyp.STATIK.value: ["statik", "tragwerk", "statische berechnung", "standsicherheit"],
-    DokumentTyp.BAUBESCHREIBUNG.value: ["baubeschreibung", "leistungsverzeichnis", "ausstattung", "baustandard"],
-    DokumentTyp.ABNAHMEPROTOKOLL.value: ["abnahme", "abnahmeprotokoll", "mängel", "fertigstellung"],
-    DokumentTyp.MAENGELRUEGE.value: ["mängelrüge", "nachbesserung", "gewährleistung", "baumangel"],
-    DokumentTyp.ARCHITEKTENVERTRAG.value: ["architektenvertrag", "architekt", "hoai", "planungsleistung"],
-    DokumentTyp.BAUHANDWERKERSICHERUNG.value: ["bauhandwerkersicherung", "§650f", "sicherheit", "bürge"],
-    DokumentTyp.BAUTRAEGERVERTRAG.value: ["bauträgervertrag", "maklerv", "bauträger", "fertigstellung"],
-    DokumentTyp.ERSCHLIESSUNGSVERTRAG.value: ["erschließung", "erschließungsvertrag", "anschluss", "kanal"],
-    DokumentTyp.NACHBARSCHAFTSZUSTIMMUNG.value: ["nachbarzustimmung", "grenzbebauung", "abstandsfläche"],
-    DokumentTyp.WEGERECHT.value: ["wegerecht", "dienstbarkeit", "grundbuch", "gehrecht", "fahrrecht"],
-    DokumentTyp.LEITUNGSRECHT.value: ["leitungsrecht", "dienstbarkeit", "versorgungsleitung", "grundstück"]
 }
 
 
