@@ -20550,6 +20550,368 @@ def ki_zerlege_vertrag_in_bausteine(volltext: str) -> List[Dict[str, Any]]:
     return bausteine
 
 
+def verarbeite_dokumente_batch(
+    dateien: List[Any],
+    notar_id: str,
+    vertragstyp: str,
+    auto_zerlegen: bool = True,
+    ki_analyse: bool = True,
+    progress_callback: callable = None
+) -> Dict[str, Any]:
+    """
+    Verarbeitet mehrere Dokumente gleichzeitig und zerlegt sie automatisch in Textbausteine.
+
+    Args:
+        dateien: Liste von hochgeladenen Dateien (Streamlit UploadedFile)
+        notar_id: ID des Notars
+        vertragstyp: Standard-Vertragstyp für alle Dokumente
+        auto_zerlegen: Automatisch in Textbausteine zerlegen
+        ki_analyse: KI-Analyse für Textbausteine aktivieren
+        progress_callback: Callback-Funktion für Fortschrittsanzeige (index, total, status_text)
+
+    Returns:
+        Dictionary mit Ergebnissen:
+        - erfolg: Anzahl erfolgreich verarbeiteter Dokumente
+        - fehler: Liste von Fehlermeldungen
+        - dokumente: Liste der erstellten VertragsDokument-Objekte
+        - bausteine: Liste der erstellten Textbaustein-Objekte
+    """
+    ergebnis = {
+        'erfolg': 0,
+        'fehler': [],
+        'dokumente': [],
+        'bausteine': [],
+        'details': []
+    }
+
+    total = len(dateien)
+
+    for idx, datei in enumerate(dateien):
+        try:
+            # Progress-Update
+            if progress_callback:
+                progress_callback(idx, total, f"Verarbeite: {datei.name}")
+
+            # 1. Datei einlesen
+            datei_bytes = datei.read()
+            datei.seek(0)  # Reset für potentiellen späteren Zugriff
+
+            dateiname = datei.name
+            dateityp = dateiname.split('.')[-1].lower()
+            if dateityp in ['jpg', 'jpeg', 'png']:
+                dateityp = 'image'
+
+            # 2. Text extrahieren
+            extrahierter_text = extrahiere_text_aus_datei(datei_bytes, dateityp, dateiname)
+
+            if not extrahierter_text or len(extrahierter_text.strip()) < 50:
+                ergebnis['fehler'].append(f"❌ {dateiname}: Kein Text extrahierbar oder zu kurz")
+                ergebnis['details'].append({
+                    'dateiname': dateiname,
+                    'status': 'fehler',
+                    'meldung': 'Kein Text extrahierbar oder zu kurz'
+                })
+                continue
+
+            # 3. Dokument erstellen
+            dokument_id = str(uuid.uuid4())[:8]
+            dokument = VertragsDokument(
+                dokument_id=dokument_id,
+                notar_id=notar_id,
+                dateiname=dateiname,
+                dateityp=dateityp,
+                dateigroesse=len(datei_bytes),
+                datei_bytes=datei_bytes,
+                volltext=extrahierter_text,
+                vertragstyp=vertragstyp,
+                beschreibung=f"Batch-Import: {dateiname}",
+                hochgeladen_von=notar_id,
+                status="Hochgeladen"
+            )
+
+            # In Session State speichern
+            st.session_state.vertragsdokumente[dokument_id] = dokument
+            ergebnis['dokumente'].append(dokument)
+
+            # 4. Optional: In Textbausteine zerlegen
+            bausteine_erstellt = 0
+            if auto_zerlegen and len(extrahierter_text) > 100:
+                # Progress-Update
+                if progress_callback:
+                    progress_callback(idx, total, f"Zerlege in Bausteine: {dateiname}")
+
+                # Textbausteine extrahieren
+                zerlegte_bausteine = ki_zerlege_vertrag_in_bausteine(extrahierter_text)
+
+                baustein_ids = []
+                for baustein_data in zerlegte_bausteine:
+                    baustein_text = baustein_data['text']
+
+                    # KI-Analyse wenn aktiviert
+                    if ki_analyse:
+                        try:
+                            analyse = ki_analysiere_textbaustein(baustein_text)
+                            titel = analyse.get('titel', 'Unbenannter Baustein')
+                            zusammenfassung = analyse.get('zusammenfassung', baustein_text[:150] + '...')
+                            kategorie = analyse.get('kategorie', 'Sonstiges')
+                            ki_generiert = analyse.get('ki_generiert', True)
+                        except Exception:
+                            titel = baustein_text[:50].replace('\n', ' ').strip()
+                            zusammenfassung = baustein_text[:150] + '...' if len(baustein_text) > 150 else baustein_text
+                            kategorie = 'Sonstiges'
+                            ki_generiert = False
+                    else:
+                        titel = baustein_text[:50].replace('\n', ' ').strip()
+                        zusammenfassung = baustein_text[:150] + '...' if len(baustein_text) > 150 else baustein_text
+                        kategorie = 'Sonstiges'
+                        ki_generiert = False
+
+                    # Duplikatprüfung via Hash
+                    text_hash = berechne_text_hash(baustein_text)
+
+                    # Baustein erstellen
+                    baustein_id = str(uuid.uuid4())[:8]
+                    baustein = Textbaustein(
+                        baustein_id=baustein_id,
+                        notar_id=notar_id,
+                        titel=titel,
+                        text=baustein_text,
+                        zusammenfassung=zusammenfassung,
+                        kategorie=kategorie,
+                        vertragstypen=[vertragstyp],
+                        quelle_dokument_id=dokument_id,
+                        position_im_dokument=baustein_data['position'],
+                        start_index=baustein_data['start_index'],
+                        end_index=baustein_data['end_index'],
+                        status=TextbausteinStatus.ENTWURF.value,
+                        ki_generiert=ki_generiert,
+                        ki_kategorisiert=ki_generiert,
+                        erstellt_von=notar_id,
+                        text_hash=text_hash
+                    )
+
+                    st.session_state.textbausteine[baustein_id] = baustein
+                    baustein_ids.append(baustein_id)
+                    ergebnis['bausteine'].append(baustein)
+                    bausteine_erstellt += 1
+
+                # Dokument mit Baustein-IDs aktualisieren
+                dokument.baustein_ids = baustein_ids
+                dokument.zerlegt = True
+                dokument.anzahl_erkannte_klauseln = len(baustein_ids)
+                dokument.status = "Verarbeitet"
+
+            ergebnis['erfolg'] += 1
+            ergebnis['details'].append({
+                'dateiname': dateiname,
+                'status': 'erfolg',
+                'dokument_id': dokument_id,
+                'bausteine_erstellt': bausteine_erstellt,
+                'text_laenge': len(extrahierter_text)
+            })
+
+        except Exception as e:
+            ergebnis['fehler'].append(f"❌ {datei.name}: {str(e)}")
+            ergebnis['details'].append({
+                'dateiname': datei.name,
+                'status': 'fehler',
+                'meldung': str(e)
+            })
+
+    # Finaler Progress-Update
+    if progress_callback:
+        progress_callback(total, total, "Verarbeitung abgeschlossen")
+
+    return ergebnis
+
+
+def render_batch_upload_interface(notar_id: str):
+    """
+    Rendert die Oberfläche für den Batch-Upload mehrerer Dokumente.
+
+    Args:
+        notar_id: ID des Notars
+    """
+    st.markdown("### 📁 Mehrere Dokumente gleichzeitig verarbeiten")
+
+    st.info("""
+    **Batch-Upload für automatische Textbaustein-Extraktion**
+
+    Laden Sie mehrere Vertragsdokumente gleichzeitig hoch. Jedes Dokument wird:
+    1. In Text umgewandelt (inkl. OCR für Bilder/gescannte PDFs)
+    2. Automatisch in einzelne Textbausteine (Klauseln) zerlegt
+    3. Per KI analysiert und kategorisiert
+
+    **Unterstützte Formate:** DOCX, RTF, PDF, JPG, PNG
+    """)
+
+    # Datei-Upload für mehrere Dateien
+    uploaded_files = st.file_uploader(
+        "Dokumente auswählen",
+        type=['docx', 'rtf', 'pdf', 'jpg', 'jpeg', 'png'],
+        accept_multiple_files=True,
+        key="batch_upload_files",
+        help="Wählen Sie mehrere Dateien gleichzeitig aus (Strg+Klick oder Shift+Klick)"
+    )
+
+    if uploaded_files:
+        st.markdown(f"**{len(uploaded_files)} Dokument(e) ausgewählt:**")
+
+        # Dateiliste anzeigen
+        for i, file in enumerate(uploaded_files):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"{i+1}. 📄 {file.name}")
+            with col2:
+                st.markdown(f"*{file.size / 1024:.1f} KB*")
+
+        st.markdown("---")
+
+        # Verarbeitungsoptionen
+        col_opt1, col_opt2 = st.columns(2)
+
+        with col_opt1:
+            vertragstyp = st.selectbox(
+                "Standard-Vertragstyp für alle Dokumente",
+                [vt.value for vt in VertragsTyp],
+                key="batch_vertragstyp",
+                help="Dieser Vertragstyp wird allen Dokumenten zugewiesen. Kann später individuell angepasst werden."
+            )
+
+        with col_opt2:
+            auto_zerlegen = st.checkbox(
+                "Automatisch in Textbausteine zerlegen",
+                value=True,
+                key="batch_auto_zerlegen",
+                help="Dokumente werden automatisch in einzelne Klauseln aufgeteilt"
+            )
+
+        ki_analyse = st.checkbox(
+            "🤖 KI-Analyse für Titel & Kategorien aktivieren",
+            value=True,
+            key="batch_ki_analyse",
+            help="Die KI analysiert jeden Textbaustein und generiert passende Titel und Kategorien (benötigt OpenAI API-Key)"
+        )
+
+        # API-Key Warnung
+        if ki_analyse and not st.session_state.api_keys.get('openai', ''):
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Die KI-Analyse wird auf einfache Heuristik zurückfallen.")
+
+        st.markdown("---")
+
+        # Verarbeitungsbutton
+        if st.button("🚀 Batch-Verarbeitung starten", type="primary", key="start_batch_processing"):
+            # Session State für Verarbeitungsstatus
+            processing_key = "batch_processing_status"
+            st.session_state[processing_key] = {
+                'running': True,
+                'current': 0,
+                'total': len(uploaded_files),
+                'status': 'Starte Verarbeitung...'
+            }
+
+            # Progress-Container
+            progress_container = st.container()
+
+            with progress_container:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                def update_progress(current, total, status):
+                    progress = current / total if total > 0 else 0
+                    progress_bar.progress(progress)
+                    status_text.markdown(f"**{status}** ({current}/{total})")
+
+                # Batch-Verarbeitung starten
+                with st.spinner("Dokumente werden verarbeitet..."):
+                    ergebnis = verarbeite_dokumente_batch(
+                        dateien=uploaded_files,
+                        notar_id=notar_id,
+                        vertragstyp=vertragstyp,
+                        auto_zerlegen=auto_zerlegen,
+                        ki_analyse=ki_analyse,
+                        progress_callback=update_progress
+                    )
+
+                # Progress abschließen
+                progress_bar.progress(1.0)
+                status_text.empty()
+
+            # Ergebnisse anzeigen
+            st.markdown("---")
+            st.markdown("### 📊 Verarbeitungsergebnis")
+
+            col_res1, col_res2, col_res3 = st.columns(3)
+
+            with col_res1:
+                st.metric(
+                    "Dokumente verarbeitet",
+                    ergebnis['erfolg'],
+                    delta=f"von {len(uploaded_files)}"
+                )
+
+            with col_res2:
+                st.metric(
+                    "Textbausteine erstellt",
+                    len(ergebnis['bausteine'])
+                )
+
+            with col_res3:
+                if ergebnis['fehler']:
+                    st.metric(
+                        "Fehler",
+                        len(ergebnis['fehler']),
+                        delta=None
+                    )
+                else:
+                    st.metric("Fehler", 0)
+
+            # Erfolgreiche Verarbeitungen
+            if ergebnis['erfolg'] > 0:
+                st.success(f"✅ {ergebnis['erfolg']} Dokument(e) erfolgreich verarbeitet!")
+
+                with st.expander("📋 Details anzeigen", expanded=True):
+                    for detail in ergebnis['details']:
+                        if detail['status'] == 'erfolg':
+                            st.markdown(f"""
+                            **{detail['dateiname']}**
+                            - Dokument-ID: `{detail['dokument_id']}`
+                            - Textlänge: {detail['text_laenge']:,} Zeichen
+                            - Textbausteine erstellt: {detail['bausteine_erstellt']}
+                            """)
+
+            # Fehler anzeigen
+            if ergebnis['fehler']:
+                st.error("❌ Bei einigen Dokumenten traten Fehler auf:")
+                for fehler in ergebnis['fehler']:
+                    st.markdown(f"- {fehler}")
+
+            # Interaktion tracken
+            safe_track_interaktion(
+                interaktions_typ='batch_dokument_upload',
+                details={
+                    'anzahl_dateien': len(uploaded_files),
+                    'erfolg': ergebnis['erfolg'],
+                    'fehler': len(ergebnis['fehler']),
+                    'bausteine_erstellt': len(ergebnis['bausteine']),
+                    'vertragstyp': vertragstyp,
+                    'auto_zerlegen': auto_zerlegen,
+                    'ki_analyse': ki_analyse
+                }
+            )
+
+            # Hinweis auf nächste Schritte
+            st.info("""
+            💡 **Nächste Schritte:**
+            - Prüfen Sie die erstellten Textbausteine im Tab "Textbausteine"
+            - Geben Sie Bausteine frei, die Sie verwenden möchten (Tab "Freigaben")
+            - Nutzen Sie die KI-Urkundenanalyse für tiefere Analyse einzelner Dokumente
+            """)
+
+            # Session State aufräumen
+            st.session_state[processing_key] = {'running': False}
+
+
 def ki_suche_updates(baustein: Textbaustein) -> Dict[str, Any]:
     """Sucht nach möglichen Updates für einen Textbaustein via KI"""
     api_key = st.session_state.api_keys.get('openai', '')
@@ -21169,11 +21531,15 @@ def notar_vertragsarchiv_view():
 
         upload_typ = st.radio(
             "Was möchten Sie hochladen?",
-            ["📄 Komplettes Dokument (Vertrag)", "📝 Einzelnen Textbaustein"],
+            ["📄 Komplettes Dokument (Vertrag)", "📁 Mehrere Dokumente (Batch)", "📝 Einzelnen Textbaustein"],
             horizontal=True
         )
 
-        if upload_typ == "📄 Komplettes Dokument (Vertrag)":
+        if upload_typ == "📁 Mehrere Dokumente (Batch)":
+            # Neue Batch-Upload-Funktionalität
+            render_batch_upload_interface(notar_id)
+
+        elif upload_typ == "📄 Komplettes Dokument (Vertrag)":
             # Upload-Quelle auswählen
             upload_quelle = st.radio(
                 "Dokumentquelle:",
