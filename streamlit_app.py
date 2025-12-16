@@ -21159,7 +21159,8 @@ def notar_vertragsarchiv_view():
         "📋 Textbausteine",
         "📄 Hochgeladene Dokumente",
         "✅ Freigaben",
-        "🔄 Updates suchen"
+        "🔄 Updates suchen",
+        "🤖 KI-Urkundenanalyse"  # NEU: Notar-Parser v1
     ])
 
     # ============ TAB 1: Upload ============
@@ -21790,6 +21791,371 @@ def notar_vertragsarchiv_view():
                                 st.success(f"✅ {ergebnis.get('hinweis', 'Der Baustein ist aktuell.')}")
                             else:
                                 st.error(f"❌ {ergebnis.get('fehler', 'Fehler bei der Analyse')}")
+
+    # ============ TAB 6: KI-Urkundenanalyse (Notar-Parser v1) ============
+    with archiv_tabs[5]:
+        st.markdown("### 🤖 KI-Urkundenanalyse")
+        st.markdown("""
+        Analysieren Sie Vertragsdokumente automatisch mit KI, um:
+        - **Textbausteine** zu extrahieren und zu kategorisieren
+        - **Vollzugsvoraussetzungen** (Facts) zu identifizieren
+        - **Workflow-Tasks** für den Vollzug abzuleiten
+        - **Generelle Bausteine** zu erkennen und wiederzuverwenden
+        """)
+
+        api_key = st.session_state.api_keys.get('openai', '')
+        if not api_key:
+            st.warning("⚠️ Kein OpenAI API-Key konfiguriert. Bitte unter 'Einstellungen' hinterlegen.")
+        else:
+            # Dokument für Analyse auswählen
+            verfuegbare_dokumente = [
+                d for d in st.session_state.vertragsdokumente.values()
+                if d.notar_id == notar_id and d.volltext
+            ]
+
+            if not verfuegbare_dokumente:
+                st.info("📤 Laden Sie zuerst ein Vertragsdokument im Tab 'Upload' hoch.")
+            else:
+                st.markdown("#### 📄 Dokument auswählen")
+
+                dok_options = {d.dokument_id: f"{d.dateiname} ({d.vertragstyp})" for d in verfuegbare_dokumente}
+                selected_dok_id = st.selectbox(
+                    "Zu analysierendes Dokument:",
+                    options=list(dok_options.keys()),
+                    format_func=lambda x: dok_options[x],
+                    key="parser_dokument_auswahl"
+                )
+
+                if selected_dok_id:
+                    dokument = st.session_state.vertragsdokumente[selected_dok_id]
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown(f"**Dateiname:** {dokument.dateiname}")
+                        st.markdown(f"**Vertragstyp:** {dokument.vertragstyp}")
+                    with col2:
+                        st.markdown(f"**Hochgeladen:** {dokument.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+                        textlaenge = len(dokument.volltext) if dokument.volltext else 0
+                        st.markdown(f"**Textlänge:** {textlaenge:,} Zeichen")
+
+                    # Vorschau des Textes
+                    with st.expander("📝 Textvorschau anzeigen"):
+                        preview_text = dokument.volltext[:2000] + "..." if len(dokument.volltext) > 2000 else dokument.volltext
+                        st.text_area("Extrahierter Text:", value=preview_text, height=200, disabled=True)
+
+                    st.divider()
+
+                    # Kontext-Informationen für bessere Analyse
+                    st.markdown("#### ⚙️ Analyse-Kontext (optional)")
+
+                    context_col1, context_col2 = st.columns(2)
+                    with context_col1:
+                        contract_type_hint = st.selectbox(
+                            "Vertragstyp-Hinweis:",
+                            ["", "Kaufvertrag", "Überlassungsvertrag", "Schenkungsvertrag", "Erbvertrag", "Gesellschaftsvertrag"],
+                            key="parser_contract_type_hint"
+                        )
+                        is_rented = st.checkbox("Objekt ist vermietet", key="parser_is_rented")
+
+                    with context_col2:
+                        property_kind = st.selectbox(
+                            "Immobilientyp:",
+                            ["", "Wohnung", "Einfamilienhaus", "Mehrfamilienhaus", "Grundstück", "Gewerbe"],
+                            key="parser_property_kind"
+                        )
+                        is_condominium = st.checkbox("Wohnungseigentum (WEG)", key="parser_is_condominium")
+
+                    st.divider()
+
+                    # Analyse starten
+                    if st.button("🚀 Analyse starten", type="primary", key="start_parser_analysis"):
+                        with st.spinner("KI analysiert das Dokument... Dies kann einige Sekunden dauern."):
+                            try:
+                                # Parser-Modul importieren
+                                from modules.urkundenparser import (
+                                    parse_urkunde,
+                                    get_generic_candidates,
+                                    get_facts_by_stage,
+                                    get_tasks_by_stage,
+                                    get_issues_by_severity,
+                                    get_facts_needing_confirmation,
+                                    Stage,
+                                    IssueSeverity,
+                                )
+
+                                # Kontext zusammenstellen
+                                context = {}
+                                if contract_type_hint:
+                                    context["contract_type_hint"] = contract_type_hint
+                                if property_kind:
+                                    context["property_kind"] = property_kind
+                                context["is_rented"] = is_rented
+                                context["is_condominium"] = is_condominium
+
+                                # Parser aufrufen
+                                parser_output = parse_urkunde(
+                                    contract_text=dokument.volltext,
+                                    context=context,
+                                    api_key=api_key
+                                )
+
+                                # Ergebnisse in Session State speichern
+                                st.session_state[f"parser_result_{selected_dok_id}"] = parser_output
+
+                                st.success("✅ Analyse abgeschlossen!")
+
+                            except ImportError as e:
+                                st.error(f"❌ Modul-Fehler: {e}")
+                                st.info("Stellen Sie sicher, dass das OpenAI-Paket installiert ist: `pip install openai`")
+                            except Exception as e:
+                                st.error(f"❌ Analysefehler: {str(e)}")
+
+                    # Ergebnisse anzeigen
+                    parser_result_key = f"parser_result_{selected_dok_id}"
+                    if parser_result_key in st.session_state:
+                        parser_output = st.session_state[parser_result_key]
+
+                        st.divider()
+                        st.markdown("## 📊 Analyseergebnisse")
+
+                        # Metadaten
+                        st.markdown("### 📋 Erkannter Vertragstyp")
+                        meta_col1, meta_col2, meta_col3 = st.columns(3)
+                        with meta_col1:
+                            st.metric("Vertragstyp", parser_output.meta.contract_type_guess)
+                        with meta_col2:
+                            st.metric("Immobilientyp", parser_output.meta.property_kind_guess or "Nicht erkannt")
+                        with meta_col3:
+                            st.metric("Untertypen", ", ".join(parser_output.meta.subtype_guess) if parser_output.meta.subtype_guess else "-")
+
+                        # Statistiken
+                        st.markdown("### 📈 Statistiken")
+                        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+                        with stat_col1:
+                            st.metric("Textbausteine", len(parser_output.blocks))
+                        with stat_col2:
+                            st.metric("Vollzugsvoraussetzungen", len(parser_output.facts))
+                        with stat_col3:
+                            st.metric("Workflow-Tasks", len(parser_output.tasks))
+                        with stat_col4:
+                            issue_count = len(parser_output.issues)
+                            st.metric("Hinweise/Warnungen", issue_count)
+
+                        # Ergebnis-Tabs
+                        result_tabs = st.tabs([
+                            "📦 Textbausteine",
+                            "📋 Facts & Voraussetzungen",
+                            "✅ Workflow-Tasks",
+                            "⚠️ Issues",
+                            "📥 Export"
+                        ])
+
+                        # Tab 1: Textbausteine
+                        with result_tabs[0]:
+                            st.markdown("#### 📦 Extrahierte Textbausteine")
+
+                            from modules.urkundenparser import get_generic_candidates
+
+                            # Generelle Bausteine hervorheben
+                            generic_blocks = get_generic_candidates(parser_output)
+
+                            if parser_output.blocks:
+                                for i, block in enumerate(parser_output.blocks):
+                                    is_generic = block.generic_candidate
+
+                                    with st.expander(
+                                        f"{'🔄 ' if is_generic else '📝 '}{block.anchor or block.role_guess or f'Block {i+1}'} "
+                                        f"({block.block_type})",
+                                        expanded=False
+                                    ):
+                                        col_info, col_actions = st.columns([3, 1])
+
+                                        with col_info:
+                                            st.markdown(f"**Rolle:** {block.role_guess}")
+                                            st.markdown(f"**Pfad:** {block.outline_path}")
+                                            st.markdown(f"**Typ:** {block.block_type}")
+
+                                            if is_generic:
+                                                st.success(f"🔄 **Genereller Baustein:** {block.generic_reason}")
+
+                                            if block.variant.group_id:
+                                                st.info(f"Teil von Variantengruppe: {block.variant.group_id}")
+
+                                        with col_actions:
+                                            if st.button("📋 Als Baustein speichern", key=f"save_block_{i}"):
+                                                # Baustein erstellen
+                                                baustein_id = str(uuid.uuid4())[:8]
+                                                neuer_baustein = TextbausteinDC(
+                                                    baustein_id=baustein_id,
+                                                    notar_id=notar_id,
+                                                    titel=block.anchor or block.role_guess or f"Baustein {i+1}",
+                                                    text=block.text_excerpt,
+                                                    zusammenfassung=block.generic_reason if is_generic else "",
+                                                    kategorie=block.role_guess or "Sonstiges",
+                                                    vertragstypen=[dokument.vertragstyp] if dokument.vertragstyp else [],
+                                                    version=1,
+                                                    status=TextbausteinStatus.ENTWURF.value,
+                                                    ki_generiert=True,
+                                                    ki_kategorisiert=True
+                                                )
+                                                st.session_state.textbausteine[baustein_id] = neuer_baustein
+                                                st.success(f"Baustein '{neuer_baustein.titel}' gespeichert!")
+
+                                        st.text_area(
+                                            "Text:",
+                                            value=block.text_excerpt,
+                                            height=100,
+                                            disabled=True,
+                                            key=f"block_text_{i}"
+                                        )
+                            else:
+                                st.info("Keine Textbausteine extrahiert.")
+
+                        # Tab 2: Facts
+                        with result_tabs[1]:
+                            st.markdown("#### 📋 Vollzugsvoraussetzungen (Facts)")
+
+                            from modules.urkundenparser import get_facts_by_stage, get_facts_needing_confirmation, Stage
+
+                            if parser_output.facts:
+                                # Nach Stage gruppieren
+                                for stage in [Stage.MATURITY, Stage.REGISTRATION, Stage.POST_CLOSING, Stage.OTHER]:
+                                    stage_facts = get_facts_by_stage(parser_output, stage)
+                                    if stage_facts:
+                                        stage_labels = {
+                                            Stage.MATURITY: "🟡 Fälligkeit (MATURITY)",
+                                            Stage.REGISTRATION: "🔵 Umschreibung (REGISTRATION)",
+                                            Stage.POST_CLOSING: "🟢 Vollzug (POST_CLOSING)",
+                                            Stage.OTHER: "⚪ Sonstiges (OTHER)"
+                                        }
+                                        st.markdown(f"##### {stage_labels[stage]}")
+
+                                        for fact in stage_facts:
+                                            conf_emoji = "✅" if fact.confidence >= 0.8 else "⚠️" if fact.confidence >= 0.6 else "❓"
+                                            suppressed = " (unterdrückt)" if fact.suppressed_by_override else ""
+
+                                            st.markdown(
+                                                f"- {conf_emoji} **{fact.fact_type}**{suppressed} "
+                                                f"(Konfidenz: {fact.confidence:.0%})"
+                                            )
+                                            if fact.needs_confirmation:
+                                                st.warning(f"  ⚠️ Manuelle Bestätigung erforderlich")
+
+                                # Facts die Bestätigung brauchen
+                                needs_confirm = get_facts_needing_confirmation(parser_output)
+                                if needs_confirm:
+                                    st.divider()
+                                    st.markdown("##### ⚠️ Manuelle Prüfung erforderlich")
+                                    for fact in needs_confirm:
+                                        st.warning(f"- {fact.fact_type}: Konfidenz nur {fact.confidence:.0%}")
+                            else:
+                                st.info("Keine Vollzugsvoraussetzungen erkannt.")
+
+                        # Tab 3: Workflow-Tasks
+                        with result_tabs[2]:
+                            st.markdown("#### ✅ Abgeleitete Workflow-Tasks")
+
+                            from modules.urkundenparser import get_tasks_by_stage, Stage
+
+                            if parser_output.tasks:
+                                for stage in [Stage.MATURITY, Stage.REGISTRATION, Stage.POST_CLOSING, Stage.OTHER]:
+                                    stage_tasks = get_tasks_by_stage(parser_output, stage)
+                                    if stage_tasks:
+                                        stage_labels = {
+                                            Stage.MATURITY: "🟡 Fälligkeit",
+                                            Stage.REGISTRATION: "🔵 Umschreibung",
+                                            Stage.POST_CLOSING: "🟢 Vollzug",
+                                            Stage.OTHER: "⚪ Sonstiges"
+                                        }
+                                        st.markdown(f"##### {stage_labels[stage]}")
+
+                                        for task in stage_tasks:
+                                            with st.expander(f"📌 {task.task_type} ({task.actor})", expanded=False):
+                                                st.markdown(f"**Beschreibung:** {task.description}")
+                                                st.markdown(f"**Zuständig:** {task.actor}")
+
+                                                if task.evidence_to_collect:
+                                                    st.markdown("**Nachweise:**")
+                                                    for ev in task.evidence_to_collect:
+                                                        st.markdown(f"- {ev}")
+
+                                                if task.depends_on_task_ids and task.depends_on_task_ids != ["GATE"]:
+                                                    st.markdown(f"**Abhängig von:** {len(task.depends_on_task_ids)} anderen Tasks")
+                            else:
+                                st.info("Keine Workflow-Tasks abgeleitet.")
+
+                        # Tab 4: Issues
+                        with result_tabs[3]:
+                            st.markdown("#### ⚠️ Hinweise und Warnungen")
+
+                            from modules.urkundenparser import get_issues_by_severity, IssueSeverity
+
+                            if parser_output.issues:
+                                # Nach Schweregrad gruppieren
+                                errors = get_issues_by_severity(parser_output, IssueSeverity.ERROR)
+                                warnings = get_issues_by_severity(parser_output, IssueSeverity.WARN)
+                                infos = get_issues_by_severity(parser_output, IssueSeverity.INFO)
+
+                                if errors:
+                                    st.markdown("##### 🔴 Fehler")
+                                    for issue in errors:
+                                        st.error(f"**{issue.message}**" + (f" (Block: {issue.block_id_hint})" if issue.block_id_hint else ""))
+
+                                if warnings:
+                                    st.markdown("##### 🟡 Warnungen")
+                                    for issue in warnings:
+                                        st.warning(f"**{issue.message}**" + (f" (Block: {issue.block_id_hint})" if issue.block_id_hint else ""))
+
+                                if infos:
+                                    st.markdown("##### 🔵 Hinweise")
+                                    for issue in infos:
+                                        st.info(f"**{issue.message}**" + (f" (Block: {issue.block_id_hint})" if issue.block_id_hint else ""))
+                            else:
+                                st.success("✅ Keine Probleme bei der Analyse festgestellt.")
+
+                        # Tab 5: Export
+                        with result_tabs[4]:
+                            st.markdown("#### 📥 Ergebnisse exportieren")
+
+                            # JSON-Export
+                            import json
+                            export_data = parser_output.to_dict()
+                            json_str = json.dumps(export_data, ensure_ascii=False, indent=2, default=str)
+
+                            st.download_button(
+                                label="📥 Als JSON herunterladen",
+                                data=json_str,
+                                file_name=f"urkundenanalyse_{dokument.dateiname.rsplit('.', 1)[0]}.json",
+                                mime="application/json"
+                            )
+
+                            # Alle Bausteine auf einmal speichern
+                            st.divider()
+                            st.markdown("##### 📦 Alle Bausteine importieren")
+
+                            if st.button("📥 Alle extrahierten Bausteine speichern", type="primary"):
+                                saved_count = 0
+                                for i, block in enumerate(parser_output.blocks):
+                                    if block.block_type != "HEADING":  # Überschriften nicht speichern
+                                        baustein_id = str(uuid.uuid4())[:8]
+                                        neuer_baustein = TextbausteinDC(
+                                            baustein_id=baustein_id,
+                                            notar_id=notar_id,
+                                            titel=block.anchor or block.role_guess or f"Baustein {i+1}",
+                                            text=block.text_excerpt,
+                                            zusammenfassung=block.generic_reason if block.generic_candidate else "",
+                                            kategorie=block.role_guess or "Sonstiges",
+                                            vertragstypen=[dokument.vertragstyp] if dokument.vertragstyp else [],
+                                            version=1,
+                                            status=TextbausteinStatus.ENTWURF.value,
+                                            ki_generiert=True,
+                                            ki_kategorisiert=True
+                                        )
+                                        st.session_state.textbausteine[baustein_id] = neuer_baustein
+                                        saved_count += 1
+
+                                st.success(f"✅ {saved_count} Bausteine wurden gespeichert!")
+                                st.info("Die Bausteine sind im Tab 'Textbausteine' als Entwürfe sichtbar.")
 
 
 def notar_vertragserstellung_view():

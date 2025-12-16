@@ -1160,3 +1160,320 @@ class APIKey(Base):
         UniqueConstraint('notar_id', 'key_typ', 'key_name', name='uq_api_key'),
         Index('idx_api_key_notar_typ', 'notar_id', 'key_typ'),
     )
+
+
+# ==================== URKUNDENPARSER ====================
+
+class ParserBlockType(enum.Enum):
+    """Typ eines extrahierten Textbausteins"""
+    FIXED = "fixed"                 # Fester Baustein
+    RULED = "ruled"                 # Regel-basiert
+    OPTIONAL = "optional"           # Optional
+    VARIANT_GROUP = "variant_group" # Gruppe von Varianten
+    VARIANT_MEMBER = "variant_member"  # Mitglied einer Variantengruppe
+    HEADING = "heading"             # Überschrift
+
+
+class ParserStage(enum.Enum):
+    """Vollzugsstufen im Notariatsworkflow"""
+    MATURITY = "maturity"           # Kaufpreisfälligkeit
+    REGISTRATION = "registration"   # Umschreibung/Eintragung
+    POST_CLOSING = "post_closing"   # Übergabe/Nachlaufpflichten
+    OTHER = "other"                 # Sonstiges
+
+
+class ParserRunStatus(enum.Enum):
+    """Status eines Parser-Durchlaufs"""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class UrkundenParserRun(Base):
+    """
+    Ein Parser-Durchlauf für ein Vertragsdokument.
+
+    Speichert die Metadaten und Ergebnisse einer LLM-basierten Urkundenanalyse.
+    """
+    __tablename__ = "urkunden_parser_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Verknüpfungen
+    vertragsdokument_id = Column(UUID(as_uuid=True), ForeignKey("vertragsdokumente.id"), index=True)
+    akte_id = Column(UUID(as_uuid=True), ForeignKey("akten.id"), index=True)
+    notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), nullable=False, index=True)
+
+    # Status
+    status = Column(Enum(ParserRunStatus), default=ParserRunStatus.PENDING, index=True)
+    fehler_nachricht = Column(Text)
+
+    # Metadaten der Analyse
+    contract_type_guess = Column(String(100))
+    subtype_guess = Column(ARRAY(String))
+    property_kind_guess = Column(String(100))
+
+    # Statistiken
+    anzahl_blocks = Column(Integer, default=0)
+    anzahl_facts = Column(Integer, default=0)
+    anzahl_tasks = Column(Integer, default=0)
+    anzahl_issues = Column(Integer, default=0)
+
+    # LLM-Konfiguration
+    model_verwendet = Column(String(100))
+    parser_version = Column(String(20), default="1.0")
+
+    # Dokument-Hash für Deduplikation
+    dokument_hash = Column(String(64), index=True)
+
+    # Rohe LLM-Antwort (für Debugging)
+    raw_response = Column(JSONB)
+
+    # Timestamps
+    gestartet_am = Column(DateTime, default=datetime.utcnow)
+    abgeschlossen_am = Column(DateTime)
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    blocks = relationship("ParsedBlock", back_populates="parser_run", cascade="all, delete-orphan")
+    facts = relationship("ParsedFact", back_populates="parser_run", cascade="all, delete-orphan")
+    tasks = relationship("ParsedTask", back_populates="parser_run", cascade="all, delete-orphan")
+    issues = relationship("ParsedIssue", back_populates="parser_run", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_parser_run_status', 'notar_id', 'status'),
+        Index('idx_parser_run_dokument', 'vertragsdokument_id'),
+    )
+
+
+class ParsedBlock(Base):
+    """
+    Ein extrahierter Textbaustein aus einer Urkunde.
+
+    Enthält strukturierte Informationen über Position, Typ, Varianten und
+    Generelle-Baustein-Matching.
+    """
+    __tablename__ = "parsed_blocks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parser_run_id = Column(UUID(as_uuid=True), ForeignKey("urkunden_parser_runs.id"), nullable=False, index=True)
+
+    # Block-Identifikation
+    block_id = Column(String(100), nullable=False)  # Vom Parser generierte ID
+    block_type = Column(Enum(ParserBlockType), nullable=False)
+
+    # Strukturelle Informationen
+    outline_path = Column(String(200))  # z.B. "§5.2.a"
+    anchor = Column(String(200))        # Ankertext für Navigation
+    role_guess = Column(String(100))    # Vermutete Rolle (z.B. "Kaufpreis")
+
+    # Inhalt
+    text_excerpt = Column(Text)         # Der extrahierte Text
+
+    # Positionierungs-Constraints
+    constraints = Column(JSONB)         # {"before_roles": [...], "after_roles": [...], "priority": 0}
+
+    # Generelle Bausteine
+    generic_candidate = Column(Boolean, default=False)
+    generic_reason = Column(Text)
+    generic_match = Column(JSONB)       # {"matched": bool, "match_type": str, "match_score": float, "library_id": str}
+
+    # Varianten
+    variant_group_id = Column(String(100))
+    is_active_default = Column(Boolean, default=True)
+
+    # Quellenverweis
+    line_hint = Column(String(100))     # Zeilennummer-Hinweis
+
+    # Hash für Deduplikation
+    text_hash = Column(String(64), index=True)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    parser_run = relationship("UrkundenParserRun", back_populates="blocks")
+
+    __table_args__ = (
+        Index('idx_parsed_block_type', 'block_type'),
+        Index('idx_parsed_block_generic', 'generic_candidate'),
+    )
+
+
+class ParsedFact(Base):
+    """
+    Ein extrahierter Fact (Voraussetzung/Bedingung) aus einer Urkunde.
+
+    Facts beschreiben Bedingungen für Fälligkeit, Umschreibung oder Vollzug.
+    """
+    __tablename__ = "parsed_facts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parser_run_id = Column(UUID(as_uuid=True), ForeignKey("urkunden_parser_runs.id"), nullable=False, index=True)
+
+    # Fact-Identifikation
+    fact_id = Column(String(100), nullable=False)  # Vom Parser generierte ID
+    fact_type = Column(String(100), nullable=False, index=True)  # z.B. "REQUIRES_VORMERKUNG_FOR_MATURITY"
+
+    # Stage
+    stage = Column(Enum(ParserStage), nullable=False, index=True)
+
+    # Konfidenz
+    confidence = Column(Float, default=1.0)
+    needs_confirmation = Column(Boolean, default=False)
+
+    # Quellenverweis
+    source_block_id = Column(String(100))  # Verknüpfung zum Block
+
+    # Parameter
+    params = Column(JSONB)  # Zusätzliche Parameter
+
+    # Override-Logik
+    suppressed_by_override = Column(Boolean, default=False)
+    conditional_on_variant_group = Column(String(100))
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    parser_run = relationship("UrkundenParserRun", back_populates="facts")
+
+    __table_args__ = (
+        Index('idx_parsed_fact_type', 'fact_type'),
+        Index('idx_parsed_fact_stage', 'stage'),
+        Index('idx_parsed_fact_confirmation', 'needs_confirmation'),
+    )
+
+
+class ParsedTask(Base):
+    """
+    Eine abgeleitete Workflow-Task aus den Facts.
+
+    Tasks beschreiben konkrete Handlungsschritte im Vollzug.
+    """
+    __tablename__ = "parsed_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parser_run_id = Column(UUID(as_uuid=True), ForeignKey("urkunden_parser_runs.id"), nullable=False, index=True)
+
+    # Task-Identifikation
+    task_id = Column(String(100), nullable=False)  # Vom Parser/Planner generierte ID
+    task_type = Column(String(100), nullable=False, index=True)  # z.B. "VORMERKUNG_BEANTRAGEN"
+
+    # Stage
+    stage = Column(Enum(ParserStage), nullable=False, index=True)
+
+    # Ausführung
+    actor = Column(String(50))  # z.B. "NOTAR", "KAEUFER", "VERKAEUFER"
+    description = Column(Text)
+
+    # Nachweise
+    evidence_to_collect = Column(ARRAY(String))
+
+    # Dependencies
+    depends_on_task_ids = Column(ARRAY(String))
+    derived_from_fact_ids = Column(ARRAY(String))
+
+    # Ausführungsstatus (für Workflow-Tracking)
+    ist_abgeschlossen = Column(Boolean, default=False)
+    abgeschlossen_am = Column(DateTime)
+    abgeschlossen_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"))
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    parser_run = relationship("UrkundenParserRun", back_populates="tasks")
+
+    __table_args__ = (
+        Index('idx_parsed_task_type', 'task_type'),
+        Index('idx_parsed_task_stage', 'stage'),
+        Index('idx_parsed_task_status', 'ist_abgeschlossen'),
+    )
+
+
+class ParsedIssue(Base):
+    """
+    Ein Issue/Problem bei der Parser-Analyse.
+
+    Issues informieren über Unklarheiten oder Probleme im Dokument.
+    """
+    __tablename__ = "parsed_issues"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    parser_run_id = Column(UUID(as_uuid=True), ForeignKey("urkunden_parser_runs.id"), nullable=False, index=True)
+
+    # Issue-Details
+    severity = Column(String(20), nullable=False)  # INFO, WARN, ERROR
+    message = Column(Text, nullable=False)
+    block_id_hint = Column(String(100))  # Verweis auf betroffenen Block
+
+    # Status
+    ist_behoben = Column(Boolean, default=False)
+    behoben_am = Column(DateTime)
+    behoben_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"))
+    behoben_kommentar = Column(Text)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+
+    # Beziehungen
+    parser_run = relationship("UrkundenParserRun", back_populates="issues")
+
+    __table_args__ = (
+        Index('idx_parsed_issue_severity', 'severity'),
+        Index('idx_parsed_issue_status', 'ist_behoben'),
+    )
+
+
+class GenericBlockLibrary(Base):
+    """
+    Bibliothek bekannter genereller Textbausteine.
+
+    Dient zur Deduplikation und Wiederverwendung von Standard-Klauseln
+    über verschiedene Urkunden hinweg.
+    """
+    __tablename__ = "generic_block_library"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Zugehörigkeit
+    notar_id = Column(UUID(as_uuid=True), ForeignKey("notar_profile.id"), index=True)  # Null = Global
+
+    # Identifikation
+    name = Column(String(200), nullable=False)
+    beschreibung = Column(Text)
+    kategorie = Column(String(100), index=True)  # z.B. "Vollmacht", "Kosten", "Schlussbestimmungen"
+
+    # Inhalt
+    text = Column(Text, nullable=False)
+    text_hash = Column(String(64), nullable=False, index=True)  # Normalisierter Hash
+
+    # Anwendbarkeit
+    vertragstypen = Column(ARRAY(String))  # z.B. ["Kaufvertrag", "Überlassungsvertrag"]
+    ist_universal = Column(Boolean, default=False)  # In allen Vertragstypen verwendbar
+
+    # Versioning
+    version = Column(Integer, default=1)
+    vorherige_version_id = Column(UUID(as_uuid=True), ForeignKey("generic_block_library.id"))
+
+    # Status
+    ist_aktiv = Column(Boolean, default=True)
+    freigegeben = Column(Boolean, default=False)
+    freigegeben_am = Column(DateTime)
+    freigegeben_von_id = Column(UUID(as_uuid=True), ForeignKey("nutzer.id"))
+
+    # Statistiken
+    verwendungszaehler = Column(Integer, default=0)
+    letzte_verwendung = Column(DateTime)
+
+    # Timestamps
+    erstellt_am = Column(DateTime, default=datetime.utcnow)
+    aktualisiert_am = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_generic_block_hash', 'text_hash'),
+        Index('idx_generic_block_kategorie', 'kategorie'),
+        Index('idx_generic_block_aktiv', 'ist_aktiv', 'freigegeben'),
+    )
