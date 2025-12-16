@@ -41,6 +41,10 @@ from .models import (
     AktenTypZivilrecht,
     AktenStatus,
     APIKeyTyp,
+    # Urkundenparser Enums
+    ParserBlockType,
+    ParserStage,
+    ParserRunStatus,
     # Nutzer & Auth
     Nutzer,
     MaklerProfil,
@@ -70,6 +74,13 @@ from .models import (
     AktenTextbaustein,
     # API-Keys
     APIKey,
+    # Urkundenparser
+    UrkundenParserRun,
+    ParsedBlock,
+    ParsedFact,
+    ParsedTask,
+    ParsedIssue,
+    GenericBlockLibrary,
 )
 
 # Verbindungsfunktionen exportieren
@@ -137,6 +148,10 @@ __all__ = [
     "AktenTypZivilrecht",
     "AktenStatus",
     "APIKeyTyp",
+    # Urkundenparser Enums
+    "ParserBlockType",
+    "ParserStage",
+    "ParserRunStatus",
     # Models
     "Nutzer",
     "MaklerProfil",
@@ -161,6 +176,13 @@ __all__ = [
     "AktenTextbaustein",
     # API-Keys
     "APIKey",
+    # Urkundenparser Models
+    "UrkundenParserRun",
+    "ParsedBlock",
+    "ParsedFact",
+    "ParsedTask",
+    "ParsedIssue",
+    "GenericBlockLibrary",
     # Connection functions
     "get_engine",
     "get_session",
