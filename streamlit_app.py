@@ -19437,102 +19437,207 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 # NOTAR-BEREICH
 # ============================================================================
 
-def notar_dashboard():
-    """Dashboard für Notar"""
-    st.title("⚖️ Notar-Dashboard")
+# Menüstruktur für Notar-Dashboard
+NOTAR_MENU_STRUKTUR = {
+    "📊 Übersicht": {
+        "icon": "📊",
+        "items": [
+            {"name": "Timeline", "icon": "📈", "key": "timeline"},
+            {"name": "Reporting", "icon": "📊", "key": "reporting"},
+        ]
+    },
+    "📁 Akten & Projekte": {
+        "icon": "📁",
+        "items": [
+            {"name": "Projekte", "icon": "📋", "key": "projekte"},
+            {"name": "Aktenmanagement", "icon": "📂", "key": "aktenmanagement"},
+            {"name": "Aktenimport", "icon": "📥", "key": "aktenimport"},
+        ]
+    },
+    "📝 Verträge": {
+        "icon": "📝",
+        "items": [
+            {"name": "Vertragsarchiv", "icon": "📚", "key": "vertragsarchiv"},
+            {"name": "Vertragserstellung", "icon": "✍️", "key": "vertragserstellung"},
+            {"name": "Kaufvertrag", "icon": "📜", "key": "kaufvertrag"},
+            {"name": "Vertragsvergleich", "icon": "🔄", "key": "vertragsvergleich"},
+            {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
+        ]
+    },
+    "📄 Dokumente": {
+        "icon": "📄",
+        "items": [
+            {"name": "Datenermittlung", "icon": "🔍", "key": "datenermittlung"},
+            {"name": "Dokumentenanforderungen", "icon": "📋", "key": "dokumentenanforderungen"},
+            {"name": "Dokumenten-Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
+            {"name": "Rechtsdokumente", "icon": "⚖️", "key": "rechtsdokumente"},
+        ]
+    },
+    "💰 Finanzen": {
+        "icon": "💰",
+        "items": [
+            {"name": "Preiseinigungen", "icon": "🤝", "key": "preiseinigungen"},
+            {"name": "Finanzierungsnachweise", "icon": "💵", "key": "finanzierungsnachweise"},
+        ]
+    },
+    "👥 Personen & Kontakte": {
+        "icon": "👥",
+        "items": [
+            {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
+            {"name": "Ausweisdaten", "icon": "🪪", "key": "ausweisdaten"},
+            {"name": "Maklerempfehlung", "icon": "🤝", "key": "maklerempfehlung"},
+            {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
+        ]
+    },
+    "📅 Termine & Aufgaben": {
+        "icon": "📅",
+        "items": [
+            {"name": "Termine", "icon": "📆", "key": "termine"},
+            {"name": "Fristen", "icon": "⏰", "key": "fristen"},
+            {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
+        ]
+    },
+    "📨 Kommunikation": {
+        "icon": "📨",
+        "items": [
+            {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
+        ]
+    },
+    "⚙️ System": {
+        "icon": "⚙️",
+        "items": [
+            {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
+            {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
+            {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
+            {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
+        ]
+    },
+}
 
-    # Aktentasche in der Sidebar
-    user_id = st.session_state.current_user.user_id
-    render_aktentasche_sidebar(user_id)
 
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
+def render_notar_sidebar_menu(user_id: str) -> str:
+    """
+    Rendert das Sidebar-Menü für den Notar mit aufklappbaren Gruppen.
+    Gibt den ausgewählten Menüpunkt zurück.
+    """
+    # Initialisiere Menü-State
+    if 'notar_menu_selection' not in st.session_state:
+        st.session_state.notar_menu_selection = 'timeline'
+    if 'notar_menu_expanded' not in st.session_state:
+        st.session_state.notar_menu_expanded = {'📊 Übersicht': True}
 
-    # Teilen-Dialog anzeigen falls aktiv
-    render_aktentasche_teilen_dialog(user_id)
+    with st.sidebar:
+        st.markdown("### 📂 Navigation")
+        st.markdown("---")
 
-    # Download-Dialog anzeigen falls aktiv
-    render_aktentasche_download(user_id)
+        # Menügruppen rendern
+        for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+            # Prüfen ob Gruppe aktuell ausgewähltes Item enthält
+            gruppe_aktiv = any(
+                item['key'] == st.session_state.notar_menu_selection
+                for item in gruppe_data['items']
+            )
 
-    # Suchleiste
-    search_term = render_dashboard_search("notar")
-    if search_term:
-        st.session_state['notar_search'] = search_term
-    else:
-        st.session_state['notar_search'] = ''
+            # Expander für Gruppe
+            expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
 
-    tabs = st.tabs([
-        "📊 Timeline",
-        "📋 Projekte",
-        "📁 Aktenmanagement",  # NEU: Aktenführung
-        "🔍 Datenermittlung",  # NEU: Flurkarten, Grundbuch, Baulasten etc.
-        "💰 Preiseinigungen",
-        "📚 Vertragsarchiv",  # Textbausteine & Dokumente
-        "📝 Vertragserstellung",  # Verträge aus Bausteinen erstellen
-        "📝 Checklisten",
-        "📋 Dokumentenanforderungen",
-        "👥 Mitarbeiter",
-        "💵 Finanzierungsnachweise",
-        "📄 Dokumenten-Freigaben",
-        "📜 Kaufvertrag",
-        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
-        "📅 Termine",
-        "🤝 Maklerempfehlung",
-        "🔧 Handwerker",
-        "🪪 Ausweisdaten",
-        "📜 Rechtsdokumente",
-        "📁 Aktenimport",  # NEU: PDF-Akten importieren
-        "📨 Nachrichten",  # NEU: Kommunikationszentrale
-        "⏰ Fristen",  # NEU: Fristenmanagement
-        "📈 Reporting",  # NEU: KPIs und Berichte
-        "📋 Vorlagen",  # NEU: Vorlagen-Management
-        "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
-        "🔒 DSGVO",  # NEU: DSGVO-Datenverwaltung
-        "⚙️ Einstellungen"
-    ])
+            with st.expander(gruppe_name, expanded=expanded):
+                for item in gruppe_data['items']:
+                    # Aktiven Menüpunkt hervorheben
+                    ist_aktiv = st.session_state.notar_menu_selection == item['key']
+                    button_type = "primary" if ist_aktiv else "secondary"
 
-    with tabs[0]:
+                    if st.button(
+                        f"{item['icon']} {item['name']}",
+                        key=f"menu_{item['key']}",
+                        use_container_width=True,
+                        type=button_type
+                    ):
+                        st.session_state.notar_menu_selection = item['key']
+                        st.session_state.notar_menu_expanded[gruppe_name] = True
+                        st.rerun()
+
+        st.markdown("---")
+
+    return st.session_state.notar_menu_selection
+
+
+def render_notar_hauptmenu_leiste() -> str:
+    """
+    Rendert eine horizontale Hauptmenü-Leiste für schnellen Zugriff auf Hauptbereiche.
+    """
+    # Hauptbereiche für Schnellzugriff
+    hauptbereiche = [
+        ("📊", "Übersicht", "timeline"),
+        ("📁", "Akten", "projekte"),
+        ("📝", "Verträge", "vertragsarchiv"),
+        ("📄", "Dokumente", "datenermittlung"),
+        ("💰", "Finanzen", "preiseinigungen"),
+        ("👥", "Personen", "mitarbeiter"),
+        ("📅", "Termine", "termine"),
+        ("📨", "Nachrichten", "nachrichten"),
+        ("⚙️", "System", "einstellungen"),
+    ]
+
+    # Finde aktive Gruppe
+    aktuelle_selection = st.session_state.get('notar_menu_selection', 'timeline')
+    aktive_gruppe = None
+
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        if any(item['key'] == aktuelle_selection for item in gruppe_data['items']):
+            aktive_gruppe = gruppe_name
+            break
+
+    # Horizontale Button-Leiste
+    cols = st.columns(len(hauptbereiche))
+
+    for i, (icon, label, default_key) in enumerate(hauptbereiche):
+        with cols[i]:
+            # Prüfen ob dieser Bereich aktiv ist
+            ist_aktiv = aktive_gruppe and label in aktive_gruppe
+
+            if st.button(
+                f"{icon}\n{label}",
+                key=f"hauptmenu_{default_key}",
+                use_container_width=True,
+                type="primary" if ist_aktiv else "secondary"
+            ):
+                st.session_state.notar_menu_selection = default_key
+                st.rerun()
+
+    return aktuelle_selection
+
+
+def render_notar_content(selection: str, user_id: str):
+    """
+    Rendert den Inhalt basierend auf der Menüauswahl.
+    """
+    # Mapping von Menü-Keys zu View-Funktionen
+    if selection == "timeline":
         notar_timeline_view()
 
-    with tabs[1]:
+    elif selection == "reporting":
+        render_reporting_dashboard(user_id)
+
+    elif selection == "projekte":
         notar_projekte_view()
 
-    with tabs[2]:
-        notar_aktenmanagement_view()  # NEU: Aktenführung
+    elif selection == "aktenmanagement":
+        notar_aktenmanagement_view()
 
-    with tabs[3]:
-        notar_datenermittlung_view()  # NEU: Flurkarten, Grundbuch, Baulasten etc.
+    elif selection == "aktenimport":
+        notar_aktenimport_view()
 
-    with tabs[4]:
-        notar_preiseinigungen_view()
-
-    with tabs[5]:
+    elif selection == "vertragsarchiv":
         notar_vertragsarchiv_view()
 
-    with tabs[6]:
+    elif selection == "vertragserstellung":
         notar_vertragserstellung_view()
 
-    with tabs[7]:
-        notar_checklisten_view()
-
-    with tabs[8]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.NOTAR.value)
-
-    with tabs[9]:
-        notar_mitarbeiter_view()
-
-    with tabs[10]:
-        notar_finanzierungsnachweise()
-
-    with tabs[11]:
-        notar_dokumenten_freigaben()
-
-    with tabs[12]:
+    elif selection == "kaufvertrag":
         notar_kaufvertrag_generator()
 
-    with tabs[13]:
-        # Vertragsvergleich - Side-by-Side Diff
+    elif selection == "vertragsvergleich":
         st.subheader("🔄 Vertragsversionen vergleichen")
         notar_projekte = [p for p in st.session_state.projekte.values()
                          if p.notar_id == user_id]
@@ -19549,53 +19654,67 @@ def notar_dashboard():
         else:
             st.info("Noch keine Projekte zugewiesen.")
 
-    with tabs[14]:
-        notar_termine()
-
-    with tabs[15]:
-        notar_makler_empfehlung_view()
-
-    with tabs[16]:
-        notar_handwerker_view()
-
-    with tabs[17]:
-        notar_ausweis_erfassung()
-
-    with tabs[18]:
-        notar_rechtsdokumente_view()
-
-    with tabs[19]:
-        notar_aktenimport_view()
-
-    with tabs[20]:
-        # Kommunikationszentrale
-        render_kommunikationszentrale(user_id)
-
-    with tabs[21]:
-        # Fristenmanagement
-        render_fristenmanagement(user_id)
-
-    with tabs[22]:
-        # Reporting Dashboard
-        render_reporting_dashboard(user_id)
-
-    with tabs[23]:
-        # Vorlagen-Management
+    elif selection == "vorlagen":
         render_vorlagen_management(user_id)
 
-    with tabs[24]:
-        # Papierkorb
+    elif selection == "datenermittlung":
+        notar_datenermittlung_view()
+
+    elif selection == "dokumentenanforderungen":
+        render_document_requests_view(user_id, UserRole.NOTAR.value)
+
+    elif selection == "dokumentenfreigaben":
+        notar_dokumenten_freigaben()
+
+    elif selection == "rechtsdokumente":
+        notar_rechtsdokumente_view()
+
+    elif selection == "preiseinigungen":
+        notar_preiseinigungen_view()
+
+    elif selection == "finanzierungsnachweise":
+        notar_finanzierungsnachweise()
+
+    elif selection == "mitarbeiter":
+        notar_mitarbeiter_view()
+
+    elif selection == "ausweisdaten":
+        notar_ausweis_erfassung()
+
+    elif selection == "maklerempfehlung":
+        notar_makler_empfehlung_view()
+
+    elif selection == "handwerker":
+        notar_handwerker_view()
+
+    elif selection == "termine":
+        notar_termine()
+
+    elif selection == "fristen":
+        render_fristenmanagement(user_id)
+
+    elif selection == "checklisten":
+        notar_checklisten_view()
+
+    elif selection == "nachrichten":
+        render_kommunikationszentrale(user_id)
+
+    elif selection == "einstellungen":
+        notar_einstellungen_view()
+
+    elif selection == "dsgvo":
+        render_dsgvo_tab_notar(user_id)
+
+    elif selection == "papierkorb":
         render_papierkorb_tab(user_id, ist_notar=True)
 
-    with tabs[25]:
-        # TTS-Einstellungen
+    elif selection == "vorlesen":
         st.subheader("🔊 Text-to-Speech Einstellungen")
         render_tts_einstellungen(user_id)
 
         st.markdown("---")
         st.markdown("### 📄 Dokument vorlesen testen")
 
-        # Demo-Text zum Testen
         demo_text = """
         Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
         Der Kaufvertrag wird zwischen den Parteien geschlossen.
@@ -19604,12 +19723,64 @@ def notar_dashboard():
         """
         render_tts_controls(demo_text, "notar_demo_tts", user_id)
 
-    with tabs[26]:
-        # DSGVO-Datenverwaltung
-        render_dsgvo_tab_notar(user_id)
+    else:
+        st.warning(f"Unbekannter Menüpunkt: {selection}")
 
-    with tabs[27]:
-        notar_einstellungen_view()
+
+def notar_dashboard():
+    """Dashboard für Notar mit verbesserter Navigation"""
+
+    # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
+    render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
+    render_aktentasche_download(user_id)
+
+    # Sidebar-Menü rendern
+    selection = render_notar_sidebar_menu(user_id)
+
+    # Titel mit aktuellem Bereich
+    aktueller_bereich = ""
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == selection:
+                aktueller_bereich = f"{item['icon']} {item['name']}"
+                break
+
+    st.title(f"⚖️ Notar-Dashboard")
+
+    # Horizontale Hauptmenü-Leiste
+    render_notar_hauptmenu_leiste()
+
+    st.markdown("---")
+
+    # Suchleiste
+    search_term = render_dashboard_search("notar")
+    if search_term:
+        st.session_state['notar_search'] = search_term
+    else:
+        st.session_state['notar_search'] = ''
+
+    # Breadcrumb-Navigation anzeigen
+    if aktueller_bereich:
+        # Finde Gruppe
+        gruppe_anzeige = ""
+        for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+            if any(item['key'] == selection for item in gruppe_data['items']):
+                gruppe_anzeige = gruppe_name
+                break
+
+        st.caption(f"📍 {gruppe_anzeige} > {aktueller_bereich}")
+
+    # Inhalt rendern
+    render_notar_content(selection, user_id)
 
 def notar_timeline_view():
     """Timeline für Notar"""
