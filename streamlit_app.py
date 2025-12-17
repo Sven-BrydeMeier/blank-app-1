@@ -19718,6 +19718,133 @@ def render_notar_menu_styles():
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb:hover {
         background: #6c757d;
     }
+
+    /* ==================== GLOBALE BUTTON OVERRIDES (KEINE BLAUTÖNE) ==================== */
+
+    /* Alle Primary Buttons global in Grautönen */
+    .stButton > button[kind="primary"],
+    button[kind="primary"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
+        border: 1px solid #343a40 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
+    }
+
+    .stButton > button[kind="primary"]:hover,
+    button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
+        border-color: #495057 !important;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
+    }
+
+    .stButton > button[kind="primary"]:active,
+    button[kind="primary"]:active {
+        background: linear-gradient(135deg, #343a40 0%, #212529 100%) !important;
+    }
+
+    /* Secondary Buttons global */
+    .stButton > button[kind="secondary"],
+    button[kind="secondary"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        border: 1px solid #dee2e6 !important;
+        color: #495057 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .stButton > button[kind="secondary"]:hover,
+    button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%) !important;
+        border-color: #adb5bd !important;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12) !important;
+    }
+
+    /* Streamlit Standard-Button Override */
+    .stButton > button {
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }
+
+    /* Form Submit Buttons */
+    .stForm button[type="submit"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
+        border: 1px solid #343a40 !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
+    }
+
+    .stForm button[type="submit"]:hover {
+        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
+    }
+
+    /* Download Buttons */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+        border: 1px solid #5a6268 !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3) !important;
+    }
+
+    .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, #7c858d 0%, #6c757d 100%) !important;
+        box-shadow: 0 3px 8px rgba(108, 117, 125, 0.4) !important;
+    }
+
+    /* ==================== TABS STYLING (Grautöne) ==================== */
+
+    .stTabs [data-baseweb="tab-list"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 0.25rem;
+        gap: 0.25rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        border-radius: 6px;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(255, 255, 255, 0.7);
+        color: #495057;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: #ffffff !important;
+        color: #343a40 !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Tab Unterline entfernen und durch eigenes Styling ersetzen */
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: #495057 !important;
+    }
+
+    .stTabs [data-baseweb="tab-border"] {
+        display: none;
+    }
+
+    /* ==================== INPUT FIELDS STYLING ==================== */
+
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > div,
+    .stMultiSelect > div > div > div {
+        border-color: #ced4da !important;
+        border-radius: 6px !important;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #6c757d !important;
+        box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.2) !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -19981,10 +20108,8 @@ def notar_dashboard():
     </div>
     """, unsafe_allow_html=True)
 
-    # Hauptmenü-Leiste in Container
-    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
-    render_notar_hauptmenu_leiste()
-    st.markdown('</div>', unsafe_allow_html=True)
+    # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
+    render_notar_timeline_kompakt(user_id)
 
     # Suchleiste
     search_term = render_dashboard_search("notar")
@@ -19992,6 +20117,11 @@ def notar_dashboard():
         st.session_state['notar_search'] = search_term
     else:
         st.session_state['notar_search'] = ''
+
+    # Hauptmenü-Leiste in Container
+    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
+    render_notar_hauptmenu_leiste()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Breadcrumb-Navigation mit Styling
     if aktueller_bereich:
@@ -20010,6 +20140,98 @@ def notar_dashboard():
 
     # Inhalt rendern
     render_notar_content(selection, user_id)
+
+
+def render_notar_timeline_kompakt(user_id: str):
+    """
+    Rendert eine kompakte Timeline-Übersicht aller Projekte oberhalb der Suchleiste.
+    Zeigt Status-Indikatoren für alle aktiven Projekte.
+    """
+    # Projekte des Notars laden
+    notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+
+    if not notar_projekte:
+        return  # Keine Projekte, nichts anzeigen
+
+    # Container für Timeline-Übersicht
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e9ecef;
+    ">
+        <h4 style="color: #495057; margin: 0 0 0.75rem 0; font-size: 1rem;">
+            📊 Projekt-Übersicht
+        </h4>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Projekte als horizontale Karten anzeigen
+    # Maximal 4 pro Reihe
+    projekte_chunks = [notar_projekte[i:i+4] for i in range(0, len(notar_projekte), 4)]
+
+    for chunk in projekte_chunks[:2]:  # Maximal 2 Reihen (8 Projekte)
+        cols = st.columns(len(chunk))
+
+        for i, projekt in enumerate(chunk):
+            with cols[i]:
+                # Status-Farbe bestimmen
+                fortschritt = berechne_projekt_fortschritt(projekt.projekt_id)
+                if fortschritt >= 100:
+                    status_farbe = "#28a745"  # Grün
+                    status_icon = "✅"
+                elif fortschritt >= 75:
+                    status_farbe = "#6c757d"  # Grau
+                    status_icon = "🔄"
+                elif fortschritt >= 50:
+                    status_farbe = "#6c757d"
+                    status_icon = "📋"
+                elif fortschritt >= 25:
+                    status_farbe = "#868e96"
+                    status_icon = "📝"
+                else:
+                    status_farbe = "#adb5bd"
+                    status_icon = "🆕"
+
+                # Kompakte Projekt-Karte
+                st.markdown(f"""
+                <div style="
+                    background: #ffffff;
+                    border-radius: 8px;
+                    padding: 0.75rem;
+                    border-left: 4px solid {status_farbe};
+                    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+                    margin-bottom: 0.5rem;
+                ">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: #343a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {status_icon} {projekt.name[:20]}{'...' if len(projekt.name) > 20 else ''}
+                    </div>
+                    <div style="
+                        background: #e9ecef;
+                        border-radius: 4px;
+                        height: 6px;
+                        margin-top: 0.5rem;
+                        overflow: hidden;
+                    ">
+                        <div style="
+                            background: {status_farbe};
+                            width: {fortschritt}%;
+                            height: 100%;
+                            border-radius: 4px;
+                        "></div>
+                    </div>
+                    <div style="font-size: 0.7rem; color: #6c757d; margin-top: 0.25rem;">
+                        {fortschritt}% abgeschlossen
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # Falls mehr als 8 Projekte
+    if len(notar_projekte) > 8:
+        st.caption(f"*... und {len(notar_projekte) - 8} weitere Projekte*")
 
 def notar_timeline_view():
     """Timeline für Notar"""
