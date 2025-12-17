@@ -19515,6 +19515,213 @@ NOTAR_MENU_STRUKTUR = {
 }
 
 
+def render_notar_menu_styles():
+    """
+    Rendert Custom CSS für das Notar-Dashboard Menü.
+    Grautöne, Schatten und aufgeräumtes Design.
+    """
+    st.markdown("""
+    <style>
+    /* ==================== SIDEBAR STYLING ==================== */
+
+    /* Sidebar Hintergrund */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+        border-right: 1px solid #dee2e6;
+    }
+
+    /* Sidebar Inhalt Container */
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 1rem;
+    }
+
+    /* ==================== EXPANDER (MENÜGRUPPEN) STYLING ==================== */
+
+    /* Expander Container - Karten-Look */
+    [data-testid="stSidebar"] .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        margin-bottom: 0.3rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    [data-testid="stSidebar"] .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-color: #ced4da;
+    }
+
+    /* Expander Content */
+    [data-testid="stSidebar"] .streamlit-expanderContent {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        margin-top: -4px;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+    }
+
+    /* ==================== SIDEBAR BUTTONS STYLING ==================== */
+
+    /* Alle Sidebar Buttons - Basis */
+    [data-testid="stSidebar"] button[kind="secondary"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        color: #495057;
+        font-weight: 500;
+        padding: 0.5rem 0.75rem;
+        margin: 0.15rem 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+    }
+
+    [data-testid="stSidebar"] button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        border-color: #adb5bd;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+        transform: translateY(-1px);
+    }
+
+    /* Aktiver Menüpunkt - Primary Button in Sidebar */
+    [data-testid="stSidebar"] button[kind="primary"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        border: 1px solid #343a40;
+        border-radius: 6px;
+        color: #ffffff;
+        font-weight: 600;
+        padding: 0.5rem 0.75rem;
+        margin: 0.15rem 0;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3);
+    }
+
+    [data-testid="stSidebar"] button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4);
+    }
+
+    /* ==================== HAUPTMENÜ LEISTE STYLING ==================== */
+
+    /* Container für Hauptmenü */
+    .hauptmenu-container {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
+    }
+
+    /* Hauptmenü Buttons - Inaktiv */
+    div[data-testid="column"] button[kind="secondary"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 0.75rem 0.5rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        transition: all 0.25s ease;
+    }
+
+    div[data-testid="column"] button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        border-color: #adb5bd;
+        color: #495057;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+
+    /* Hauptmenü Buttons - Aktiv */
+    div[data-testid="column"] button[kind="primary"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        border: 1px solid #212529;
+        border-radius: 10px;
+        color: #ffffff;
+        font-weight: 600;
+        padding: 0.75rem 0.5rem;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.35);
+    }
+
+    div[data-testid="column"] button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
+        box-shadow: 0 6px 16px rgba(52, 58, 64, 0.45);
+        transform: translateY(-2px);
+    }
+
+    /* ==================== BREADCRUMB STYLING ==================== */
+
+    .breadcrumb-nav {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        margin: 0.5rem 0 1rem 0;
+        border-left: 4px solid #495057;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    /* ==================== CONTENT CONTAINER ==================== */
+
+    .content-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
+    }
+
+    /* ==================== DIVIDER STYLING ==================== */
+
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent 0%, #dee2e6 50%, transparent 100%);
+        margin: 1rem 0;
+    }
+
+    /* ==================== NAVIGATION TITLE ==================== */
+
+    [data-testid="stSidebar"] h3 {
+        color: #343a40;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #495057;
+        margin-bottom: 1rem;
+    }
+
+    /* ==================== SCROLLBAR STYLING ==================== */
+
+    [data-testid="stSidebar"]::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    [data-testid="stSidebar"]::-webkit-scrollbar-track {
+        background: #f1f3f4;
+    }
+
+    [data-testid="stSidebar"]::-webkit-scrollbar-thumb {
+        background: #adb5bd;
+        border-radius: 3px;
+    }
+
+    [data-testid="stSidebar"]::-webkit-scrollbar-thumb:hover {
+        background: #6c757d;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 def render_notar_sidebar_menu(user_id: str) -> str:
     """
     Rendert das Sidebar-Menü für den Notar mit aufklappbaren Gruppen.
@@ -19730,6 +19937,9 @@ def render_notar_content(selection: str, user_id: str):
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation"""
 
+    # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
+    render_notar_menu_styles()
+
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
     render_aktentasche_sidebar(user_id)
@@ -19748,18 +19958,33 @@ def notar_dashboard():
 
     # Titel mit aktuellem Bereich
     aktueller_bereich = ""
+    aktueller_bereich_icon = ""
     for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
         for item in gruppe_data['items']:
             if item['key'] == selection:
-                aktueller_bereich = f"{item['icon']} {item['name']}"
+                aktueller_bereich = item['name']
+                aktueller_bereich_icon = item['icon']
                 break
 
-    st.title(f"⚖️ Notar-Dashboard")
+    # Dashboard Header mit Styling
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 16px rgba(52, 58, 64, 0.3);
+    ">
+        <h1 style="color: #ffffff; margin: 0; font-size: 1.8rem;">
+            ⚖️ Notar-Dashboard
+        </h1>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Horizontale Hauptmenü-Leiste
+    # Hauptmenü-Leiste in Container
+    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
     render_notar_hauptmenu_leiste()
-
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # Suchleiste
     search_term = render_dashboard_search("notar")
@@ -19768,7 +19993,7 @@ def notar_dashboard():
     else:
         st.session_state['notar_search'] = ''
 
-    # Breadcrumb-Navigation anzeigen
+    # Breadcrumb-Navigation mit Styling
     if aktueller_bereich:
         # Finde Gruppe
         gruppe_anzeige = ""
@@ -19777,7 +20002,11 @@ def notar_dashboard():
                 gruppe_anzeige = gruppe_name
                 break
 
-        st.caption(f"📍 {gruppe_anzeige} > {aktueller_bereich}")
+        st.markdown(f"""
+        <div class="breadcrumb-nav">
+            📍 <strong>{gruppe_anzeige}</strong> &nbsp;›&nbsp; {aktueller_bereich_icon} {aktueller_bereich}
+        </div>
+        """, unsafe_allow_html=True)
 
     # Inhalt rendern
     render_notar_content(selection, user_id)
