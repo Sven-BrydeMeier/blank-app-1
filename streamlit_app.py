@@ -26505,18 +26505,368 @@ def render_organ_verwaltung(gesellschaft: 'Gesellschaft'):
 # AKTENIMPORT - PDF-BASIERTE AKTENVERWALTUNG
 # ============================================================================
 
-def analysiere_pdf_struktur(pdf_bytes: bytes) -> Dict:
+def extrahiere_inhaltsverzeichnis_aus_text(text: str) -> List[Dict]:
+    """
+    Extrahiert Inhaltsverzeichnis-Einträge aus dem PDF-Text.
+    Erkennt Muster wie:
+    - "1. Kaufvertrag ............ 5"
+    - "Anlage A - Grundbuchauszug (Seite 15)"
+    - "Tab 3: Flurkarte S.20"
+    """
+    import re
+
+    eintraege = []
+    zeilen = text.split('\n')
+
+    # Verschiedene Muster für Inhaltsverzeichnis-Einträge
+    muster = [
+        # "1. Titel ...... 5" oder "1. Titel Seite 5"
+        r'^[\s]*(\d+[\.\)]\s*)([^\.]+?)[\.\s]{2,}(\d+)\s*$',
+        # "Anlage A - Titel (Seite 5)" oder "Anlage A: Titel S. 5"
+        r'^[\s]*(Anlage\s+[A-Z0-9]+[\s\-\:]+)([^(]+?)[\s]*[\(]?[Ss](?:eite)?\.?\s*(\d+)[\)]?\s*$',
+        # "Tab 1: Titel S.5"
+        r'^[\s]*(Tab\.?\s*\d+[\:\s]+)([^S]+?)\s*[Ss]\.?\s*(\d+)\s*$',
+        # "Titel (S. 5)" oder "Titel (Seite 5)"
+        r'^[\s]*([A-ZÄÖÜ][^(]+?)[\s]*[\(][Ss](?:eite)?\.?\s*(\d+)[\)]\s*$',
+        # Römische Ziffern: "I. Titel ...... 5"
+        r'^[\s]*((?:I{1,3}|IV|V|VI{1,3}|IX|X)[\.\)]\s*)([^\.]+?)[\.\s]{2,}(\d+)\s*$',
+        # Buchstaben: "a) Titel ...... 5"
+        r'^[\s]*([a-z][\.\)]\s*)([^\.]+?)[\.\s]{2,}(\d+)\s*$',
+    ]
+
+    for zeile in zeilen:
+        zeile = zeile.strip()
+        if not zeile or len(zeile) < 5:
+            continue
+
+        for muster_idx, pattern in enumerate(muster):
+            match = re.match(pattern, zeile, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                if len(groups) >= 2:
+                    # Extrahiere Nummer/Prefix, Titel und Seite
+                    if len(groups) == 3:
+                        prefix = groups[0].strip()
+                        titel = groups[1].strip()
+                        seite = int(groups[2])
+                    else:
+                        prefix = ""
+                        titel = groups[0].strip()
+                        seite = int(groups[1])
+
+                    # Bereinige Titel
+                    titel = re.sub(r'[\.\-_]+$', '', titel).strip()
+
+                    if len(titel) > 2 and seite > 0:
+                        eintraege.append({
+                            "prefix": prefix,
+                            "titel": titel,
+                            "seite": seite,
+                            "volltext": zeile,
+                            "ebene": 0 if prefix and prefix[0].isdigit() else 1
+                        })
+                break
+
+    # Sortiere nach Seitennummer
+    eintraege.sort(key=lambda x: x["seite"])
+
+    # Entferne Duplikate (gleiche Seite, ähnlicher Titel)
+    gefiltert = []
+    for e in eintraege:
+        if not gefiltert or e["seite"] != gefiltert[-1]["seite"]:
+            gefiltert.append(e)
+
+    return gefiltert
+
+
+def extrahiere_aktenbeteiligte_mit_ki(text: str, api_keys: Dict) -> Dict:
+    """
+    Verwendet KI (OpenAI/Anthropic) um Aktenbeteiligte aus dem Aktenblatt zu extrahieren.
+
+    Extrahiert:
+    - Käufer (Namen, Adressen, Geburtsdaten)
+    - Verkäufer (Namen, Adressen, Geburtsdaten)
+    - Objekt (Adresse, Flurstück)
+    - Kaufpreis
+    - Urkundenrolle/Aktenzeichen
+    """
+    import json
+
+    ergebnis = {
+        "kaeufer": [],
+        "verkaeufer": [],
+        "objekt_adresse": "",
+        "flurstueck": "",
+        "kaufpreis": 0.0,
+        "urkundenrolle": "",
+        "weitere_beteiligte": [],
+        "raw_text": text[:2000]  # Für Debug
+    }
+
+    prompt = """Analysiere den folgenden Text aus einem notariellen Aktenblatt und extrahiere die Beteiligten.
+
+TEXT:
+{text}
+
+Extrahiere folgende Informationen im JSON-Format:
+{{
+    "kaeufer": [
+        {{"name": "Vollständiger Name", "adresse": "Straße, PLZ Ort", "geburtsdatum": "TT.MM.JJJJ"}}
+    ],
+    "verkaeufer": [
+        {{"name": "Vollständiger Name", "adresse": "Straße, PLZ Ort", "geburtsdatum": "TT.MM.JJJJ"}}
+    ],
+    "objekt_adresse": "Straße Hausnummer, PLZ Ort",
+    "flurstueck": "Flurstück-Bezeichnung",
+    "kaufpreis": 0.0,
+    "urkundenrolle": "UR-Nummer/Jahr",
+    "weitere_beteiligte": [
+        {{"rolle": "z.B. Bevollmächtigter", "name": "Name"}}
+    ]
+}}
+
+Falls eine Information nicht gefunden wird, setze sie auf null oder leeren String. Bei Kaufpreis nutze 0.0 falls nicht gefunden.
+Antworte NUR mit dem JSON, ohne zusätzlichen Text.""".format(text=text[:4000])
+
+    # Versuche OpenAI zuerst
+    if api_keys.get('openai'):
+        try:
+            import openai
+            client = openai.OpenAI(api_key=api_keys['openai'])
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=1500
+            )
+
+            antwort = response.choices[0].message.content.strip()
+            # JSON extrahieren
+            if "```json" in antwort:
+                antwort = antwort.split("```json")[1].split("```")[0]
+            elif "```" in antwort:
+                antwort = antwort.split("```")[1].split("```")[0]
+
+            daten = json.loads(antwort)
+
+            ergebnis["kaeufer"] = daten.get("kaeufer", [])
+            ergebnis["verkaeufer"] = daten.get("verkaeufer", [])
+            ergebnis["objekt_adresse"] = daten.get("objekt_adresse", "")
+            ergebnis["flurstueck"] = daten.get("flurstueck", "")
+            ergebnis["kaufpreis"] = float(daten.get("kaufpreis", 0) or 0)
+            ergebnis["urkundenrolle"] = daten.get("urkundenrolle", "")
+            ergebnis["weitere_beteiligte"] = daten.get("weitere_beteiligte", [])
+            ergebnis["ki_verwendet"] = "OpenAI GPT-4o-mini"
+
+            return ergebnis
+
+        except Exception as e:
+            ergebnis["fehler_openai"] = str(e)
+
+    # Fallback: Anthropic
+    if api_keys.get('anthropic'):
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_keys['anthropic'])
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            antwort = response.content[0].text.strip()
+            if "```json" in antwort:
+                antwort = antwort.split("```json")[1].split("```")[0]
+            elif "```" in antwort:
+                antwort = antwort.split("```")[1].split("```")[0]
+
+            daten = json.loads(antwort)
+
+            ergebnis["kaeufer"] = daten.get("kaeufer", [])
+            ergebnis["verkaeufer"] = daten.get("verkaeufer", [])
+            ergebnis["objekt_adresse"] = daten.get("objekt_adresse", "")
+            ergebnis["flurstueck"] = daten.get("flurstueck", "")
+            ergebnis["kaufpreis"] = float(daten.get("kaufpreis", 0) or 0)
+            ergebnis["urkundenrolle"] = daten.get("urkundenrolle", "")
+            ergebnis["weitere_beteiligte"] = daten.get("weitere_beteiligte", [])
+            ergebnis["ki_verwendet"] = "Anthropic Claude-3-Haiku"
+
+            return ergebnis
+
+        except Exception as e:
+            ergebnis["fehler_anthropic"] = str(e)
+
+    # Fallback: Einfache Regex-basierte Extraktion
+    ergebnis["ki_verwendet"] = "Regex-Fallback (kein API-Key)"
+
+    import re
+
+    # Käufer/Verkäufer Muster
+    kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if kaeufer_match:
+        ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if verkaeufer_match:
+        ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # Kaufpreis
+    preis_match = re.search(r'(?:Kaufpreis|Preis)[:\s]+([0-9.,]+)\s*(?:EUR|€)?', text, re.IGNORECASE)
+    if preis_match:
+        preis_str = preis_match.group(1).replace('.', '').replace(',', '.')
+        try:
+            ergebnis["kaufpreis"] = float(preis_str)
+        except:
+            pass
+
+    # UR-Nummer
+    ur_match = re.search(r'(UR[:\s-]*\d+[/\-]\d+)', text, re.IGNORECASE)
+    if ur_match:
+        ergebnis["urkundenrolle"] = ur_match.group(1)
+
+    return ergebnis
+
+
+def teile_pdf_nach_struktur(pdf_bytes: bytes, struktur_eintraege: List[Dict], gesamt_seiten: int) -> Dict[str, bytes]:
+    """
+    Teilt ein PDF in einzelne Dokumente basierend auf der erkannten Struktur.
+
+    Returns:
+        Dict mit Dokumenttitel als Key und PDF-Bytes als Value
+    """
+    import io
+
+    dokumente = {}
+
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        for i, eintrag in enumerate(struktur_eintraege):
+            start_seite = eintrag["seite"] - 1  # 0-basiert
+
+            # Ende: nächster Eintrag oder Ende des PDFs
+            if i + 1 < len(struktur_eintraege):
+                end_seite = struktur_eintraege[i + 1]["seite"] - 1
+            else:
+                end_seite = gesamt_seiten
+
+            # Sicherstellen dass Seitenbereich gültig ist
+            start_seite = max(0, min(start_seite, gesamt_seiten - 1))
+            end_seite = max(start_seite + 1, min(end_seite, gesamt_seiten))
+
+            if start_seite < end_seite:
+                writer = PdfWriter()
+
+                for page_num in range(start_seite, end_seite):
+                    if page_num < len(reader.pages):
+                        writer.add_page(reader.pages[page_num])
+
+                # PDF in Bytes konvertieren
+                output = io.BytesIO()
+                writer.write(output)
+                output.seek(0)
+
+                # Dateiname aus Titel erstellen
+                titel = eintrag["titel"]
+                safe_titel = "".join(c if c.isalnum() or c in " -_" else "_" for c in titel)
+                safe_titel = safe_titel[:50]  # Max 50 Zeichen
+
+                dokumente[eintrag["titel"]] = {
+                    "pdf_bytes": output.read(),
+                    "seiten_von": start_seite + 1,
+                    "seiten_bis": end_seite,
+                    "dateiname": f"{safe_titel}.pdf",
+                    "original_eintrag": eintrag
+                }
+
+    except ImportError:
+        pass  # PyPDF2 nicht verfügbar
+    except Exception as e:
+        dokumente["_fehler"] = {"fehler": str(e)}
+
+    return dokumente
+
+
+def ordne_dokument_zu_ordner(titel: str, dokumenttyp: str = "") -> str:
+    """
+    Ordnet ein Dokument basierend auf Titel und Typ einem Standard-Ordner zu.
+    """
+    titel_lower = titel.lower()
+
+    # Zuordnungsregeln
+    zuordnung = {
+        "Vertragsentwürfe": [
+            "kaufvertrag", "entwurf", "vertrag", "urkunde", "beurkundung"
+        ],
+        "Grundbuch": [
+            "grundbuch", "abteilung", "bestandsverzeichnis", "abt."
+        ],
+        "Flurkarten & Pläne": [
+            "flurkarte", "lageplan", "teilungsplan", "kataster", "plan", "karte"
+        ],
+        "Finanzierung": [
+            "finanzierung", "grundschuld", "darlehen", "bank", "kredit", "zinsen"
+        ],
+        "Personalien Käufer": [
+            "käufer", "erwerber", "ausweis käufer", "personalausweis käufer"
+        ],
+        "Personalien Verkäufer": [
+            "verkäufer", "veräußerer", "ausweis verkäufer", "personalausweis verkäufer"
+        ],
+        "Behördliche Unterlagen": [
+            "vorkaufsrecht", "unbedenklichkeit", "genehmigung", "bescheinigung",
+            "gemeinde", "bauamt", "behörde"
+        ],
+        "Korrespondenz": [
+            "brief", "schreiben", "mail", "korrespondenz", "anschreiben"
+        ],
+        "Abrechnung": [
+            "rechnung", "kosten", "gebühr", "honorar", "abrechnung"
+        ],
+    }
+
+    for ordner, keywords in zuordnung.items():
+        for keyword in keywords:
+            if keyword in titel_lower:
+                return ordner
+
+    # Spezielle Dokumenttypen
+    if dokumenttyp:
+        typ_lower = dokumenttyp.lower()
+        if "ausweis" in typ_lower or "pass" in typ_lower:
+            return "Personalien Käufer"  # Default, kann später geändert werden
+        elif "grundbuch" in typ_lower:
+            return "Grundbuch"
+        elif "vollmacht" in typ_lower:
+            return "Behördliche Unterlagen"
+
+    return "Sonstiges"
+
+
+def analysiere_pdf_struktur(pdf_bytes: bytes, extrahiere_volltext: bool = True) -> Dict:
     """
     Analysiert die Struktur einer PDF-Datei.
-    Sucht nach Lesezeichen/Bookmarks und Inhaltsverzeichnis.
+    Sucht nach Lesezeichen/Bookmarks und Inhaltsverzeichnis im Text.
+
+    Args:
+        pdf_bytes: Die PDF als Bytes
+        extrahiere_volltext: Ob der gesamte Text extrahiert werden soll (für KI-Analyse)
+
+    Returns:
+        Dict mit Strukturinformationen
     """
     import io
 
     struktur = {
         "seiten_anzahl": 0,
         "lesezeichen": [],
+        "inhaltsverzeichnis": [],  # Aus Text extrahierte Struktur
         "erkannte_ordner": [],
-        "erkannte_dokumente": []
+        "erkannte_dokumente": [],
+        "volltext": "",  # Für KI-Analyse des Aktenblatts
+        "aktenblatt_text": "",  # Text der ersten Seiten (Aktenblatt)
+        "text_seiten": []  # Text pro Seite
     }
 
     try:
@@ -26549,14 +26899,48 @@ def analysiere_pdf_struktur(pdf_bytes: bytes) -> Dict:
             if hasattr(reader, 'outline') and reader.outline:
                 struktur["lesezeichen"] = extrahiere_lesezeichen(reader.outline)
 
-            # Text der ersten Seiten analysieren für Inhaltsverzeichnis
+            # Text aller Seiten extrahieren
             text_seiten = []
-            for i, seite in enumerate(reader.pages[:5]):  # Erste 5 Seiten
+            volltext_liste = []
+            max_seiten = len(reader.pages) if extrahiere_volltext else min(10, len(reader.pages))
+
+            for i, seite in enumerate(reader.pages[:max_seiten]):
                 try:
                     text = seite.extract_text() or ""
-                    text_seiten.append(text)
+                    text_seiten.append({
+                        "seite": i + 1,
+                        "text": text
+                    })
+                    volltext_liste.append(text)
                 except:
-                    pass
+                    text_seiten.append({"seite": i + 1, "text": ""})
+
+            struktur["text_seiten"] = text_seiten
+
+            # Aktenblatt-Text (erste 2-3 Seiten für Beteiligte)
+            aktenblatt_seiten = min(3, len(volltext_liste))
+            struktur["aktenblatt_text"] = "\n\n".join(volltext_liste[:aktenblatt_seiten])
+
+            if extrahiere_volltext:
+                struktur["volltext"] = "\n\n".join(volltext_liste)
+
+            # Inhaltsverzeichnis aus Text extrahieren
+            # Suche primär in ersten 5 Seiten nach IVZ
+            ivz_text = "\n".join(volltext_liste[:5])
+            struktur["inhaltsverzeichnis"] = extrahiere_inhaltsverzeichnis_aus_text(ivz_text)
+
+            # Falls kein Inhaltsverzeichnis gefunden, nutze Lesezeichen als Struktur
+            if not struktur["inhaltsverzeichnis"] and struktur["lesezeichen"]:
+                struktur["inhaltsverzeichnis"] = [
+                    {
+                        "prefix": "",
+                        "titel": lz["titel"],
+                        "seite": lz["seite"] + 1,  # 1-basiert
+                        "ebene": lz["ebene"],
+                        "volltext": lz["titel"]
+                    }
+                    for lz in struktur["lesezeichen"]
+                ]
 
             # Typische Aktenordner-Namen erkennen
             ordner_keywords = {
@@ -26571,25 +26955,31 @@ def analysiere_pdf_struktur(pdf_bytes: bytes) -> Dict:
                 "Abrechnung": ["rechnung", "kostenaufstellung", "gebühren"],
             }
 
-            gesamt_text = " ".join(text_seiten).lower()
+            gesamt_text_lower = " ".join(volltext_liste).lower()
 
             for ordner, keywords in ordner_keywords.items():
                 for keyword in keywords:
-                    if keyword in gesamt_text:
+                    if keyword in gesamt_text_lower:
                         if ordner not in struktur["erkannte_ordner"]:
                             struktur["erkannte_ordner"].append(ordner)
                         break
 
-            # Dokument-Typen aus Lesezeichen erkennen
-            for lz in struktur["lesezeichen"]:
-                titel_lower = lz["titel"].lower()
+            # Dokument-Typen aus Inhaltsverzeichnis und Lesezeichen erkennen
+            alle_eintraege = struktur["inhaltsverzeichnis"] + [
+                {"titel": lz["titel"], "seite": lz.get("seite", 0)}
+                for lz in struktur["lesezeichen"]
+            ]
+
+            for eintrag in alle_eintraege:
+                titel_lower = eintrag["titel"].lower()
                 for dok_typ in AktenDokumentTyp:
                     if dok_typ.value.lower() in titel_lower:
-                        struktur["erkannte_dokumente"].append({
-                            "typ": dok_typ.value,
-                            "titel": lz["titel"],
-                            "seite": lz.get("seite", 0)
-                        })
+                        if not any(d["titel"] == eintrag["titel"] for d in struktur["erkannte_dokumente"]):
+                            struktur["erkannte_dokumente"].append({
+                                "typ": dok_typ.value,
+                                "titel": eintrag["titel"],
+                                "seite": eintrag.get("seite", 0)
+                            })
                         break
 
         except ImportError:
@@ -26722,28 +27112,59 @@ def erstelle_akte_aus_pdf(
 
 
 def render_akten_import():
-    """Rendert die Import-Oberfläche für PDF-Akten."""
-    st.subheader("📁 Aktenimport")
+    """Rendert die erweiterte Import-Oberfläche für PDF-Akten mit Inhaltsverzeichnis-Erkennung."""
+    st.subheader("📁 PDF-Aktenimport")
 
     st.info("""
-    **PDF-Akten importieren**
+    **PDF-Akten mit Inhaltsverzeichnis importieren**
 
-    Laden Sie eine komplette Akte als PDF hoch. Das System analysiert die Struktur
-    (Lesezeichen, Inhaltsverzeichnis) und erstellt automatisch die entsprechende
-    Ordnerstruktur mit allen Dokumenten.
+    Laden Sie eine komplette Akte als PDF hoch. Das System analysiert:
+    - **Inhaltsverzeichnis** aus dem PDF-Text
+    - **Lesezeichen/Bookmarks** der PDF
+    - **Aktenbeteiligte** aus dem Aktenblatt (mit KI)
+
+    Die Akte wird automatisch in einzelne Dokumente aufgeteilt und den entsprechenden Ordnern zugewiesen.
     """)
 
     notar_id = st.session_state.current_user.user_id
+
+    # Session State für Import-Prozess initialisieren
+    if 'akten_import_state' not in st.session_state:
+        st.session_state.akten_import_state = {
+            'pdf_analysiert': False,
+            'struktur': None,
+            'beteiligte': None,
+            'dokument_zuordnungen': {},
+            'pdf_bytes': None,
+            'dateiname': None
+        }
 
     # Upload-Bereich
     uploaded_file = st.file_uploader(
         "PDF-Akte hochladen",
         type=["pdf"],
-        help="Ziehen Sie eine PDF-Datei hierher oder klicken Sie zum Auswählen"
+        help="Ziehen Sie eine PDF-Datei mit Inhaltsverzeichnis hierher",
+        key="akten_pdf_uploader"
     )
 
     if uploaded_file:
+        # Prüfen ob neue Datei hochgeladen wurde
+        if st.session_state.akten_import_state.get('dateiname') != uploaded_file.name:
+            st.session_state.akten_import_state = {
+                'pdf_analysiert': False,
+                'struktur': None,
+                'beteiligte': None,
+                'dokument_zuordnungen': {},
+                'pdf_bytes': None,
+                'dateiname': uploaded_file.name
+            }
+
         pdf_bytes = uploaded_file.read()
+        st.session_state.akten_import_state['pdf_bytes'] = pdf_bytes
+
+        # === SCHRITT 1: PDF ANALYSE ===
+        st.markdown("---")
+        st.markdown("## 1️⃣ PDF-Analyse")
 
         col1, col2 = st.columns(2)
 
@@ -26752,44 +27173,207 @@ def render_akten_import():
             st.write(f"**Dateiname:** {uploaded_file.name}")
             st.write(f"**Größe:** {len(pdf_bytes) / 1024:.1f} KB")
 
-        # PDF analysieren
-        with st.spinner("Analysiere PDF-Struktur..."):
-            struktur = analysiere_pdf_struktur(pdf_bytes)
+        # PDF analysieren (nur wenn noch nicht geschehen)
+        if not st.session_state.akten_import_state.get('pdf_analysiert'):
+            with st.spinner("Analysiere PDF-Struktur und extrahiere Text..."):
+                struktur = analysiere_pdf_struktur(pdf_bytes, extrahiere_volltext=True)
+                st.session_state.akten_import_state['struktur'] = struktur
+                st.session_state.akten_import_state['pdf_analysiert'] = True
+        else:
+            struktur = st.session_state.akten_import_state['struktur']
 
         with col2:
             st.markdown("### 📊 Analyse-Ergebnis")
             st.write(f"**Seiten:** {struktur.get('seiten_anzahl', 'Unbekannt')}")
-            st.write(f"**Lesezeichen:** {len(struktur.get('lesezeichen', []))}")
-            st.write(f"**Erkannte Ordner:** {len(struktur.get('erkannte_ordner', []))}")
+            ivz_count = len(struktur.get('inhaltsverzeichnis', []))
+            lz_count = len(struktur.get('lesezeichen', []))
+            st.write(f"**Inhaltsverzeichnis-Einträge:** {ivz_count}")
+            st.write(f"**PDF-Lesezeichen:** {lz_count}")
 
         if struktur.get("fehler"):
             st.warning(f"⚠️ Hinweis: {struktur['fehler']}")
 
-        # Erkannte Struktur anzeigen
-        if struktur.get("lesezeichen"):
-            with st.expander("📑 Erkannte Lesezeichen", expanded=True):
-                for lz in struktur["lesezeichen"][:20]:  # Max 20 anzeigen
+        # Erkanntes Inhaltsverzeichnis anzeigen
+        ivz = struktur.get("inhaltsverzeichnis", [])
+        if ivz:
+            with st.expander(f"📑 Erkanntes Inhaltsverzeichnis ({len(ivz)} Einträge)", expanded=True):
+                for i, eintrag in enumerate(ivz[:30]):
+                    einrueckung = "  " * eintrag.get("ebene", 0)
+                    prefix = eintrag.get("prefix", "")
+                    st.write(f"{einrueckung}{prefix}{eintrag['titel']} → Seite {eintrag['seite']}")
+                if len(ivz) > 30:
+                    st.write(f"*... und {len(ivz) - 30} weitere Einträge*")
+        elif struktur.get("lesezeichen"):
+            with st.expander(f"📑 PDF-Lesezeichen ({lz_count} Einträge)", expanded=True):
+                for lz in struktur["lesezeichen"][:30]:
                     einrueckung = "  " * lz.get("ebene", 0)
                     st.write(f"{einrueckung}• {lz['titel']} (Seite {lz.get('seite', 0) + 1})")
-                if len(struktur["lesezeichen"]) > 20:
-                    st.write(f"... und {len(struktur['lesezeichen']) - 20} weitere")
+        else:
+            st.warning("⚠️ Kein Inhaltsverzeichnis oder Lesezeichen erkannt. Die gesamte PDF wird als ein Dokument importiert.")
 
-        if struktur.get("erkannte_ordner"):
-            with st.expander("📂 Erkannte Ordner-Kategorien"):
-                for ordner in struktur["erkannte_ordner"]:
-                    st.write(f"• {ordner}")
-
+        # === SCHRITT 2: AKTENBETEILIGTE EXTRAHIEREN ===
         st.markdown("---")
+        st.markdown("## 2️⃣ Aktenbeteiligte aus Aktenblatt")
 
-        # Formular für Akten-Details
-        st.markdown("### ✏️ Akten-Details")
+        api_keys = st.session_state.get('api_keys', {})
+        hat_api_key = bool(api_keys.get('openai') or api_keys.get('anthropic'))
 
-        with st.form("akten_import_form"):
+        if not hat_api_key:
+            st.info("💡 Für die automatische Erkennung der Aktenbeteiligten konfigurieren Sie bitte einen API-Key unter Einstellungen.")
+
+        col_ki1, col_ki2 = st.columns([3, 1])
+        with col_ki2:
+            beteiligte_extrahieren = st.button(
+                "🤖 Beteiligte extrahieren",
+                disabled=not struktur.get('aktenblatt_text'),
+                help="Verwendet KI um Käufer, Verkäufer und weitere Beteiligte zu erkennen"
+            )
+
+        if beteiligte_extrahieren and struktur.get('aktenblatt_text'):
+            with st.spinner("Analysiere Aktenblatt mit KI..."):
+                beteiligte = extrahiere_aktenbeteiligte_mit_ki(
+                    struktur['aktenblatt_text'],
+                    api_keys
+                )
+                st.session_state.akten_import_state['beteiligte'] = beteiligte
+
+        beteiligte = st.session_state.akten_import_state.get('beteiligte')
+        if beteiligte:
+            st.success(f"✅ Beteiligte erkannt mit: {beteiligte.get('ki_verwendet', 'Unbekannt')}")
+
+            col_b1, col_b2 = st.columns(2)
+
+            with col_b1:
+                st.markdown("#### 🏠 Käufer")
+                if beteiligte.get('kaeufer'):
+                    for k in beteiligte['kaeufer']:
+                        if isinstance(k, dict):
+                            st.write(f"• **{k.get('name', 'Unbekannt')}**")
+                            if k.get('adresse'):
+                                st.write(f"  {k['adresse']}")
+                            if k.get('geburtsdatum'):
+                                st.write(f"  geb. {k['geburtsdatum']}")
+                        else:
+                            st.write(f"• {k}")
+                else:
+                    st.write("*Keine Käufer erkannt*")
+
+            with col_b2:
+                st.markdown("#### 🏷️ Verkäufer")
+                if beteiligte.get('verkaeufer'):
+                    for v in beteiligte['verkaeufer']:
+                        if isinstance(v, dict):
+                            st.write(f"• **{v.get('name', 'Unbekannt')}**")
+                            if v.get('adresse'):
+                                st.write(f"  {v['adresse']}")
+                            if v.get('geburtsdatum'):
+                                st.write(f"  geb. {v['geburtsdatum']}")
+                        else:
+                            st.write(f"• {v}")
+                else:
+                    st.write("*Keine Verkäufer erkannt*")
+
+            if beteiligte.get('objekt_adresse') or beteiligte.get('kaufpreis'):
+                st.markdown("#### 📍 Objekt")
+                if beteiligte.get('objekt_adresse'):
+                    st.write(f"**Adresse:** {beteiligte['objekt_adresse']}")
+                if beteiligte.get('flurstueck'):
+                    st.write(f"**Flurstück:** {beteiligte['flurstueck']}")
+                if beteiligte.get('kaufpreis') and beteiligte['kaufpreis'] > 0:
+                    st.write(f"**Kaufpreis:** {beteiligte['kaufpreis']:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+                if beteiligte.get('urkundenrolle'):
+                    st.write(f"**UR-Nummer:** {beteiligte['urkundenrolle']}")
+
+        # === SCHRITT 3: DOKUMENTE ZUORDNEN ===
+        st.markdown("---")
+        st.markdown("## 3️⃣ Dokumentzuordnung")
+
+        # Struktur für Dokumente erstellen
+        dokument_eintraege = ivz if ivz else []
+
+        if dokument_eintraege:
+            st.write(f"**{len(dokument_eintraege)} Dokumente** werden aus dem Inhaltsverzeichnis erstellt:")
+
+            # Initialisiere Zuordnungen
+            if not st.session_state.akten_import_state.get('dokument_zuordnungen'):
+                zuordnungen = {}
+                for i, eintrag in enumerate(dokument_eintraege):
+                    ordner = ordne_dokument_zu_ordner(eintrag['titel'])
+                    zuordnungen[i] = {
+                        'titel': eintrag['titel'],
+                        'seite': eintrag['seite'],
+                        'ordner': ordner,
+                        'aktiv': True
+                    }
+                st.session_state.akten_import_state['dokument_zuordnungen'] = zuordnungen
+
+            zuordnungen = st.session_state.akten_import_state['dokument_zuordnungen']
+
+            # Ordner-Optionen
+            ordner_optionen = [o['name'] for o in STANDARD_AKTEN_ORDNER]
+
+            # Tabelle mit Zuordnungen
+            with st.expander("📋 Dokumente bearbeiten", expanded=True):
+                for i, eintrag in enumerate(dokument_eintraege[:50]):  # Max 50
+                    col_check, col_titel, col_seite, col_ordner = st.columns([0.5, 3, 1, 2])
+
+                    with col_check:
+                        aktiv = st.checkbox(
+                            "",
+                            value=zuordnungen.get(i, {}).get('aktiv', True),
+                            key=f"dok_aktiv_{i}",
+                            label_visibility="collapsed"
+                        )
+                        zuordnungen[i]['aktiv'] = aktiv
+
+                    with col_titel:
+                        st.write(f"**{eintrag['titel'][:50]}**" + ("..." if len(eintrag['titel']) > 50 else ""))
+
+                    with col_seite:
+                        st.write(f"S. {eintrag['seite']}")
+
+                    with col_ordner:
+                        aktueller_ordner = zuordnungen.get(i, {}).get('ordner', 'Sonstiges')
+                        ordner_index = ordner_optionen.index(aktueller_ordner) if aktueller_ordner in ordner_optionen else len(ordner_optionen) - 1
+                        neuer_ordner = st.selectbox(
+                            "",
+                            ordner_optionen,
+                            index=ordner_index,
+                            key=f"dok_ordner_{i}",
+                            label_visibility="collapsed"
+                        )
+                        zuordnungen[i]['ordner'] = neuer_ordner
+
+                if len(dokument_eintraege) > 50:
+                    st.info(f"*... und {len(dokument_eintraege) - 50} weitere Dokumente*")
+
+            # Zusammenfassung
+            aktive_docs = sum(1 for z in zuordnungen.values() if z.get('aktiv', True))
+            st.write(f"**{aktive_docs} von {len(dokument_eintraege)}** Dokumenten werden importiert")
+
+        # === SCHRITT 4: AKTE ERSTELLEN ===
+        st.markdown("---")
+        st.markdown("## 4️⃣ Akte erstellen")
+
+        with st.form("akten_import_form_erweitert"):
             col1, col2 = st.columns(2)
+
+            # Vorausfüllen mit erkannten Daten
+            default_aktenzeichen = ""
+            default_bezeichnung = ""
+            if beteiligte:
+                if beteiligte.get('urkundenrolle'):
+                    default_aktenzeichen = beteiligte['urkundenrolle']
+                if beteiligte.get('kaeufer') and beteiligte.get('verkaeufer'):
+                    k_name = beteiligte['kaeufer'][0].get('name', '') if isinstance(beteiligte['kaeufer'][0], dict) else str(beteiligte['kaeufer'][0])
+                    v_name = beteiligte['verkaeufer'][0].get('name', '') if isinstance(beteiligte['verkaeufer'][0], dict) else str(beteiligte['verkaeufer'][0])
+                    if k_name and v_name:
+                        default_bezeichnung = f"Kaufvertrag {k_name.split()[-1]} / {v_name.split()[-1]}"
 
             with col1:
                 aktenzeichen = st.text_input(
                     "Aktenzeichen *",
+                    value=default_aktenzeichen,
                     placeholder="z.B. UR 123/2024",
                     help="Das offizielle Aktenzeichen des Notariats"
                 )
@@ -26797,6 +27381,7 @@ def render_akten_import():
             with col2:
                 bezeichnung = st.text_input(
                     "Bezeichnung *",
+                    value=default_bezeichnung,
                     placeholder="z.B. Kaufvertrag Musterstraße 1",
                     help="Kurze Beschreibung der Akte"
                 )
@@ -26805,7 +27390,7 @@ def render_akten_import():
             projekte = [p for p in st.session_state.projekte.values()
                        if p.notar_id == notar_id or not p.notar_id]
 
-            projekt_optionen = ["-- Neues Projekt erstellen --"] + [
+            projekt_optionen = ["-- Keine Projekt-Verknüpfung --", "-- Neues Projekt erstellen --"] + [
                 f"{p.adresse} ({p.projekt_id[:8]})" for p in projekte
             ]
 
@@ -26815,34 +27400,256 @@ def render_akten_import():
                 help="Optional: Verknüpfen Sie die Akte mit einem bestehenden Projekt"
             )
 
-            submitted = st.form_submit_button("📥 Akte importieren", type="primary")
+            # PDF aufteilen Option
+            pdf_aufteilen = st.checkbox(
+                "📄 PDF in Einzeldokumente aufteilen",
+                value=True,
+                help="Teilt die PDF basierend auf dem Inhaltsverzeichnis in separate PDF-Dateien"
+            )
+
+            submitted = st.form_submit_button("📥 Akte importieren & verarbeiten", type="primary")
 
             if submitted:
                 if not aktenzeichen or not bezeichnung:
                     st.error("Bitte Aktenzeichen und Bezeichnung eingeben!")
                 else:
-                    # Akte erstellen
-                    akte = erstelle_akte_aus_pdf(
-                        notar_id=notar_id,
-                        pdf_bytes=pdf_bytes,
-                        dateiname=uploaded_file.name,
-                        aktenzeichen=aktenzeichen,
-                        bezeichnung=bezeichnung,
-                        struktur=struktur
-                    )
+                    with st.spinner("Erstelle Akte und verarbeite Dokumente..."):
+                        # Erweiterte Struktur erstellen
+                        erweiterte_struktur = struktur.copy()
 
-                    # Mit Projekt verknüpfen falls ausgewählt
-                    if projekt_auswahl != "-- Neues Projekt erstellen --":
-                        projekt_index = projekt_optionen.index(projekt_auswahl) - 1
-                        if 0 <= projekt_index < len(projekte):
-                            akte.projekt_id = projekte[projekt_index].projekt_id
+                        # Dokumentzuordnungen in Struktur übernehmen
+                        if dokument_eintraege:
+                            zuordnungen = st.session_state.akten_import_state.get('dokument_zuordnungen', {})
+                            erweiterte_struktur['dokument_zuordnungen'] = {
+                                i: z for i, z in zuordnungen.items() if z.get('aktiv', True)
+                            }
 
-                    # Speichern
-                    st.session_state.importierte_akten[akte.akte_id] = akte
+                        # Akte erstellen
+                        akte = erstelle_akte_aus_pdf_erweitert(
+                            notar_id=notar_id,
+                            pdf_bytes=pdf_bytes,
+                            dateiname=uploaded_file.name,
+                            aktenzeichen=aktenzeichen,
+                            bezeichnung=bezeichnung,
+                            struktur=erweiterte_struktur,
+                            beteiligte=beteiligte,
+                            pdf_aufteilen=pdf_aufteilen
+                        )
 
-                    st.success(f"✅ Akte '{bezeichnung}' wurde erfolgreich importiert!")
-                    st.info(f"📊 {len(akte.dokumente)} Dokumente in {len(akte.ordner)} Ordnern erstellt.")
-                    st.rerun()
+                        # Mit Projekt verknüpfen falls ausgewählt
+                        if projekt_auswahl not in ["-- Keine Projekt-Verknüpfung --", "-- Neues Projekt erstellen --"]:
+                            projekt_index = projekt_optionen.index(projekt_auswahl) - 2
+                            if 0 <= projekt_index < len(projekte):
+                                akte.projekt_id = projekte[projekt_index].projekt_id
+
+                        # Speichern
+                        st.session_state.importierte_akten[akte.akte_id] = akte
+
+                        # Import State zurücksetzen
+                        st.session_state.akten_import_state = {
+                            'pdf_analysiert': False,
+                            'struktur': None,
+                            'beteiligte': None,
+                            'dokument_zuordnungen': {},
+                            'pdf_bytes': None,
+                            'dateiname': None
+                        }
+
+                        st.success(f"✅ Akte '{bezeichnung}' wurde erfolgreich importiert!")
+                        st.info(f"📊 {len(akte.dokumente)} Dokumente in {len(akte.ordner)} Ordnern erstellt.")
+
+                        if akte.kaeufer_namen:
+                            st.info(f"👥 Käufer: {', '.join(akte.kaeufer_namen)}")
+                        if akte.verkaeufer_namen:
+                            st.info(f"👥 Verkäufer: {', '.join(akte.verkaeufer_namen)}")
+
+                        st.rerun()
+
+
+def erstelle_akte_aus_pdf_erweitert(
+    notar_id: str,
+    pdf_bytes: bytes,
+    dateiname: str,
+    aktenzeichen: str,
+    bezeichnung: str,
+    struktur: Dict,
+    beteiligte: Optional[Dict] = None,
+    pdf_aufteilen: bool = True
+) -> ImportierteAkte:
+    """
+    Erstellt eine neue Akte aus einer importierten PDF mit erweiterter Verarbeitung.
+
+    Features:
+    - Nutzt Inhaltsverzeichnis oder Lesezeichen für Struktur
+    - Extrahiert Aktenbeteiligte
+    - Teilt PDF optional in Einzeldokumente
+    - Ordnet Dokumente automatisch zu
+    """
+    import uuid
+
+    akte_id = str(uuid.uuid4())[:8]
+
+    # Standard-Ordner erstellen
+    ordner = {}
+    ordner_map = {}  # name -> ordner_id
+    for std_ordner in STANDARD_AKTEN_ORDNER:
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner[ordner_id] = AktenOrdner(
+            ordner_id=ordner_id,
+            akte_id=akte_id,
+            name=std_ordner["name"],
+            beschreibung=std_ordner["beschreibung"]
+        )
+        ordner_map[std_ordner["name"]] = ordner_id
+
+    # Dokumente erstellen
+    dokumente = {}
+
+    # PDF-Aufteilung vorbereiten
+    geteilte_pdfs = {}
+    ivz = struktur.get("inhaltsverzeichnis", [])
+    seiten_anzahl = struktur.get("seiten_anzahl", 0)
+
+    if pdf_aufteilen and ivz and seiten_anzahl > 0:
+        geteilte_pdfs = teile_pdf_nach_struktur(pdf_bytes, ivz, seiten_anzahl)
+
+    # Dokumentzuordnungen nutzen falls vorhanden
+    zuordnungen = struktur.get('dokument_zuordnungen', {})
+
+    if ivz:
+        for i, eintrag in enumerate(ivz):
+            # Prüfen ob Dokument aktiv ist
+            if zuordnungen and i in zuordnungen:
+                if not zuordnungen[i].get('aktiv', True):
+                    continue
+                ziel_ordner = zuordnungen[i].get('ordner', 'Sonstiges')
+            else:
+                ziel_ordner = ordne_dokument_zu_ordner(eintrag['titel'])
+
+            dok_id = str(uuid.uuid4())[:8]
+            ordner_id = ordner_map.get(ziel_ordner, list(ordner_map.values())[-1])
+
+            # Dokument-Typ ermitteln
+            dok_typ = AktenDokumentTyp.SONSTIGES.value
+            titel_lower = eintrag['titel'].lower()
+            for typ in AktenDokumentTyp:
+                if typ.value.lower() in titel_lower:
+                    dok_typ = typ.value
+                    break
+
+            # Seitenbereiche
+            start_seite = eintrag['seite']
+            if i + 1 < len(ivz):
+                end_seite = ivz[i + 1]['seite'] - 1
+            else:
+                end_seite = seiten_anzahl
+
+            # PDF-Daten für das Dokument
+            dok_pdf_data = None
+            if eintrag['titel'] in geteilte_pdfs:
+                dok_info = geteilte_pdfs[eintrag['titel']]
+                dok_pdf_data = dok_info.get('pdf_bytes')
+                start_seite = dok_info.get('seiten_von', start_seite)
+                end_seite = dok_info.get('seiten_bis', end_seite)
+
+            dokumente[dok_id] = AktenDokument(
+                dokument_id=dok_id,
+                akte_id=akte_id,
+                ordner_name=ziel_ordner,
+                ordner_id=ordner_id,
+                titel=eintrag['titel'],
+                dokument_typ=dok_typ,
+                seiten_von=start_seite,
+                seiten_bis=end_seite,
+                pdf_data=dok_pdf_data,
+                dateiname=f"{eintrag['titel'][:50]}.pdf" if dok_pdf_data else ""
+            )
+    elif struktur.get("lesezeichen"):
+        # Fallback: Lesezeichen nutzen
+        for i, lz in enumerate(struktur["lesezeichen"]):
+            if lz.get("ebene", 0) > 0:  # Nur Untereinträge
+                dok_id = str(uuid.uuid4())[:8]
+                ziel_ordner = ordne_dokument_zu_ordner(lz['titel'])
+                ordner_id = ordner_map.get(ziel_ordner, list(ordner_map.values())[-1])
+
+                dokumente[dok_id] = AktenDokument(
+                    dokument_id=dok_id,
+                    akte_id=akte_id,
+                    ordner_name=ziel_ordner,
+                    ordner_id=ordner_id,
+                    titel=lz['titel'],
+                    dokument_typ=AktenDokumentTyp.SONSTIGES.value,
+                    seiten_von=lz.get('seite', 0) + 1,
+                    seiten_bis=seiten_anzahl
+                )
+    else:
+        # Keine Struktur erkannt - ganzes PDF als ein Dokument
+        dok_id = str(uuid.uuid4())[:8]
+        ordner_id = ordner_map.get("Vertragsentwürfe", list(ordner_map.values())[0])
+
+        dokumente[dok_id] = AktenDokument(
+            dokument_id=dok_id,
+            akte_id=akte_id,
+            ordner_name="Vertragsentwürfe",
+            ordner_id=ordner_id,
+            titel=dateiname.replace(".pdf", ""),
+            dokument_typ=AktenDokumentTyp.SONSTIGES.value,
+            seiten_von=1,
+            seiten_bis=seiten_anzahl,
+            pdf_data=pdf_bytes,
+            dateiname=dateiname
+        )
+
+    # Beteiligte extrahieren
+    kaeufer_namen = []
+    verkaeufer_namen = []
+    objekt_adresse = ""
+    kaufpreis = 0.0
+
+    if beteiligte:
+        if beteiligte.get('kaeufer'):
+            for k in beteiligte['kaeufer']:
+                if isinstance(k, dict):
+                    kaeufer_namen.append(k.get('name', ''))
+                else:
+                    kaeufer_namen.append(str(k))
+        if beteiligte.get('verkaeufer'):
+            for v in beteiligte['verkaeufer']:
+                if isinstance(v, dict):
+                    verkaeufer_namen.append(v.get('name', ''))
+                else:
+                    verkaeufer_namen.append(str(v))
+        objekt_adresse = beteiligte.get('objekt_adresse', '')
+        kaufpreis = beteiligte.get('kaufpreis', 0.0)
+
+    # Akte erstellen
+    akte = ImportierteAkte(
+        akte_id=akte_id,
+        notar_id=notar_id,
+        aktenzeichen=aktenzeichen,
+        bezeichnung=bezeichnung,
+        original_pdf_data=pdf_bytes,
+        original_pdf_name=dateiname,
+        original_seitenanzahl=seiten_anzahl,
+        ordner=ordner,
+        dokumente=dokumente,
+        kaeufer_namen=kaeufer_namen,
+        verkaeufer_namen=verkaeufer_namen,
+        objekt_adresse=objekt_adresse,
+        kaufpreis=kaufpreis,
+        status=AktenStatus.IMPORTIERT.value,
+        erkannte_struktur=struktur,
+        import_protokoll=[
+            f"PDF importiert: {dateiname}",
+            f"Seiten: {seiten_anzahl}",
+            f"Inhaltsverzeichnis-Einträge: {len(ivz)}",
+            f"Dokumente erstellt: {len(dokumente)}",
+            f"Käufer erkannt: {len(kaeufer_namen)}",
+            f"Verkäufer erkannt: {len(verkaeufer_namen)}"
+        ]
+    )
+
+    return akte
 
 
 def render_akten_verwaltung():
@@ -26859,84 +27666,165 @@ def render_akten_verwaltung():
     }
 
     if not meine_akten:
-        st.info("📭 Noch keine Akten importiert. Nutzen Sie den Tab 'Aktenimport' um Akten hochzuladen.")
+        st.info("📭 Noch keine Akten importiert. Nutzen Sie den Tab 'Neue Akte importieren' um Akten hochzuladen.")
         return
 
     # Akten-Liste
     st.markdown(f"### 📋 Meine Akten ({len(meine_akten)})")
 
     # Suchfilter
-    search = st.text_input("🔍 Akte suchen", placeholder="Aktenzeichen oder Bezeichnung...")
+    col_search, col_filter = st.columns([3, 1])
+    with col_search:
+        search = st.text_input("🔍 Akte suchen", placeholder="Aktenzeichen, Bezeichnung oder Beteiligte...")
+    with col_filter:
+        status_filter = st.selectbox(
+            "Status",
+            ["Alle"] + [s.value for s in AktenStatus],
+            key="akten_status_filter"
+        )
 
     gefilterte_akten = meine_akten
     if search:
         search_lower = search.lower()
         gefilterte_akten = {
             k: v for k, v in meine_akten.items()
-            if search_lower in v.aktenzeichen.lower() or search_lower in v.bezeichnung.lower()
+            if search_lower in v.aktenzeichen.lower()
+            or search_lower in v.bezeichnung.lower()
+            or any(search_lower in name.lower() for name in v.kaeufer_namen)
+            or any(search_lower in name.lower() for name in v.verkaeufer_namen)
         }
+
+    if status_filter != "Alle":
+        gefilterte_akten = {
+            k: v for k, v in gefilterte_akten.items()
+            if v.status == status_filter
+        }
+
+    if not gefilterte_akten:
+        st.info("Keine Akten gefunden.")
+        return
 
     # Akten als Karten anzeigen
     for akte_id, akte in gefilterte_akten.items():
         status_farbe = {
             AktenStatus.IMPORTIERT.value: "🔵",
+            AktenStatus.NEU.value: "🆕",
             AktenStatus.IN_BEARBEITUNG.value: "🟡",
+            AktenStatus.WARTET_AUF_UNTERLAGEN.value: "⏳",
             AktenStatus.VOLLSTAENDIG.value: "🟢",
+            AktenStatus.BEURKUNDUNG_VORBEREITET.value: "📋",
             AktenStatus.BEURKUNDET.value: "✅",
-            AktenStatus.ABGESCHLOSSEN.value: "⬜",
-            AktenStatus.ARCHIVIERT.value: "📦"
+            AktenStatus.VOLLZUG.value: "⚙️",
+            AktenStatus.ABGESCHLOSSEN.value: "✔️",
+            AktenStatus.ARCHIVIERT.value: "📦",
+            AktenStatus.STORNIERT.value: "❌"
         }.get(akte.status, "⚪")
 
         with st.expander(f"{status_farbe} **{akte.aktenzeichen}** - {akte.bezeichnung}", expanded=False):
+            # Übersicht
             col1, col2, col3 = st.columns(3)
 
             with col1:
                 st.write(f"**Status:** {akte.status}")
-                st.write(f"**Importiert:** {akte.importiert_am.strftime('%d.%m.%Y') if akte.importiert_am else 'Unbekannt'}")
+                st.write(f"**Importiert:** {akte.importiert_am.strftime('%d.%m.%Y %H:%M') if akte.importiert_am else 'Unbekannt'}")
+                if akte.original_seitenanzahl:
+                    st.write(f"**Seiten:** {akte.original_seitenanzahl}")
 
             with col2:
                 st.write(f"**Dokumente:** {len(akte.dokumente)}")
                 st.write(f"**Ordner:** {len(akte.ordner)}")
+                if akte.kaufpreis and akte.kaufpreis > 0:
+                    st.write(f"**Kaufpreis:** {akte.kaufpreis:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
 
             with col3:
                 if akte.projekt_id:
                     st.write(f"**Projekt:** {akte.projekt_id[:8]}")
                 else:
                     st.write("**Projekt:** Nicht verknüpft")
+                if akte.objekt_adresse:
+                    st.write(f"**Objekt:** {akte.objekt_adresse[:30]}...")
+
+            # Aktenbeteiligte anzeigen
+            if akte.kaeufer_namen or akte.verkaeufer_namen:
+                st.markdown("---")
+                st.markdown("#### 👥 Aktenbeteiligte")
+                col_k, col_v = st.columns(2)
+
+                with col_k:
+                    st.markdown("**Käufer:**")
+                    if akte.kaeufer_namen:
+                        for name in akte.kaeufer_namen:
+                            st.write(f"• {name}")
+                    else:
+                        st.write("*Keine erkannt*")
+
+                with col_v:
+                    st.markdown("**Verkäufer:**")
+                    if akte.verkaeufer_namen:
+                        for name in akte.verkaeufer_namen:
+                            st.write(f"• {name}")
+                    else:
+                        st.write("*Keine erkannt*")
 
             # Ordner-Struktur anzeigen
             st.markdown("---")
-            st.markdown("#### 📁 Ordner-Struktur")
+            st.markdown("#### 📁 Dokumente nach Ordner")
 
-            ordner_tabs = st.tabs([o.name for o in akte.ordner.values()])
+            # Nur Ordner mit Dokumenten als Tabs anzeigen
+            ordner_mit_docs = []
+            for ordner_id, ordner in akte.ordner.items():
+                ordner_dokumente = [
+                    d for d in akte.dokumente.values()
+                    if d.ordner_id == ordner_id or d.ordner_name == ordner.name
+                ]
+                if ordner_dokumente:
+                    ordner_mit_docs.append((ordner_id, ordner, ordner_dokumente))
 
-            for i, (ordner_id, ordner) in enumerate(akte.ordner.items()):
-                with ordner_tabs[i]:
-                    # Dokumente in diesem Ordner
-                    ordner_dokumente = [
-                        d for d in akte.dokumente.values()
-                        if d.ordner_id == ordner_id or d.ordner_name == ordner.name
-                    ]
+            if ordner_mit_docs:
+                ordner_tabs = st.tabs([f"{o[1].name} ({len(o[2])})" for o in ordner_mit_docs])
 
-                    if ordner_dokumente:
+                for i, (ordner_id, ordner, ordner_dokumente) in enumerate(ordner_mit_docs):
+                    with ordner_tabs[i]:
                         for dok in ordner_dokumente:
+                            # Dokument-Icon basierend auf Typ
                             dok_icon = "📄"
-                            if "vertrag" in dok.titel.lower():
+                            titel_lower = dok.titel.lower()
+                            if "vertrag" in titel_lower or "kaufvertrag" in titel_lower:
                                 dok_icon = "📜"
-                            elif "ausweis" in dok.titel.lower():
+                            elif "ausweis" in titel_lower or "pass" in titel_lower:
                                 dok_icon = "🪪"
-                            elif "grundbuch" in dok.titel.lower():
+                            elif "grundbuch" in titel_lower:
                                 dok_icon = "📚"
+                            elif "flurkarte" in titel_lower or "plan" in titel_lower:
+                                dok_icon = "🗺️"
+                            elif "finanzierung" in titel_lower or "grundschuld" in titel_lower:
+                                dok_icon = "💰"
+                            elif "vollmacht" in titel_lower:
+                                dok_icon = "✍️"
 
-                            col_dok, col_seiten, col_actions = st.columns([3, 1, 1])
+                            col_dok, col_seiten, col_dl, col_actions = st.columns([3, 1, 1, 1])
+
                             with col_dok:
-                                st.write(f"{dok_icon} {dok.titel}")
+                                st.write(f"{dok_icon} **{dok.titel[:45]}**" + ("..." if len(dok.titel) > 45 else ""))
+
                             with col_seiten:
                                 if dok.seiten_von and dok.seiten_bis:
                                     st.write(f"S. {dok.seiten_von}-{dok.seiten_bis}")
+
+                            with col_dl:
+                                # Download-Button für einzelnes Dokument
+                                if dok.pdf_data:
+                                    st.download_button(
+                                        "📥",
+                                        data=dok.pdf_data,
+                                        file_name=dok.dateiname or f"{dok.titel[:30]}.pdf",
+                                        mime="application/pdf",
+                                        key=f"dl_dok_{akte_id}_{dok.dokument_id}",
+                                        help="Dokument herunterladen"
+                                    )
+
                             with col_actions:
-                                if st.button("📋", key=f"copy_{dok.dokument_id}", help="Zur Aktentasche"):
-                                    # Zur Aktentasche hinzufügen
+                                if st.button("📋", key=f"copy_{akte_id}_{dok.dokument_id}", help="Zur Aktentasche"):
                                     add_to_aktentasche(
                                         user_id=notar_id,
                                         inhalt_typ=AktentascheInhaltTyp.DOKUMENT.value,
@@ -26946,11 +27834,18 @@ def render_akten_verwaltung():
                                         referenz_typ="AktenDokument"
                                     )
                                     st.success(f"✅ '{dok.titel}' zur Aktentasche hinzugefügt!")
-                    else:
-                        st.write("*Keine Dokumente in diesem Ordner*")
+            else:
+                st.info("Keine Dokumente in der Akte.")
+
+            # Import-Protokoll anzeigen
+            if akte.import_protokoll:
+                with st.expander("📋 Import-Protokoll"):
+                    for eintrag in akte.import_protokoll:
+                        st.write(f"• {eintrag}")
 
             # Aktionen
             st.markdown("---")
+            st.markdown("#### ⚙️ Aktionen")
             col_a1, col_a2, col_a3, col_a4 = st.columns(4)
 
             with col_a1:
@@ -26958,7 +27853,7 @@ def render_akten_verwaltung():
                 neuer_status = st.selectbox(
                     "Status ändern",
                     [s.value for s in AktenStatus],
-                    index=[s.value for s in AktenStatus].index(akte.status),
+                    index=[s.value for s in AktenStatus].index(akte.status) if akte.status in [s.value for s in AktenStatus] else 0,
                     key=f"status_{akte_id}"
                 )
                 if neuer_status != akte.status:
@@ -26984,6 +27879,8 @@ def render_akten_verwaltung():
                     if st.button("🔗 Projekt verknüpfen", key=f"link_{akte_id}"):
                         st.session_state[f"link_projekt_{akte_id}"] = True
                         st.rerun()
+                else:
+                    st.write(f"✅ Verknüpft")
 
             with col_a4:
                 # Löschen
@@ -26991,14 +27888,49 @@ def render_akten_verwaltung():
                     st.session_state[f"confirm_delete_{akte_id}"] = True
                     st.rerun()
 
+            # Projekt-Verknüpfung Dialog
+            if st.session_state.get(f"link_projekt_{akte_id}"):
+                st.markdown("---")
+                st.markdown("#### 🔗 Mit Projekt verknüpfen")
+
+                projekte = [p for p in st.session_state.projekte.values()
+                           if p.notar_id == notar_id or not p.notar_id]
+
+                if projekte:
+                    projekt_optionen = [f"{p.adresse} ({p.projekt_id[:8]})" for p in projekte]
+                    auswahl = st.selectbox(
+                        "Projekt auswählen",
+                        projekt_optionen,
+                        key=f"projekt_auswahl_{akte_id}"
+                    )
+
+                    col_link1, col_link2 = st.columns(2)
+                    with col_link1:
+                        if st.button("✅ Verknüpfen", key=f"do_link_{akte_id}"):
+                            projekt_index = projekt_optionen.index(auswahl)
+                            akte.projekt_id = projekte[projekt_index].projekt_id
+                            del st.session_state[f"link_projekt_{akte_id}"]
+                            st.success("Projekt verknüpft!")
+                            st.rerun()
+                    with col_link2:
+                        if st.button("❌ Abbrechen", key=f"cancel_link_{akte_id}"):
+                            del st.session_state[f"link_projekt_{akte_id}"]
+                            st.rerun()
+                else:
+                    st.info("Keine Projekte verfügbar.")
+                    if st.button("❌ Schließen", key=f"close_link_{akte_id}"):
+                        del st.session_state[f"link_projekt_{akte_id}"]
+                        st.rerun()
+
             # Lösch-Bestätigung
             if st.session_state.get(f"confirm_delete_{akte_id}"):
-                st.warning("⚠️ Möchten Sie diese Akte wirklich löschen?")
+                st.warning("⚠️ Möchten Sie diese Akte wirklich löschen? Alle Dokumente werden entfernt.")
                 col_yes, col_no = st.columns(2)
                 with col_yes:
                     if st.button("✅ Ja, löschen", key=f"confirm_yes_{akte_id}"):
                         del st.session_state.importierte_akten[akte_id]
-                        del st.session_state[f"confirm_delete_{akte_id}"]
+                        if f"confirm_delete_{akte_id}" in st.session_state:
+                            del st.session_state[f"confirm_delete_{akte_id}"]
                         st.success("Akte gelöscht!")
                         st.rerun()
                 with col_no:
