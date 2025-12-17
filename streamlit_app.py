@@ -1867,18 +1867,47 @@ class FinanziererEinladungStatus(Enum):
     DEAKTIVIERT = "Deaktiviert"
 
 class ProjektStatus(Enum):
+    # === Phase 1: Vorbereitung ===
     VORBEREITUNG = "Vorbereitung"
     EXPOSE_ERSTELLT = "Exposé erstellt"
     TEILNEHMER_EINGELADEN = "Teilnehmer eingeladen"
     ONBOARDING_LAUFEND = "Onboarding läuft"
     DOKUMENTE_VOLLSTAENDIG = "Dokumente vollständig"
     WIRTSCHAFTSDATEN_HOCHGELADEN = "Wirtschaftsdaten hochgeladen"
+
+    # === Phase 2: Finanzierung ===
     FINANZIERUNG_ANGEFRAGT = "Finanzierung angefragt"
     FINANZIERUNG_GESICHERT = "Finanzierung gesichert"
+
+    # === Phase 3: Beurkundung ===
     NOTARTERMIN_VEREINBART = "Notartermin vereinbart"
     KAUFVERTRAG_UNTERZEICHNET = "Kaufvertrag unterzeichnet"
+
+    # === Phase 4: Nach Kaufvertrag - Grundbuch & Behörden ===
+    AUFLASSUNGSVORMERKUNG_EINGETRAGEN = "Auflassungsvormerkung eingetragen"
+    VORKAUFSRECHT_ERTEILT = "Vorkaufsrecht Gemeinde/Stadt erteilt"
+    LOESCHUNGSBEWILLIGUNG_VORHANDEN = "Löschungsbewilligung liegt vor"
+
+    # === Phase 5: Kaufpreisabwicklung ===
+    KAUFPREISFAELLIGKEIT = "Kaufpreisfälligkeit mitgeteilt"
+    UNBEDENKLICHKEITSBESCHEINIGUNG = "Unbedenklichkeitsbescheinigung eingegangen"
+    KAUFPREISEINGANG_BESTAETIGT = "Kaufpreiseingang bestätigt"
+
+    # === Phase 6: Übergabe & Abschluss ===
+    SCHLUESSELUEBERGABE = "Schlüsselübergabe erfolgt"
+    AUFLASSUNG_EINGETRAGEN = "Auflassung im Grundbuch eingetragen"
     ABGESCHLOSSEN = "Abgeschlossen"
+
+    # === Sonderstatus ===
     STORNIERT = "Storniert"
+
+
+class GrundschuldStatus(Enum):
+    """Status der Grundschuldbestellung (für Käufer/Finanzierer)"""
+    NICHT_BEGONNEN = "Nicht begonnen"
+    GRUNDSCHULD_BEURKUNDET = "Grundschuld beurkundet"
+    GRUNDSCHULD_BESTELLT = "Grundschuld bestellt"
+    GRUNDSCHULD_EINGETRAGEN = "Grundschuld eingetragen"
 
 class NotificationType(Enum):
     INFO = "info"
@@ -3412,6 +3441,10 @@ class Projekt:
 
     # NEU: Vertragstyp für Aktenbezeichnung
     vertragstyp: str = "Kaufvertrag"  # Kaufvertrag, Überlassungsvertrag, Schenkung, etc.
+
+    # NEU: Grundschuld-Status (für Käufer/Finanzierer nach Kaufvertragsschluss)
+    grundschuld_status: str = GrundschuldStatus.NICHT_BEGONNEN.value
+
 
 class TerminTyp(Enum):
     """Termin-Typen"""
@@ -20146,6 +20179,14 @@ def berechne_projekt_fortschritt(projekt_id: str) -> int:
     """
     Berechnet den Fortschritt eines Projekts basierend auf seinem Status.
     Gibt einen Wert zwischen 0 und 100 zurück.
+
+    Prozessablauf:
+    Phase 1 (0-20%): Vorbereitung & Dokumentensammlung
+    Phase 2 (20-35%): Finanzierung
+    Phase 3 (35-40%): Beurkundung
+    Phase 4 (40-62%): Nach Kaufvertrag - Grundbuch & Behörden
+    Phase 5 (62-82%): Kaufpreisabwicklung
+    Phase 6 (82-100%): Übergabe & Abschluss
     """
     if projekt_id not in st.session_state.projekte:
         return 0
@@ -20153,23 +20194,65 @@ def berechne_projekt_fortschritt(projekt_id: str) -> int:
     projekt = st.session_state.projekte[projekt_id]
     status = projekt.status
 
-    # Status zu Fortschritt-Mapping
+    # Status zu Fortschritt-Mapping (vollständiger Notarprozess)
     status_fortschritt = {
-        ProjektStatus.VORBEREITUNG.value: 5,
-        ProjektStatus.EXPOSE_ERSTELLT.value: 15,
-        ProjektStatus.TEILNEHMER_EINGELADEN.value: 25,
-        ProjektStatus.ONBOARDING_LAUFEND.value: 35,
-        ProjektStatus.DOKUMENTE_VOLLSTAENDIG.value: 50,
-        ProjektStatus.WIRTSCHAFTSDATEN_HOCHGELADEN.value: 60,
-        ProjektStatus.FINANZIERUNG_ANGEFRAGT.value: 70,
-        ProjektStatus.FINANZIERUNG_GESICHERT.value: 80,
-        ProjektStatus.NOTARTERMIN_VEREINBART.value: 90,
-        ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value: 95,
+        # Phase 1: Vorbereitung & Dokumentensammlung (0-20%)
+        ProjektStatus.VORBEREITUNG.value: 2,
+        ProjektStatus.EXPOSE_ERSTELLT.value: 5,
+        ProjektStatus.TEILNEHMER_EINGELADEN.value: 8,
+        ProjektStatus.ONBOARDING_LAUFEND.value: 12,
+        ProjektStatus.DOKUMENTE_VOLLSTAENDIG.value: 16,
+        ProjektStatus.WIRTSCHAFTSDATEN_HOCHGELADEN.value: 20,
+
+        # Phase 2: Finanzierung (20-35%)
+        ProjektStatus.FINANZIERUNG_ANGEFRAGT.value: 25,
+        ProjektStatus.FINANZIERUNG_GESICHERT.value: 32,
+
+        # Phase 3: Beurkundung (35-40%)
+        ProjektStatus.NOTARTERMIN_VEREINBART.value: 36,
+        ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value: 40,
+
+        # Phase 4: Nach Kaufvertrag - Grundbuch & Behörden (40-62%)
+        ProjektStatus.AUFLASSUNGSVORMERKUNG_EINGETRAGEN.value: 48,
+        ProjektStatus.VORKAUFSRECHT_ERTEILT.value: 54,
+        ProjektStatus.LOESCHUNGSBEWILLIGUNG_VORHANDEN.value: 60,
+
+        # Phase 5: Kaufpreisabwicklung (62-82%)
+        ProjektStatus.KAUFPREISFAELLIGKEIT.value: 68,
+        ProjektStatus.UNBEDENKLICHKEITSBESCHEINIGUNG.value: 74,
+        ProjektStatus.KAUFPREISEINGANG_BESTAETIGT.value: 80,
+
+        # Phase 6: Übergabe & Abschluss (82-100%)
+        ProjektStatus.SCHLUESSELUEBERGABE.value: 88,
+        ProjektStatus.AUFLASSUNG_EINGETRAGEN.value: 95,
         ProjektStatus.ABGESCHLOSSEN.value: 100,
+
+        # Sonderstatus
         ProjektStatus.STORNIERT.value: 0,
     }
 
     return status_fortschritt.get(status, 0)
+
+
+def berechne_grundschuld_fortschritt(projekt_id: str) -> int:
+    """
+    Berechnet den Fortschritt der Grundschuldbestellung (für Käufer/Finanzierer).
+    Läuft parallel zum Hauptprozess nach Kaufvertragsschluss.
+    """
+    if projekt_id not in st.session_state.projekte:
+        return 0
+
+    projekt = st.session_state.projekte[projekt_id]
+    grundschuld_status = getattr(projekt, 'grundschuld_status', GrundschuldStatus.NICHT_BEGONNEN.value)
+
+    status_fortschritt = {
+        GrundschuldStatus.NICHT_BEGONNEN.value: 0,
+        GrundschuldStatus.GRUNDSCHULD_BEURKUNDET.value: 33,
+        GrundschuldStatus.GRUNDSCHULD_BESTELLT.value: 66,
+        GrundschuldStatus.GRUNDSCHULD_EINGETRAGEN.value: 100,
+    }
+
+    return status_fortschritt.get(grundschuld_status, 0)
 
 
 def render_notar_timeline_kompakt(user_id: str):
