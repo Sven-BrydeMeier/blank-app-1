@@ -6421,6 +6421,7 @@ def init_session_state():
         # ============================================================
         st.session_state.textbausteine = {}  # baustein_id -> Textbaustein
         st.session_state.vertragsdokumente = {}  # dokument_id -> VertragsDokument
+        st.session_state.verarbeitete_uploads = set()  # Set von (dateiname, dateigröße) Tupeln für bereits verarbeitete Dateien
         st.session_state.vertragsvorlagen = {}  # vorlage_id -> VertragsVorlage
         st.session_state.vertragsentwuerfe = {}  # entwurf_id -> Vertragsentwurf
 
@@ -20732,6 +20733,14 @@ def render_batch_upload_interface(notar_id: str):
     Args:
         notar_id: ID des Notars
     """
+    # Session State für verarbeitete Uploads initialisieren (falls nicht vorhanden)
+    if 'verarbeitete_uploads' not in st.session_state:
+        st.session_state.verarbeitete_uploads = set()
+
+    # Session State für Upload-Key (zum Zurücksetzen des Uploaders)
+    if 'batch_upload_key_counter' not in st.session_state:
+        st.session_state.batch_upload_key_counter = 0
+
     st.markdown("### 📁 Mehrere Dokumente gleichzeitig verarbeiten")
 
     st.info("""
@@ -20745,25 +20754,67 @@ def render_batch_upload_interface(notar_id: str):
     **Unterstützte Formate:** DOCX, RTF, PDF, JPG, PNG
     """)
 
-    # Datei-Upload für mehrere Dateien
+    # Anzeige der bereits verarbeiteten Dateien mit Option zum Zurücksetzen
+    if st.session_state.verarbeitete_uploads:
+        with st.expander(f"📊 {len(st.session_state.verarbeitete_uploads)} Datei(en) bereits in dieser Sitzung verarbeitet"):
+            st.caption("Diese Dateien werden bei erneutem Hochladen automatisch übersprungen:")
+            for name, size in sorted(st.session_state.verarbeitete_uploads):
+                st.markdown(f"- ✓ {name} *({size / 1024:.1f} KB)*")
+            st.markdown("---")
+            if st.button("🗑️ Verarbeitungsverlauf zurücksetzen", key="clear_processed_history",
+                        help="Ermöglicht es, alle Dateien erneut zu verarbeiten"):
+                st.session_state.verarbeitete_uploads = set()
+                st.success("Verarbeitungsverlauf wurde zurückgesetzt. Alle Dateien können nun erneut verarbeitet werden.")
+                st.rerun()
+
+    # Datei-Upload für mehrere Dateien (dynamischer Key für Reset)
+    upload_key = f"batch_upload_files_{st.session_state.batch_upload_key_counter}"
     uploaded_files = st.file_uploader(
         "Dokumente auswählen",
         type=['docx', 'rtf', 'pdf', 'jpg', 'jpeg', 'png'],
         accept_multiple_files=True,
-        key="batch_upload_files",
+        key=upload_key,
         help="Wählen Sie mehrere Dateien gleichzeitig aus (Strg+Klick oder Shift+Klick)"
     )
 
     if uploaded_files:
-        st.markdown(f"**{len(uploaded_files)} Dokument(e) ausgewählt:**")
+        # Bereits verarbeitete Dateien herausfiltern
+        neue_dateien = []
+        bereits_verarbeitet = []
+        for file in uploaded_files:
+            file_identifier = (file.name, file.size)
+            if file_identifier in st.session_state.verarbeitete_uploads:
+                bereits_verarbeitet.append(file)
+            else:
+                neue_dateien.append(file)
 
-        # Dateiliste anzeigen
-        for i, file in enumerate(uploaded_files):
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.markdown(f"{i+1}. 📄 {file.name}")
-            with col2:
-                st.markdown(f"*{file.size / 1024:.1f} KB*")
+        # Info über bereits verarbeitete Dateien
+        if bereits_verarbeitet:
+            st.info(f"ℹ️ {len(bereits_verarbeitet)} Datei(en) wurden bereits verarbeitet und werden übersprungen:")
+            for file in bereits_verarbeitet:
+                st.markdown(f"- ✓ ~~{file.name}~~ *(bereits verarbeitet)*")
+
+        if neue_dateien:
+            st.markdown(f"**{len(neue_dateien)} neue Dokument(e) zur Verarbeitung:**")
+
+            # Dateiliste anzeigen
+            for i, file in enumerate(neue_dateien):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"{i+1}. 📄 {file.name}")
+                with col2:
+                    st.markdown(f"*{file.size / 1024:.1f} KB*")
+        else:
+            st.success("✅ Alle ausgewählten Dateien wurden bereits verarbeitet!")
+            col_reset, _ = st.columns([1, 2])
+            with col_reset:
+                if st.button("🔄 Auswahl zurücksetzen", key="reset_upload_no_new"):
+                    st.session_state.batch_upload_key_counter += 1
+                    st.rerun()
+            return  # Nichts mehr zu tun
+
+        # Für die weitere Verarbeitung nur neue Dateien verwenden
+        uploaded_files = neue_dateien
 
         st.markdown("---")
 
@@ -20900,6 +20951,16 @@ def render_batch_upload_interface(notar_id: str):
                 }
             )
 
+            # Erfolgreich verarbeitete Dateien als verarbeitet markieren
+            for detail in ergebnis['details']:
+                if detail['status'] == 'erfolg':
+                    # Datei aus uploaded_files finden und markieren
+                    for file in uploaded_files:
+                        if file.name == detail['dateiname']:
+                            file_identifier = (file.name, file.size)
+                            st.session_state.verarbeitete_uploads.add(file_identifier)
+                            break
+
             # Hinweis auf nächste Schritte
             st.info("""
             💡 **Nächste Schritte:**
@@ -20907,6 +20968,16 @@ def render_batch_upload_interface(notar_id: str):
             - Geben Sie Bausteine frei, die Sie verwenden möchten (Tab "Freigaben")
             - Nutzen Sie die KI-Urkundenanalyse für tiefere Analyse einzelner Dokumente
             """)
+
+            # Button zum Zurücksetzen des Uploaders
+            st.markdown("---")
+            col_reset, col_info = st.columns([1, 2])
+            with col_reset:
+                if st.button("🔄 Dateiauswahl zurücksetzen", key="reset_upload_after_processing"):
+                    st.session_state.batch_upload_key_counter += 1
+                    st.rerun()
+            with col_info:
+                st.caption("Setzt die Dateiauswahl zurück, damit Sie neue Dateien hochladen können.")
 
             # Session State aufräumen
             st.session_state[processing_key] = {'running': False}
