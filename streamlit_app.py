@@ -19878,6 +19878,297 @@ def render_notar_menu_styles():
         border-color: #6c757d !important;
         box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.2) !important;
     }
+
+    /* ==================== MOBILE RESPONSIVE DESIGN ==================== */
+
+    /* Tablet und kleiner (max-width: 992px) */
+    @media screen and (max-width: 992px) {
+        /* Sidebar kompakter */
+        [data-testid="stSidebar"] {
+            width: 280px !important;
+        }
+
+        /* Hauptmenü Buttons kompakter */
+        div[data-testid="column"] button {
+            padding: 0.5rem 0.25rem !important;
+            font-size: 0.75rem !important;
+        }
+
+        /* Header kompakter */
+        h1 {
+            font-size: 1.4rem !important;
+        }
+    }
+
+    /* Smartphone (max-width: 768px) */
+    @media screen and (max-width: 768px) {
+        /* ===== SIDEBAR MOBILE ===== */
+
+        /* Sidebar Breite reduzieren */
+        [data-testid="stSidebar"] {
+            width: 260px !important;
+            min-width: 260px !important;
+        }
+
+        [data-testid="stSidebar"] > div:first-child {
+            padding: 0.5rem !important;
+        }
+
+        /* Navigation Titel kleiner */
+        [data-testid="stSidebar"] h3 {
+            font-size: 1rem !important;
+            padding-bottom: 0.3rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        /* Expander (Menügruppen) kompakter */
+        [data-testid="stSidebar"] .streamlit-expanderHeader {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.85rem !important;
+            margin-bottom: 0.2rem !important;
+            border-radius: 6px !important;
+        }
+
+        [data-testid="stSidebar"] .streamlit-expanderContent {
+            padding: 0.3rem !important;
+            border-radius: 0 0 6px 6px !important;
+        }
+
+        /* Sidebar Buttons sehr kompakt */
+        [data-testid="stSidebar"] button {
+            padding: 0.35rem 0.5rem !important;
+            font-size: 0.8rem !important;
+            margin: 0.1rem 0 !important;
+            border-radius: 4px !important;
+        }
+
+        /* ===== MAIN CONTENT MOBILE ===== */
+
+        /* Header Container kompakter */
+        .stMarkdown > div > div {
+            padding: 0.75rem 1rem !important;
+        }
+
+        /* Dashboard Header kleiner */
+        h1 {
+            font-size: 1.2rem !important;
+        }
+
+        /* Breadcrumb kompakter */
+        .breadcrumb-nav {
+            padding: 0.4rem 0.75rem !important;
+            font-size: 0.75rem !important;
+            margin: 0.3rem 0 0.5rem 0 !important;
+            border-left-width: 3px !important;
+        }
+
+        /* ===== HAUPTMENÜ-LEISTE MOBILE ===== */
+
+        /* Horizontales Menü als scrollbare Leiste */
+        .hauptmenu-container {
+            padding: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            border-radius: 8px !important;
+        }
+
+        /* Hauptmenü Buttons kompakt */
+        div[data-testid="column"] button[kind="secondary"],
+        div[data-testid="column"] button[kind="primary"] {
+            padding: 0.4rem 0.3rem !important;
+            font-size: 0.7rem !important;
+            border-radius: 6px !important;
+            min-height: 50px !important;
+        }
+
+        /* ===== PROJEKT-TIMELINE CARDS MOBILE ===== */
+
+        /* Timeline Projekt-Karten kompakter */
+        .projekt-timeline-card {
+            padding: 0.5rem !important;
+            margin-bottom: 0.3rem !important;
+        }
+
+        /* ===== FORMULARE & INPUTS MOBILE ===== */
+
+        /* Input Felder kompakter */
+        .stTextInput > div > div > input,
+        .stSelectbox > div > div > div,
+        .stTextArea > div > div > textarea {
+            font-size: 0.9rem !important;
+            padding: 0.4rem 0.5rem !important;
+        }
+
+        /* Labels kleiner */
+        .stTextInput > label,
+        .stSelectbox > label,
+        .stTextArea > label {
+            font-size: 0.85rem !important;
+        }
+
+        /* ===== BUTTONS ALLGEMEIN MOBILE ===== */
+
+        .stButton > button {
+            padding: 0.5rem 0.75rem !important;
+            font-size: 0.85rem !important;
+        }
+
+        /* Download Buttons kompakter */
+        .stDownloadButton > button {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* ===== TABS MOBILE ===== */
+
+        .stTabs [data-baseweb="tab-list"] {
+            padding: 0.15rem !important;
+            gap: 0.15rem !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.4rem 0.6rem !important;
+            font-size: 0.8rem !important;
+            white-space: nowrap !important;
+        }
+
+        /* ===== EXPANDER ALLGEMEIN MOBILE ===== */
+
+        .streamlit-expanderHeader {
+            padding: 0.5rem 0.75rem !important;
+            font-size: 0.9rem !important;
+        }
+
+        .streamlit-expanderContent {
+            padding: 0.5rem !important;
+        }
+
+        /* ===== DATAFRAME / TABELLEN MOBILE ===== */
+
+        .stDataFrame {
+            font-size: 0.75rem !important;
+        }
+
+        /* ===== METRIKEN MOBILE ===== */
+
+        [data-testid="stMetric"] {
+            padding: 0.5rem !important;
+        }
+
+        [data-testid="stMetricValue"] {
+            font-size: 1.2rem !important;
+        }
+
+        [data-testid="stMetricLabel"] {
+            font-size: 0.75rem !important;
+        }
+    }
+
+    /* Sehr kleine Smartphones (max-width: 480px) */
+    @media screen and (max-width: 480px) {
+        /* Sidebar noch kompakter */
+        [data-testid="stSidebar"] {
+            width: 240px !important;
+            min-width: 240px !important;
+        }
+
+        /* Menü Buttons minimalistisch */
+        [data-testid="stSidebar"] button {
+            padding: 0.3rem 0.4rem !important;
+            font-size: 0.75rem !important;
+        }
+
+        /* Expander Header minimal */
+        [data-testid="stSidebar"] .streamlit-expanderHeader {
+            padding: 0.35rem 0.5rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* Hauptmenü Buttons Icon-only friendly */
+        div[data-testid="column"] button {
+            padding: 0.3rem 0.2rem !important;
+            font-size: 0.65rem !important;
+            min-height: 45px !important;
+        }
+
+        /* Header noch kleiner */
+        h1 {
+            font-size: 1rem !important;
+        }
+
+        h2 {
+            font-size: 0.95rem !important;
+        }
+
+        h3 {
+            font-size: 0.9rem !important;
+        }
+
+        /* Breadcrumb minimal */
+        .breadcrumb-nav {
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.7rem !important;
+        }
+
+        /* Alle Buttons kompakter */
+        .stButton > button {
+            padding: 0.4rem 0.5rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* Content Cards kompakter */
+        .content-card {
+            padding: 0.75rem !important;
+            border-radius: 8px !important;
+        }
+    }
+
+    /* ===== TOUCH-FRIENDLY ANPASSUNGEN ===== */
+
+    @media (hover: none) and (pointer: coarse) {
+        /* Größere Touch-Targets */
+        [data-testid="stSidebar"] button {
+            min-height: 44px !important;
+        }
+
+        .stButton > button {
+            min-height: 44px !important;
+        }
+
+        /* Kein Hover-Transform auf Touch-Geräten */
+        button:hover {
+            transform: none !important;
+        }
+
+        /* Expander leichter zu tippen */
+        .streamlit-expanderHeader {
+            min-height: 44px !important;
+        }
+    }
+
+    /* ===== LANDSCAPE MOBILE ===== */
+
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+        /* Header minimieren im Landscape */
+        h1 {
+            font-size: 1rem !important;
+            margin: 0.25rem 0 !important;
+        }
+
+        /* Weniger Padding */
+        .hauptmenu-container {
+            padding: 0.3rem !important;
+            margin-bottom: 0.3rem !important;
+        }
+
+        .breadcrumb-nav {
+            padding: 0.25rem 0.5rem !important;
+            margin: 0.2rem 0 !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -19886,16 +20177,22 @@ def render_notar_sidebar_menu(user_id: str) -> str:
     """
     Rendert das Sidebar-Menü für den Notar mit aufklappbaren Gruppen.
     Gibt den ausgewählten Menüpunkt zurück.
+    Optimiert für Mobile: Nur aktive Gruppe ist aufgeklappt.
     """
     # Initialisiere Menü-State
     if 'notar_menu_selection' not in st.session_state:
         st.session_state.notar_menu_selection = 'timeline'
     if 'notar_menu_expanded' not in st.session_state:
-        st.session_state.notar_menu_expanded = {'📊 Übersicht': True}
+        st.session_state.notar_menu_expanded = {}
 
     with st.sidebar:
-        st.markdown("### 📂 Navigation")
-        st.markdown("---")
+        # Kompakter Header für Mobile
+        st.markdown("""
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="font-size: 1.2rem;">📂</span>
+            <span style="font-weight: 600; color: #343a40;">Navigation</span>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Menügruppen rendern
         for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
@@ -19905,26 +20202,31 @@ def render_notar_sidebar_menu(user_id: str) -> str:
                 for item in gruppe_data['items']
             )
 
-            # Expander für Gruppe
+            # Nur aktive Gruppe ist standardmäßig offen (Mobile-freundlich)
             expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
 
-            with st.expander(gruppe_name, expanded=expanded):
+            # Kompakter Gruppen-Icon für schnelle Erkennung
+            gruppe_icon = gruppe_data.get('icon', '📁')
+
+            with st.expander(f"{gruppe_icon} {gruppe_name.split(' ', 1)[-1]}", expanded=expanded):
                 for item in gruppe_data['items']:
                     # Aktiven Menüpunkt hervorheben
                     ist_aktiv = st.session_state.notar_menu_selection == item['key']
                     button_type = "primary" if ist_aktiv else "secondary"
 
+                    # Kürzerer Button-Text für Mobile
+                    button_text = f"{item['icon']} {item['name']}"
+
                     if st.button(
-                        f"{item['icon']} {item['name']}",
+                        button_text,
                         key=f"menu_{item['key']}",
                         use_container_width=True,
                         type=button_type
                     ):
                         st.session_state.notar_menu_selection = item['key']
-                        st.session_state.notar_menu_expanded[gruppe_name] = True
+                        # Nur diese Gruppe offen lassen, andere schließen (Mobile-freundlich)
+                        st.session_state.notar_menu_expanded = {gruppe_name: True}
                         st.rerun()
-
-        st.markdown("---")
 
     return st.session_state.notar_menu_selection
 
