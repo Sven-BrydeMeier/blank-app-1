@@ -20142,6 +20142,36 @@ def notar_dashboard():
     render_notar_content(selection, user_id)
 
 
+def berechne_projekt_fortschritt(projekt_id: str) -> int:
+    """
+    Berechnet den Fortschritt eines Projekts basierend auf seinem Status.
+    Gibt einen Wert zwischen 0 und 100 zurück.
+    """
+    if projekt_id not in st.session_state.projekte:
+        return 0
+
+    projekt = st.session_state.projekte[projekt_id]
+    status = projekt.status
+
+    # Status zu Fortschritt-Mapping
+    status_fortschritt = {
+        ProjektStatus.VORBEREITUNG.value: 5,
+        ProjektStatus.EXPOSE_ERSTELLT.value: 15,
+        ProjektStatus.TEILNEHMER_EINGELADEN.value: 25,
+        ProjektStatus.ONBOARDING_LAUFEND.value: 35,
+        ProjektStatus.DOKUMENTE_VOLLSTAENDIG.value: 50,
+        ProjektStatus.WIRTSCHAFTSDATEN_HOCHGELADEN.value: 60,
+        ProjektStatus.FINANZIERUNG_ANGEFRAGT.value: 70,
+        ProjektStatus.FINANZIERUNG_GESICHERT.value: 80,
+        ProjektStatus.NOTARTERMIN_VEREINBART.value: 90,
+        ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value: 95,
+        ProjektStatus.ABGESCHLOSSEN.value: 100,
+        ProjektStatus.STORNIERT.value: 0,
+    }
+
+    return status_fortschritt.get(status, 0)
+
+
 def render_notar_timeline_kompakt(user_id: str):
     """
     Rendert eine kompakte Timeline-Übersicht aller Projekte oberhalb der Suchleiste.
