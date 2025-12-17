@@ -29553,7 +29553,11 @@ def get_gating_status(projekt_id: str) -> Dict:
             "finanzierung_status": "nicht_konfiguriert",
             "fortschritt": 0,
             "naechste_schritte": [],
-            "blockiert": False
+            "blockiert": False,
+            "legal_vollstaendig": False,
+            "legal_prozent": 0,
+            "finanzierung_vollstaendig": False,
+            "finanzierung_prozent": 0
         }
 
     legal_pruefungen = [p for p in pruefungen if p.typ == "legal"]
@@ -29565,6 +29569,15 @@ def get_gating_status(projekt_id: str) -> Dict:
     gesamt = len([p for p in pruefungen if p.erforderlich])
     erledigt = len([p for p in pruefungen if p.erforderlich and p.status == GatingStatus.FREIGEGEBEN.value])
     fortschritt = (erledigt / gesamt * 100) if gesamt > 0 else 0
+
+    # Prozentsätze für Legal und Finanzierung berechnen
+    legal_gesamt = len([p for p in legal_pruefungen if p.erforderlich])
+    legal_erledigt = len([p for p in legal_pruefungen if p.erforderlich and p.status == GatingStatus.FREIGEGEBEN.value])
+    legal_prozent = (legal_erledigt / legal_gesamt * 100) if legal_gesamt > 0 else 0
+
+    finanz_gesamt = len([p for p in finanz_pruefungen if p.erforderlich])
+    finanz_erledigt = len([p for p in finanz_pruefungen if p.erforderlich and p.status == GatingStatus.FREIGEGEBEN.value])
+    finanz_prozent = (finanz_erledigt / finanz_gesamt * 100) if finanz_gesamt > 0 else 0
 
     # Nächste Schritte ermitteln
     naechste_schritte = []
@@ -29583,7 +29596,11 @@ def get_gating_status(projekt_id: str) -> Dict:
         "finanzierung_status": "freigegeben" if finanz_freigegeben else ("blockiert" if not legal_freigegeben else "offen"),
         "fortschritt": fortschritt,
         "naechste_schritte": naechste_schritte,
-        "blockiert": not legal_freigegeben and any(p.typ == "finanzierung" and p.status == GatingStatus.WARTET.value for p in pruefungen)
+        "blockiert": not legal_freigegeben and any(p.typ == "finanzierung" and p.status == GatingStatus.WARTET.value for p in pruefungen),
+        "legal_vollstaendig": legal_freigegeben,
+        "legal_prozent": legal_prozent,
+        "finanzierung_vollstaendig": finanz_freigegeben,
+        "finanzierung_prozent": finanz_prozent
     }
 
 
