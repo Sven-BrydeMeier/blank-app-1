@@ -22397,6 +22397,42 @@ def notar_vertragsarchiv_view():
                             generic_blocks = get_generic_candidates(parser_output)
 
                             if parser_output.blocks:
+                                # "Alle übernehmen" Button prominent am Anfang
+                                speicherbare_blocks = [b for b in parser_output.blocks if b.block_type != "HEADING"]
+
+                                col_alle, col_info = st.columns([1, 2])
+                                with col_alle:
+                                    if st.button(
+                                        f"✅ Alle übernehmen ({len(speicherbare_blocks)} Bausteine)",
+                                        type="primary",
+                                        key="alle_bausteine_uebernehmen"
+                                    ):
+                                        saved_count = 0
+                                        for i, block in enumerate(parser_output.blocks):
+                                            if block.block_type != "HEADING":
+                                                baustein_id = str(uuid.uuid4())[:8]
+                                                neuer_baustein = TextbausteinDC(
+                                                    baustein_id=baustein_id,
+                                                    notar_id=notar_id,
+                                                    titel=block.anchor or block.role_guess or f"Baustein {i+1}",
+                                                    text=block.text_excerpt,
+                                                    zusammenfassung=block.generic_reason if block.generic_candidate else "",
+                                                    kategorie=block.role_guess or "Sonstiges",
+                                                    vertragstypen=[dokument.vertragstyp] if dokument.vertragstyp else [],
+                                                    version=1,
+                                                    status=TextbausteinStatus.ENTWURF.value,
+                                                    ki_generiert=True,
+                                                    ki_kategorisiert=True
+                                                )
+                                                st.session_state.textbausteine[baustein_id] = neuer_baustein
+                                                saved_count += 1
+                                        st.success(f"✅ {saved_count} Bausteine wurden ins Archiv übernommen!")
+                                        st.info("Die Bausteine sind im Tab 'Textbausteine' als Entwürfe sichtbar.")
+
+                                with col_info:
+                                    st.caption(f"📊 {len(speicherbare_blocks)} Textbausteine erkannt (ohne Überschriften)")
+
+                                st.divider()
                                 for i, block in enumerate(parser_output.blocks):
                                     is_generic = block.generic_candidate
 
