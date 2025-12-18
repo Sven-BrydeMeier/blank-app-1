@@ -19470,81 +19470,77 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 # NOTAR-BEREICH
 # ============================================================================
 
-# Menüstruktur für Notar-Dashboard
+# Menüstruktur für Notar-Dashboard - Optimiert für Mobile (5 Hauptgruppen)
 NOTAR_MENU_STRUKTUR = {
-    "📊 Übersicht": {
+    "Timeline": {
         "icon": "📊",
         "items": [
-            {"name": "Timeline", "icon": "📈", "key": "timeline"},
-            {"name": "Reporting", "icon": "📊", "key": "reporting"},
+            {"name": "Übersicht", "icon": "📈", "key": "timeline"},
+            {"name": "Berichte", "icon": "📊", "key": "reporting"},
         ]
     },
-    "📁 Akten & Projekte": {
+    "Akte": {
         "icon": "📁",
         "items": [
             {"name": "Projekte", "icon": "📋", "key": "projekte"},
-            {"name": "Aktenmanagement", "icon": "📂", "key": "aktenmanagement"},
-            {"name": "Aktenimport", "icon": "📥", "key": "aktenimport"},
+            {"name": "Verwaltung", "icon": "📂", "key": "aktenmanagement"},
+            {"name": "Import", "icon": "📥", "key": "aktenimport"},
         ]
     },
-    "📝 Verträge": {
+    "Verträge": {
         "icon": "📝",
         "items": [
-            {"name": "Vertragsarchiv", "icon": "📚", "key": "vertragsarchiv"},
-            {"name": "Vertragserstellung", "icon": "✍️", "key": "vertragserstellung"},
+            {"name": "Archiv", "icon": "📚", "key": "vertragsarchiv"},
+            {"name": "Erstellen", "icon": "✍️", "key": "vertragserstellung"},
             {"name": "Kaufvertrag", "icon": "📜", "key": "kaufvertrag"},
-            {"name": "Vertragsvergleich", "icon": "🔄", "key": "vertragsvergleich"},
+            {"name": "Vergleich", "icon": "🔄", "key": "vertragsvergleich"},
             {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
         ]
     },
-    "📄 Dokumente": {
-        "icon": "📄",
-        "items": [
-            {"name": "Datenermittlung", "icon": "🔍", "key": "datenermittlung"},
-            {"name": "Dokumentenanforderungen", "icon": "📋", "key": "dokumentenanforderungen"},
-            {"name": "Dokumenten-Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
-            {"name": "Rechtsdokumente", "icon": "⚖️", "key": "rechtsdokumente"},
-        ]
-    },
-    "💰 Finanzen": {
-        "icon": "💰",
-        "items": [
-            {"name": "Preiseinigungen", "icon": "🤝", "key": "preiseinigungen"},
-            {"name": "Finanzierungsnachweise", "icon": "💵", "key": "finanzierungsnachweise"},
-        ]
-    },
-    "👥 Personen & Kontakte": {
-        "icon": "👥",
-        "items": [
-            {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
-            {"name": "Ausweisdaten", "icon": "🪪", "key": "ausweisdaten"},
-            {"name": "Maklerempfehlung", "icon": "🤝", "key": "maklerempfehlung"},
-            {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
-        ]
-    },
-    "📅 Termine & Aufgaben": {
+    "Termine": {
         "icon": "📅",
         "items": [
-            {"name": "Termine", "icon": "📆", "key": "termine"},
+            {"name": "Kalender", "icon": "📆", "key": "termine"},
             {"name": "Fristen", "icon": "⏰", "key": "fristen"},
             {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
         ]
     },
-    "📨 Kommunikation": {
-        "icon": "📨",
+    "Mehr": {
+        "icon": "☰",
         "items": [
+            {"name": "Dokumente", "icon": "📄", "key": "_dokumente"},
+            {"name": "Finanzen", "icon": "💰", "key": "_finanzen"},
+            {"name": "Kontakte", "icon": "👥", "key": "_kontakte"},
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
+            {"name": "System", "icon": "⚙️", "key": "_system"},
         ]
     },
-    "⚙️ System": {
-        "icon": "⚙️",
-        "items": [
-            {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
-            {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
-            {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
-            {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
-        ]
-    },
+}
+
+# Untermenüs für erweiterte Bereiche
+NOTAR_UNTERMENUS = {
+    "_dokumente": [
+        {"name": "Ermittlung", "icon": "🔍", "key": "datenermittlung"},
+        {"name": "Anforderung", "icon": "📋", "key": "dokumentenanforderungen"},
+        {"name": "Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
+        {"name": "Rechtsdoku", "icon": "⚖️", "key": "rechtsdokumente"},
+    ],
+    "_finanzen": [
+        {"name": "Preise", "icon": "🤝", "key": "preiseinigungen"},
+        {"name": "Finanzierung", "icon": "💵", "key": "finanzierungsnachweise"},
+    ],
+    "_kontakte": [
+        {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
+        {"name": "Ausweise", "icon": "🪪", "key": "ausweisdaten"},
+        {"name": "Makler", "icon": "🤝", "key": "maklerempfehlung"},
+        {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
+    ],
+    "_system": [
+        {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
+        {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
+        {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
+        {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
+    ],
 }
 
 
@@ -20169,109 +20165,399 @@ def render_notar_menu_styles():
             margin: 0.2rem 0 !important;
         }
     }
+
+    /* ==================== BOTTOM NAVIGATION (MOBILE) ==================== */
+
+    .bottom-nav {
+        display: none;  /* Versteckt auf Desktop */
+    }
+
+    @media screen and (max-width: 768px) {
+        /* Bottom Navigation Container */
+        .bottom-nav {
+            display: flex !important;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+            border-top: 1px solid #dee2e6;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 9999;
+            padding: 0.5rem 0.25rem;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.4rem 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 60px;
+            text-decoration: none;
+            background: transparent;
+            border: none;
+        }
+
+        .bottom-nav-item:hover,
+        .bottom-nav-item:active {
+            background: #e9ecef;
+        }
+
+        .bottom-nav-item.active {
+            background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+            color: white !important;
+        }
+
+        .bottom-nav-item.active .nav-icon,
+        .bottom-nav-item.active .nav-label {
+            color: white !important;
+        }
+
+        .nav-icon {
+            font-size: 1.3rem;
+            line-height: 1;
+            margin-bottom: 0.15rem;
+        }
+
+        .nav-label {
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: #495057;
+            white-space: nowrap;
+        }
+
+        /* Platz für Bottom-Nav am Seitenende */
+        .main-content-wrapper {
+            padding-bottom: 70px !important;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            padding-bottom: 70px !important;
+        }
+
+        /* Sidebar auf Mobile ausblenden wenn Bottom-Nav aktiv */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        /* Hauptmenü-Leiste auf Mobile ausblenden */
+        .hauptmenu-container {
+            display: none !important;
+        }
+    }
+
+    /* Submenu Modal für Mobile */
+    .submenu-overlay {
+        position: fixed;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #dee2e6;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 9998;
+        padding: 1rem;
+        border-radius: 16px 16px 0 0;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .submenu-title {
+        font-weight: 600;
+        color: #343a40;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .submenu-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .submenu-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .submenu-item:hover {
+        background: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    .submenu-item.active {
+        background: #495057;
+        color: white;
+        border-color: #495057;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_notar_bottom_nav():
+    """
+    Rendert die Bottom-Navigation für Mobile.
+    Wird nur auf Mobilgeräten angezeigt (via CSS).
+    """
+    if 'notar_menu_selection' not in st.session_state:
+        st.session_state.notar_menu_selection = 'timeline'
+    if 'notar_active_tab' not in st.session_state:
+        st.session_state.notar_active_tab = 'Timeline'
+    if 'notar_show_submenu' not in st.session_state:
+        st.session_state.notar_show_submenu = None
+
+    current_selection = st.session_state.notar_menu_selection
+
+    # Finde aktive Hauptgruppe
+    active_group = 'Timeline'
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == current_selection:
+                active_group = gruppe_name
+                break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == current_selection:
+                        active_group = gruppe_name
+                        break
+
+    # Bottom Navigation HTML
+    nav_items = []
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        icon = gruppe_data['icon']
+        is_active = gruppe_name == active_group
+        active_class = 'active' if is_active else ''
+
+        nav_items.append(f'''
+            <div class="bottom-nav-item {active_class}" data-group="{gruppe_name}">
+                <span class="nav-icon">{icon}</span>
+                <span class="nav-label">{gruppe_name}</span>
+            </div>
+        ''')
+
+    nav_html = f'''
+    <div class="bottom-nav">
+        {''.join(nav_items)}
+    </div>
+    '''
+
+    st.markdown(nav_html, unsafe_allow_html=True)
 
 
 def render_notar_sidebar_menu(user_id: str) -> str:
     """
     Rendert das Sidebar-Menü für den Notar mit aufklappbaren Gruppen.
     Gibt den ausgewählten Menüpunkt zurück.
-    Optimiert für Mobile: Nur aktive Gruppe ist aufgeklappt.
+    Für Desktop - auf Mobile wird Bottom-Nav verwendet.
     """
     # Initialisiere Menü-State
     if 'notar_menu_selection' not in st.session_state:
         st.session_state.notar_menu_selection = 'timeline'
     if 'notar_menu_expanded' not in st.session_state:
         st.session_state.notar_menu_expanded = {}
+    if 'notar_active_submenu' not in st.session_state:
+        st.session_state.notar_active_submenu = None
+
+    # Alle gültigen Keys sammeln (inkl. Untermenüs)
+    alle_keys = []
+    for gruppe_data in NOTAR_MENU_STRUKTUR.values():
+        for item in gruppe_data['items']:
+            if item['key'].startswith('_'):
+                # Untermenü - füge alle Sub-Items hinzu
+                if item['key'] in NOTAR_UNTERMENUS:
+                    for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                        alle_keys.append(sub_item['key'])
+            else:
+                alle_keys.append(item['key'])
 
     with st.sidebar:
-        # Kompakter Header für Mobile
+        # Kompakter Header
         st.markdown("""
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-            <span style="font-size: 1.2rem;">📂</span>
-            <span style="font-weight: 600; color: #343a40;">Navigation</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid #495057;">
+            <span style="font-size: 1.1rem;">⚖️</span>
+            <span style="font-weight: 700; color: #343a40; font-size: 0.95rem;">Notar-Menü</span>
         </div>
         """, unsafe_allow_html=True)
 
         # Menügruppen rendern
         for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-            # Prüfen ob Gruppe aktuell ausgewähltes Item enthält
-            gruppe_aktiv = any(
-                item['key'] == st.session_state.notar_menu_selection
-                for item in gruppe_data['items']
-            )
-
-            # Nur aktive Gruppe ist standardmäßig offen (Mobile-freundlich)
-            expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
-
-            # Kompakter Gruppen-Icon für schnelle Erkennung
             gruppe_icon = gruppe_data.get('icon', '📁')
 
-            with st.expander(f"{gruppe_icon} {gruppe_name.split(' ', 1)[-1]}", expanded=expanded):
+            # Prüfen ob Gruppe aktuell ausgewähltes Item enthält
+            gruppe_aktiv = False
+            for item in gruppe_data['items']:
+                if item['key'] == st.session_state.notar_menu_selection:
+                    gruppe_aktiv = True
+                    break
+                if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                    for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                        if sub_item['key'] == st.session_state.notar_menu_selection:
+                            gruppe_aktiv = True
+                            break
+
+            expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
+
+            with st.expander(f"{gruppe_icon} {gruppe_name}", expanded=expanded):
                 for item in gruppe_data['items']:
-                    # Aktiven Menüpunkt hervorheben
-                    ist_aktiv = st.session_state.notar_menu_selection == item['key']
-                    button_type = "primary" if ist_aktiv else "secondary"
+                    item_key = item['key']
 
-                    # Kürzerer Button-Text für Mobile
-                    button_text = f"{item['icon']} {item['name']}"
+                    # Prüfen ob es ein Untermenü ist
+                    if item_key.startswith('_') and item_key in NOTAR_UNTERMENUS:
+                        # Untermenü-Header
+                        st.markdown(f"**{item['icon']} {item['name']}**")
 
-                    if st.button(
-                        button_text,
-                        key=f"menu_{item['key']}",
-                        use_container_width=True,
-                        type=button_type
-                    ):
-                        st.session_state.notar_menu_selection = item['key']
-                        # Nur diese Gruppe offen lassen, andere schließen (Mobile-freundlich)
-                        st.session_state.notar_menu_expanded = {gruppe_name: True}
-                        st.rerun()
+                        # Untermenü-Items
+                        for sub_item in NOTAR_UNTERMENUS[item_key]:
+                            ist_aktiv = st.session_state.notar_menu_selection == sub_item['key']
+                            button_type = "primary" if ist_aktiv else "secondary"
+
+                            if st.button(
+                                f"  {sub_item['icon']} {sub_item['name']}",
+                                key=f"menu_{sub_item['key']}",
+                                use_container_width=True,
+                                type=button_type
+                            ):
+                                st.session_state.notar_menu_selection = sub_item['key']
+                                st.session_state.notar_menu_expanded = {gruppe_name: True}
+                                st.rerun()
+                    else:
+                        # Normales Menü-Item
+                        ist_aktiv = st.session_state.notar_menu_selection == item_key
+                        button_type = "primary" if ist_aktiv else "secondary"
+
+                        if st.button(
+                            f"{item['icon']} {item['name']}",
+                            key=f"menu_{item_key}",
+                            use_container_width=True,
+                            type=button_type
+                        ):
+                            st.session_state.notar_menu_selection = item_key
+                            st.session_state.notar_menu_expanded = {gruppe_name: True}
+                            st.rerun()
 
     return st.session_state.notar_menu_selection
 
 
+def render_notar_mobile_menu():
+    """
+    Rendert das mobile Menü mit Untermenü-Auswahl.
+    Wird nach der Bottom-Nav angezeigt wenn eine Gruppe ausgewählt wurde.
+    """
+    if 'notar_menu_selection' not in st.session_state:
+        st.session_state.notar_menu_selection = 'timeline'
+    if 'notar_mobile_group' not in st.session_state:
+        st.session_state.notar_mobile_group = 'Timeline'
+
+    current_group = st.session_state.notar_mobile_group
+
+    if current_group in NOTAR_MENU_STRUKTUR:
+        gruppe_data = NOTAR_MENU_STRUKTUR[current_group]
+
+        # Kompakte horizontale Buttons für Untermenü
+        items = gruppe_data['items']
+        cols = st.columns(len(items))
+
+        for i, item in enumerate(items):
+            with cols[i]:
+                item_key = item['key']
+
+                # Prüfen ob Untermenü
+                if item_key.startswith('_') and item_key in NOTAR_UNTERMENUS:
+                    # Zeige Untermenü-Auswahl
+                    if st.button(f"{item['icon']}", key=f"mob_{item_key}", help=item['name']):
+                        st.session_state.notar_active_submenu = item_key
+                        st.rerun()
+                else:
+                    ist_aktiv = st.session_state.notar_menu_selection == item_key
+                    if st.button(
+                        f"{item['icon']}",
+                        key=f"mob_{item_key}",
+                        help=item['name'],
+                        type="primary" if ist_aktiv else "secondary"
+                    ):
+                        st.session_state.notar_menu_selection = item_key
+                        st.rerun()
+
+        # Untermenü anzeigen wenn aktiv
+        if hasattr(st.session_state, 'notar_active_submenu') and st.session_state.notar_active_submenu:
+            submenu_key = st.session_state.notar_active_submenu
+            if submenu_key in NOTAR_UNTERMENUS:
+                st.markdown("---")
+                sub_items = NOTAR_UNTERMENUS[submenu_key]
+                sub_cols = st.columns(len(sub_items))
+
+                for j, sub_item in enumerate(sub_items):
+                    with sub_cols[j]:
+                        ist_aktiv = st.session_state.notar_menu_selection == sub_item['key']
+                        if st.button(
+                            f"{sub_item['icon']}",
+                            key=f"sub_{sub_item['key']}",
+                            help=sub_item['name'],
+                            type="primary" if ist_aktiv else "secondary"
+                        ):
+                            st.session_state.notar_menu_selection = sub_item['key']
+                            st.session_state.notar_active_submenu = None
+                            st.rerun()
+
+
 def render_notar_hauptmenu_leiste() -> str:
     """
-    Rendert eine horizontale Hauptmenü-Leiste für schnellen Zugriff auf Hauptbereiche.
+    Rendert eine horizontale Hauptmenü-Leiste für schnellen Zugriff.
+    Angepasst an die neue 5-Gruppen-Struktur.
     """
-    # Hauptbereiche für Schnellzugriff
-    hauptbereiche = [
-        ("📊", "Übersicht", "timeline"),
-        ("📁", "Akten", "projekte"),
-        ("📝", "Verträge", "vertragsarchiv"),
-        ("📄", "Dokumente", "datenermittlung"),
-        ("💰", "Finanzen", "preiseinigungen"),
-        ("👥", "Personen", "mitarbeiter"),
-        ("📅", "Termine", "termine"),
-        ("📨", "Nachrichten", "nachrichten"),
-        ("⚙️", "System", "einstellungen"),
-    ]
+    aktuelle_selection = st.session_state.get('notar_menu_selection', 'timeline')
 
     # Finde aktive Gruppe
-    aktuelle_selection = st.session_state.get('notar_menu_selection', 'timeline')
     aktive_gruppe = None
-
     for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-        if any(item['key'] == aktuelle_selection for item in gruppe_data['items']):
-            aktive_gruppe = gruppe_name
-            break
+        for item in gruppe_data['items']:
+            if item['key'] == aktuelle_selection:
+                aktive_gruppe = gruppe_name
+                break
+            # Prüfe Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == aktuelle_selection:
+                        aktive_gruppe = gruppe_name
+                        break
 
-    # Horizontale Button-Leiste
-    cols = st.columns(len(hauptbereiche))
+    # Horizontale Button-Leiste (5 Gruppen)
+    cols = st.columns(5)
 
-    for i, (icon, label, default_key) in enumerate(hauptbereiche):
+    for i, (gruppe_name, gruppe_data) in enumerate(NOTAR_MENU_STRUKTUR.items()):
         with cols[i]:
-            # Prüfen ob dieser Bereich aktiv ist
-            ist_aktiv = aktive_gruppe and label in aktive_gruppe
+            icon = gruppe_data['icon']
+            ist_aktiv = aktive_gruppe == gruppe_name
+
+            # Default-Key für diese Gruppe
+            default_key = gruppe_data['items'][0]['key']
+            if default_key.startswith('_'):
+                # Wenn erstes Item ein Untermenü ist, nimm erstes Sub-Item
+                default_key = NOTAR_UNTERMENUS[default_key][0]['key']
 
             if st.button(
-                f"{icon}\n{label}",
-                key=f"hauptmenu_{default_key}",
+                f"{icon}\n{gruppe_name}",
+                key=f"hauptmenu_{gruppe_name}",
                 use_container_width=True,
                 type="primary" if ist_aktiv else "secondary"
             ):
                 st.session_state.notar_menu_selection = default_key
+                st.session_state.notar_mobile_group = gruppe_name
                 st.rerun()
 
     return aktuelle_selection
@@ -20397,7 +20683,7 @@ def render_notar_content(selection: str, user_id: str):
 
 
 def notar_dashboard():
-    """Dashboard für Notar mit verbesserter Navigation"""
+    """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
@@ -20415,30 +20701,42 @@ def notar_dashboard():
     # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Sidebar-Menü rendern
+    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
     selection = render_notar_sidebar_menu(user_id)
 
-    # Titel mit aktuellem Bereich
+    # Titel mit aktuellem Bereich ermitteln
     aktueller_bereich = ""
     aktueller_bereich_icon = ""
+    aktive_gruppe = ""
+
+    # Suche in Hauptmenü und Untermenüs
     for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
         for item in gruppe_data['items']:
             if item['key'] == selection:
                 aktueller_bereich = item['name']
                 aktueller_bereich_icon = item['icon']
+                aktive_gruppe = gruppe_name
                 break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == selection:
+                        aktueller_bereich = sub_item['name']
+                        aktueller_bereich_icon = sub_item['icon']
+                        aktive_gruppe = gruppe_name
+                        break
 
-    # Dashboard Header mit Styling
+    # Kompakter Dashboard Header
     st.markdown("""
     <div style="
         background: linear-gradient(135deg, #343a40 0%, #495057 100%);
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 16px rgba(52, 58, 64, 0.3);
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
     ">
-        <h1 style="color: #ffffff; margin: 0; font-size: 1.8rem;">
-            ⚖️ Notar-Dashboard
+        <h1 style="color: #ffffff; margin: 0; font-size: 1.2rem;">
+            ⚖️ Notar
         </h1>
     </div>
     """, unsafe_allow_html=True)
@@ -20446,35 +20744,24 @@ def notar_dashboard():
     # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
     render_notar_timeline_kompakt(user_id)
 
-    # Suchleiste
-    search_term = render_dashboard_search("notar")
-    if search_term:
-        st.session_state['notar_search'] = search_term
-    else:
-        st.session_state['notar_search'] = ''
-
-    # Hauptmenü-Leiste in Container
+    # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
     st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
     render_notar_hauptmenu_leiste()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Breadcrumb-Navigation mit Styling
-    if aktueller_bereich:
-        # Finde Gruppe
-        gruppe_anzeige = ""
-        for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-            if any(item['key'] == selection for item in gruppe_data['items']):
-                gruppe_anzeige = gruppe_name
-                break
-
+    # Kompakte Breadcrumb-Navigation
+    if aktueller_bereich and aktive_gruppe:
         st.markdown(f"""
         <div class="breadcrumb-nav">
-            📍 <strong>{gruppe_anzeige}</strong> &nbsp;›&nbsp; {aktueller_bereich_icon} {aktueller_bereich}
+            {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
         </div>
         """, unsafe_allow_html=True)
 
     # Inhalt rendern
     render_notar_content(selection, user_id)
+
+    # Bottom Navigation für Mobile (wird nur auf Mobile angezeigt via CSS)
+    render_notar_bottom_nav()
 
 
 def berechne_projekt_fortschritt(projekt_id: str) -> int:
