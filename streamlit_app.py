@@ -1975,6 +1975,501 @@ class VerkäuferDokumentTyp(Enum):
 # DATENMODELLE
 # ============================================================================
 
+# ============================================================================
+# WORKFLOW ENGINE - Kaufvertrag Immobilien
+# ============================================================================
+
+class WorkflowStepStatus(Enum):
+    """Status eines Workflow-Schritts"""
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    BLOCKED = "blocked"
+    SKIPPED = "skipped"  # Wenn Condition nicht erfüllt
+
+
+@dataclass
+class WorkflowStepInstance:
+    """Instanz eines Workflow-Schritts für ein konkretes Projekt"""
+    step_code: str
+    status: str = WorkflowStepStatus.OPEN.value
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    completed_by: Optional[str] = None
+    notes: str = ""
+    blocked_by: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WorkflowMilestoneInstance:
+    """Instanz eines Meilensteins für ein konkretes Projekt"""
+    milestone_type: str
+    date_planned: Optional[datetime] = None
+    date_actual: Optional[datetime] = None
+    status: str = "pending"  # pending, at_risk, done
+
+
+# Workflow-Template Konfiguration (Kaufvertrag Immobilien Modern)
+WORKFLOW_TEMPLATE_KV = {
+    "template_id": "WT_KV_MODERN_V1",
+    "name": "Kaufvertrag Immobilien (Modern)",
+    "version": "1.0.0",
+    "segments": [
+        {"segment_id": "A_PRE_BEURKUNDUNG", "label": "Vor Beurkundung", "order": 1, "icon": "📝"},
+        {"segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT", "label": "Nach Beurkundung", "order": 2, "icon": "📋"},
+        {"segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE", "label": "Kaufpreisabwicklung", "order": 3, "icon": "💰"},
+        {"segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG", "label": "Abschluss", "order": 4, "icon": "✅"},
+    ],
+    "milestones": [
+        {
+            "milestone_type": "NOTARTERMIN_BEURKUNDUNG",
+            "label": "Beurkundung",
+            "order": 1,
+            "icon": "📜",
+            "completion_step_code": "A_BEURKUNDUNG_DOKUMENTIERT"
+        },
+        {
+            "milestone_type": "KAUFPREISFAELLIGKEIT",
+            "label": "Kaufpreisfälligkeit",
+            "order": 2,
+            "icon": "💶",
+            "completion_step_code": "B_FAELLIGKEITSMITTEILUNG_VERSANDT"
+        },
+        {
+            "milestone_type": "SCHLUESSELUEBERGABE",
+            "label": "Schlüsselübergabe",
+            "order": 3,
+            "icon": "🔑",
+            "completion_step_code": "C_SCHLUESSELUEBERGABE_DOKUMENTIERT"
+        },
+        {
+            "milestone_type": "EIGENTUMSUMSCHREIBUNG",
+            "label": "Eigentumsumschreibung",
+            "order": 4,
+            "icon": "🏠",
+            "completion_step_code": "D_EINTRAGUNG_BESTAETIGT"
+        },
+    ],
+    "conditions": [
+        {
+            "condition_id": "requires_financing",
+            "label": "Finanzierung vorhanden",
+            "default": False
+        }
+    ],
+    "steps": [
+        # === SEGMENT A: Vor Beurkundung ===
+        {
+            "code": "A_AKTE_ANGELEGT",
+            "title": "Akte angelegt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 10,
+            "dependencies": [],
+            "condition": None,
+            "icon": "📁"
+        },
+        {
+            "code": "A_PARTEIEN_ERFASST",
+            "title": "Parteien erfasst",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 20,
+            "dependencies": ["A_AKTE_ANGELEGT"],
+            "condition": None,
+            "icon": "👥"
+        },
+        {
+            "code": "A_AUSWEISE_VOLLSTAENDIG",
+            "title": "Ausweise vollständig",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 30,
+            "dependencies": ["A_PARTEIEN_ERFASST"],
+            "condition": None,
+            "icon": "🪪"
+        },
+        {
+            "code": "A_GRUNDBUCH_IMPORT_GEPRUEFT",
+            "title": "Grundbuch geprüft",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 40,
+            "dependencies": ["A_AKTE_ANGELEGT"],
+            "condition": None,
+            "icon": "📖"
+        },
+        {
+            "code": "A_ENTWURF_ERSTELLT",
+            "title": "Vertragsentwurf erstellt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 50,
+            "dependencies": ["A_GRUNDBUCH_IMPORT_GEPRUEFT", "A_PARTEIEN_ERFASST"],
+            "condition": None,
+            "icon": "✍️"
+        },
+        {
+            "code": "A_DOKUMENTE_ANGEFORDERT",
+            "title": "Dokumente angefordert",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 60,
+            "dependencies": ["A_ENTWURF_ERSTELLT"],
+            "condition": None,
+            "icon": "📨"
+        },
+        {
+            "code": "A_FREIGABEN_EINGEHOLT",
+            "title": "Freigaben eingeholt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 70,
+            "dependencies": ["A_ENTWURF_ERSTELLT"],
+            "condition": None,
+            "icon": "✅"
+        },
+        {
+            "code": "A_TERMIN_BESTAETIGT",
+            "title": "Notartermin bestätigt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 80,
+            "dependencies": ["A_FREIGABEN_EINGEHOLT"],
+            "condition": None,
+            "icon": "📅",
+            "due": {"type": "relative_to_milestone", "milestone_type": "NOTARTERMIN_BEURKUNDUNG", "days_offset": -3}
+        },
+        {
+            "code": "A_BEURKUNDUNG_DOKUMENTIERT",
+            "title": "Beurkundung dokumentiert",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 90,
+            "dependencies": ["A_TERMIN_BESTAETIGT", "A_AUSWEISE_VOLLSTAENDIG", "A_GRUNDBUCH_IMPORT_GEPRUEFT", "A_FREIGABEN_EINGEHOLT"],
+            "condition": None,
+            "icon": "📜"
+        },
+
+        # === SEGMENT B: Nach Beurkundung bis Kaufpreisfälligkeit ===
+        {
+            "code": "B_VOLLZUG_GESTARTET",
+            "title": "Vollzug gestartet",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 110,
+            "dependencies": ["A_BEURKUNDUNG_DOKUMENTIERT"],
+            "condition": None,
+            "icon": "▶️"
+        },
+        {
+            "code": "B_AUFLASSUNGSVORMERKUNG_EINGETRAGEN",
+            "title": "Auflassungsvormerkung eingetragen",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 115,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🔖"
+        },
+        {
+            "code": "B_FINANZIERUNG_NACHWEIS_ERFASST",
+            "title": "Finanzierungsnachweis erfasst",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 120,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "🏦"
+        },
+        {
+            "code": "B_GRUNDSCHULD_BEURKUNDET",
+            "title": "Grundschuld beurkundet",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 125,
+            "dependencies": ["B_FINANZIERUNG_NACHWEIS_ERFASST"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "📝"
+        },
+        {
+            "code": "B_GRUNDSCHULD_BESTELLT",
+            "title": "Grundschuld bestellt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 128,
+            "dependencies": ["B_GRUNDSCHULD_BEURKUNDET"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "📤"
+        },
+        {
+            "code": "B_GRUNDSCHULD_EINGETRAGEN",
+            "title": "Grundschuld eingetragen",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 130,
+            "dependencies": ["B_GRUNDSCHULD_BESTELLT"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "🛡️"
+        },
+        {
+            "code": "B_VORKAUFSRECHT_ERTEILT",
+            "title": "Vorkaufsrecht Gemeinde erteilt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 135,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🏛️"
+        },
+        {
+            "code": "B_GENEHMIGUNGEN_VOLLSTAENDIG",
+            "title": "Genehmigungen vollständig",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 140,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "📋"
+        },
+        {
+            "code": "B_LOESCHUNGSBEWILLIGUNG_VORHANDEN",
+            "title": "Löschungsbewilligung vorhanden",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 150,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🗑️"
+        },
+        {
+            "code": "B_VORAUSSETZUNGEN_FAELLIGKEIT_ERFUELLT",
+            "title": "Fälligkeitsvoraussetzungen erfüllt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 160,
+            "dependencies": ["B_AUFLASSUNGSVORMERKUNG_EINGETRAGEN", "B_VORKAUFSRECHT_ERTEILT", "B_GENEHMIGUNGEN_VOLLSTAENDIG", "B_LOESCHUNGSBEWILLIGUNG_VORHANDEN"],
+            "condition": None,
+            "icon": "✓"
+        },
+        {
+            "code": "B_FAELLIGKEITSMITTEILUNG_VERSANDT",
+            "title": "Fälligkeitsmitteilung versandt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 170,
+            "dependencies": ["B_VORAUSSETZUNGEN_FAELLIGKEIT_ERFUELLT"],
+            "condition": None,
+            "icon": "📧",
+            "due": {"type": "relative_to_milestone", "milestone_type": "KAUFPREISFAELLIGKEIT", "days_offset": -1}
+        },
+
+        # === SEGMENT C: Nach Kaufpreisfälligkeit bis Schlüsselübergabe ===
+        {
+            "code": "C_UNBEDENKLICHKEITSBESCHEINIGUNG",
+            "title": "Unbedenklichkeitsbescheinigung eingegangen",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 205,
+            "dependencies": ["B_FAELLIGKEITSMITTEILUNG_VERSANDT"],
+            "condition": None,
+            "icon": "📄"
+        },
+        {
+            "code": "C_ZAHLUNGSEINGANG_ERFASST",
+            "title": "Zahlungseingang bestätigt",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 210,
+            "dependencies": ["B_FAELLIGKEITSMITTEILUNG_VERSANDT"],
+            "condition": None,
+            "icon": "💵",
+            "due": {"type": "relative_to_milestone", "milestone_type": "SCHLUESSELUEBERGABE", "days_offset": -2}
+        },
+        {
+            "code": "C_KAUFPREISEINGANG_BESTAETIGT",
+            "title": "Kaufpreiseingang bestätigt",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 215,
+            "dependencies": ["C_ZAHLUNGSEINGANG_ERFASST"],
+            "condition": None,
+            "icon": "✅"
+        },
+        {
+            "code": "C_UEBERGABEPROTOKOLL_VORBEREITET",
+            "title": "Übergabeprotokoll vorbereitet",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 220,
+            "dependencies": ["C_KAUFPREISEINGANG_BESTAETIGT"],
+            "condition": None,
+            "icon": "📋"
+        },
+        {
+            "code": "C_SCHLUESSELUEBERGABE_KOORDINIERT",
+            "title": "Schlüsselübergabe terminiert",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 230,
+            "dependencies": ["C_UEBERGABEPROTOKOLL_VORBEREITET"],
+            "condition": None,
+            "icon": "📅",
+            "due": {"type": "relative_to_milestone", "milestone_type": "SCHLUESSELUEBERGABE", "days_offset": -1}
+        },
+        {
+            "code": "C_SCHLUESSELUEBERGABE_DOKUMENTIERT",
+            "title": "Schlüsselübergabe dokumentiert",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 240,
+            "dependencies": ["C_SCHLUESSELUEBERGABE_KOORDINIERT"],
+            "condition": None,
+            "icon": "🔑"
+        },
+
+        # === SEGMENT D: Nach Schlüsselübergabe bis Eintragung ===
+        {
+            "code": "D_EINTRAGUNG_BEANTRAGT",
+            "title": "Eigentumsumschreibung beantragt",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 310,
+            "dependencies": ["C_SCHLUESSELUEBERGABE_DOKUMENTIERT"],
+            "condition": None,
+            "icon": "📤"
+        },
+        {
+            "code": "D_EINTRAGUNG_BESTAETIGT",
+            "title": "Eigentumsumschreibung bestätigt",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 320,
+            "dependencies": ["D_EINTRAGUNG_BEANTRAGT"],
+            "condition": None,
+            "icon": "🏠"
+        },
+        {
+            "code": "D_ABSCHLUSS_ARCHIV",
+            "title": "Abschluss und Archivierung",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 330,
+            "dependencies": ["D_EINTRAGUNG_BESTAETIGT"],
+            "condition": None,
+            "icon": "📦"
+        },
+    ],
+    "rules": {
+        "progress_weights": {
+            "NOTARTERMIN_BEURKUNDUNG": 0.25,
+            "KAUFPREISFAELLIGKEIT": 0.25,
+            "SCHLUESSELUEBERGABE": 0.25,
+            "EIGENTUMSUMSCHREIBUNG": 0.25
+        }
+    }
+}
+
+
+def get_workflow_steps_for_segment(segment_id: str, include_conditional: bool = True, financing_required: bool = False) -> List[dict]:
+    """Gibt alle Steps für ein Segment zurück"""
+    steps = []
+    for step in WORKFLOW_TEMPLATE_KV["steps"]:
+        if step["segment_id"] == segment_id:
+            # Prüfe Condition
+            if step.get("condition"):
+                cond = step["condition"]
+                if cond["condition_id"] == "requires_financing":
+                    if cond["value"] == True and not financing_required:
+                        if not include_conditional:
+                            continue
+                        # Step wird als SKIPPED markiert
+            steps.append(step)
+    return sorted(steps, key=lambda x: x["order"])
+
+
+def get_step_dependencies(step_code: str) -> List[str]:
+    """Gibt die Dependencies eines Steps zurück"""
+    for step in WORKFLOW_TEMPLATE_KV["steps"]:
+        if step["code"] == step_code:
+            return step.get("dependencies", [])
+    return []
+
+
+def calculate_step_status(step_code: str, completed_steps: List[str], financing_required: bool = False) -> str:
+    """Berechnet den Status eines Steps basierend auf Dependencies"""
+    step = None
+    for s in WORKFLOW_TEMPLATE_KV["steps"]:
+        if s["code"] == step_code:
+            step = s
+            break
+
+    if not step:
+        return WorkflowStepStatus.OPEN.value
+
+    # Prüfe Condition
+    if step.get("condition"):
+        cond = step["condition"]
+        if cond["condition_id"] == "requires_financing":
+            if cond["value"] == True and not financing_required:
+                return WorkflowStepStatus.SKIPPED.value
+
+    # Bereits erledigt?
+    if step_code in completed_steps:
+        return WorkflowStepStatus.DONE.value
+
+    # Prüfe Dependencies
+    dependencies = step.get("dependencies", [])
+    blocked_by = []
+    for dep in dependencies:
+        # Prüfe ob Dependency ebenfalls conditional ist
+        dep_step = None
+        for s in WORKFLOW_TEMPLATE_KV["steps"]:
+            if s["code"] == dep:
+                dep_step = s
+                break
+
+        if dep_step and dep_step.get("condition"):
+            cond = dep_step["condition"]
+            if cond["condition_id"] == "requires_financing" and cond["value"] == True and not financing_required:
+                # Dependency ist übersprungen, also kein Blocker
+                continue
+
+        if dep not in completed_steps:
+            blocked_by.append(dep)
+
+    if blocked_by:
+        return WorkflowStepStatus.BLOCKED.value
+
+    return WorkflowStepStatus.OPEN.value
+
+
+def calculate_workflow_progress(completed_steps: List[str], financing_required: bool = False) -> dict:
+    """Berechnet den Gesamtfortschritt des Workflows"""
+    result = {
+        "total_progress": 0,
+        "segments": {},
+        "milestones": {}
+    }
+
+    # Zähle Steps pro Segment
+    for segment in WORKFLOW_TEMPLATE_KV["segments"]:
+        segment_id = segment["segment_id"]
+        segment_steps = get_workflow_steps_for_segment(segment_id, include_conditional=True, financing_required=financing_required)
+
+        total = 0
+        done = 0
+        for step in segment_steps:
+            # Übersprungene Steps nicht zählen
+            status = calculate_step_status(step["code"], completed_steps, financing_required)
+            if status == WorkflowStepStatus.SKIPPED.value:
+                continue
+            total += 1
+            if status == WorkflowStepStatus.DONE.value:
+                done += 1
+
+        result["segments"][segment_id] = {
+            "label": segment["label"],
+            "icon": segment.get("icon", "📋"),
+            "done": done,
+            "total": total,
+            "progress": (done / total * 100) if total > 0 else 0
+        }
+
+    # Meilensteine
+    for milestone in WORKFLOW_TEMPLATE_KV["milestones"]:
+        completion_step = milestone["completion_step_code"]
+        is_done = completion_step in completed_steps
+        result["milestones"][milestone["milestone_type"]] = {
+            "label": milestone["label"],
+            "icon": milestone.get("icon", "🎯"),
+            "done": is_done,
+            "completion_step": completion_step
+        }
+
+    # Gesamtfortschritt basierend auf Meilensteinen
+    weights = WORKFLOW_TEMPLATE_KV["rules"]["progress_weights"]
+    total_progress = 0
+    for m_type, weight in weights.items():
+        if result["milestones"].get(m_type, {}).get("done", False):
+            total_progress += weight * 100
+
+    result["total_progress"] = total_progress
+
+    return result
+
+
 @dataclass
 class LegalDocument:
     """Rechtliche Dokumente vom Makler"""
@@ -3444,6 +3939,21 @@ class Projekt:
 
     # NEU: Grundschuld-Status (für Käufer/Finanzierer nach Kaufvertragsschluss)
     grundschuld_status: str = GrundschuldStatus.NICHT_BEGONNEN.value
+
+    # === WORKFLOW ENGINE ===
+    # Workflow-Schritte: Liste der erledigten Step-Codes
+    workflow_completed_steps: List[str] = field(default_factory=list)
+    # Finanzierung erforderlich (für conditional steps)
+    financing_required: bool = False
+    # Meilenstein-Daten
+    milestone_beurkundung_planned: Optional[datetime] = None
+    milestone_beurkundung_actual: Optional[datetime] = None
+    milestone_kaufpreisfaelligkeit_planned: Optional[datetime] = None
+    milestone_kaufpreisfaelligkeit_actual: Optional[datetime] = None
+    milestone_schluesseluebergabe_planned: Optional[datetime] = None
+    milestone_schluesseluebergabe_actual: Optional[datetime] = None
+    milestone_eigentumsumschreibung_planned: Optional[datetime] = None
+    milestone_eigentumsumschreibung_actual: Optional[datetime] = None
 
 
 class TerminTyp(Enum):
@@ -20935,16 +21445,109 @@ def render_notar_timeline_kompakt(user_id: str):
     if len(notar_projekte) > 8:
         st.caption(f"*... und {len(notar_projekte) - 8} weitere Projekte*")
 
+def render_workflow_milestone_bar(projekt):
+    """Rendert die Meilenstein-Leiste für ein Projekt"""
+    completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+    financing_required = getattr(projekt, 'financing_required', False)
+
+    progress = calculate_workflow_progress(completed_steps, financing_required)
+
+    # Meilenstein-Bar CSS
+    st.markdown("""
+    <style>
+    .milestone-bar { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px; padding: 0.75rem; margin-bottom: 1rem; position: relative; }
+    .milestone-bar::before { content: ''; position: absolute; top: 50%; left: 12%; right: 12%; height: 3px; background: #dee2e6; z-index: 0; transform: translateY(-50%); }
+    .milestone-item { display: flex; flex-direction: column; align-items: center; z-index: 1; background: #f8f9fa; padding: 0 0.25rem; }
+    .milestone-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: 0.2rem; }
+    .milestone-icon.done { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; }
+    .milestone-icon.pending { background: #e9ecef; color: #6c757d; }
+    .milestone-icon.current { background: linear-gradient(135deg, #495057 0%, #343a40 100%); color: white; box-shadow: 0 0 0 3px rgba(73, 80, 87, 0.3); }
+    .milestone-label { font-size: 0.65rem; color: #495057; font-weight: 500; text-align: center; max-width: 70px; }
+    @media (max-width: 768px) { .milestone-icon { width: 32px; height: 32px; font-size: 0.9rem; } .milestone-label { font-size: 0.55rem; max-width: 50px; } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    milestones_html = []
+    prev_all_done = True
+    for m in WORKFLOW_TEMPLATE_KV["milestones"]:
+        m_type = m["milestone_type"]
+        m_data = progress["milestones"].get(m_type, {})
+        is_done = m_data.get("done", False)
+        is_current = prev_all_done and not is_done
+
+        status_class = "done" if is_done else ("current" if is_current else "pending")
+        icon = "✓" if is_done else m.get("icon", "🎯")
+
+        milestones_html.append(f'<div class="milestone-item"><div class="milestone-icon {status_class}">{icon}</div><div class="milestone-label">{m["label"]}</div></div>')
+
+        if not is_done:
+            prev_all_done = False
+
+    st.markdown(f'<div class="milestone-bar">{"".join(milestones_html)}</div>', unsafe_allow_html=True)
+
+
+def render_workflow_segments(projekt):
+    """Rendert die Workflow-Segmente mit Steps"""
+    completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+    financing_required = getattr(projekt, 'financing_required', False)
+    progress = calculate_workflow_progress(completed_steps, financing_required)
+
+    # Segment-Tabs
+    tab_labels = [f"{s['icon']} {progress['segments'][s['segment_id']]['done']}/{progress['segments'][s['segment_id']]['total']}" for s in WORKFLOW_TEMPLATE_KV["segments"]]
+    segment_tabs = st.tabs(tab_labels)
+
+    for i, segment in enumerate(WORKFLOW_TEMPLATE_KV["segments"]):
+        with segment_tabs[i]:
+            st.caption(segment["label"])
+            segment_id = segment["segment_id"]
+            steps = get_workflow_steps_for_segment(segment_id, financing_required=financing_required)
+
+            for step in steps:
+                step_code = step["code"]
+                status = calculate_step_status(step_code, completed_steps, financing_required)
+
+                if status == WorkflowStepStatus.DONE.value:
+                    status_icon, bg_color = "✅", "#d4edda"
+                elif status == WorkflowStepStatus.BLOCKED.value:
+                    status_icon, bg_color = "🔒", "#f8d7da"
+                elif status == WorkflowStepStatus.SKIPPED.value:
+                    status_icon, bg_color = "⏭️", "#e9ecef"
+                else:
+                    status_icon, bg_color = "⬜", "#ffffff"
+
+                with st.container():
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        st.markdown(f"{status_icon} **{step['title']}**")
+                        if status == WorkflowStepStatus.BLOCKED.value:
+                            deps = step.get("dependencies", [])
+                            blocked_by = [d for d in deps if d not in completed_steps]
+                            if blocked_by:
+                                titles = [s["title"] for s in WORKFLOW_TEMPLATE_KV["steps"] if s["code"] in blocked_by[:2]]
+                                st.caption(f"🔒 Warte auf: {', '.join(titles)}")
+
+                    with col2:
+                        if status == WorkflowStepStatus.OPEN.value:
+                            if st.button("✓", key=f"c_{step_code}_{projekt.projekt_id}"):
+                                projekt.workflow_completed_steps.append(step_code)
+                                st.session_state.projekte[projekt.projekt_id] = projekt
+                                st.rerun()
+                        elif status == WorkflowStepStatus.DONE.value:
+                            if st.button("↩", key=f"u_{step_code}_{projekt.projekt_id}"):
+                                projekt.workflow_completed_steps.remove(step_code)
+                                st.session_state.projekte[projekt.projekt_id] = projekt
+                                st.rerun()
+
+
 def notar_timeline_view():
-    """Timeline für Notar"""
-    st.subheader("📊 Projekt-Fortschritt")
+    """Timeline für Notar - mit Workflow-Engine"""
+    st.subheader("📊 Projekt-Workflow")
 
     notar_id = st.session_state.current_user.user_id
     search_term = st.session_state.get('notar_search', '')
 
     alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
     projekte = filter_projekte_by_search(alle_projekte, search_term)
-
     display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
@@ -20952,8 +21555,23 @@ def notar_timeline_view():
         return
 
     for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            render_timeline(projekt.projekt_id, UserRole.NOTAR.value)
+        completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+        financing_required = getattr(projekt, 'financing_required', False)
+        progress = calculate_workflow_progress(completed_steps, financing_required)
+
+        with st.expander(f"🏘️ {projekt.name} — {progress['total_progress']:.0f}%", expanded=True):
+            # Finanzierung-Toggle
+            col1, col2 = st.columns([4, 1])
+            with col2:
+                new_fin = st.checkbox("💰 Finanzierung", value=financing_required, key=f"fin_{projekt.projekt_id}")
+                if new_fin != financing_required:
+                    projekt.financing_required = new_fin
+                    st.session_state.projekte[projekt.projekt_id] = projekt
+                    st.rerun()
+
+            render_workflow_milestone_bar(projekt)
+            render_workflow_segments(projekt)
+
 
 def notar_projekte_view():
     """Projekt-Übersicht für Notar"""
