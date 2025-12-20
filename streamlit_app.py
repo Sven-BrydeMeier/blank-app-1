@@ -1975,6 +1975,501 @@ class VerkäuferDokumentTyp(Enum):
 # DATENMODELLE
 # ============================================================================
 
+# ============================================================================
+# WORKFLOW ENGINE - Kaufvertrag Immobilien
+# ============================================================================
+
+class WorkflowStepStatus(Enum):
+    """Status eines Workflow-Schritts"""
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    BLOCKED = "blocked"
+    SKIPPED = "skipped"  # Wenn Condition nicht erfüllt
+
+
+@dataclass
+class WorkflowStepInstance:
+    """Instanz eines Workflow-Schritts für ein konkretes Projekt"""
+    step_code: str
+    status: str = WorkflowStepStatus.OPEN.value
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    completed_by: Optional[str] = None
+    notes: str = ""
+    blocked_by: List[str] = field(default_factory=list)
+
+
+@dataclass
+class WorkflowMilestoneInstance:
+    """Instanz eines Meilensteins für ein konkretes Projekt"""
+    milestone_type: str
+    date_planned: Optional[datetime] = None
+    date_actual: Optional[datetime] = None
+    status: str = "pending"  # pending, at_risk, done
+
+
+# Workflow-Template Konfiguration (Kaufvertrag Immobilien Modern)
+WORKFLOW_TEMPLATE_KV = {
+    "template_id": "WT_KV_MODERN_V1",
+    "name": "Kaufvertrag Immobilien (Modern)",
+    "version": "1.0.0",
+    "segments": [
+        {"segment_id": "A_PRE_BEURKUNDUNG", "label": "Vor Beurkundung", "order": 1, "icon": "📝"},
+        {"segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT", "label": "Nach Beurkundung", "order": 2, "icon": "📋"},
+        {"segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE", "label": "Kaufpreisabwicklung", "order": 3, "icon": "💰"},
+        {"segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG", "label": "Abschluss", "order": 4, "icon": "✅"},
+    ],
+    "milestones": [
+        {
+            "milestone_type": "NOTARTERMIN_BEURKUNDUNG",
+            "label": "Beurkundung",
+            "order": 1,
+            "icon": "📜",
+            "completion_step_code": "A_BEURKUNDUNG_DOKUMENTIERT"
+        },
+        {
+            "milestone_type": "KAUFPREISFAELLIGKEIT",
+            "label": "Kaufpreisfälligkeit",
+            "order": 2,
+            "icon": "💶",
+            "completion_step_code": "B_FAELLIGKEITSMITTEILUNG_VERSANDT"
+        },
+        {
+            "milestone_type": "SCHLUESSELUEBERGABE",
+            "label": "Schlüsselübergabe",
+            "order": 3,
+            "icon": "🔑",
+            "completion_step_code": "C_SCHLUESSELUEBERGABE_DOKUMENTIERT"
+        },
+        {
+            "milestone_type": "EIGENTUMSUMSCHREIBUNG",
+            "label": "Eigentumsumschreibung",
+            "order": 4,
+            "icon": "🏠",
+            "completion_step_code": "D_EINTRAGUNG_BESTAETIGT"
+        },
+    ],
+    "conditions": [
+        {
+            "condition_id": "requires_financing",
+            "label": "Finanzierung vorhanden",
+            "default": False
+        }
+    ],
+    "steps": [
+        # === SEGMENT A: Vor Beurkundung ===
+        {
+            "code": "A_AKTE_ANGELEGT",
+            "title": "Akte angelegt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 10,
+            "dependencies": [],
+            "condition": None,
+            "icon": "📁"
+        },
+        {
+            "code": "A_PARTEIEN_ERFASST",
+            "title": "Parteien erfasst",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 20,
+            "dependencies": ["A_AKTE_ANGELEGT"],
+            "condition": None,
+            "icon": "👥"
+        },
+        {
+            "code": "A_AUSWEISE_VOLLSTAENDIG",
+            "title": "Ausweise vollständig",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 30,
+            "dependencies": ["A_PARTEIEN_ERFASST"],
+            "condition": None,
+            "icon": "🪪"
+        },
+        {
+            "code": "A_GRUNDBUCH_IMPORT_GEPRUEFT",
+            "title": "Grundbuch geprüft",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 40,
+            "dependencies": ["A_AKTE_ANGELEGT"],
+            "condition": None,
+            "icon": "📖"
+        },
+        {
+            "code": "A_ENTWURF_ERSTELLT",
+            "title": "Vertragsentwurf erstellt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 50,
+            "dependencies": ["A_GRUNDBUCH_IMPORT_GEPRUEFT", "A_PARTEIEN_ERFASST"],
+            "condition": None,
+            "icon": "✍️"
+        },
+        {
+            "code": "A_DOKUMENTE_ANGEFORDERT",
+            "title": "Dokumente angefordert",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 60,
+            "dependencies": ["A_ENTWURF_ERSTELLT"],
+            "condition": None,
+            "icon": "📨"
+        },
+        {
+            "code": "A_FREIGABEN_EINGEHOLT",
+            "title": "Freigaben eingeholt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 70,
+            "dependencies": ["A_ENTWURF_ERSTELLT"],
+            "condition": None,
+            "icon": "✅"
+        },
+        {
+            "code": "A_TERMIN_BESTAETIGT",
+            "title": "Notartermin bestätigt",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 80,
+            "dependencies": ["A_FREIGABEN_EINGEHOLT"],
+            "condition": None,
+            "icon": "📅",
+            "due": {"type": "relative_to_milestone", "milestone_type": "NOTARTERMIN_BEURKUNDUNG", "days_offset": -3}
+        },
+        {
+            "code": "A_BEURKUNDUNG_DOKUMENTIERT",
+            "title": "Beurkundung dokumentiert",
+            "segment_id": "A_PRE_BEURKUNDUNG",
+            "order": 90,
+            "dependencies": ["A_TERMIN_BESTAETIGT", "A_AUSWEISE_VOLLSTAENDIG", "A_GRUNDBUCH_IMPORT_GEPRUEFT", "A_FREIGABEN_EINGEHOLT"],
+            "condition": None,
+            "icon": "📜"
+        },
+
+        # === SEGMENT B: Nach Beurkundung bis Kaufpreisfälligkeit ===
+        {
+            "code": "B_VOLLZUG_GESTARTET",
+            "title": "Vollzug gestartet",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 110,
+            "dependencies": ["A_BEURKUNDUNG_DOKUMENTIERT"],
+            "condition": None,
+            "icon": "▶️"
+        },
+        {
+            "code": "B_AUFLASSUNGSVORMERKUNG_EINGETRAGEN",
+            "title": "Auflassungsvormerkung eingetragen",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 115,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🔖"
+        },
+        {
+            "code": "B_FINANZIERUNG_NACHWEIS_ERFASST",
+            "title": "Finanzierungsnachweis erfasst",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 120,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "🏦"
+        },
+        {
+            "code": "B_GRUNDSCHULD_BEURKUNDET",
+            "title": "Grundschuld beurkundet",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 125,
+            "dependencies": ["B_FINANZIERUNG_NACHWEIS_ERFASST"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "📝"
+        },
+        {
+            "code": "B_GRUNDSCHULD_BESTELLT",
+            "title": "Grundschuld bestellt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 128,
+            "dependencies": ["B_GRUNDSCHULD_BEURKUNDET"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "📤"
+        },
+        {
+            "code": "B_GRUNDSCHULD_EINGETRAGEN",
+            "title": "Grundschuld eingetragen",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 130,
+            "dependencies": ["B_GRUNDSCHULD_BESTELLT"],
+            "condition": {"condition_id": "requires_financing", "value": True},
+            "icon": "🛡️"
+        },
+        {
+            "code": "B_VORKAUFSRECHT_ERTEILT",
+            "title": "Vorkaufsrecht Gemeinde erteilt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 135,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🏛️"
+        },
+        {
+            "code": "B_GENEHMIGUNGEN_VOLLSTAENDIG",
+            "title": "Genehmigungen vollständig",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 140,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "📋"
+        },
+        {
+            "code": "B_LOESCHUNGSBEWILLIGUNG_VORHANDEN",
+            "title": "Löschungsbewilligung vorhanden",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 150,
+            "dependencies": ["B_VOLLZUG_GESTARTET"],
+            "condition": None,
+            "icon": "🗑️"
+        },
+        {
+            "code": "B_VORAUSSETZUNGEN_FAELLIGKEIT_ERFUELLT",
+            "title": "Fälligkeitsvoraussetzungen erfüllt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 160,
+            "dependencies": ["B_AUFLASSUNGSVORMERKUNG_EINGETRAGEN", "B_VORKAUFSRECHT_ERTEILT", "B_GENEHMIGUNGEN_VOLLSTAENDIG", "B_LOESCHUNGSBEWILLIGUNG_VORHANDEN"],
+            "condition": None,
+            "icon": "✓"
+        },
+        {
+            "code": "B_FAELLIGKEITSMITTEILUNG_VERSANDT",
+            "title": "Fälligkeitsmitteilung versandt",
+            "segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT",
+            "order": 170,
+            "dependencies": ["B_VORAUSSETZUNGEN_FAELLIGKEIT_ERFUELLT"],
+            "condition": None,
+            "icon": "📧",
+            "due": {"type": "relative_to_milestone", "milestone_type": "KAUFPREISFAELLIGKEIT", "days_offset": -1}
+        },
+
+        # === SEGMENT C: Nach Kaufpreisfälligkeit bis Schlüsselübergabe ===
+        {
+            "code": "C_UNBEDENKLICHKEITSBESCHEINIGUNG",
+            "title": "Unbedenklichkeitsbescheinigung eingegangen",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 205,
+            "dependencies": ["B_FAELLIGKEITSMITTEILUNG_VERSANDT"],
+            "condition": None,
+            "icon": "📄"
+        },
+        {
+            "code": "C_ZAHLUNGSEINGANG_ERFASST",
+            "title": "Zahlungseingang bestätigt",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 210,
+            "dependencies": ["B_FAELLIGKEITSMITTEILUNG_VERSANDT"],
+            "condition": None,
+            "icon": "💵",
+            "due": {"type": "relative_to_milestone", "milestone_type": "SCHLUESSELUEBERGABE", "days_offset": -2}
+        },
+        {
+            "code": "C_KAUFPREISEINGANG_BESTAETIGT",
+            "title": "Kaufpreiseingang bestätigt",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 215,
+            "dependencies": ["C_ZAHLUNGSEINGANG_ERFASST"],
+            "condition": None,
+            "icon": "✅"
+        },
+        {
+            "code": "C_UEBERGABEPROTOKOLL_VORBEREITET",
+            "title": "Übergabeprotokoll vorbereitet",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 220,
+            "dependencies": ["C_KAUFPREISEINGANG_BESTAETIGT"],
+            "condition": None,
+            "icon": "📋"
+        },
+        {
+            "code": "C_SCHLUESSELUEBERGABE_KOORDINIERT",
+            "title": "Schlüsselübergabe terminiert",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 230,
+            "dependencies": ["C_UEBERGABEPROTOKOLL_VORBEREITET"],
+            "condition": None,
+            "icon": "📅",
+            "due": {"type": "relative_to_milestone", "milestone_type": "SCHLUESSELUEBERGABE", "days_offset": -1}
+        },
+        {
+            "code": "C_SCHLUESSELUEBERGABE_DOKUMENTIERT",
+            "title": "Schlüsselübergabe dokumentiert",
+            "segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE",
+            "order": 240,
+            "dependencies": ["C_SCHLUESSELUEBERGABE_KOORDINIERT"],
+            "condition": None,
+            "icon": "🔑"
+        },
+
+        # === SEGMENT D: Nach Schlüsselübergabe bis Eintragung ===
+        {
+            "code": "D_EINTRAGUNG_BEANTRAGT",
+            "title": "Eigentumsumschreibung beantragt",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 310,
+            "dependencies": ["C_SCHLUESSELUEBERGABE_DOKUMENTIERT"],
+            "condition": None,
+            "icon": "📤"
+        },
+        {
+            "code": "D_EINTRAGUNG_BESTAETIGT",
+            "title": "Eigentumsumschreibung bestätigt",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 320,
+            "dependencies": ["D_EINTRAGUNG_BEANTRAGT"],
+            "condition": None,
+            "icon": "🏠"
+        },
+        {
+            "code": "D_ABSCHLUSS_ARCHIV",
+            "title": "Abschluss und Archivierung",
+            "segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG",
+            "order": 330,
+            "dependencies": ["D_EINTRAGUNG_BESTAETIGT"],
+            "condition": None,
+            "icon": "📦"
+        },
+    ],
+    "rules": {
+        "progress_weights": {
+            "NOTARTERMIN_BEURKUNDUNG": 0.25,
+            "KAUFPREISFAELLIGKEIT": 0.25,
+            "SCHLUESSELUEBERGABE": 0.25,
+            "EIGENTUMSUMSCHREIBUNG": 0.25
+        }
+    }
+}
+
+
+def get_workflow_steps_for_segment(segment_id: str, include_conditional: bool = True, financing_required: bool = False) -> List[dict]:
+    """Gibt alle Steps für ein Segment zurück"""
+    steps = []
+    for step in WORKFLOW_TEMPLATE_KV["steps"]:
+        if step["segment_id"] == segment_id:
+            # Prüfe Condition
+            if step.get("condition"):
+                cond = step["condition"]
+                if cond["condition_id"] == "requires_financing":
+                    if cond["value"] == True and not financing_required:
+                        if not include_conditional:
+                            continue
+                        # Step wird als SKIPPED markiert
+            steps.append(step)
+    return sorted(steps, key=lambda x: x["order"])
+
+
+def get_step_dependencies(step_code: str) -> List[str]:
+    """Gibt die Dependencies eines Steps zurück"""
+    for step in WORKFLOW_TEMPLATE_KV["steps"]:
+        if step["code"] == step_code:
+            return step.get("dependencies", [])
+    return []
+
+
+def calculate_step_status(step_code: str, completed_steps: List[str], financing_required: bool = False) -> str:
+    """Berechnet den Status eines Steps basierend auf Dependencies"""
+    step = None
+    for s in WORKFLOW_TEMPLATE_KV["steps"]:
+        if s["code"] == step_code:
+            step = s
+            break
+
+    if not step:
+        return WorkflowStepStatus.OPEN.value
+
+    # Prüfe Condition
+    if step.get("condition"):
+        cond = step["condition"]
+        if cond["condition_id"] == "requires_financing":
+            if cond["value"] == True and not financing_required:
+                return WorkflowStepStatus.SKIPPED.value
+
+    # Bereits erledigt?
+    if step_code in completed_steps:
+        return WorkflowStepStatus.DONE.value
+
+    # Prüfe Dependencies
+    dependencies = step.get("dependencies", [])
+    blocked_by = []
+    for dep in dependencies:
+        # Prüfe ob Dependency ebenfalls conditional ist
+        dep_step = None
+        for s in WORKFLOW_TEMPLATE_KV["steps"]:
+            if s["code"] == dep:
+                dep_step = s
+                break
+
+        if dep_step and dep_step.get("condition"):
+            cond = dep_step["condition"]
+            if cond["condition_id"] == "requires_financing" and cond["value"] == True and not financing_required:
+                # Dependency ist übersprungen, also kein Blocker
+                continue
+
+        if dep not in completed_steps:
+            blocked_by.append(dep)
+
+    if blocked_by:
+        return WorkflowStepStatus.BLOCKED.value
+
+    return WorkflowStepStatus.OPEN.value
+
+
+def calculate_workflow_progress(completed_steps: List[str], financing_required: bool = False) -> dict:
+    """Berechnet den Gesamtfortschritt des Workflows"""
+    result = {
+        "total_progress": 0,
+        "segments": {},
+        "milestones": {}
+    }
+
+    # Zähle Steps pro Segment
+    for segment in WORKFLOW_TEMPLATE_KV["segments"]:
+        segment_id = segment["segment_id"]
+        segment_steps = get_workflow_steps_for_segment(segment_id, include_conditional=True, financing_required=financing_required)
+
+        total = 0
+        done = 0
+        for step in segment_steps:
+            # Übersprungene Steps nicht zählen
+            status = calculate_step_status(step["code"], completed_steps, financing_required)
+            if status == WorkflowStepStatus.SKIPPED.value:
+                continue
+            total += 1
+            if status == WorkflowStepStatus.DONE.value:
+                done += 1
+
+        result["segments"][segment_id] = {
+            "label": segment["label"],
+            "icon": segment.get("icon", "📋"),
+            "done": done,
+            "total": total,
+            "progress": (done / total * 100) if total > 0 else 0
+        }
+
+    # Meilensteine
+    for milestone in WORKFLOW_TEMPLATE_KV["milestones"]:
+        completion_step = milestone["completion_step_code"]
+        is_done = completion_step in completed_steps
+        result["milestones"][milestone["milestone_type"]] = {
+            "label": milestone["label"],
+            "icon": milestone.get("icon", "🎯"),
+            "done": is_done,
+            "completion_step": completion_step
+        }
+
+    # Gesamtfortschritt basierend auf Meilensteinen
+    weights = WORKFLOW_TEMPLATE_KV["rules"]["progress_weights"]
+    total_progress = 0
+    for m_type, weight in weights.items():
+        if result["milestones"].get(m_type, {}).get("done", False):
+            total_progress += weight * 100
+
+    result["total_progress"] = total_progress
+
+    return result
+
+
 @dataclass
 class LegalDocument:
     """Rechtliche Dokumente vom Makler"""
@@ -3444,6 +3939,21 @@ class Projekt:
 
     # NEU: Grundschuld-Status (für Käufer/Finanzierer nach Kaufvertragsschluss)
     grundschuld_status: str = GrundschuldStatus.NICHT_BEGONNEN.value
+
+    # === WORKFLOW ENGINE ===
+    # Workflow-Schritte: Liste der erledigten Step-Codes
+    workflow_completed_steps: List[str] = field(default_factory=list)
+    # Finanzierung erforderlich (für conditional steps)
+    financing_required: bool = False
+    # Meilenstein-Daten
+    milestone_beurkundung_planned: Optional[datetime] = None
+    milestone_beurkundung_actual: Optional[datetime] = None
+    milestone_kaufpreisfaelligkeit_planned: Optional[datetime] = None
+    milestone_kaufpreisfaelligkeit_actual: Optional[datetime] = None
+    milestone_schluesseluebergabe_planned: Optional[datetime] = None
+    milestone_schluesseluebergabe_actual: Optional[datetime] = None
+    milestone_eigentumsumschreibung_planned: Optional[datetime] = None
+    milestone_eigentumsumschreibung_actual: Optional[datetime] = None
 
 
 class TerminTyp(Enum):
@@ -19470,81 +19980,77 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 # NOTAR-BEREICH
 # ============================================================================
 
-# Menüstruktur für Notar-Dashboard
+# Menüstruktur für Notar-Dashboard - Optimiert für Mobile (5 Hauptgruppen)
 NOTAR_MENU_STRUKTUR = {
-    "📊 Übersicht": {
+    "Timeline": {
         "icon": "📊",
         "items": [
-            {"name": "Timeline", "icon": "📈", "key": "timeline"},
-            {"name": "Reporting", "icon": "📊", "key": "reporting"},
+            {"name": "Übersicht", "icon": "📈", "key": "timeline"},
+            {"name": "Berichte", "icon": "📊", "key": "reporting"},
         ]
     },
-    "📁 Akten & Projekte": {
+    "Akte": {
         "icon": "📁",
         "items": [
             {"name": "Projekte", "icon": "📋", "key": "projekte"},
-            {"name": "Aktenmanagement", "icon": "📂", "key": "aktenmanagement"},
-            {"name": "Aktenimport", "icon": "📥", "key": "aktenimport"},
+            {"name": "Verwaltung", "icon": "📂", "key": "aktenmanagement"},
+            {"name": "Import", "icon": "📥", "key": "aktenimport"},
         ]
     },
-    "📝 Verträge": {
+    "Verträge": {
         "icon": "📝",
         "items": [
-            {"name": "Vertragsarchiv", "icon": "📚", "key": "vertragsarchiv"},
-            {"name": "Vertragserstellung", "icon": "✍️", "key": "vertragserstellung"},
+            {"name": "Archiv", "icon": "📚", "key": "vertragsarchiv"},
+            {"name": "Erstellen", "icon": "✍️", "key": "vertragserstellung"},
             {"name": "Kaufvertrag", "icon": "📜", "key": "kaufvertrag"},
-            {"name": "Vertragsvergleich", "icon": "🔄", "key": "vertragsvergleich"},
+            {"name": "Vergleich", "icon": "🔄", "key": "vertragsvergleich"},
             {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
         ]
     },
-    "📄 Dokumente": {
-        "icon": "📄",
-        "items": [
-            {"name": "Datenermittlung", "icon": "🔍", "key": "datenermittlung"},
-            {"name": "Dokumentenanforderungen", "icon": "📋", "key": "dokumentenanforderungen"},
-            {"name": "Dokumenten-Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
-            {"name": "Rechtsdokumente", "icon": "⚖️", "key": "rechtsdokumente"},
-        ]
-    },
-    "💰 Finanzen": {
-        "icon": "💰",
-        "items": [
-            {"name": "Preiseinigungen", "icon": "🤝", "key": "preiseinigungen"},
-            {"name": "Finanzierungsnachweise", "icon": "💵", "key": "finanzierungsnachweise"},
-        ]
-    },
-    "👥 Personen & Kontakte": {
-        "icon": "👥",
-        "items": [
-            {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
-            {"name": "Ausweisdaten", "icon": "🪪", "key": "ausweisdaten"},
-            {"name": "Maklerempfehlung", "icon": "🤝", "key": "maklerempfehlung"},
-            {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
-        ]
-    },
-    "📅 Termine & Aufgaben": {
+    "Termine": {
         "icon": "📅",
         "items": [
-            {"name": "Termine", "icon": "📆", "key": "termine"},
+            {"name": "Kalender", "icon": "📆", "key": "termine"},
             {"name": "Fristen", "icon": "⏰", "key": "fristen"},
             {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
         ]
     },
-    "📨 Kommunikation": {
-        "icon": "📨",
+    "Mehr": {
+        "icon": "☰",
         "items": [
+            {"name": "Dokumente", "icon": "📄", "key": "_dokumente"},
+            {"name": "Finanzen", "icon": "💰", "key": "_finanzen"},
+            {"name": "Kontakte", "icon": "👥", "key": "_kontakte"},
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
+            {"name": "System", "icon": "⚙️", "key": "_system"},
         ]
     },
-    "⚙️ System": {
-        "icon": "⚙️",
-        "items": [
-            {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
-            {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
-            {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
-            {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
-        ]
-    },
+}
+
+# Untermenüs für erweiterte Bereiche
+NOTAR_UNTERMENUS = {
+    "_dokumente": [
+        {"name": "Ermittlung", "icon": "🔍", "key": "datenermittlung"},
+        {"name": "Anforderung", "icon": "📋", "key": "dokumentenanforderungen"},
+        {"name": "Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
+        {"name": "Rechtsdoku", "icon": "⚖️", "key": "rechtsdokumente"},
+    ],
+    "_finanzen": [
+        {"name": "Preise", "icon": "🤝", "key": "preiseinigungen"},
+        {"name": "Finanzierung", "icon": "💵", "key": "finanzierungsnachweise"},
+    ],
+    "_kontakte": [
+        {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
+        {"name": "Ausweise", "icon": "🪪", "key": "ausweisdaten"},
+        {"name": "Makler", "icon": "🤝", "key": "maklerempfehlung"},
+        {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
+    ],
+    "_system": [
+        {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
+        {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
+        {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
+        {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
+    ],
 }
 
 
@@ -20169,109 +20675,399 @@ def render_notar_menu_styles():
             margin: 0.2rem 0 !important;
         }
     }
+
+    /* ==================== BOTTOM NAVIGATION (MOBILE) ==================== */
+
+    .bottom-nav {
+        display: none;  /* Versteckt auf Desktop */
+    }
+
+    @media screen and (max-width: 768px) {
+        /* Bottom Navigation Container */
+        .bottom-nav {
+            display: flex !important;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+            border-top: 1px solid #dee2e6;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 9999;
+            padding: 0.5rem 0.25rem;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.4rem 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 60px;
+            text-decoration: none;
+            background: transparent;
+            border: none;
+        }
+
+        .bottom-nav-item:hover,
+        .bottom-nav-item:active {
+            background: #e9ecef;
+        }
+
+        .bottom-nav-item.active {
+            background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+            color: white !important;
+        }
+
+        .bottom-nav-item.active .nav-icon,
+        .bottom-nav-item.active .nav-label {
+            color: white !important;
+        }
+
+        .nav-icon {
+            font-size: 1.3rem;
+            line-height: 1;
+            margin-bottom: 0.15rem;
+        }
+
+        .nav-label {
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: #495057;
+            white-space: nowrap;
+        }
+
+        /* Platz für Bottom-Nav am Seitenende */
+        .main-content-wrapper {
+            padding-bottom: 70px !important;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            padding-bottom: 70px !important;
+        }
+
+        /* Sidebar auf Mobile ausblenden wenn Bottom-Nav aktiv */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        /* Hauptmenü-Leiste auf Mobile ausblenden */
+        .hauptmenu-container {
+            display: none !important;
+        }
+    }
+
+    /* Submenu Modal für Mobile */
+    .submenu-overlay {
+        position: fixed;
+        bottom: 60px;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #dee2e6;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 9998;
+        padding: 1rem;
+        border-radius: 16px 16px 0 0;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .submenu-title {
+        font-weight: 600;
+        color: #343a40;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .submenu-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .submenu-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .submenu-item:hover {
+        background: #e9ecef;
+        border-color: #ced4da;
+    }
+
+    .submenu-item.active {
+        background: #495057;
+        color: white;
+        border-color: #495057;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_notar_bottom_nav():
+    """
+    Rendert die Bottom-Navigation für Mobile.
+    Wird nur auf Mobilgeräten angezeigt (via CSS).
+    """
+    if 'notar_menu_selection' not in st.session_state:
+        st.session_state.notar_menu_selection = 'timeline'
+    if 'notar_active_tab' not in st.session_state:
+        st.session_state.notar_active_tab = 'Timeline'
+    if 'notar_show_submenu' not in st.session_state:
+        st.session_state.notar_show_submenu = None
+
+    current_selection = st.session_state.notar_menu_selection
+
+    # Finde aktive Hauptgruppe
+    active_group = 'Timeline'
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == current_selection:
+                active_group = gruppe_name
+                break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == current_selection:
+                        active_group = gruppe_name
+                        break
+
+    # Bottom Navigation HTML
+    nav_items = []
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        icon = gruppe_data['icon']
+        is_active = gruppe_name == active_group
+        active_class = 'active' if is_active else ''
+
+        nav_items.append(f'''
+            <div class="bottom-nav-item {active_class}" data-group="{gruppe_name}">
+                <span class="nav-icon">{icon}</span>
+                <span class="nav-label">{gruppe_name}</span>
+            </div>
+        ''')
+
+    nav_html = f'''
+    <div class="bottom-nav">
+        {''.join(nav_items)}
+    </div>
+    '''
+
+    st.markdown(nav_html, unsafe_allow_html=True)
 
 
 def render_notar_sidebar_menu(user_id: str) -> str:
     """
     Rendert das Sidebar-Menü für den Notar mit aufklappbaren Gruppen.
     Gibt den ausgewählten Menüpunkt zurück.
-    Optimiert für Mobile: Nur aktive Gruppe ist aufgeklappt.
+    Für Desktop - auf Mobile wird Bottom-Nav verwendet.
     """
     # Initialisiere Menü-State
     if 'notar_menu_selection' not in st.session_state:
         st.session_state.notar_menu_selection = 'timeline'
     if 'notar_menu_expanded' not in st.session_state:
         st.session_state.notar_menu_expanded = {}
+    if 'notar_active_submenu' not in st.session_state:
+        st.session_state.notar_active_submenu = None
+
+    # Alle gültigen Keys sammeln (inkl. Untermenüs)
+    alle_keys = []
+    for gruppe_data in NOTAR_MENU_STRUKTUR.values():
+        for item in gruppe_data['items']:
+            if item['key'].startswith('_'):
+                # Untermenü - füge alle Sub-Items hinzu
+                if item['key'] in NOTAR_UNTERMENUS:
+                    for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                        alle_keys.append(sub_item['key'])
+            else:
+                alle_keys.append(item['key'])
 
     with st.sidebar:
-        # Kompakter Header für Mobile
+        # Kompakter Header
         st.markdown("""
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-            <span style="font-size: 1.2rem;">📂</span>
-            <span style="font-weight: 600; color: #343a40;">Navigation</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid #495057;">
+            <span style="font-size: 1.1rem;">⚖️</span>
+            <span style="font-weight: 700; color: #343a40; font-size: 0.95rem;">Notar-Menü</span>
         </div>
         """, unsafe_allow_html=True)
 
         # Menügruppen rendern
         for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-            # Prüfen ob Gruppe aktuell ausgewähltes Item enthält
-            gruppe_aktiv = any(
-                item['key'] == st.session_state.notar_menu_selection
-                for item in gruppe_data['items']
-            )
-
-            # Nur aktive Gruppe ist standardmäßig offen (Mobile-freundlich)
-            expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
-
-            # Kompakter Gruppen-Icon für schnelle Erkennung
             gruppe_icon = gruppe_data.get('icon', '📁')
 
-            with st.expander(f"{gruppe_icon} {gruppe_name.split(' ', 1)[-1]}", expanded=expanded):
+            # Prüfen ob Gruppe aktuell ausgewähltes Item enthält
+            gruppe_aktiv = False
+            for item in gruppe_data['items']:
+                if item['key'] == st.session_state.notar_menu_selection:
+                    gruppe_aktiv = True
+                    break
+                if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                    for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                        if sub_item['key'] == st.session_state.notar_menu_selection:
+                            gruppe_aktiv = True
+                            break
+
+            expanded = st.session_state.notar_menu_expanded.get(gruppe_name, gruppe_aktiv)
+
+            with st.expander(f"{gruppe_icon} {gruppe_name}", expanded=expanded):
                 for item in gruppe_data['items']:
-                    # Aktiven Menüpunkt hervorheben
-                    ist_aktiv = st.session_state.notar_menu_selection == item['key']
-                    button_type = "primary" if ist_aktiv else "secondary"
+                    item_key = item['key']
 
-                    # Kürzerer Button-Text für Mobile
-                    button_text = f"{item['icon']} {item['name']}"
+                    # Prüfen ob es ein Untermenü ist
+                    if item_key.startswith('_') and item_key in NOTAR_UNTERMENUS:
+                        # Untermenü-Header
+                        st.markdown(f"**{item['icon']} {item['name']}**")
 
-                    if st.button(
-                        button_text,
-                        key=f"menu_{item['key']}",
-                        use_container_width=True,
-                        type=button_type
-                    ):
-                        st.session_state.notar_menu_selection = item['key']
-                        # Nur diese Gruppe offen lassen, andere schließen (Mobile-freundlich)
-                        st.session_state.notar_menu_expanded = {gruppe_name: True}
-                        st.rerun()
+                        # Untermenü-Items
+                        for sub_item in NOTAR_UNTERMENUS[item_key]:
+                            ist_aktiv = st.session_state.notar_menu_selection == sub_item['key']
+                            button_type = "primary" if ist_aktiv else "secondary"
+
+                            if st.button(
+                                f"  {sub_item['icon']} {sub_item['name']}",
+                                key=f"menu_{sub_item['key']}",
+                                use_container_width=True,
+                                type=button_type
+                            ):
+                                st.session_state.notar_menu_selection = sub_item['key']
+                                st.session_state.notar_menu_expanded = {gruppe_name: True}
+                                st.rerun()
+                    else:
+                        # Normales Menü-Item
+                        ist_aktiv = st.session_state.notar_menu_selection == item_key
+                        button_type = "primary" if ist_aktiv else "secondary"
+
+                        if st.button(
+                            f"{item['icon']} {item['name']}",
+                            key=f"menu_{item_key}",
+                            use_container_width=True,
+                            type=button_type
+                        ):
+                            st.session_state.notar_menu_selection = item_key
+                            st.session_state.notar_menu_expanded = {gruppe_name: True}
+                            st.rerun()
 
     return st.session_state.notar_menu_selection
 
 
+def render_notar_mobile_menu():
+    """
+    Rendert das mobile Menü mit Untermenü-Auswahl.
+    Wird nach der Bottom-Nav angezeigt wenn eine Gruppe ausgewählt wurde.
+    """
+    if 'notar_menu_selection' not in st.session_state:
+        st.session_state.notar_menu_selection = 'timeline'
+    if 'notar_mobile_group' not in st.session_state:
+        st.session_state.notar_mobile_group = 'Timeline'
+
+    current_group = st.session_state.notar_mobile_group
+
+    if current_group in NOTAR_MENU_STRUKTUR:
+        gruppe_data = NOTAR_MENU_STRUKTUR[current_group]
+
+        # Kompakte horizontale Buttons für Untermenü
+        items = gruppe_data['items']
+        cols = st.columns(len(items))
+
+        for i, item in enumerate(items):
+            with cols[i]:
+                item_key = item['key']
+
+                # Prüfen ob Untermenü
+                if item_key.startswith('_') and item_key in NOTAR_UNTERMENUS:
+                    # Zeige Untermenü-Auswahl
+                    if st.button(f"{item['icon']}", key=f"mob_{item_key}", help=item['name']):
+                        st.session_state.notar_active_submenu = item_key
+                        st.rerun()
+                else:
+                    ist_aktiv = st.session_state.notar_menu_selection == item_key
+                    if st.button(
+                        f"{item['icon']}",
+                        key=f"mob_{item_key}",
+                        help=item['name'],
+                        type="primary" if ist_aktiv else "secondary"
+                    ):
+                        st.session_state.notar_menu_selection = item_key
+                        st.rerun()
+
+        # Untermenü anzeigen wenn aktiv
+        if hasattr(st.session_state, 'notar_active_submenu') and st.session_state.notar_active_submenu:
+            submenu_key = st.session_state.notar_active_submenu
+            if submenu_key in NOTAR_UNTERMENUS:
+                st.markdown("---")
+                sub_items = NOTAR_UNTERMENUS[submenu_key]
+                sub_cols = st.columns(len(sub_items))
+
+                for j, sub_item in enumerate(sub_items):
+                    with sub_cols[j]:
+                        ist_aktiv = st.session_state.notar_menu_selection == sub_item['key']
+                        if st.button(
+                            f"{sub_item['icon']}",
+                            key=f"sub_{sub_item['key']}",
+                            help=sub_item['name'],
+                            type="primary" if ist_aktiv else "secondary"
+                        ):
+                            st.session_state.notar_menu_selection = sub_item['key']
+                            st.session_state.notar_active_submenu = None
+                            st.rerun()
+
+
 def render_notar_hauptmenu_leiste() -> str:
     """
-    Rendert eine horizontale Hauptmenü-Leiste für schnellen Zugriff auf Hauptbereiche.
+    Rendert eine horizontale Hauptmenü-Leiste für schnellen Zugriff.
+    Angepasst an die neue 5-Gruppen-Struktur.
     """
-    # Hauptbereiche für Schnellzugriff
-    hauptbereiche = [
-        ("📊", "Übersicht", "timeline"),
-        ("📁", "Akten", "projekte"),
-        ("📝", "Verträge", "vertragsarchiv"),
-        ("📄", "Dokumente", "datenermittlung"),
-        ("💰", "Finanzen", "preiseinigungen"),
-        ("👥", "Personen", "mitarbeiter"),
-        ("📅", "Termine", "termine"),
-        ("📨", "Nachrichten", "nachrichten"),
-        ("⚙️", "System", "einstellungen"),
-    ]
+    aktuelle_selection = st.session_state.get('notar_menu_selection', 'timeline')
 
     # Finde aktive Gruppe
-    aktuelle_selection = st.session_state.get('notar_menu_selection', 'timeline')
     aktive_gruppe = None
-
     for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-        if any(item['key'] == aktuelle_selection for item in gruppe_data['items']):
-            aktive_gruppe = gruppe_name
-            break
+        for item in gruppe_data['items']:
+            if item['key'] == aktuelle_selection:
+                aktive_gruppe = gruppe_name
+                break
+            # Prüfe Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == aktuelle_selection:
+                        aktive_gruppe = gruppe_name
+                        break
 
-    # Horizontale Button-Leiste
-    cols = st.columns(len(hauptbereiche))
+    # Horizontale Button-Leiste (5 Gruppen)
+    cols = st.columns(5)
 
-    for i, (icon, label, default_key) in enumerate(hauptbereiche):
+    for i, (gruppe_name, gruppe_data) in enumerate(NOTAR_MENU_STRUKTUR.items()):
         with cols[i]:
-            # Prüfen ob dieser Bereich aktiv ist
-            ist_aktiv = aktive_gruppe and label in aktive_gruppe
+            icon = gruppe_data['icon']
+            ist_aktiv = aktive_gruppe == gruppe_name
+
+            # Default-Key für diese Gruppe
+            default_key = gruppe_data['items'][0]['key']
+            if default_key.startswith('_'):
+                # Wenn erstes Item ein Untermenü ist, nimm erstes Sub-Item
+                default_key = NOTAR_UNTERMENUS[default_key][0]['key']
 
             if st.button(
-                f"{icon}\n{label}",
-                key=f"hauptmenu_{default_key}",
+                f"{icon}\n{gruppe_name}",
+                key=f"hauptmenu_{gruppe_name}",
                 use_container_width=True,
                 type="primary" if ist_aktiv else "secondary"
             ):
                 st.session_state.notar_menu_selection = default_key
+                st.session_state.notar_mobile_group = gruppe_name
                 st.rerun()
 
     return aktuelle_selection
@@ -20397,7 +21193,7 @@ def render_notar_content(selection: str, user_id: str):
 
 
 def notar_dashboard():
-    """Dashboard für Notar mit verbesserter Navigation"""
+    """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
@@ -20415,30 +21211,42 @@ def notar_dashboard():
     # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Sidebar-Menü rendern
+    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
     selection = render_notar_sidebar_menu(user_id)
 
-    # Titel mit aktuellem Bereich
+    # Titel mit aktuellem Bereich ermitteln
     aktueller_bereich = ""
     aktueller_bereich_icon = ""
+    aktive_gruppe = ""
+
+    # Suche in Hauptmenü und Untermenüs
     for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
         for item in gruppe_data['items']:
             if item['key'] == selection:
                 aktueller_bereich = item['name']
                 aktueller_bereich_icon = item['icon']
+                aktive_gruppe = gruppe_name
                 break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == selection:
+                        aktueller_bereich = sub_item['name']
+                        aktueller_bereich_icon = sub_item['icon']
+                        aktive_gruppe = gruppe_name
+                        break
 
-    # Dashboard Header mit Styling
+    # Kompakter Dashboard Header
     st.markdown("""
     <div style="
         background: linear-gradient(135deg, #343a40 0%, #495057 100%);
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 16px rgba(52, 58, 64, 0.3);
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
     ">
-        <h1 style="color: #ffffff; margin: 0; font-size: 1.8rem;">
-            ⚖️ Notar-Dashboard
+        <h1 style="color: #ffffff; margin: 0; font-size: 1.2rem;">
+            ⚖️ Notar
         </h1>
     </div>
     """, unsafe_allow_html=True)
@@ -20446,35 +21254,24 @@ def notar_dashboard():
     # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
     render_notar_timeline_kompakt(user_id)
 
-    # Suchleiste
-    search_term = render_dashboard_search("notar")
-    if search_term:
-        st.session_state['notar_search'] = search_term
-    else:
-        st.session_state['notar_search'] = ''
-
-    # Hauptmenü-Leiste in Container
+    # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
     st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
     render_notar_hauptmenu_leiste()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Breadcrumb-Navigation mit Styling
-    if aktueller_bereich:
-        # Finde Gruppe
-        gruppe_anzeige = ""
-        for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-            if any(item['key'] == selection for item in gruppe_data['items']):
-                gruppe_anzeige = gruppe_name
-                break
-
+    # Kompakte Breadcrumb-Navigation
+    if aktueller_bereich and aktive_gruppe:
         st.markdown(f"""
         <div class="breadcrumb-nav">
-            📍 <strong>{gruppe_anzeige}</strong> &nbsp;›&nbsp; {aktueller_bereich_icon} {aktueller_bereich}
+            {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
         </div>
         """, unsafe_allow_html=True)
 
     # Inhalt rendern
     render_notar_content(selection, user_id)
+
+    # Bottom Navigation für Mobile (wird nur auf Mobile angezeigt via CSS)
+    render_notar_bottom_nav()
 
 
 def berechne_projekt_fortschritt(projekt_id: str) -> int:
@@ -20648,16 +21445,109 @@ def render_notar_timeline_kompakt(user_id: str):
     if len(notar_projekte) > 8:
         st.caption(f"*... und {len(notar_projekte) - 8} weitere Projekte*")
 
+def render_workflow_milestone_bar(projekt):
+    """Rendert die Meilenstein-Leiste für ein Projekt"""
+    completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+    financing_required = getattr(projekt, 'financing_required', False)
+
+    progress = calculate_workflow_progress(completed_steps, financing_required)
+
+    # Meilenstein-Bar CSS
+    st.markdown("""
+    <style>
+    .milestone-bar { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px; padding: 0.75rem; margin-bottom: 1rem; position: relative; }
+    .milestone-bar::before { content: ''; position: absolute; top: 50%; left: 12%; right: 12%; height: 3px; background: #dee2e6; z-index: 0; transform: translateY(-50%); }
+    .milestone-item { display: flex; flex-direction: column; align-items: center; z-index: 1; background: #f8f9fa; padding: 0 0.25rem; }
+    .milestone-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: 0.2rem; }
+    .milestone-icon.done { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; }
+    .milestone-icon.pending { background: #e9ecef; color: #6c757d; }
+    .milestone-icon.current { background: linear-gradient(135deg, #495057 0%, #343a40 100%); color: white; box-shadow: 0 0 0 3px rgba(73, 80, 87, 0.3); }
+    .milestone-label { font-size: 0.65rem; color: #495057; font-weight: 500; text-align: center; max-width: 70px; }
+    @media (max-width: 768px) { .milestone-icon { width: 32px; height: 32px; font-size: 0.9rem; } .milestone-label { font-size: 0.55rem; max-width: 50px; } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    milestones_html = []
+    prev_all_done = True
+    for m in WORKFLOW_TEMPLATE_KV["milestones"]:
+        m_type = m["milestone_type"]
+        m_data = progress["milestones"].get(m_type, {})
+        is_done = m_data.get("done", False)
+        is_current = prev_all_done and not is_done
+
+        status_class = "done" if is_done else ("current" if is_current else "pending")
+        icon = "✓" if is_done else m.get("icon", "🎯")
+
+        milestones_html.append(f'<div class="milestone-item"><div class="milestone-icon {status_class}">{icon}</div><div class="milestone-label">{m["label"]}</div></div>')
+
+        if not is_done:
+            prev_all_done = False
+
+    st.markdown(f'<div class="milestone-bar">{"".join(milestones_html)}</div>', unsafe_allow_html=True)
+
+
+def render_workflow_segments(projekt):
+    """Rendert die Workflow-Segmente mit Steps"""
+    completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+    financing_required = getattr(projekt, 'financing_required', False)
+    progress = calculate_workflow_progress(completed_steps, financing_required)
+
+    # Segment-Tabs
+    tab_labels = [f"{s['icon']} {progress['segments'][s['segment_id']]['done']}/{progress['segments'][s['segment_id']]['total']}" for s in WORKFLOW_TEMPLATE_KV["segments"]]
+    segment_tabs = st.tabs(tab_labels)
+
+    for i, segment in enumerate(WORKFLOW_TEMPLATE_KV["segments"]):
+        with segment_tabs[i]:
+            st.caption(segment["label"])
+            segment_id = segment["segment_id"]
+            steps = get_workflow_steps_for_segment(segment_id, financing_required=financing_required)
+
+            for step in steps:
+                step_code = step["code"]
+                status = calculate_step_status(step_code, completed_steps, financing_required)
+
+                if status == WorkflowStepStatus.DONE.value:
+                    status_icon, bg_color = "✅", "#d4edda"
+                elif status == WorkflowStepStatus.BLOCKED.value:
+                    status_icon, bg_color = "🔒", "#f8d7da"
+                elif status == WorkflowStepStatus.SKIPPED.value:
+                    status_icon, bg_color = "⏭️", "#e9ecef"
+                else:
+                    status_icon, bg_color = "⬜", "#ffffff"
+
+                with st.container():
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        st.markdown(f"{status_icon} **{step['title']}**")
+                        if status == WorkflowStepStatus.BLOCKED.value:
+                            deps = step.get("dependencies", [])
+                            blocked_by = [d for d in deps if d not in completed_steps]
+                            if blocked_by:
+                                titles = [s["title"] for s in WORKFLOW_TEMPLATE_KV["steps"] if s["code"] in blocked_by[:2]]
+                                st.caption(f"🔒 Warte auf: {', '.join(titles)}")
+
+                    with col2:
+                        if status == WorkflowStepStatus.OPEN.value:
+                            if st.button("✓", key=f"c_{step_code}_{projekt.projekt_id}"):
+                                projekt.workflow_completed_steps.append(step_code)
+                                st.session_state.projekte[projekt.projekt_id] = projekt
+                                st.rerun()
+                        elif status == WorkflowStepStatus.DONE.value:
+                            if st.button("↩", key=f"u_{step_code}_{projekt.projekt_id}"):
+                                projekt.workflow_completed_steps.remove(step_code)
+                                st.session_state.projekte[projekt.projekt_id] = projekt
+                                st.rerun()
+
+
 def notar_timeline_view():
-    """Timeline für Notar"""
-    st.subheader("📊 Projekt-Fortschritt")
+    """Timeline für Notar - mit Workflow-Engine"""
+    st.subheader("📊 Projekt-Workflow")
 
     notar_id = st.session_state.current_user.user_id
     search_term = st.session_state.get('notar_search', '')
 
     alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
     projekte = filter_projekte_by_search(alle_projekte, search_term)
-
     display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
@@ -20665,8 +21555,23 @@ def notar_timeline_view():
         return
 
     for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            render_timeline(projekt.projekt_id, UserRole.NOTAR.value)
+        completed_steps = getattr(projekt, 'workflow_completed_steps', [])
+        financing_required = getattr(projekt, 'financing_required', False)
+        progress = calculate_workflow_progress(completed_steps, financing_required)
+
+        with st.expander(f"🏘️ {projekt.name} — {progress['total_progress']:.0f}%", expanded=True):
+            # Finanzierung-Toggle
+            col1, col2 = st.columns([4, 1])
+            with col2:
+                new_fin = st.checkbox("💰 Finanzierung", value=financing_required, key=f"fin_{projekt.projekt_id}")
+                if new_fin != financing_required:
+                    projekt.financing_required = new_fin
+                    st.session_state.projekte[projekt.projekt_id] = projekt
+                    st.rerun()
+
+            render_workflow_milestone_bar(projekt)
+            render_workflow_segments(projekt)
+
 
 def notar_projekte_view():
     """Projekt-Übersicht für Notar"""
