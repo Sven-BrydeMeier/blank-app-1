@@ -20069,9 +20069,22 @@ def render_notar_menu_styles():
         border-right: 1px solid #dee2e6;
     }
 
-    /* Sidebar Inhalt Container */
+    /* Sidebar Inhalt Container - ganz oben */
     [data-testid="stSidebar"] > div:first-child {
-        padding-top: 1rem;
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+
+    /* Streamlit Sidebar Block Container - kein Top-Spacing */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        padding-top: 0 !important;
+        gap: 0.5rem !important;
+    }
+
+    /* Erstes Element in Sidebar ganz oben */
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div:first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
 
     /* ==================== EXPANDER (MENÜGRUPPEN) STYLING ==================== */
