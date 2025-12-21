@@ -2015,12 +2015,20 @@ WORKFLOW_TEMPLATE_KV = {
     "name": "Kaufvertrag Immobilien (Modern)",
     "version": "1.0.0",
     "segments": [
+        {"segment_id": "O_ONBOARDING", "label": "Onboarding", "order": 0, "icon": "🚀"},
         {"segment_id": "A_PRE_BEURKUNDUNG", "label": "Vor Beurkundung", "order": 1, "icon": "📝"},
         {"segment_id": "B_POST_BEURKUNDUNG_PRE_FAELLIGKEIT", "label": "Nach Beurkundung", "order": 2, "icon": "📋"},
         {"segment_id": "C_POST_FAELLIGKEIT_PRE_UEBERGABE", "label": "Kaufpreisabwicklung", "order": 3, "icon": "💰"},
         {"segment_id": "D_POST_UEBERGABE_PRE_EINTRAGUNG", "label": "Abschluss", "order": 4, "icon": "✅"},
     ],
     "milestones": [
+        {
+            "milestone_type": "ONBOARDING_ABGESCHLOSSEN",
+            "label": "Onboarding",
+            "order": 0,
+            "icon": "🚀",
+            "completion_step_code": "O_NOTARAUFTRAG_ERTEILT"
+        },
         {
             "milestone_type": "NOTARTERMIN_BEURKUNDUNG",
             "label": "Beurkundung",
@@ -2058,13 +2066,85 @@ WORKFLOW_TEMPLATE_KV = {
         }
     ],
     "steps": [
+        # === SEGMENT O: Onboarding ===
+        {
+            "code": "O_ERSTKONTAKT",
+            "title": "Erstkontakt/Anfrage",
+            "segment_id": "O_ONBOARDING",
+            "order": 1,
+            "dependencies": [],
+            "condition": None,
+            "icon": "📞",
+            "responsible": "makler"
+        },
+        {
+            "code": "O_OBJEKTDATEN_ERFASST",
+            "title": "Objektdaten erfasst",
+            "segment_id": "O_ONBOARDING",
+            "order": 2,
+            "dependencies": ["O_ERSTKONTAKT"],
+            "condition": None,
+            "icon": "🏠",
+            "responsible": "makler"
+        },
+        {
+            "code": "O_KAUFANGEBOT_ANGENOMMEN",
+            "title": "Kaufangebot angenommen",
+            "segment_id": "O_ONBOARDING",
+            "order": 3,
+            "dependencies": ["O_OBJEKTDATEN_ERFASST"],
+            "condition": None,
+            "icon": "🤝",
+            "responsible": "makler"
+        },
+        {
+            "code": "O_FINANZIERUNG_BESTAETIGT",
+            "title": "Finanzierung bestätigt",
+            "segment_id": "O_ONBOARDING",
+            "order": 4,
+            "dependencies": ["O_KAUFANGEBOT_ANGENOMMEN"],
+            "condition": "requires_financing",
+            "icon": "🏦",
+            "responsible": "kaeufer"
+        },
+        {
+            "code": "O_KAEUFER_DATEN_VOLLSTAENDIG",
+            "title": "Käufer-Daten vollständig",
+            "segment_id": "O_ONBOARDING",
+            "order": 5,
+            "dependencies": ["O_KAUFANGEBOT_ANGENOMMEN"],
+            "condition": None,
+            "icon": "👤",
+            "responsible": "kaeufer"
+        },
+        {
+            "code": "O_VERKAEUFER_DATEN_VOLLSTAENDIG",
+            "title": "Verkäufer-Daten vollständig",
+            "segment_id": "O_ONBOARDING",
+            "order": 6,
+            "dependencies": ["O_KAUFANGEBOT_ANGENOMMEN"],
+            "condition": None,
+            "icon": "👤",
+            "responsible": "verkaeufer"
+        },
+        {
+            "code": "O_NOTARAUFTRAG_ERTEILT",
+            "title": "Notarauftrag erteilt",
+            "segment_id": "O_ONBOARDING",
+            "order": 7,
+            "dependencies": ["O_KAEUFER_DATEN_VOLLSTAENDIG", "O_VERKAEUFER_DATEN_VOLLSTAENDIG"],
+            "condition": None,
+            "icon": "📋",
+            "responsible": "makler"
+        },
+
         # === SEGMENT A: Vor Beurkundung ===
         {
             "code": "A_AKTE_ANGELEGT",
             "title": "Akte angelegt",
             "segment_id": "A_PRE_BEURKUNDUNG",
             "order": 10,
-            "dependencies": [],
+            "dependencies": ["O_NOTARAUFTRAG_ERTEILT"],
             "condition": None,
             "icon": "📁"
         },
@@ -2333,10 +2413,11 @@ WORKFLOW_TEMPLATE_KV = {
     ],
     "rules": {
         "progress_weights": {
-            "NOTARTERMIN_BEURKUNDUNG": 0.25,
-            "KAUFPREISFAELLIGKEIT": 0.25,
-            "SCHLUESSELUEBERGABE": 0.25,
-            "EIGENTUMSUMSCHREIBUNG": 0.25
+            "ONBOARDING_ABGESCHLOSSEN": 0.20,
+            "NOTARTERMIN_BEURKUNDUNG": 0.20,
+            "KAUFPREISFAELLIGKEIT": 0.20,
+            "SCHLUESSELUEBERGABE": 0.20,
+            "EIGENTUMSUMSCHREIBUNG": 0.20
         }
     }
 }
