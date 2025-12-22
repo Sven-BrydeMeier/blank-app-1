@@ -14026,7 +14026,7 @@ def login_page():
     """, unsafe_allow_html=True)
 
     # ============ WORKFLOW SECTION ============
-    st.markdown("""
+    workflow_html = """
     <div class="workflow-section" id="workflow">
         <div class="section-header">
             <h2 class="section-title">Transparenter <span>Workflow</span></h2>
@@ -14038,9 +14038,8 @@ def login_page():
                 <span class="progress-value">30%</span>
             </div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: 30%"></div>
+                <div class="progress-fill" style="width: 30%;"></div>
             </div>
-
             <div class="workflow-segment">
                 <div class="segment-header">
                     <div class="segment-number">1</div>
@@ -14048,32 +14047,31 @@ def login_page():
                 </div>
                 <div class="workflow-steps">
                     <div class="workflow-step completed">
-                        <div class="step-icon completed">✓</div>
+                        <div class="step-icon completed">&#10003;</div>
                         <span class="step-title">Erstkontakt</span>
                         <span class="step-date">15. Dez</span>
                     </div>
                     <div class="workflow-step completed">
-                        <div class="step-icon completed">✓</div>
+                        <div class="step-icon completed">&#10003;</div>
                         <span class="step-title">Objektdaten erfasst</span>
                         <span class="step-date">16. Dez</span>
                     </div>
                     <div class="workflow-step completed">
-                        <div class="step-icon completed">✓</div>
+                        <div class="step-icon completed">&#10003;</div>
                         <span class="step-title">Kaufangebot angenommen</span>
                         <span class="step-date">18. Dez</span>
                     </div>
                     <div class="workflow-step current">
-                        <div class="step-icon current">⏱</div>
-                        <span class="step-title">Finanzierung bestätigt</span>
+                        <div class="step-icon current">&#9201;</div>
+                        <span class="step-title">Finanzierung best&auml;tigt</span>
                         <span class="step-badge">Aktuell</span>
                     </div>
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
+                        <div class="step-icon pending">&#9675;</div>
                         <span class="step-title">Notarauftrag erteilt</span>
                     </div>
                 </div>
             </div>
-
             <div class="workflow-segment">
                 <div class="segment-header">
                     <div class="segment-number">2</div>
@@ -14081,30 +14079,31 @@ def login_page():
                 </div>
                 <div class="workflow-steps">
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
+                        <div class="step-icon pending">&#9675;</div>
                         <span class="step-title">Akte angelegt</span>
                     </div>
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
+                        <div class="step-icon pending">&#9675;</div>
                         <span class="step-title">Parteien erfasst</span>
                     </div>
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
-                        <span class="step-title">Ausweise vollständig</span>
+                        <div class="step-icon pending">&#9675;</div>
+                        <span class="step-title">Ausweise vollst&auml;ndig</span>
                     </div>
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
+                        <div class="step-icon pending">&#9675;</div>
                         <span class="step-title">Vertragsentwurf erstellt</span>
                     </div>
                     <div class="workflow-step">
-                        <div class="step-icon pending">○</div>
-                        <span class="step-title">Notartermin bestätigt</span>
+                        <div class="step-icon pending">&#9675;</div>
+                        <span class="step-title">Notartermin best&auml;tigt</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(workflow_html, unsafe_allow_html=True)
 
     # ============ ROLES SECTION ============
     st.markdown("""
