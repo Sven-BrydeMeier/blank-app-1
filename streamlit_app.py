@@ -13335,6 +13335,9 @@ def logout():
 
 def makler_dashboard():
     """Dashboard für Makler"""
+    # ImmoFlow Design System laden
+    render_immoflow_design_system()
+
     st.title("📊 Makler-Dashboard")
 
     # Aktentasche in der Sidebar
@@ -14574,6 +14577,9 @@ def onboarding_flow():
 
 def kaeufer_dashboard():
     """Dashboard für Käufer"""
+    # ImmoFlow Design System laden
+    render_immoflow_design_system()
+
     st.title("🏠 Käufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
@@ -18162,6 +18168,9 @@ def kaeufer_dokumente_view():
 
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer"""
+    # ImmoFlow Design System laden
+    render_immoflow_design_system()
+
     st.title("🏡 Verkäufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
@@ -19570,6 +19579,9 @@ def verkaeufer_nachrichten():
 
 def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
+    # ImmoFlow Design System laden
+    render_immoflow_design_system()
+
     st.title("💼 Finanzierer-Dashboard")
 
     # Aktentasche in der Sidebar
@@ -20135,360 +20147,729 @@ NOTAR_UNTERMENUS = {
 }
 
 
-def render_notar_menu_styles():
+def render_immoflow_design_system():
     """
-    Rendert Custom CSS für das Notar-Dashboard Menü.
-    Grautöne, Schatten und aufgeräumtes Design.
+    Rendert das ImmoFlow Design-System: Navy-Gold Farbschema
+    im deutschen FinTech/PropTech-Stil für professionelle Immobilientransaktionen.
+
+    Farben:
+    - Primary: Deep Navy (#0f172a, #1e293b)
+    - Accent: Warm Gold (#d4af37, #f59e0b)
+    - Background: White/Light Gray (#ffffff, #f8fafc)
+    - Text: Navy/Gray (#0f172a, #64748b)
     """
     st.markdown("""
     <style>
-    /* ==================== SIDEBAR STYLING ==================== */
+    /* ==================== IMMOFLOW DESIGN SYSTEM ==================== */
+    /* Navy-Gold Professional Theme für Immobilientransaktionen */
 
-    /* Sidebar Hintergrund */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
-        border-right: 1px solid #dee2e6;
+    :root {
+        --navy-900: #0f172a;
+        --navy-800: #1e293b;
+        --navy-700: #334155;
+        --navy-600: #475569;
+        --navy-500: #64748b;
+        --navy-400: #94a3b8;
+        --navy-300: #cbd5e1;
+        --navy-200: #e2e8f0;
+        --navy-100: #f1f5f9;
+        --navy-50: #f8fafc;
+
+        --gold-500: #d4af37;
+        --gold-400: #f59e0b;
+        --gold-300: #fbbf24;
+        --gold-200: #fcd34d;
+        --gold-100: #fef3c7;
+
+        --success: #10b981;
+        --warning: #f59e0b;
+        --error: #ef4444;
+        --info: #3b82f6;
     }
 
-    /* Sidebar Inhalt Container - ganz oben */
+    /* ==================== GLOBAL ANIMATIONS ==================== */
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    @keyframes pulse-gold {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(212, 175, 55, 0); }
+    }
+
+    /* ==================== MAIN APP CONTAINER ==================== */
+
+    .stApp {
+        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 50%, var(--navy-100) 100%);
+    }
+
+    .main .block-container {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    /* ==================== SIDEBAR STYLING ==================== */
+
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
+        border-right: 1px solid var(--navy-700);
+    }
+
     [data-testid="stSidebar"] > div:first-child {
         padding-top: 0 !important;
         margin-top: 0 !important;
     }
 
-    /* Streamlit Sidebar Block Container - kein Top-Spacing */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         padding-top: 0 !important;
         gap: 0.5rem !important;
     }
 
-    /* Erstes Element in Sidebar ganz oben */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0 !important;
         padding-top: 0 !important;
     }
 
-    /* ==================== EXPANDER (MENÜGRUPPEN) STYLING ==================== */
+    /* Sidebar Text & Labels */
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] .stMarkdown,
+    [data-testid="stSidebar"] span {
+        color: var(--navy-200) !important;
+    }
 
-    /* Expander Container - Karten-Look */
+    [data-testid="stSidebar"] h1,
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        color: #ffffff !important;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--gold-500);
+        margin-bottom: 1rem;
+    }
+
+    /* ==================== EXPANDER (MENÜGRUPPEN) ==================== */
+
     [data-testid="stSidebar"] .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 0.6rem 1rem;
-        margin-bottom: 0.3rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-        transition: all 0.2s ease;
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
+        border: 1px solid var(--navy-600);
+        border-radius: 10px;
+        padding: 0.7rem 1rem;
+        margin-bottom: 0.4rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         font-weight: 600;
-        color: #495057;
+        color: #ffffff !important;
     }
 
     [data-testid="stSidebar"] .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        border-color: #ced4da;
+        background: linear-gradient(135deg, var(--navy-600) 0%, var(--navy-700) 100%);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        border-color: var(--gold-500);
+        transform: translateX(4px);
     }
 
-    /* Expander Content */
     [data-testid="stSidebar"] .streamlit-expanderContent {
-        background: #ffffff;
-        border: 1px solid #e9ecef;
+        background: var(--navy-800);
+        border: 1px solid var(--navy-700);
         border-top: none;
-        border-radius: 0 0 8px 8px;
-        margin-top: -4px;
+        border-radius: 0 0 10px 10px;
+        margin-top: -6px;
         margin-bottom: 0.5rem;
-        padding: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        padding: 0.75rem;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
-    /* ==================== SIDEBAR BUTTONS STYLING ==================== */
+    /* ==================== SIDEBAR BUTTONS ==================== */
 
-    /* Alle Sidebar Buttons - Basis */
     [data-testid="stSidebar"] button[kind="secondary"] {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border: 1px solid #dee2e6;
-        border-radius: 6px;
-        color: #495057;
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
+        border: 1px solid var(--navy-600);
+        border-radius: 8px;
+        color: var(--navy-200) !important;
         font-weight: 500;
-        padding: 0.5rem 0.75rem;
-        margin: 0.15rem 0;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        transition: all 0.2s ease;
+        padding: 0.6rem 0.85rem;
+        margin: 0.2rem 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     [data-testid="stSidebar"] button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
-        border-color: #adb5bd;
-        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
-        transform: translateY(-1px);
+        background: linear-gradient(135deg, var(--navy-600) 0%, var(--navy-700) 100%);
+        border-color: var(--gold-500);
+        color: #ffffff !important;
+        box-shadow: 0 4px 16px rgba(212, 175, 55, 0.2);
+        transform: translateX(4px);
     }
 
-    /* Aktiver Menüpunkt - Primary Button in Sidebar */
     [data-testid="stSidebar"] button[kind="primary"] {
-        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
-        border: 1px solid #343a40;
-        border-radius: 6px;
-        color: #ffffff;
-        font-weight: 600;
-        padding: 0.5rem 0.75rem;
-        margin: 0.15rem 0;
-        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3);
+        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%);
+        border: 1px solid var(--gold-400);
+        border-radius: 8px;
+        color: var(--navy-900) !important;
+        font-weight: 700;
+        padding: 0.6rem 0.85rem;
+        margin: 0.2rem 0;
+        box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4);
     }
 
     [data-testid="stSidebar"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
-        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4);
+        background: linear-gradient(135deg, var(--gold-400) 0%, var(--gold-300) 100%);
+        box-shadow: 0 6px 24px rgba(212, 175, 55, 0.5);
+        transform: translateX(4px);
     }
 
-    /* ==================== HAUPTMENÜ LEISTE STYLING ==================== */
+    /* ==================== HAUPTMENÜ LEISTE ==================== */
 
-    /* Container für Hauptmenü */
     .hauptmenu-container {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border-radius: 12px;
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        border: 1px solid #e9ecef;
+        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
+        border-radius: 16px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+        border: 1px solid var(--navy-200);
     }
 
-    /* Hauptmenü Buttons - Inaktiv */
     div[data-testid="column"] button[kind="secondary"] {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border: 1px solid #dee2e6;
-        border-radius: 10px;
-        color: #6c757d;
-        font-weight: 500;
-        padding: 0.75rem 0.5rem;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-        transition: all 0.25s ease;
+        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
+        border: 2px solid var(--navy-200);
+        border-radius: 12px;
+        color: var(--navy-600) !important;
+        font-weight: 600;
+        padding: 0.85rem 0.6rem;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     div[data-testid="column"] button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
-        border-color: #adb5bd;
-        color: #495057;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%);
+        border-color: var(--navy-400);
+        color: var(--navy-800) !important;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+        transform: translateY(-3px);
     }
 
-    /* Hauptmenü Buttons - Aktiv */
     div[data-testid="column"] button[kind="primary"] {
-        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
-        border: 1px solid #212529;
-        border-radius: 10px;
-        color: #ffffff;
-        font-weight: 600;
-        padding: 0.75rem 0.5rem;
-        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.35);
+        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
+        border: 2px solid var(--gold-500);
+        border-radius: 12px;
+        color: #ffffff !important;
+        font-weight: 700;
+        padding: 0.85rem 0.6rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25), 0 0 0 2px rgba(212, 175, 55, 0.3);
     }
 
     div[data-testid="column"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
-        box-shadow: 0 6px 16px rgba(52, 58, 64, 0.45);
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.35), 0 0 0 3px rgba(212, 175, 55, 0.4);
+        transform: translateY(-3px);
     }
 
-    /* ==================== BREADCRUMB STYLING ==================== */
+    /* ==================== BREADCRUMB ==================== */
 
     .breadcrumb-nav {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        margin: 0.5rem 0 1rem 0;
-        border-left: 4px solid #495057;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
-        color: #6c757d;
+        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 100%);
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        margin: 0.5rem 0 1.5rem 0;
+        border-left: 4px solid var(--gold-500);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        color: var(--navy-600);
         font-size: 0.9rem;
+        font-weight: 500;
     }
 
-    /* ==================== CONTENT CONTAINER ==================== */
+    /* ==================== CONTENT CARDS ==================== */
 
     .content-card {
         background: #ffffff;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-top: 1rem;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-        border: 1px solid #e9ecef;
+        border-radius: 16px;
+        padding: 1.75rem;
+        margin-top: 1.5rem;
+        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+        border: 1px solid var(--navy-100);
+        animation: fadeInUp 0.4s ease-out;
     }
 
-    /* ==================== DIVIDER STYLING ==================== */
+    /* ==================== METRIC CARDS (Stats) ==================== */
+
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--navy-100);
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    [data-testid="stMetric"]:hover {
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        transform: translateY(-2px);
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: var(--navy-500) !important;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: var(--navy-900) !important;
+        font-weight: 700;
+        font-size: 1.75rem;
+    }
+
+    /* ==================== DIVIDER ==================== */
 
     hr {
         border: none;
         height: 1px;
-        background: linear-gradient(90deg, transparent 0%, #dee2e6 50%, transparent 100%);
-        margin: 1rem 0;
+        background: linear-gradient(90deg, transparent 0%, var(--navy-200) 50%, transparent 100%);
+        margin: 1.5rem 0;
     }
 
-    /* ==================== NAVIGATION TITLE ==================== */
-
-    [data-testid="stSidebar"] h3 {
-        color: #343a40;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid #495057;
-        margin-bottom: 1rem;
-    }
-
-    /* ==================== SCROLLBAR STYLING ==================== */
+    /* ==================== SCROLLBAR ==================== */
 
     [data-testid="stSidebar"]::-webkit-scrollbar {
         width: 6px;
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-track {
-        background: #f1f3f4;
+        background: var(--navy-800);
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb {
-        background: #adb5bd;
+        background: var(--navy-600);
         border-radius: 3px;
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb:hover {
-        background: #6c757d;
+        background: var(--gold-500);
     }
 
-    /* ==================== GLOBALE BUTTON OVERRIDES (KEINE BLAUTÖNE) ==================== */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
 
-    /* Alle Primary Buttons global in Grautönen */
+    ::-webkit-scrollbar-track {
+        background: var(--navy-100);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--navy-400);
+        border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--navy-500);
+    }
+
+    /* ==================== GLOBAL BUTTONS ==================== */
+
     .stButton > button[kind="primary"],
     button[kind="primary"] {
-        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
-        border: 1px solid #343a40 !important;
+        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%) !important;
+        border: 2px solid var(--gold-500) !important;
         color: #ffffff !important;
-        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25) !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.3px;
     }
 
     .stButton > button[kind="primary"]:hover,
     button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
-        border-color: #495057 !important;
-        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%) !important;
+        border-color: var(--gold-400) !important;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35), 0 0 0 2px rgba(212, 175, 55, 0.3) !important;
+        transform: translateY(-2px);
     }
 
     .stButton > button[kind="primary"]:active,
     button[kind="primary"]:active {
-        background: linear-gradient(135deg, #343a40 0%, #212529 100%) !important;
+        background: linear-gradient(135deg, var(--navy-900) 0%, #000000 100%) !important;
+        transform: translateY(0);
     }
 
-    /* Secondary Buttons global */
     .stButton > button[kind="secondary"],
     button[kind="secondary"] {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
-        border: 1px solid #dee2e6 !important;
-        color: #495057 !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%) !important;
+        border: 2px solid var(--navy-200) !important;
+        color: var(--navy-700) !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+        font-weight: 600 !important;
     }
 
     .stButton > button[kind="secondary"]:hover,
     button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%) !important;
-        border-color: #adb5bd !important;
-        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12) !important;
+        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%) !important;
+        border-color: var(--navy-400) !important;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12) !important;
+        transform: translateY(-2px);
     }
 
-    /* Streamlit Standard-Button Override */
     .stButton > button {
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        transition: all 0.2s ease !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        padding: 0.6rem 1.2rem !important;
     }
 
-    /* Form Submit Buttons */
+    /* Form Submit Buttons - Gold Accent */
     .stForm button[type="submit"] {
-        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
-        border: 1px solid #343a40 !important;
-        color: #ffffff !important;
-        border-radius: 8px !important;
-        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
+        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%) !important;
+        border: none !important;
+        color: var(--navy-900) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4) !important;
+        font-weight: 700 !important;
     }
 
     .stForm button[type="submit"]:hover {
-        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
-        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
+        background: linear-gradient(135deg, var(--gold-400) 0%, var(--gold-300) 100%) !important;
+        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.5) !important;
+        transform: translateY(-2px);
     }
 
     /* Download Buttons */
     .stDownloadButton > button {
-        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
-        border: 1px solid #5a6268 !important;
+        background: linear-gradient(135deg, var(--navy-600) 0%, var(--navy-700) 100%) !important;
+        border: 1px solid var(--navy-500) !important;
         color: #ffffff !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2) !important;
     }
 
     .stDownloadButton > button:hover {
-        background: linear-gradient(135deg, #7c858d 0%, #6c757d 100%) !important;
-        box-shadow: 0 3px 8px rgba(108, 117, 125, 0.4) !important;
+        background: linear-gradient(135deg, var(--navy-500) 0%, var(--navy-600) 100%) !important;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3) !important;
+        transform: translateY(-2px);
     }
 
-    /* ==================== TABS STYLING (Grautöne) ==================== */
+    /* ==================== TABS STYLING ==================== */
 
     .stTabs [data-baseweb="tab-list"] {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 8px;
-        padding: 0.25rem;
-        gap: 0.25rem;
+        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 100%);
+        border-radius: 12px;
+        padding: 0.4rem;
+        gap: 0.3rem;
+        border: 1px solid var(--navy-100);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
     }
 
     .stTabs [data-baseweb="tab"] {
         background: transparent;
-        border-radius: 6px;
-        color: #6c757d;
-        font-weight: 500;
-        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        color: var(--navy-500);
+        font-weight: 600;
+        padding: 0.6rem 1.2rem;
+        transition: all 0.25s ease;
     }
 
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(255, 255, 255, 0.7);
-        color: #495057;
+        background: rgba(15, 23, 42, 0.05);
+        color: var(--navy-700);
     }
 
     .stTabs [aria-selected="true"] {
-        background: #ffffff !important;
-        color: #343a40 !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background: var(--navy-800) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
     }
 
-    /* Tab Unterline entfernen und durch eigenes Styling ersetzen */
     .stTabs [data-baseweb="tab-highlight"] {
-        background-color: #495057 !important;
+        background-color: var(--gold-500) !important;
     }
 
     .stTabs [data-baseweb="tab-border"] {
         display: none;
     }
 
-    /* ==================== INPUT FIELDS STYLING ==================== */
+    /* ==================== INPUT FIELDS ==================== */
 
     .stTextInput > div > div > input,
     .stSelectbox > div > div > div,
-    .stMultiSelect > div > div > div {
-        border-color: #ced4da !important;
-        border-radius: 6px !important;
+    .stMultiSelect > div > div > div,
+    .stTextArea textarea {
+        border: 2px solid var(--navy-200) !important;
+        border-radius: 10px !important;
+        background: #ffffff !important;
+        transition: all 0.25s ease !important;
     }
 
     .stTextInput > div > div > input:focus,
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #6c757d !important;
-        box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.2) !important;
+    .stSelectbox > div > div > div:focus-within,
+    .stTextArea textarea:focus {
+        border-color: var(--gold-500) !important;
+        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
     }
 
-    /* ==================== MOBILE RESPONSIVE DESIGN ==================== */
+    /* ==================== SUCCESS/WARNING/ERROR/INFO ==================== */
 
-    /* Tablet und kleiner (max-width: 992px) */
+    .stSuccess {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
+        border-left: 4px solid var(--success) !important;
+        border-radius: 10px !important;
+    }
+
+    .stWarning {
+        background: linear-gradient(135deg, var(--gold-100) 0%, #fef3c7 100%) !important;
+        border-left: 4px solid var(--gold-500) !important;
+        border-radius: 10px !important;
+    }
+
+    .stError {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
+        border-left: 4px solid var(--error) !important;
+        border-radius: 10px !important;
+    }
+
+    .stInfo {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+        border-left: 4px solid var(--info) !important;
+        border-radius: 10px !important;
+    }
+
+    /* ==================== EXPANDER (Main Content) ==================== */
+
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%) !important;
+        border: 1px solid var(--navy-200) !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        color: var(--navy-800) !important;
+        transition: all 0.25s ease !important;
+    }
+
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%) !important;
+        border-color: var(--navy-300) !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
+    }
+
+    /* ==================== PROGRESS BAR ==================== */
+
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%) !important;
+        border-radius: 10px !important;
+    }
+
+    .stProgress > div > div {
+        background: var(--navy-200) !important;
+        border-radius: 10px !important;
+    }
+
+    /* ==================== DATAFRAME ==================== */
+
+    .stDataFrame {
+        border-radius: 12px !important;
+        overflow: hidden;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+    }
+
+    .stDataFrame thead th {
+        background: var(--navy-800) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+
+    .stDataFrame tbody tr:hover {
+        background: var(--navy-50) !important;
+    }
+
+    /* ==================== HEADER STYLING ==================== */
+
+    h1 {
+        color: var(--navy-900) !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.5px;
+    }
+
+    h2 {
+        color: var(--navy-800) !important;
+        font-weight: 700 !important;
+    }
+
+    h3 {
+        color: var(--navy-700) !important;
+        font-weight: 600 !important;
+    }
+
+    /* ==================== IMMOFLOW CUSTOM COMPONENTS ==================== */
+
+    /* Hero Badge */
+    .immoflow-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, var(--gold-100) 0%, #ffffff 100%);
+        border: 1px solid var(--gold-400);
+        border-radius: 50px;
+        padding: 0.4rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--gold-500);
+        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2);
+    }
+
+    /* Project Card */
+    .project-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 0;
+        overflow: hidden;
+        border: 1px solid var(--navy-100);
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .project-card:hover {
+        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
+        transform: translateY(-4px);
+    }
+
+    .project-card-header {
+        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
+        padding: 1rem 1.25rem;
+        color: #ffffff;
+    }
+
+    .project-card-body {
+        padding: 1.25rem;
+    }
+
+    /* Status Badge */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-onboarding {
+        background: var(--gold-100);
+        color: var(--gold-500);
+    }
+
+    .status-active {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .status-pending {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .status-completed {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    /* Role Cards */
+    .role-card {
+        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: #ffffff;
+        text-align: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 2px solid transparent;
+        cursor: pointer;
+    }
+
+    .role-card:hover {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
+        border-color: var(--gold-500);
+    }
+
+    .role-card-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .role-card-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .role-card-desc {
+        font-size: 0.85rem;
+        color: var(--navy-300);
+    }
+
+    /* Milestone Bar */
+    .milestone-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--navy-100);
+        border-radius: 12px;
+        padding: 0.5rem;
+        margin: 1rem 0;
+    }
+
+    .milestone-item {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        transition: all 0.25s ease;
+    }
+
+    .milestone-done {
+        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%);
+        color: var(--navy-900);
+    }
+
+    .milestone-current {
+        background: var(--navy-800);
+        color: #ffffff;
+        animation: pulse-gold 2s infinite;
+    }
+
+    .milestone-pending {
+        background: #ffffff;
+        color: var(--navy-400);
+    }
+
+    /* ==================== MOBILE RESPONSIVE ==================== */
+
     @media screen and (max-width: 992px) {
-        /* Sidebar kompakter */
         [data-testid="stSidebar"] {
             width: 280px !important;
         }
 
-        /* Hauptmenü Buttons kompakter */
         div[data-testid="column"] button {
             padding: 0.5rem 0.25rem !important;
             font-size: 0.75rem !important;
@@ -21289,8 +21670,8 @@ def render_notar_content(selection: str, user_id: str):
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
-    # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
-    render_notar_menu_styles()
+    # ImmoFlow Design System laden (Navy-Gold Theme)
+    render_immoflow_design_system()
 
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
