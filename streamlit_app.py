@@ -13191,13 +13191,331 @@ def get_version_number() -> str:
     return f"{year}.{month_day}.{time}"
 
 
-def login_page():
-    """Login-Seite"""
-    st.title("🏠 Immobilien-Transaktionsplattform")
+def render_landing_page_styles():
+    """Rendert die Styles für die moderne Landing Page"""
+    st.markdown("""
+    <style>
+    /* Landing Page Spezifische Styles */
+    .landing-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        padding: 4rem 2rem;
+        border-radius: 24px;
+        text-align: center;
+        margin-bottom: 3rem;
+        position: relative;
+        overflow: hidden;
+        animation: fadeInUp 0.8s ease-out;
+    }
 
-    # Versionsnummer anzeigen
-    version = get_version_number()
-    st.caption(f"Version {version}")
+    .landing-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at 30% 20%, rgba(212, 175, 55, 0.15) 0%, transparent 50%),
+                    radial-gradient(circle at 70% 80%, rgba(212, 175, 55, 0.1) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    .hero-badge {
+        display: inline-block;
+        background: rgba(212, 175, 55, 0.2);
+        color: #d4af37;
+        padding: 0.5rem 1.5rem;
+        border-radius: 50px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        animation: fadeIn 1s ease-out 0.2s both;
+    }
+
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 1rem;
+        line-height: 1.1;
+        animation: fadeIn 1s ease-out 0.4s both;
+    }
+
+    .hero-title span {
+        background: linear-gradient(135deg, #d4af37 0%, #f59e0b 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero-subtitle {
+        font-size: 1.25rem;
+        color: #94a3b8;
+        max-width: 600px;
+        margin: 0 auto 2rem;
+        line-height: 1.6;
+        animation: fadeIn 1s ease-out 0.6s both;
+    }
+
+    .hero-stats {
+        display: flex;
+        justify-content: center;
+        gap: 3rem;
+        margin-top: 2.5rem;
+        animation: fadeIn 1s ease-out 0.8s both;
+    }
+
+    .hero-stat {
+        text-align: center;
+    }
+
+    .hero-stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #d4af37;
+        display: block;
+    }
+
+    .hero-stat-label {
+        font-size: 0.875rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    /* Feature Cards */
+    .features-section {
+        margin-bottom: 3rem;
+    }
+
+    .section-title {
+        text-align: center;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+    }
+
+    .section-subtitle {
+        text-align: center;
+        color: #64748b;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+    }
+
+    .feature-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        height: 100%;
+        animation: fadeInUp 0.6s ease-out both;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+        border-color: #d4af37;
+    }
+
+    .feature-icon {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 1.75rem;
+    }
+
+    .feature-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.75rem;
+    }
+
+    .feature-description {
+        color: #64748b;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    /* Role Cards */
+    .role-card {
+        background: #ffffff;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        animation: fadeInUp 0.6s ease-out both;
+    }
+
+    .role-card:hover {
+        border-color: #d4af37;
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(212, 175, 55, 0.15);
+    }
+
+    .role-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .role-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+    }
+
+    .role-description {
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    /* Login Form Styles */
+    .login-container {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        padding: 2.5rem;
+        max-width: 450px;
+        margin: 0 auto;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-subtitle {
+        color: #64748b;
+        font-size: 0.95rem;
+    }
+
+    /* Trust Badges */
+    .trust-section {
+        text-align: center;
+        padding: 2rem 0;
+        margin-top: 3rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .trust-badges {
+        display: flex;
+        justify-content: center;
+        gap: 3rem;
+        flex-wrap: wrap;
+    }
+
+    .trust-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #64748b;
+        font-size: 0.9rem;
+    }
+
+    .trust-badge-icon {
+        color: #22c55e;
+        font-size: 1.25rem;
+    }
+
+    /* Demo Credentials Box */
+    .demo-box {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .demo-title {
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .demo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .demo-item {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .demo-role {
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.25rem;
+    }
+
+    .demo-credentials {
+        color: #64748b;
+        font-family: monospace;
+    }
+
+    /* Version Badge */
+    .version-badge {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        background: rgba(15, 23, 42, 0.9);
+        color: #94a3b8;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        z-index: 1000;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2.25rem;
+        }
+        .hero-stats {
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .trust-badges {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def login_page():
+    """Moderne Landing Page mit Login"""
+    # Design System und Landing Page Styles laden
+    render_immoflow_design_system()
+    render_landing_page_styles()
 
     # Session-Persistenz JavaScript injizieren
     inject_session_persistence()
@@ -13206,107 +13524,226 @@ def login_page():
     restored_user = restore_session_from_storage()
     if restored_user:
         st.session_state.current_user = restored_user
-        is_mitarbeiter = hasattr(restored_user, 'notar_id')  # Mitarbeiter haben notar_id
+        is_mitarbeiter = hasattr(restored_user, 'notar_id')
         st.session_state.is_notar_mitarbeiter = is_mitarbeiter
         st.rerun()
 
-    st.subheader("Anmeldung")
+    # Versionsnummer
+    version = get_version_number()
 
-    with st.form("login_form"):
-        email = st.text_input("E-Mail")
-        password = st.text_input("Passwort", type="password")
-        remember_me = st.checkbox("🔐 Angemeldet bleiben", value=True,
-                                  help="Ihre Sitzung bleibt auch nach einem Seiten-Reload aktiv")
-        submit = st.form_submit_button("Anmelden")
+    # ============ HERO SECTION ============
+    st.markdown(f"""
+    <div class="landing-hero">
+        <div class="hero-badge">Digitale Immobilientransaktionen</div>
+        <h1 class="hero-title">ImmoFlow <span>Pro</span></h1>
+        <p class="hero-subtitle">
+            Die professionelle Plattform für sichere und effiziente Immobilientransaktionen.
+            Verbinden Sie Makler, Notare, Käufer und Verkäufer auf einer Plattform.
+        </p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <span class="hero-stat-value">{len(st.session_state.projekte)}</span>
+                <span class="hero-stat-label">Aktive Projekte</span>
+            </div>
+            <div class="hero-stat">
+                <span class="hero-stat-value">{len(st.session_state.users)}</span>
+                <span class="hero-stat-label">Registrierte Nutzer</span>
+            </div>
+            <div class="hero-stat">
+                <span class="hero-stat-value">100%</span>
+                <span class="hero-stat-label">DSGVO-konform</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if submit:
-            user = None
-            mitarbeiter = None
+    # ============ FEATURES SECTION ============
+    st.markdown("""
+    <div class="features-section">
+        <h2 class="section-title">Warum ImmoFlow?</h2>
+        <p class="section-subtitle">Alles was Sie für erfolgreiche Immobilientransaktionen benötigen</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-            # Zuerst normale Benutzer prüfen
-            for u in st.session_state.users.values():
-                if u.email == email and u.password_hash == hash_password(password):
-                    user = u
-                    break
+    col1, col2, col3, col4 = st.columns(4)
 
-            # Falls kein normaler Benutzer, Notar-Mitarbeiter prüfen
-            if not user:
-                for ma in st.session_state.notar_mitarbeiter.values():
-                    if ma.email == email and ma.password_hash == hash_password(password):
-                        if ma.aktiv:
-                            mitarbeiter = ma
-                            break
-                        else:
-                            st.error("❌ Ihr Account wurde deaktiviert. Kontaktieren Sie Ihren Notar.")
-                            return
-
-            if user:
-                st.session_state.current_user = user
-                st.session_state.is_notar_mitarbeiter = False
-
-                # Session-Token erstellen und speichern wenn "Angemeldet bleiben" aktiv
-                if remember_me:
-                    token = get_session_token(email)
-                    if 'valid_tokens' not in st.session_state:
-                        st.session_state.valid_tokens = {}
-                    st.session_state.valid_tokens[email] = token
-                    save_session_to_browser(email, token)
-
-                # Login-Event tracken
-                safe_track_interaktion(
-                    interaktions_typ='login',
-                    details={'rolle': user.rolle, 'remember_me': remember_me},
-                    nutzer_id=user.user_id
-                )
-
-                create_notification(
-                    user.user_id,
-                    "Willkommen zurück!",
-                    f"Sie haben sich erfolgreich angemeldet als {user.rolle}.",
-                    NotificationType.SUCCESS.value
-                )
-                st.rerun()
-            elif mitarbeiter:
-                # Für Mitarbeiter ein pseudo-User-Objekt erstellen
-                st.session_state.current_user = mitarbeiter
-                st.session_state.is_notar_mitarbeiter = True
-
-                # Session-Token für Mitarbeiter
-                if remember_me:
-                    token = get_session_token(email)
-                    if 'valid_tokens' not in st.session_state:
-                        st.session_state.valid_tokens = {}
-                    st.session_state.valid_tokens[email] = token
-                    save_session_to_browser(email, token)
-
-                # Mitarbeiter-Login tracken
-                safe_track_interaktion(
-                    interaktions_typ='login',
-                    details={
-                        'rolle': 'notar_mitarbeiter',
-                        'mitarbeiter_rolle': mitarbeiter.rolle,
-                        'remember_me': remember_me
-                    },
-                    nutzer_id=mitarbeiter.mitarbeiter_id
-                )
-
-                st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
-                st.rerun()
-            else:
-                st.error("❌ Ungültige Anmeldedaten")
-
-    with st.expander("📋 Demo-Zugangsdaten"):
+    with col1:
         st.markdown("""
-        **Makler:** `makler@demo.de` | `makler123`
+        <div class="feature-card" style="animation-delay: 0.1s">
+            <div class="feature-icon">🔒</div>
+            <h3 class="feature-title">Sichere Daten</h3>
+            <p class="feature-description">Ende-zu-Ende verschlüsselt und DSGVO-konform. Ihre Daten sind bei uns sicher.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        **Käufer:** `kaeufer@demo.de` | `kaeufer123`
+    with col2:
+        st.markdown("""
+        <div class="feature-card" style="animation-delay: 0.2s">
+            <div class="feature-icon">⚡</div>
+            <h3 class="feature-title">Schneller Workflow</h3>
+            <p class="feature-description">Automatisierte Prozesse beschleunigen Ihre Transaktionen um bis zu 60%.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        **Verkäufer:** `verkaeufer@demo.de` | `verkaeufer123`
+    with col3:
+        st.markdown("""
+        <div class="feature-card" style="animation-delay: 0.3s">
+            <div class="feature-icon">🤝</div>
+            <h3 class="feature-title">Alle verbunden</h3>
+            <p class="feature-description">Makler, Notare, Käufer und Verkäufer kommunizieren nahtlos auf einer Plattform.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        **Finanzierer:** `finanz@demo.de` | `finanz123`
+    with col4:
+        st.markdown("""
+        <div class="feature-card" style="animation-delay: 0.4s">
+            <div class="feature-icon">📊</div>
+            <h3 class="feature-title">Volle Transparenz</h3>
+            <p class="feature-description">Echtzeit-Tracking aller Meilensteine und automatische Statusupdates.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        **Notar:** `notar@demo.de` | `notar123`
-        """)
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # ============ LOGIN SECTION ============
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+
+    with col_center:
+        st.markdown("""
+        <div class="login-header">
+            <h2 class="login-title">Willkommen zurück</h2>
+            <p class="login-subtitle">Melden Sie sich an, um fortzufahren</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            email = st.text_input("E-Mail", placeholder="ihre@email.de")
+            password = st.text_input("Passwort", type="password", placeholder="Ihr Passwort")
+            remember_me = st.checkbox("Angemeldet bleiben", value=True)
+            submit = st.form_submit_button("Anmelden", use_container_width=True)
+
+            if submit:
+                user = None
+                mitarbeiter = None
+
+                # Zuerst normale Benutzer prüfen
+                for u in st.session_state.users.values():
+                    if u.email == email and u.password_hash == hash_password(password):
+                        user = u
+                        break
+
+                # Falls kein normaler Benutzer, Notar-Mitarbeiter prüfen
+                if not user:
+                    for ma in st.session_state.notar_mitarbeiter.values():
+                        if ma.email == email and ma.password_hash == hash_password(password):
+                            if ma.aktiv:
+                                mitarbeiter = ma
+                                break
+                            else:
+                                st.error("Ihr Account wurde deaktiviert.")
+                                return
+
+                if user:
+                    st.session_state.current_user = user
+                    st.session_state.is_notar_mitarbeiter = False
+
+                    if remember_me:
+                        token = get_session_token(email)
+                        if 'valid_tokens' not in st.session_state:
+                            st.session_state.valid_tokens = {}
+                        st.session_state.valid_tokens[email] = token
+                        save_session_to_browser(email, token)
+
+                    safe_track_interaktion(
+                        interaktions_typ='login',
+                        details={'rolle': user.rolle, 'remember_me': remember_me},
+                        nutzer_id=user.user_id
+                    )
+
+                    create_notification(
+                        user.user_id,
+                        "Willkommen zurück!",
+                        f"Sie haben sich erfolgreich angemeldet.",
+                        NotificationType.SUCCESS.value
+                    )
+                    st.rerun()
+                elif mitarbeiter:
+                    st.session_state.current_user = mitarbeiter
+                    st.session_state.is_notar_mitarbeiter = True
+
+                    if remember_me:
+                        token = get_session_token(email)
+                        if 'valid_tokens' not in st.session_state:
+                            st.session_state.valid_tokens = {}
+                        st.session_state.valid_tokens[email] = token
+                        save_session_to_browser(email, token)
+
+                    safe_track_interaktion(
+                        interaktions_typ='login',
+                        details={
+                            'rolle': 'notar_mitarbeiter',
+                            'mitarbeiter_rolle': mitarbeiter.rolle,
+                            'remember_me': remember_me
+                        },
+                        nutzer_id=mitarbeiter.mitarbeiter_id
+                    )
+                    st.rerun()
+                else:
+                    st.error("Ungültige Anmeldedaten")
+
+        # Demo Zugangsdaten
+        st.markdown("""
+        <div class="demo-box">
+            <div class="demo-title">🎯 Demo-Zugangsdaten</div>
+            <div class="demo-grid">
+                <div class="demo-item">
+                    <div class="demo-role">Makler</div>
+                    <div class="demo-credentials">makler@demo.de / makler123</div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-role">Käufer</div>
+                    <div class="demo-credentials">kaeufer@demo.de / kaeufer123</div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-role">Verkäufer</div>
+                    <div class="demo-credentials">verkaeufer@demo.de / verkaeufer123</div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-role">Notar</div>
+                    <div class="demo-credentials">notar@demo.de / notar123</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ============ TRUST SECTION ============
+    st.markdown("""
+    <div class="trust-section">
+        <div class="trust-badges">
+            <div class="trust-badge">
+                <span class="trust-badge-icon">✓</span>
+                <span>DSGVO-konform</span>
+            </div>
+            <div class="trust-badge">
+                <span class="trust-badge-icon">✓</span>
+                <span>SSL-verschlüsselt</span>
+            </div>
+            <div class="trust-badge">
+                <span class="trust-badge-icon">✓</span>
+                <span>GNotKG-konforme Gebühren</span>
+            </div>
+            <div class="trust-badge">
+                <span class="trust-badge-icon">✓</span>
+                <span>Made in Germany</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Version Badge
+    st.markdown(f"""
+    <div class="version-badge">ImmoFlow v{version}</div>
+    """, unsafe_allow_html=True)
 
 def logout():
     """Benutzer abmelden und Session aus Browser löschen"""
