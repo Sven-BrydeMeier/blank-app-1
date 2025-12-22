@@ -13192,175 +13192,540 @@ def get_version_number() -> str:
 
 
 def render_landing_page_styles():
-    """Rendert die Styles für die moderne Landing Page"""
+    """Rendert die Styles für die ImmoFlow Landing Page nach Referenz-Design"""
     st.markdown("""
     <style>
-    /* Landing Page Spezifische Styles */
-    .landing-hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-        padding: 4rem 2rem;
-        border-radius: 24px;
-        text-align: center;
-        margin-bottom: 3rem;
-        position: relative;
-        overflow: hidden;
-        animation: fadeInUp 0.8s ease-out;
+    /* ============================================
+       IMMOFLOW LANDING PAGE - REFERENZ DESIGN
+       ============================================ */
+
+    /* CSS Variables */
+    :root {
+        --navy-900: #0f172a;
+        --navy-800: #1e293b;
+        --navy-700: #334155;
+        --navy-600: #475569;
+        --gold-500: #eab308;
+        --gold-400: #facc15;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --gray-400: #94a3b8;
+        --gray-600: #64748b;
+        --green-500: #22c55e;
+        --blue-500: #3b82f6;
+        --purple-500: #8b5cf6;
+        --orange-500: #f59e0b;
     }
 
-    .landing-hero::before {
-        content: '';
-        position: absolute;
+    /* Hide Streamlit default elements on landing */
+    .stApp > header { display: none !important; }
+
+    /* Navigation Bar */
+    .landing-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: white;
+        border-bottom: 1px solid var(--gray-200);
+        position: sticky;
         top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: radial-gradient(circle at 30% 20%, rgba(212, 175, 55, 0.15) 0%, transparent 50%),
-                    radial-gradient(circle at 70% 80%, rgba(212, 175, 55, 0.1) 0%, transparent 50%);
-        pointer-events: none;
+        z-index: 1000;
+    }
+
+    .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--navy-900);
+    }
+
+    .nav-logo-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--navy-800);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.25rem;
+    }
+
+    .nav-menu {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .nav-link {
+        color: var(--gray-600);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+
+    .nav-link:hover {
+        color: var(--navy-900);
+    }
+
+    .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .nav-btn-secondary {
+        color: var(--navy-900);
+        font-weight: 500;
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+
+    .nav-btn-primary {
+        background: var(--gold-500);
+        color: var(--navy-900);
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .nav-btn-primary:hover {
+        background: var(--gold-400);
+        transform: translateY(-1px);
+    }
+
+    /* Hero Section */
+    .landing-hero {
+        background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
+        padding: 5rem 2rem 8rem;
+        text-align: center;
+        position: relative;
     }
 
     .hero-badge {
-        display: inline-block;
-        background: rgba(212, 175, 55, 0.2);
-        color: #d4af37;
-        padding: 0.5rem 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        color: white;
+        padding: 0.625rem 1.25rem;
         border-radius: 50px;
         font-size: 0.875rem;
-        font-weight: 600;
-        margin-bottom: 1.5rem;
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        animation: fadeIn 1s ease-out 0.2s both;
+        font-weight: 500;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .hero-badge-icon {
+        font-size: 1rem;
     }
 
     .hero-title {
         font-size: 3.5rem;
         font-weight: 800;
-        color: #ffffff;
-        margin-bottom: 1rem;
+        color: white;
+        margin-bottom: 0.5rem;
         line-height: 1.1;
-        animation: fadeIn 1s ease-out 0.4s both;
     }
 
-    .hero-title span {
-        background: linear-gradient(135deg, #d4af37 0%, #f59e0b 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+    .hero-title-highlight {
+        color: var(--gold-500);
+        display: block;
     }
 
     .hero-subtitle {
         font-size: 1.25rem;
-        color: #94a3b8;
+        color: var(--gray-400);
         max-width: 600px;
-        margin: 0 auto 2rem;
+        margin: 1.5rem auto 2.5rem;
         line-height: 1.6;
-        animation: fadeIn 1s ease-out 0.6s both;
     }
 
-    .hero-stats {
+    .hero-buttons {
         display: flex;
         justify-content: center;
-        gap: 3rem;
-        margin-top: 2.5rem;
-        animation: fadeIn 1s ease-out 0.8s both;
+        gap: 1rem;
+        margin-bottom: 4rem;
     }
 
-    .hero-stat {
+    .hero-btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--gold-500);
+        color: var(--navy-900);
+        padding: 0.875rem 1.75rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+    }
+
+    .hero-btn-primary:hover {
+        background: var(--gold-400);
+        transform: translateY(-2px);
+    }
+
+    .hero-btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        color: white;
+        padding: 0.875rem 1.75rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        text-decoration: none;
+        transition: all 0.2s;
+        border: 1px solid var(--navy-600);
+        cursor: pointer;
+    }
+
+    .hero-btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: var(--gray-400);
+    }
+
+    /* Stats Cards */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 1.5rem;
         text-align: center;
     }
 
-    .hero-stat-value {
-        font-size: 2.5rem;
+    .stat-value {
+        font-size: 2.25rem;
         font-weight: 700;
-        color: #d4af37;
-        display: block;
+        color: var(--gold-500);
+        margin-bottom: 0.25rem;
     }
 
-    .hero-stat-label {
+    .stat-label {
         font-size: 0.875rem;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        color: var(--gray-400);
     }
 
-    /* Feature Cards */
+    /* Wave Separator */
+    .wave-separator {
+        position: relative;
+        height: 80px;
+        margin-top: -80px;
+        overflow: hidden;
+    }
+
+    .wave-separator svg {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        height: 80px;
+    }
+
+    /* Features Section */
     .features-section {
+        background: white;
+        padding: 5rem 2rem;
+    }
+
+    .section-header {
+        text-align: center;
         margin-bottom: 3rem;
     }
 
     .section-title {
-        text-align: center;
-        font-size: 2rem;
+        font-size: 2.5rem;
         font-weight: 700;
-        color: #0f172a;
-        margin-bottom: 0.5rem;
-    }
-
-    .section-subtitle {
-        text-align: center;
-        color: #64748b;
-        margin-bottom: 2rem;
-        font-size: 1.1rem;
-    }
-
-    .feature-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 2rem;
-        text-align: center;
-        transition: all 0.3s ease;
-        height: 100%;
-        animation: fadeInUp 0.6s ease-out both;
-    }
-
-    .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
-        border-color: #d4af37;
-    }
-
-    .feature-icon {
-        width: 64px;
-        height: 64px;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto 1.5rem;
-        font-size: 1.75rem;
-    }
-
-    .feature-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: #0f172a;
+        color: var(--navy-900);
         margin-bottom: 0.75rem;
     }
 
+    .section-title span {
+        color: var(--gold-500);
+    }
+
+    .section-subtitle {
+        font-size: 1.1rem;
+        color: var(--gray-600);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .feature-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 16px;
+        padding: 1.75rem;
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .feature-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--gold-500);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.25rem;
+        font-size: 1.25rem;
+        color: var(--navy-900);
+    }
+
+    .feature-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--navy-900);
+        margin-bottom: 0.5rem;
+    }
+
     .feature-description {
-        color: #64748b;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
+        color: var(--gray-600);
         line-height: 1.6;
     }
 
-    /* Role Cards */
+    /* Workflow Section */
+    .workflow-section {
+        background: white;
+        padding: 5rem 2rem;
+    }
+
+    .workflow-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-label {
+        font-weight: 500;
+        color: var(--navy-900);
+    }
+
+    .progress-value {
+        font-weight: 600;
+        color: var(--gold-500);
+    }
+
+    .progress-bar {
+        height: 8px;
+        background: var(--gray-200);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%);
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .workflow-segment {
+        margin-bottom: 2rem;
+    }
+
+    .segment-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .segment-number {
+        width: 32px;
+        height: 32px;
+        background: var(--navy-800);
+        color: white;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .segment-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--navy-900);
+    }
+
+    .workflow-steps {
+        margin-left: 16px;
+        border-left: 2px solid var(--gray-200);
+        padding-left: 1.5rem;
+    }
+
+    .workflow-step {
+        display: flex;
+        align-items: center;
+        padding: 0.875rem 1rem;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        margin-bottom: 0.75rem;
+        position: relative;
+    }
+
+    .workflow-step::before {
+        content: '';
+        position: absolute;
+        left: -1.625rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--gray-200);
+    }
+
+    .workflow-step.completed::before {
+        background: var(--green-500);
+    }
+
+    .workflow-step.current::before {
+        background: var(--gold-500);
+    }
+
+    .workflow-step.current {
+        background: #fffbeb;
+        border-color: var(--gold-500);
+    }
+
+    .step-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    .step-icon.completed {
+        background: #dcfce7;
+        color: var(--green-500);
+    }
+
+    .step-icon.current {
+        background: #fef3c7;
+        color: var(--gold-500);
+    }
+
+    .step-icon.pending {
+        background: var(--gray-100);
+        color: var(--gray-400);
+        border: 1px solid var(--gray-200);
+    }
+
+    .step-title {
+        flex: 1;
+        font-weight: 500;
+        color: var(--navy-900);
+    }
+
+    .step-date {
+        font-size: 0.875rem;
+        color: var(--gray-400);
+    }
+
+    .step-badge {
+        background: var(--gold-500);
+        color: var(--navy-900);
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.625rem;
+        border-radius: 50px;
+        margin-left: 0.75rem;
+    }
+
+    /* Roles Section */
+    .roles-section {
+        background: var(--gray-100);
+        padding: 5rem 2rem;
+    }
+
+    .roles-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
     .role-card {
-        background: #ffffff;
-        border: 2px solid #e2e8f0;
         border-radius: 16px;
-        padding: 1.5rem;
+        padding: 2rem 1.5rem;
         text-align: center;
-        cursor: pointer;
+        color: white;
         transition: all 0.3s ease;
-        animation: fadeInUp 0.6s ease-out both;
+        cursor: pointer;
     }
 
     .role-card:hover {
-        border-color: #d4af37;
         transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(212, 175, 55, 0.15);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .role-card.kaeufer {
+        background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+    }
+
+    .role-card.verkaeufer {
+        background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    }
+
+    .role-card.makler {
+        background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+    }
+
+    .role-card.notar {
+        background: var(--navy-800);
+    }
+
+    .role-card.finanzierer {
+        background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
     }
 
     .role-icon {
@@ -13369,27 +13734,71 @@ def render_landing_page_styles():
     }
 
     .role-title {
-        font-size: 1.1rem;
+        font-size: 1.125rem;
         font-weight: 600;
-        color: #0f172a;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.25rem;
     }
 
     .role-description {
         font-size: 0.85rem;
-        color: #64748b;
+        opacity: 0.9;
     }
 
-    /* Login Form Styles */
-    .login-container {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+    /* Footer */
+    .landing-footer {
+        background: var(--navy-900);
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .footer-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+        font-weight: 600;
+        font-size: 1.125rem;
+    }
+
+    .footer-logo-icon {
+        width: 32px;
+        height: 32px;
+        background: var(--navy-700);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .footer-copyright {
+        color: var(--gray-400);
+        font-size: 0.875rem;
+    }
+
+    /* Login Modal Overlay */
+    .login-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    .login-modal {
+        background: white;
         border-radius: 24px;
         padding: 2.5rem;
-        max-width: 450px;
-        margin: 0 auto;
-        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
-        animation: fadeInUp 0.6s ease-out;
+        max-width: 420px;
+        width: 90%;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
     }
 
     .login-header {
@@ -13398,113 +13807,101 @@ def render_landing_page_styles():
     }
 
     .login-title {
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 700;
-        color: #0f172a;
+        color: var(--navy-900);
         margin-bottom: 0.5rem;
     }
 
     .login-subtitle {
-        color: #64748b;
-        font-size: 0.95rem;
+        color: var(--gray-600);
     }
 
-    /* Trust Badges */
-    .trust-section {
-        text-align: center;
-        padding: 2rem 0;
-        margin-top: 3rem;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    .trust-badges {
-        display: flex;
-        justify-content: center;
-        gap: 3rem;
-        flex-wrap: wrap;
-    }
-
-    .trust-badge {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: #64748b;
-        font-size: 0.9rem;
-    }
-
-    .trust-badge-icon {
-        color: #22c55e;
-        font-size: 1.25rem;
-    }
-
-    /* Demo Credentials Box */
+    /* Demo Box */
     .demo-box {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border: 1px solid #e2e8f0;
+        background: var(--gray-100);
         border-radius: 12px;
-        padding: 1.5rem;
+        padding: 1.25rem;
         margin-top: 1.5rem;
     }
 
     .demo-title {
         font-weight: 600;
-        color: #0f172a;
-        margin-bottom: 1rem;
+        color: var(--navy-900);
+        margin-bottom: 0.75rem;
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        font-size: 0.9rem;
     }
 
     .demo-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 0.75rem;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
     }
 
     .demo-item {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: white;
+        border: 1px solid var(--gray-200);
         border-radius: 8px;
-        padding: 0.75rem;
-        font-size: 0.85rem;
+        padding: 0.625rem 0.75rem;
+        font-size: 0.8rem;
     }
 
     .demo-role {
         font-weight: 600;
-        color: #0f172a;
-        margin-bottom: 0.25rem;
+        color: var(--navy-900);
     }
 
     .demo-credentials {
-        color: #64748b;
+        color: var(--gray-600);
         font-family: monospace;
-    }
-
-    /* Version Badge */
-    .version-badge {
-        position: fixed;
-        bottom: 1rem;
-        right: 1rem;
-        background: rgba(15, 23, 42, 0.9);
-        color: #94a3b8;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
         font-size: 0.75rem;
-        z-index: 1000;
     }
 
-    /* Responsive */
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+        .stats-container,
+        .features-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .roles-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
     @media (max-width: 768px) {
         .hero-title {
-            font-size: 2.25rem;
+            font-size: 2.5rem;
         }
-        .hero-stats {
+        .stats-container,
+        .features-grid {
+            grid-template-columns: 1fr;
+        }
+        .roles-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .hero-buttons {
             flex-direction: column;
-            gap: 1.5rem;
+            align-items: center;
         }
-        .trust-badges {
+        .nav-menu {
+            display: none;
+        }
+        .landing-footer {
             flex-direction: column;
             gap: 1rem;
+            text-align: center;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .roles-grid {
+            grid-template-columns: 1fr;
+        }
+        .demo-grid {
+            grid-template-columns: 1fr;
         }
     }
     </style>
@@ -13512,7 +13909,7 @@ def render_landing_page_styles():
 
 
 def login_page():
-    """Moderne Landing Page mit Login"""
+    """ImmoFlow Landing Page nach Referenz-Design"""
     # Design System und Landing Page Styles laden
     render_immoflow_design_system()
     render_landing_page_styles()
@@ -13528,90 +13925,232 @@ def login_page():
         st.session_state.is_notar_mitarbeiter = is_mitarbeiter
         st.rerun()
 
-    # Versionsnummer
-    version = get_version_number()
+    # ============ NAVIGATION BAR ============
+    st.markdown("""
+    <div class="landing-nav">
+        <div class="nav-logo">
+            <div class="nav-logo-icon">📋</div>
+            <span>ImmoFlow</span>
+        </div>
+        <div class="nav-menu">
+            <a href="#funktionen" class="nav-link">Funktionen</a>
+            <a href="#workflow" class="nav-link">Workflow</a>
+            <a href="#rollen" class="nav-link">Rollen</a>
+        </div>
+        <div class="nav-actions">
+            <span class="nav-btn-secondary">Anmelden</span>
+            <button class="nav-btn-primary">Jetzt starten</button>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ============ HERO SECTION ============
-    st.markdown(f"""
+    st.markdown("""
     <div class="landing-hero">
-        <div class="hero-badge">Digitale Immobilientransaktionen</div>
-        <h1 class="hero-title">ImmoFlow <span>Pro</span></h1>
+        <div class="hero-badge">
+            <span class="hero-badge-icon">📋</span>
+            Immobilien-Transaktionsplattform
+        </div>
+        <h1 class="hero-title">
+            Immobilientransaktionen.
+            <span class="hero-title-highlight">Digital. Sicher. Effizient.</span>
+        </h1>
         <p class="hero-subtitle">
-            Die professionelle Plattform für sichere und effiziente Immobilientransaktionen.
-            Verbinden Sie Makler, Notare, Käufer und Verkäufer auf einer Plattform.
+            Verbinden Sie Käufer, Verkäufer, Makler, Notare<br>
+            und Finanzierer auf einer intelligenten Plattform.
         </p>
-        <div class="hero-stats">
-            <div class="hero-stat">
-                <span class="hero-stat-value">{len(st.session_state.projekte)}</span>
-                <span class="hero-stat-label">Aktive Projekte</span>
+        <div class="hero-buttons">
+            <button class="hero-btn-primary">Jetzt starten →</button>
+            <button class="hero-btn-secondary">Demo ansehen</button>
+        </div>
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value">2.500+</div>
+                <div class="stat-label">Transaktionen</div>
             </div>
-            <div class="hero-stat">
-                <span class="hero-stat-value">{len(st.session_state.users)}</span>
-                <span class="hero-stat-label">Registrierte Nutzer</span>
+            <div class="stat-card">
+                <div class="stat-value">98%</div>
+                <div class="stat-label">Zufriedenheit</div>
             </div>
-            <div class="hero-stat">
-                <span class="hero-stat-value">100%</span>
-                <span class="hero-stat-label">DSGVO-konform</span>
+            <div class="stat-card">
+                <div class="stat-value">45%</div>
+                <div class="stat-label">Zeitersparnis</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">100%</div>
+                <div class="stat-label">Rechtskonform</div>
             </div>
         </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ============ WAVE SEPARATOR ============
+    st.markdown("""
+    <div class="wave-separator">
+        <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+            <path d="M0 80L60 74.7C120 69.3 240 58.7 360 53.3C480 48 600 48 720 53.3C840 58.7 960 69.3 1080 69.3C1200 69.3 1320 58.7 1380 53.3L1440 48V80H1380C1320 80 1200 80 1080 80C960 80 840 80 720 80C600 80 480 80 360 80C240 80 120 80 60 80H0Z" fill="white"/>
+        </svg>
     </div>
     """, unsafe_allow_html=True)
 
     # ============ FEATURES SECTION ============
     st.markdown("""
-    <div class="features-section">
-        <h2 class="section-title">Warum ImmoFlow?</h2>
-        <p class="section-subtitle">Alles was Sie für erfolgreiche Immobilientransaktionen benötigen</p>
+    <div class="features-section" id="funktionen">
+        <div class="section-header">
+            <h2 class="section-title">Warum <span>ImmoFlow</span>?</h2>
+            <p class="section-subtitle">Die moderne Plattform für professionelle Immobilientransaktionen in Deutschland.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h3 class="feature-title">Sichere Dokumentenverwaltung</h3>
+                <p class="feature-description">Ende-zu-Ende-Verschlüsselung für alle sensiblen Dokumente. DSGVO-konform und notariell zertifiziert.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⏱️</div>
+                <h3 class="feature-title">Intelligenter Workflow</h3>
+                <p class="feature-description">Automatische Fortschrittsverfolgung von Onboarding bis zur Eigentumsumschreibung. Keine verpassten Fristen.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <h3 class="feature-title">Alle Parteien vernetzt</h3>
+                <p class="feature-description">Käufer, Verkäufer, Makler, Notar und Finanzierer arbeiten nahtlos auf einer Plattform zusammen.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📑</div>
+                <h3 class="feature-title">Rechtskonforme Abwicklung</h3>
+                <p class="feature-description">GNotKG-konforme Gebührenberechnung, automatische Dokumentenprüfung und Checklisten.</p>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        st.markdown("""
-        <div class="feature-card" style="animation-delay: 0.1s">
-            <div class="feature-icon">🔒</div>
-            <h3 class="feature-title">Sichere Daten</h3>
-            <p class="feature-description">Ende-zu-Ende verschlüsselt und DSGVO-konform. Ihre Daten sind bei uns sicher.</p>
+    # ============ WORKFLOW SECTION ============
+    st.markdown("""
+    <div class="workflow-section" id="workflow">
+        <div class="section-header">
+            <h2 class="section-title">Transparenter <span>Workflow</span></h2>
+            <p class="section-subtitle">Verfolgen Sie jeden Schritt Ihrer Immobilientransaktion in Echtzeit. Vom ersten Kontakt bis zur Eigentumsumschreibung.</p>
         </div>
-        """, unsafe_allow_html=True)
+        <div class="workflow-container">
+            <div class="progress-header">
+                <span class="progress-label">Gesamtfortschritt</span>
+                <span class="progress-value">30%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 30%"></div>
+            </div>
 
-    with col2:
-        st.markdown("""
-        <div class="feature-card" style="animation-delay: 0.2s">
-            <div class="feature-icon">⚡</div>
-            <h3 class="feature-title">Schneller Workflow</h3>
-            <p class="feature-description">Automatisierte Prozesse beschleunigen Ihre Transaktionen um bis zu 60%.</p>
+            <div class="workflow-segment">
+                <div class="segment-header">
+                    <div class="segment-number">1</div>
+                    <span class="segment-title">Onboarding</span>
+                </div>
+                <div class="workflow-steps">
+                    <div class="workflow-step completed">
+                        <div class="step-icon completed">✓</div>
+                        <span class="step-title">Erstkontakt</span>
+                        <span class="step-date">15. Dez</span>
+                    </div>
+                    <div class="workflow-step completed">
+                        <div class="step-icon completed">✓</div>
+                        <span class="step-title">Objektdaten erfasst</span>
+                        <span class="step-date">16. Dez</span>
+                    </div>
+                    <div class="workflow-step completed">
+                        <div class="step-icon completed">✓</div>
+                        <span class="step-title">Kaufangebot angenommen</span>
+                        <span class="step-date">18. Dez</span>
+                    </div>
+                    <div class="workflow-step current">
+                        <div class="step-icon current">⏱</div>
+                        <span class="step-title">Finanzierung bestätigt</span>
+                        <span class="step-badge">Aktuell</span>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Notarauftrag erteilt</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="workflow-segment">
+                <div class="segment-header">
+                    <div class="segment-number">2</div>
+                    <span class="segment-title">Vor Beurkundung</span>
+                </div>
+                <div class="workflow-steps">
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Akte angelegt</span>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Parteien erfasst</span>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Ausweise vollständig</span>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Vertragsentwurf erstellt</span>
+                    </div>
+                    <div class="workflow-step">
+                        <div class="step-icon pending">○</div>
+                        <span class="step-title">Notartermin bestätigt</span>
+                    </div>
+                </div>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-    with col3:
-        st.markdown("""
-        <div class="feature-card" style="animation-delay: 0.3s">
-            <div class="feature-icon">🤝</div>
-            <h3 class="feature-title">Alle verbunden</h3>
-            <p class="feature-description">Makler, Notare, Käufer und Verkäufer kommunizieren nahtlos auf einer Plattform.</p>
+    # ============ ROLES SECTION ============
+    st.markdown("""
+    <div class="roles-section" id="rollen">
+        <div class="section-header">
+            <h2 class="section-title">Wählen Sie Ihre Rolle</h2>
+            <p class="section-subtitle">Jede Rolle bietet ein maßgeschneidertes Dashboard mit relevanten Funktionen und Workflows.</p>
         </div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown("""
-        <div class="feature-card" style="animation-delay: 0.4s">
-            <div class="feature-icon">📊</div>
-            <h3 class="feature-title">Volle Transparenz</h3>
-            <p class="feature-description">Echtzeit-Tracking aller Meilensteine und automatische Statusupdates.</p>
+        <div class="roles-grid">
+            <div class="role-card kaeufer">
+                <div class="role-icon">🏠</div>
+                <div class="role-title">Käufer</div>
+                <div class="role-description">Immobilie erwerben</div>
+            </div>
+            <div class="role-card verkaeufer">
+                <div class="role-icon">🔑</div>
+                <div class="role-title">Verkäufer</div>
+                <div class="role-description">Immobilie verkaufen</div>
+            </div>
+            <div class="role-card makler">
+                <div class="role-icon">🤝</div>
+                <div class="role-title">Makler</div>
+                <div class="role-description">Transaktionen vermitteln</div>
+            </div>
+            <div class="role-card notar">
+                <div class="role-icon">⚖️</div>
+                <div class="role-title">Notar</div>
+                <div class="role-description">Beurkundung durchführen</div>
+            </div>
+            <div class="role-card finanzierer">
+                <div class="role-icon">💰</div>
+                <div class="role-title">Finanzierer</div>
+                <div class="role-description">Finanzierung bereitstellen</div>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
     # ============ LOGIN SECTION ============
+    st.markdown("<br>", unsafe_allow_html=True)
     col_left, col_center, col_right = st.columns([1, 2, 1])
 
     with col_center:
         st.markdown("""
         <div class="login-header">
-            <h2 class="login-title">Willkommen zurück</h2>
+            <h2 class="login-title">Anmelden</h2>
             <p class="login-subtitle">Melden Sie sich an, um fortzufahren</p>
         </div>
         """, unsafe_allow_html=True)
@@ -13626,13 +14165,11 @@ def login_page():
                 user = None
                 mitarbeiter = None
 
-                # Zuerst normale Benutzer prüfen
                 for u in st.session_state.users.values():
                     if u.email == email and u.password_hash == hash_password(password):
                         user = u
                         break
 
-                # Falls kein normaler Benutzer, Notar-Mitarbeiter prüfen
                 if not user:
                     for ma in st.session_state.notar_mitarbeiter.values():
                         if ma.email == email and ma.password_hash == hash_password(password):
@@ -13716,33 +14253,15 @@ def login_page():
         </div>
         """, unsafe_allow_html=True)
 
-    # ============ TRUST SECTION ============
+    # ============ FOOTER ============
     st.markdown("""
-    <div class="trust-section">
-        <div class="trust-badges">
-            <div class="trust-badge">
-                <span class="trust-badge-icon">✓</span>
-                <span>DSGVO-konform</span>
-            </div>
-            <div class="trust-badge">
-                <span class="trust-badge-icon">✓</span>
-                <span>SSL-verschlüsselt</span>
-            </div>
-            <div class="trust-badge">
-                <span class="trust-badge-icon">✓</span>
-                <span>GNotKG-konforme Gebühren</span>
-            </div>
-            <div class="trust-badge">
-                <span class="trust-badge-icon">✓</span>
-                <span>Made in Germany</span>
-            </div>
+    <div class="landing-footer">
+        <div class="footer-logo">
+            <div class="footer-logo-icon">📋</div>
+            <span>ImmoFlow</span>
         </div>
+        <div class="footer-copyright">© 2025 ImmoFlow. Alle Rechte vorbehalten.</div>
     </div>
-    """, unsafe_allow_html=True)
-
-    # Version Badge
-    st.markdown(f"""
-    <div class="version-badge">ImmoFlow v{version}</div>
     """, unsafe_allow_html=True)
 
 def logout():
