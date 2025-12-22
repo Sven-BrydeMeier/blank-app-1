@@ -15531,11 +15531,9 @@ def onboarding_flow():
 # ============================================================================
 
 def kaeufer_dashboard():
-    """Dashboard für Käufer"""
+    """Dashboard für Käufer - Neues Design nach Referenz"""
     # ImmoFlow Design System laden
     render_immoflow_design_system()
-
-    st.title("🏠 Käufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -15544,134 +15542,156 @@ def kaeufer_dashboard():
     # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
-        # User muss erst Dokumente akzeptieren
         return
-
-    # Aktentasche in der Sidebar
-    render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
 
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
+    # ============ SIDEBAR NAVIGATION ============
+    kaeufer_menu_items = [
+        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
+        {"key": "projekte", "icon": "🏠", "label": "Projekte"},
+        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
+        {"key": "termine", "icon": "📅", "label": "Termine"},
+        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
+        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
+    ]
+
+    # Menü-Auswahl initialisieren
+    if 'kaeufer_menu' not in st.session_state:
+        st.session_state.kaeufer_menu = 'uebersicht'
+
+    # Sidebar
+    with st.sidebar:
+        # Logo und Rolle
+        st.markdown('''
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">🏠</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">Käufer</span>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+
+        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
+
+        # Menü-Items
+        for item in kaeufer_menu_items:
+            is_active = st.session_state.kaeufer_menu == item['key']
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(
+                f"{item['icon']} {item['label']}",
+                key=f"kaeufer_menu_{item['key']}",
+                use_container_width=True,
+                type=btn_type
+            ):
+                st.session_state.kaeufer_menu = item['key']
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Aktentasche
+        render_aktentasche_sidebar(user_id)
+
+        # Benachrichtigungen
+        render_benachrichtigungs_badge(user_id)
+
+        # Profil-Bereich am Ende
+        st.markdown("---")
+        user_name = st.session_state.current_user.name or "Benutzer"
+        st.markdown(f'''
+        <div class="profile-card" style="padding: 0.5rem;">
+            <div class="profile-avatar" style="display:inline-block; width:32px; height:32px; background:var(--gold-500); border-radius:8px; text-align:center; line-height:32px;">🏠</div>
+            <span style="margin-left: 0.5rem; font-weight: 500;">{user_name[:15]}</span>
+        </div>
+        ''', unsafe_allow_html=True)
+
+        if st.button("🚪 Abmelden", key="kaeufer_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.rerun()
+
+    # ============ MAIN CONTENT ============
+    current_menu = st.session_state.kaeufer_menu
+
     # Suchleiste
-    search_term = render_dashboard_search("kaeufer")
-    if search_term:
-        st.session_state['kaeufer_search'] = search_term
-    else:
-        st.session_state['kaeufer_search'] = ''
+    search_col, notif_col = st.columns([6, 1])
+    with search_col:
+        search_term = st.text_input("🔍", placeholder="Suchen...", key="kaeufer_search_input", label_visibility="collapsed")
+        st.session_state['kaeufer_search'] = search_term or ''
+    with notif_col:
+        st.markdown('<div class="dash-notification">🔔<span class="dash-notification-badge"></span></div>', unsafe_allow_html=True)
 
-    tabs = st.tabs([
-        "🏠 Mein Portal",  # NEU: Mandanten-Portal Übersicht
-        "📊 Timeline",
-        "📋 Projekte",
-        "📝 Aufgaben",
-        "💰 Finanzierung",
-        "🔧 Handwerker",
-        "🪪 Ausweis",
-        "💬 Nachrichten",
-        "📄 Dokumente",
-        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
-        "📅 Termine",
-        "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
-    ])
+    # ============ CONTENT BASIEREND AUF MENÜ ============
+    if current_menu == "uebersicht":
+        # Willkommens-Bereich
+        user_name = st.session_state.current_user.name or "Benutzer"
+        render_dashboard_welcome(user_name, "kaeufer")
 
-    with tabs[0]:
-        # Mandanten-Portal Übersicht
-        render_mandanten_portal(user_id, UserRole.KAEUFER.value)
+        # Statistik-Karten
+        stats = get_kaeufer_dashboard_stats(user_id)
+        render_dashboard_stats(stats)
 
-    with tabs[1]:
-        kaeufer_timeline_view()
+        # Projekte des Käufers
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+        render_dashboard_projects(projekte)
 
-    with tabs[2]:
+        # Schnellaktionen
+        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
+        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
+        action_cols = st.columns(3)
+        with action_cols[0]:
+            if st.button("📁 Neues Projekt", key="quick_neues_projekt", use_container_width=True):
+                st.session_state.kaeufer_menu = 'projekte'
+                st.rerun()
+        with action_cols[1]:
+            if st.button("📅 Termin planen", key="quick_termin", use_container_width=True):
+                st.session_state.kaeufer_menu = 'termine'
+                st.rerun()
+        with action_cols[2]:
+            if st.button("👥 Partei einladen", key="quick_einladen", use_container_width=True):
+                st.info("Funktion in Entwicklung")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif current_menu == "projekte":
         kaeufer_projekte_view()
 
-    with tabs[3]:
-        kaeufer_aufgaben_view()
-
-    with tabs[4]:
-        kaeufer_finanzierung_view()
-
-    with tabs[5]:
-        kaeufer_handwerker_empfehlungen()
-
-    with tabs[6]:
-        # Personalausweis-Upload mit OCR
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
-
-    with tabs[7]:
-        kaeufer_nachrichten()
-
-    with tabs[8]:
+    elif current_menu == "dokumente":
         kaeufer_dokumente_view()
 
-    with tabs[9]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        kaeufer_projekte = [p for p in st.session_state.projekte.values()
-                           if user_id in p.kaeufer_ids]
-        if kaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="kaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with tabs[10]:
-        # Termin-Übersicht für Käufer mit Kalender
+    elif current_menu == "termine":
         st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
+        render_termin_kalender(user_id, UserRole.KAEUFER.value)
 
-        # Kalender-Ansicht
-        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+    elif current_menu == "nachrichten":
+        kaeufer_nachrichten()
 
-        with termin_ansicht[0]:
-            # Vollständiger Kalender mit allen Terminen
-            render_termin_kalender(user_id, UserRole.KAEUFER.value)
+    elif current_menu == "einstellungen":
+        # Einstellungen-Seite
+        st.subheader("⚙️ Einstellungen")
+        tabs = st.tabs(["🪪 Ausweis", "💰 Finanzierung", "🔧 Handwerker", "🔊 Vorlesen", "🗑️ Papierkorb"])
 
-        with termin_ansicht[1]:
-            # Projekt-basierte Ansicht
-            projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-            if projekte:
-                for projekt in projekte:
-                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                        render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
-            else:
-                st.info("Noch keine Projekte vorhanden.")
+        with tabs[0]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.KAEUFER.value)
 
-    with tabs[11]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
+        with tabs[1]:
+            kaeufer_finanzierung_view()
 
-    with tabs[12]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
+        with tabs[2]:
+            kaeufer_handwerker_empfehlungen()
 
-        st.markdown("---")
-        st.markdown("### 📄 Kaufvertrag vorlesen")
-        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+        with tabs[3]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            demo_text = "Dies ist ein Beispieltext zum Testen der Vorlesefunktion."
+            render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
-        So können Sie den Inhalt besser verstehen und prüfen.
-        """
-        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
+        with tabs[4]:
+            render_papierkorb_tab(user_id, ist_notar=False)
+
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -22702,6 +22722,256 @@ def render_immoflow_design_system():
     }
     </style>
     """, unsafe_allow_html=True)
+
+
+# ==================== DASHBOARD UI COMPONENTS (Referenz-Design) ====================
+
+def render_dashboard_sidebar_html(role: str, user_name: str, menu_items: list, active_menu: str):
+    """
+    Rendert die Sidebar im Navy-Design als HTML.
+    """
+    # Menu Items HTML generieren
+    menu_html = ""
+    for item in menu_items:
+        active_class = "active" if item['key'] == active_menu else ""
+        menu_html += f'''
+            <div class="dash-menu-item {active_class}" data-menu="{item['key']}">
+                <span class="dash-menu-icon">{item['icon']}</span>
+                <span>{item['label']}</span>
+            </div>
+        '''
+
+    # Role Label basierend auf Rolle
+    role_labels = {
+        "kaeufer": "Käufer",
+        "verkaeufer": "Verkäufer",
+        "makler": "Makler",
+        "notar": "Notar",
+        "finanzierer": "Finanzierer"
+    }
+    role_label = role_labels.get(role, role.capitalize())
+
+    sidebar_html = f'''
+    <div class="immo-sidebar-wrapper">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">🏠</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">{role_label}</span>
+            </div>
+        </div>
+        <div class="dash-menu">
+            {menu_html}
+        </div>
+        <div class="sidebar-profile">
+            <div class="profile-card">
+                <div class="profile-avatar">🏠</div>
+                <div class="profile-info">
+                    <div class="profile-name">{user_name[:12]}...</div>
+                    <div class="profile-role">{role_label}</div>
+                </div>
+                <div class="profile-logout">➡</div>
+            </div>
+        </div>
+    </div>
+    '''
+    return sidebar_html
+
+
+def render_dashboard_welcome(user_name: str, role: str):
+    """Rendert den Willkommens-Bereich."""
+    role_labels = {
+        "kaeufer": "Käufer",
+        "verkaeufer": "Verkäufer",
+        "makler": "Makler",
+        "notar": "Notar",
+        "finanzierer": "Finanzierer"
+    }
+    role_label = role_labels.get(role, role.capitalize())
+
+    st.markdown(f'''
+    <div class="dash-welcome">
+        <h1 class="dash-welcome-title">Willkommen zurück! 👋</h1>
+        <p class="dash-welcome-subtitle">Hier ist Ihre aktuelle Übersicht als {role_label}.</p>
+    </div>
+    ''', unsafe_allow_html=True)
+
+
+def render_dashboard_stats(stats: list):
+    """
+    Rendert die Stat-Cards.
+    stats: Liste von Dictionaries mit keys: label, value, icon, change (optional)
+    """
+    stats_html = '<div class="dash-stats-grid">'
+
+    for stat in stats:
+        change_html = ""
+        if stat.get('change'):
+            change_html = f'<div class="dash-stat-change">↗ {stat["change"]}</div>'
+
+        stats_html += f'''
+        <div class="dash-stat-card">
+            <div class="dash-stat-content">
+                <div class="dash-stat-label">{stat['label']}</div>
+                <div class="dash-stat-value">{stat['value']}</div>
+                {change_html}
+            </div>
+            <div class="dash-stat-icon">{stat['icon']}</div>
+        </div>
+        '''
+
+    stats_html += '</div>'
+    st.markdown(stats_html, unsafe_allow_html=True)
+
+
+def render_dashboard_projects(projekte: list, show_all_link: bool = True):
+    """
+    Rendert die Projekt-Karten.
+    """
+    # Section Header
+    link_html = '<span class="dash-section-link">Alle anzeigen →</span>' if show_all_link else ''
+    st.markdown(f'''
+    <div class="dash-section-header">
+        <h2 class="dash-section-title">Aktuelle Projekte</h2>
+        {link_html}
+    </div>
+    ''', unsafe_allow_html=True)
+
+    if not projekte:
+        st.info("Noch keine Projekte vorhanden.")
+        return
+
+    # Projekt-Cards
+    projects_html = '<div class="dash-projects-grid">'
+
+    for projekt in projekte[:4]:  # Max 4 Projekte anzeigen
+        # Status Badge bestimmen
+        progress = getattr(projekt, 'workflow_progress', 0)
+        if progress < 20:
+            status_class = "onboarding"
+            badge_text = "Onboarding"
+            card_class = "status-onboarding"
+        elif progress < 50:
+            status_class = "vor-beurkundung"
+            badge_text = "Vor Beurkundung"
+            card_class = "status-vor-beurkundung"
+        else:
+            status_class = "vor-beurkundung"
+            badge_text = "In Bearbeitung"
+            card_class = "status-vor-beurkundung"
+
+        # Adresse formatieren
+        adresse = getattr(projekt, 'adresse', '') or 'Adresse nicht angegeben'
+        if len(adresse) > 30:
+            adresse = adresse[:30] + "..."
+
+        # Kaufpreis formatieren
+        kaufpreis = getattr(projekt, 'kaufpreis', 0)
+        if kaufpreis > 0:
+            preis_str = f"{kaufpreis:,.0f} €".replace(",", ".")
+        else:
+            preis_str = "Preis n.a."
+
+        # Wohnfläche und Zimmer
+        flaeche = getattr(projekt, 'wohnflaeche', 0) or 0
+        zimmer = getattr(projekt, 'zimmer', 0) or 0
+
+        details_parts = [preis_str]
+        if flaeche > 0:
+            details_parts.append(f"{flaeche} m²")
+        if zimmer > 0:
+            details_parts.append(f"{zimmer} Zimmer")
+        details_str = " | ".join(details_parts)
+
+        projects_html += f'''
+        <div class="dash-project-card {card_class}">
+            <div class="dash-project-header">
+                <span class="dash-project-title">{projekt.name}</span>
+                <span class="dash-project-badge {status_class}">{badge_text}</span>
+            </div>
+            <div class="dash-project-address">📍 {adresse}</div>
+            <div class="dash-project-details">{details_str}</div>
+            <div class="dash-project-progress">
+                <span>Fortschritt</span>
+                <span>{progress}%</span>
+            </div>
+            <div class="dash-project-progress-bar">
+                <div class="dash-project-progress-fill" style="width: {progress}%"></div>
+            </div>
+        </div>
+        '''
+
+    projects_html += '</div>'
+    st.markdown(projects_html, unsafe_allow_html=True)
+
+
+def render_dashboard_quick_actions(actions: list):
+    """
+    Rendert die Schnellaktionen.
+    actions: Liste von Dictionaries mit keys: icon, label, key
+    """
+    st.markdown('''
+    <div class="dash-quick-actions">
+        <h3 class="dash-quick-title">Schnellaktionen</h3>
+        <div class="dash-quick-buttons">
+    ''', unsafe_allow_html=True)
+
+    cols = st.columns(len(actions))
+    for i, action in enumerate(actions):
+        with cols[i]:
+            if st.button(f"{action['icon']} {action['label']}", key=action['key'], use_container_width=True):
+                if action.get('callback'):
+                    action['callback']()
+                st.session_state[f"quick_action_{action['key']}"] = True
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+
+def get_kaeufer_dashboard_stats(user_id: str) -> list:
+    """Berechnet die Statistiken für das Käufer-Dashboard."""
+    # Projekte des Käufers
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+
+    # Offene Aufgaben zählen
+    offene_aufgaben = 0
+    for projekt in projekte:
+        for aufgabe in projekt.aufgaben:
+            if aufgabe.get('assigned_to') == user_id and aufgabe.get('status') != 'erledigt':
+                offene_aufgaben += 1
+
+    # Nächster Termin finden
+    from datetime import datetime, timedelta
+    heute = datetime.now()
+    naechster_termin = None
+    for projekt in projekte:
+        for termin in getattr(projekt, 'termine', []):
+            termin_datum = termin.get('datum')
+            if termin_datum:
+                if isinstance(termin_datum, str):
+                    try:
+                        termin_dt = datetime.fromisoformat(termin_datum)
+                    except:
+                        continue
+                else:
+                    termin_dt = termin_datum
+                if termin_dt > heute:
+                    if naechster_termin is None or termin_dt < naechster_termin:
+                        naechster_termin = termin_dt
+
+    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
+
+    # Durchschnittlicher Fortschritt
+    if projekte:
+        avg_progress = sum(getattr(p, 'workflow_progress', 0) for p in projekte) // len(projekte)
+    else:
+        avg_progress = 0
+
+    return [
+        {"label": "Aktive Projekte", "value": str(len(projekte)), "icon": "📁"},
+        {"label": "Offene Aufgaben", "value": str(offene_aufgaben), "icon": "⏱"},
+        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
+        {"label": "Fortschritt", "value": f"{avg_progress}%", "icon": "📈", "change": "+12%"}
+    ]
 
 
 def render_notar_bottom_nav():
