@@ -22245,6 +22245,462 @@ def render_immoflow_design_system():
         color: white;
         border-color: #495057;
     }
+
+    /* ==================== DASHBOARD SIDEBAR (Referenz-Design) ==================== */
+
+    /* Sidebar Logo Section */
+    .sidebar-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1.25rem 1rem;
+        border-bottom: 1px solid var(--navy-700);
+        margin-bottom: 0.5rem;
+    }
+
+    .sidebar-logo-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--navy-700);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .sidebar-logo-text {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-logo-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .sidebar-logo-role {
+        font-size: 0.8rem;
+        color: var(--navy-400);
+    }
+
+    /* Dashboard Menu Items */
+    .dash-menu {
+        padding: 0.5rem;
+    }
+
+    .dash-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        color: var(--navy-300);
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-bottom: 0.25rem;
+        text-decoration: none;
+        background: transparent;
+        border: none;
+        width: 100%;
+        text-align: left;
+    }
+
+    .dash-menu-item:hover {
+        background: var(--navy-700);
+        color: white;
+    }
+
+    .dash-menu-item.active {
+        background: var(--gold-500);
+        color: var(--navy-900);
+        font-weight: 600;
+    }
+
+    .dash-menu-item.active:hover {
+        background: var(--gold-400);
+    }
+
+    .dash-menu-icon {
+        font-size: 1.1rem;
+        width: 24px;
+        text-align: center;
+    }
+
+    /* User Profile Section at Bottom */
+    .sidebar-profile {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 1rem;
+        border-top: 1px solid var(--navy-700);
+        background: var(--navy-900);
+    }
+
+    .profile-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .profile-avatar {
+        width: 40px;
+        height: 40px;
+        background: var(--gold-500);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .profile-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .profile-name {
+        font-weight: 600;
+        color: white;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .profile-role {
+        font-size: 0.75rem;
+        color: var(--navy-400);
+    }
+
+    .profile-logout {
+        color: var(--navy-400);
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .profile-logout:hover {
+        background: var(--navy-700);
+        color: white;
+    }
+
+    /* ==================== DASHBOARD MAIN CONTENT ==================== */
+
+    /* Search Bar */
+    .dash-search-bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .dash-search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 0.95rem;
+        color: var(--navy-600);
+    }
+
+    .dash-search-input::placeholder {
+        color: var(--gray-400);
+    }
+
+    .dash-notification {
+        position: relative;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    .dash-notification-badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 8px;
+        height: 8px;
+        background: var(--gold-500);
+        border-radius: 50%;
+    }
+
+    /* Welcome Section */
+    .dash-welcome {
+        margin-bottom: 1.5rem;
+    }
+
+    .dash-welcome-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--navy-900);
+        margin-bottom: 0.25rem;
+    }
+
+    .dash-welcome-subtitle {
+        color: var(--gray-600);
+        font-size: 1rem;
+    }
+
+    /* Stat Cards Grid */
+    .dash-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .dash-stat-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 16px;
+        padding: 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        transition: all 0.2s ease;
+    }
+
+    .dash-stat-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transform: translateY(-2px);
+    }
+
+    .dash-stat-label {
+        font-size: 0.875rem;
+        color: var(--gray-600);
+        margin-bottom: 0.5rem;
+    }
+
+    .dash-stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--navy-900);
+    }
+
+    .dash-stat-change {
+        font-size: 0.8rem;
+        color: var(--green-500);
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+    }
+
+    .dash-stat-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--gray-100);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--gray-500);
+        font-size: 1.1rem;
+    }
+
+    /* Section Header */
+    .dash-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .dash-section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--navy-900);
+    }
+
+    .dash-section-link {
+        color: var(--navy-600);
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        transition: color 0.2s;
+    }
+
+    .dash-section-link:hover {
+        color: var(--navy-900);
+    }
+
+    /* Project Cards */
+    .dash-projects-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .dash-project-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 16px;
+        padding: 1.25rem;
+        border-left: 4px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .dash-project-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .dash-project-card.status-vor-beurkundung {
+        border-left-color: var(--green-500);
+    }
+
+    .dash-project-card.status-onboarding {
+        border-left-color: var(--gold-500);
+    }
+
+    .dash-project-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    .dash-project-title {
+        font-weight: 600;
+        color: var(--navy-900);
+        font-size: 1rem;
+    }
+
+    .dash-project-badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    .dash-project-badge.vor-beurkundung {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .dash-project-badge.onboarding {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .dash-project-address {
+        color: var(--gray-500);
+        font-size: 0.85rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .dash-project-details {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.85rem;
+        color: var(--navy-700);
+        margin-bottom: 0.75rem;
+    }
+
+    .dash-project-price {
+        font-weight: 600;
+    }
+
+    .dash-project-progress {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+        color: var(--gray-500);
+        margin-bottom: 0.25rem;
+    }
+
+    .dash-project-progress-bar {
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .dash-project-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+
+    /* Quick Actions */
+    .dash-quick-actions {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 16px;
+        padding: 1.25rem;
+    }
+
+    .dash-quick-title {
+        font-weight: 600;
+        color: var(--navy-900);
+        margin-bottom: 1rem;
+    }
+
+    .dash-quick-buttons {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .dash-quick-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--navy-700);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .dash-quick-btn:hover {
+        background: var(--gray-50);
+        border-color: var(--navy-300);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .dash-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .dash-projects-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .dash-stats-grid {
+            grid-template-columns: 1fr;
+        }
+        .dash-quick-buttons {
+            flex-direction: column;
+        }
+        .dash-quick-btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
