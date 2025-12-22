@@ -2103,7 +2103,7 @@ WORKFLOW_TEMPLATE_KV = {
             "segment_id": "O_ONBOARDING",
             "order": 4,
             "dependencies": ["O_KAUFANGEBOT_ANGENOMMEN"],
-            "condition": "requires_financing",
+            "condition": {"condition_id": "requires_financing", "value": True},
             "icon": "🏦",
             "responsible": "kaeufer"
         },
