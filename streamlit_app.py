@@ -13354,11 +13354,10 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     """
     Rendert eine fixierte Menüleiste über dem Hauptfenster.
     Links: Rolle/Dashboard-Name
-    Rechts: User-Info mit Logout-Button
+    Rechts: User-Info
     """
     user = st.session_state.current_user
     user_name = getattr(user, 'name', 'Benutzer')
-    user_email = getattr(user, 'email', '')
     user_role = getattr(user, 'rolle', '')
 
     # Rollen-Anzeige formatieren
@@ -13379,64 +13378,67 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         elif len(parts) == 1:
             initials = parts[0][:2].upper()
 
-    # CSS für fixierte Topbar
-    st.markdown("""
+    # Vollständige Topbar als fixiertes Element
+    st.markdown(f"""
     <style>
-    /* Fixierte Topbar Container */
-    .topbar-container {
-        position: sticky;
+    /* Fixierte Topbar - volle Breite */
+    .immoflow-topbar {{
+        position: fixed;
         top: 0;
-        z-index: 999;
+        left: 0;
+        right: 0;
+        z-index: 999999;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
-        padding: 0.75rem 1.5rem;
-        margin: -1rem -1rem 1.5rem -1rem;
-        border-bottom: 3px solid #c9a227;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    .topbar-content {
+        padding: 0.6rem 1.5rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        max-width: 100%;
-    }
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border-bottom: 3px solid #c9a227;
+    }}
 
-    .topbar-left {
+    /* Platzhalter für Topbar-Höhe */
+    .topbar-spacer {{
+        height: 60px;
+        margin-bottom: 1rem;
+    }}
+
+    .topbar-left {{
         display: flex;
         align-items: center;
         gap: 0.75rem;
-    }
+    }}
 
-    .topbar-icon {
-        font-size: 1.8rem;
-    }
+    .topbar-icon {{
+        font-size: 1.6rem;
+    }}
 
-    .topbar-title {
+    .topbar-title {{
         color: #ffffff;
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         font-weight: 700;
         margin: 0;
-    }
+    }}
 
-    .topbar-right {
+    .topbar-right {{
         display: flex;
         align-items: center;
         gap: 1rem;
-    }
+    }}
 
-    .topbar-user-box {
+    .topbar-user-box {{
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 0.5rem 1rem;
-        border-radius: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
+        gap: 0.6rem;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+    }}
 
-    .topbar-avatar {
-        width: 36px;
-        height: 36px;
+    .topbar-avatar {{
+        width: 32px;
+        height: 32px;
         background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%);
         border-radius: 50%;
         display: flex;
@@ -13444,77 +13446,63 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         justify-content: center;
         font-weight: 700;
         color: #1e3a5f;
-        font-size: 0.95rem;
-    }
+        font-size: 0.85rem;
+    }}
 
-    .topbar-user-details {
+    .topbar-user-details {{
         display: flex;
         flex-direction: column;
-    }
+    }}
 
-    .topbar-username {
+    .topbar-username {{
         color: #ffffff;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.85rem;
         line-height: 1.2;
-    }
+    }}
 
-    .topbar-userrole {
+    .topbar-userrole {{
         color: #c9a227;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 500;
-    }
+    }}
 
-    /* Streamlit Button in Topbar stylen */
-    .topbar-logout-container button {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
-        color: white !important;
-        border: none !important;
-        padding: 0.4rem 1rem !important;
-        border-radius: 20px !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-    }
+    /* Haupt-Content nach unten verschieben */
+    .main .block-container {{
+        padding-top: 70px !important;
+    }}
 
-    .topbar-logout-container button:hover {
-        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%) !important;
-    }
+    /* Sidebar auch nach unten */
+    [data-testid="stSidebar"] > div:first-child {{
+        padding-top: 70px !important;
+    }}
 
     /* Mobile */
-    @media (max-width: 768px) {
-        .topbar-user-details {
+    @media (max-width: 768px) {{
+        .topbar-user-details {{
             display: none;
-        }
-        .topbar-title {
+        }}
+        .topbar-title {{
             font-size: 1rem;
-        }
-    }
+        }}
+        .immoflow-topbar {{
+            padding: 0.5rem 1rem;
+        }}
+    }}
     </style>
-    """, unsafe_allow_html=True)
 
-    # Topbar mit Streamlit Columns für funktionierenden Logout-Button
-    col_left, col_right = st.columns([3, 2])
-
-    with col_left:
-        st.markdown(f"""
-        <div class="topbar-container">
-            <div class="topbar-content">
-                <div class="topbar-left">
-                    <span class="topbar-icon">{role_icon}</span>
-                    <h1 class="topbar-title">{role_name}</h1>
-                </div>
-            </div>
+    <div class="immoflow-topbar">
+        <div class="topbar-left">
+            <span class="topbar-icon">{role_icon}</span>
+            <h1 class="topbar-title">{role_name}</h1>
         </div>
-        """, unsafe_allow_html=True)
-
-    # User-Info und Logout rechts oben anzeigen
-    st.markdown(f"""
-    <div style="position: fixed; top: 10px; right: 20px; z-index: 1000; display: flex; align-items: center; gap: 1rem;">
-        <div class="topbar-user-box">
-            <div class="topbar-avatar">{initials}</div>
-            <div class="topbar-user-details">
-                <span class="topbar-username">{user_name}</span>
-                <span class="topbar-userrole">{role_display}</span>
+        <div class="topbar-right">
+            <div class="topbar-user-box">
+                <div class="topbar-avatar">{initials}</div>
+                <div class="topbar-user-details">
+                    <span class="topbar-username">{user_name}</span>
+                    <span class="topbar-userrole">{role_display}</span>
+                </div>
             </div>
         </div>
     </div>
