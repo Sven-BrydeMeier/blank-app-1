@@ -29589,8 +29589,22 @@ def render_akten_import():
 
             # Tabelle mit Zuordnungen
             with st.expander("📋 Dokumente bearbeiten", expanded=True):
+                # Header
+                col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 3, 1, 1, 2])
+                with col_h1:
+                    st.write("✓")
+                with col_h2:
+                    st.write("**Dokument**")
+                with col_h3:
+                    st.write("**Seite**")
+                with col_h4:
+                    st.write("**Ansicht**")
+                with col_h5:
+                    st.write("**Ordner**")
+                st.markdown("---")
+
                 for i, eintrag in enumerate(dokument_eintraege[:50]):  # Max 50
-                    col_check, col_titel, col_seite, col_ordner = st.columns([0.5, 3, 1, 2])
+                    col_check, col_titel, col_seite, col_view, col_ordner = st.columns([0.5, 3, 1, 1, 2])
 
                     with col_check:
                         aktiv = st.checkbox(
@@ -29605,7 +29619,25 @@ def render_akten_import():
                         st.write(f"**{eintrag['titel'][:50]}**" + ("..." if len(eintrag['titel']) > 50 else ""))
 
                     with col_seite:
-                        st.write(f"S. {eintrag['seite']}")
+                        # Berechne Seitenbereich
+                        start_seite = eintrag['seite']
+                        if i + 1 < len(dokument_eintraege):
+                            end_seite = dokument_eintraege[i + 1]['seite'] - 1
+                        else:
+                            end_seite = struktur.get('seiten_anzahl', start_seite)
+                        if start_seite == end_seite:
+                            st.write(f"S. {start_seite}")
+                        else:
+                            st.write(f"S. {start_seite}-{end_seite}")
+
+                    with col_view:
+                        if st.button("👁️", key=f"view_dok_{i}", help=f"Dokument ansehen (Seite {start_seite})"):
+                            st.session_state['akten_preview_doc'] = {
+                                'titel': eintrag['titel'],
+                                'start_seite': start_seite,
+                                'end_seite': end_seite,
+                                'index': i
+                            }
 
                     with col_ordner:
                         aktueller_ordner = zuordnungen.get(i, {}).get('ordner', 'Sonstiges')
@@ -29621,6 +29653,55 @@ def render_akten_import():
 
                 if len(dokument_eintraege) > 50:
                     st.info(f"*... und {len(dokument_eintraege) - 50} weitere Dokumente*")
+
+            # === DOKUMENTEN-VORSCHAU ===
+            if st.session_state.get('akten_preview_doc') and pdf_bytes:
+                preview_info = st.session_state['akten_preview_doc']
+                with st.expander(f"📄 Vorschau: {preview_info['titel']}", expanded=True):
+                    st.markdown(f"**Seiten {preview_info['start_seite']} bis {preview_info['end_seite']}**")
+
+                    col_prev, col_close = st.columns([4, 1])
+                    with col_close:
+                        if st.button("❌ Schließen", key="close_preview"):
+                            del st.session_state['akten_preview_doc']
+                            st.rerun()
+
+                    # PDF-Seiten extrahieren und anzeigen
+                    try:
+                        import io
+                        from PyPDF2 import PdfReader, PdfWriter
+                        import base64
+
+                        reader = PdfReader(io.BytesIO(pdf_bytes))
+                        writer = PdfWriter()
+
+                        # 0-basierter Index
+                        start_idx = max(0, preview_info['start_seite'] - 1)
+                        end_idx = min(len(reader.pages), preview_info['end_seite'])
+
+                        for page_num in range(start_idx, end_idx):
+                            writer.add_page(reader.pages[page_num])
+
+                        # Extrahiertes PDF als Bytes
+                        output = io.BytesIO()
+                        writer.write(output)
+                        preview_pdf_bytes = output.getvalue()
+
+                        # Download-Button für das extrahierte Dokument
+                        st.download_button(
+                            label=f"📥 Download: {preview_info['titel'][:30]}...",
+                            data=preview_pdf_bytes,
+                            file_name=f"{preview_info['titel'][:50].replace('/', '-')}.pdf",
+                            mime="application/pdf"
+                        )
+
+                        # PDF Base64 für Anzeige
+                        pdf_base64 = base64.b64encode(preview_pdf_bytes).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="600" type="application/pdf"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
+
+                    except Exception as e:
+                        st.error(f"Fehler bei der Vorschau: {str(e)}")
 
             # Zusammenfassung
             aktive_docs = sum(1 for z in zuordnungen.values() if z.get('aktiv', True))
