@@ -13325,6 +13325,49 @@ def login_page():
         **Notar:** `notar@demo.de` | `notar123`
         """)
 
+    # === DEMO-SCHNELLZUGANG (für Testphase) ===
+    st.markdown("---")
+    st.markdown("### 🧪 Demo-Schnellzugang")
+    st.caption("Klicken Sie auf eine Rolle, um sich direkt als Demo-Benutzer anzumelden:")
+
+    # Demo-Benutzer Konfiguration
+    demo_users = {
+        "🏢 Makler": "makler@demo.de",
+        "🛒 Käufer": "kaeufer@demo.de",
+        "🏠 Verkäufer": "verkaeufer@demo.de",
+        "⚖️ Notar": "notar@demo.de",
+        "🏦 Finanzierer": "finanz@demo.de",
+    }
+
+    # Buttons in einer Reihe
+    cols = st.columns(len(demo_users))
+
+    for idx, (role_label, email) in enumerate(demo_users.items()):
+        with cols[idx]:
+            if st.button(role_label, key=f"demo_login_{email}", use_container_width=True):
+                # Demo-Benutzer finden und einloggen
+                for user in st.session_state.users.values():
+                    if user.email == email:
+                        st.session_state.current_user = user
+                        st.session_state.is_notar_mitarbeiter = False
+
+                        # Login-Event tracken
+                        safe_track_interaktion(
+                            interaktions_typ='demo_login',
+                            details={'rolle': user.rolle, 'demo': True},
+                            nutzer_id=user.user_id
+                        )
+
+                        create_notification(
+                            user.user_id,
+                            "Demo-Zugang aktiv",
+                            f"Sie sind als Demo-{user.rolle} angemeldet.",
+                            NotificationType.INFO.value
+                        )
+                        st.rerun()
+
+    st.caption("⚠️ *Diese Demo-Buttons werden nach der Testphase entfernt.*")
+
 def logout():
     """Benutzer abmelden und Session aus Browser löschen"""
     # Session-Token invalidieren
