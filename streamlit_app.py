@@ -2103,7 +2103,7 @@ WORKFLOW_TEMPLATE_KV = {
             "segment_id": "O_ONBOARDING",
             "order": 4,
             "dependencies": ["O_KAUFANGEBOT_ANGENOMMEN"],
-            "condition": {"condition_id": "requires_financing", "value": True},
+            "condition": "requires_financing",
             "icon": "🏦",
             "responsible": "kaeufer"
         },
@@ -6882,7 +6882,6 @@ def init_session_state():
         st.session_state.initialized = True
         st.session_state.current_user = None
         st.session_state.users = {}
-        st.session_state.design_mode = "navy-gold"  # "navy-gold" oder "classic"
         st.session_state.projekte = {}
         st.session_state.legal_documents = {}
         st.session_state.financing_offers = {}
@@ -7087,11 +7086,11 @@ def init_session_state():
 def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
     demo_users = [
-        User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123"), onboarding_complete=True),
-        User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"], onboarding_complete=True),
-        User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"], onboarding_complete=True),
-        User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"], onboarding_complete=True),
-        User("notar1", "Nina Notar", "notar@demo.de", UserRole.NOTAR.value, hash_password("notar123"), projekt_ids=["projekt1"], onboarding_complete=True),
+        User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
+        User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
+        User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
+        User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
+        User("notar1", "Nina Notar", "notar@demo.de", UserRole.NOTAR.value, hash_password("notar123"), projekt_ids=["projekt1"]),
     ]
     for user in demo_users:
         st.session_state.users[user.user_id] = user
@@ -13192,1147 +13191,13 @@ def get_version_number() -> str:
     return f"{year}.{month_day}.{time}"
 
 
-def render_landing_page_styles():
-    """Rendert die Styles für die ImmoFlow Landing Page nach Referenz-Design"""
-    st.markdown("""
-    <style>
-    /* ============================================
-       IMMOFLOW LANDING PAGE - REFERENZ DESIGN
-       ============================================ */
-
-    /* CSS Variables */
-    :root {
-        --navy-900: #0f172a;
-        --navy-800: #1e293b;
-        --navy-700: #334155;
-        --navy-600: #475569;
-        --gold-500: #eab308;
-        --gold-400: #facc15;
-        --gray-100: #f1f5f9;
-        --gray-200: #e2e8f0;
-        --gray-400: #94a3b8;
-        --gray-600: #64748b;
-        --green-500: #22c55e;
-        --blue-500: #3b82f6;
-        --purple-500: #8b5cf6;
-        --orange-500: #f59e0b;
-    }
-
-    /* Hide Streamlit default elements on landing */
-    .stApp > header { display: none !important; }
-
-    /* Navigation Bar */
-    .landing-nav {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 2rem;
-        background: white;
-        border-bottom: 1px solid var(--gray-200);
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-    }
-
-    .nav-logo {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--navy-900);
-    }
-
-    .nav-logo-icon {
-        width: 40px;
-        height: 40px;
-        background: var(--navy-800);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1.25rem;
-    }
-
-    .nav-menu {
-        display: flex;
-        gap: 2rem;
-    }
-
-    .nav-link {
-        color: var(--gray-600);
-        text-decoration: none;
-        font-weight: 500;
-        transition: color 0.2s;
-    }
-
-    .nav-link:hover {
-        color: var(--navy-900);
-    }
-
-    .nav-actions {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .nav-btn-secondary {
-        color: var(--navy-900);
-        font-weight: 500;
-        background: none;
-        border: none;
-        cursor: pointer;
-    }
-
-    .nav-btn-primary {
-        background: var(--gold-500);
-        color: var(--navy-900);
-        padding: 0.625rem 1.25rem;
-        border-radius: 8px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .nav-btn-primary:hover {
-        background: var(--gold-400);
-        transform: translateY(-1px);
-    }
-
-    /* Hero Section */
-    .landing-hero {
-        background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
-        padding: 5rem 2rem 8rem;
-        text-align: center;
-        position: relative;
-    }
-
-    .hero-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        color: white;
-        padding: 0.625rem 1.25rem;
-        border-radius: 50px;
-        font-size: 0.875rem;
-        font-weight: 500;
-        margin-bottom: 2rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .hero-badge-icon {
-        font-size: 1rem;
-    }
-
-    .hero-title {
-        font-size: 3.5rem;
-        font-weight: 800;
-        color: white;
-        margin-bottom: 0.5rem;
-        line-height: 1.1;
-    }
-
-    .hero-title-highlight {
-        color: var(--gold-500);
-        display: block;
-    }
-
-    .hero-subtitle {
-        font-size: 1.25rem;
-        color: var(--gray-400);
-        max-width: 600px;
-        margin: 1.5rem auto 2.5rem;
-        line-height: 1.6;
-    }
-
-    .hero-buttons {
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        margin-bottom: 4rem;
-    }
-
-    .hero-btn-primary {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: var(--gold-500);
-        color: var(--navy-900);
-        padding: 0.875rem 1.75rem;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 1rem;
-        text-decoration: none;
-        transition: all 0.2s;
-        border: none;
-        cursor: pointer;
-    }
-
-    .hero-btn-primary:hover {
-        background: var(--gold-400);
-        transform: translateY(-2px);
-    }
-
-    .hero-btn-secondary {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: transparent;
-        color: white;
-        padding: 0.875rem 1.75rem;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 1rem;
-        text-decoration: none;
-        transition: all 0.2s;
-        border: 1px solid var(--navy-600);
-        cursor: pointer;
-    }
-
-    .hero-btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.05);
-        border-color: var(--gray-400);
-    }
-
-    /* Stats Cards */
-    .stats-container {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1.5rem;
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 0 1rem;
-    }
-
-    .stat-card {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        padding: 1.5rem;
-        text-align: center;
-    }
-
-    .stat-value {
-        font-size: 2.25rem;
-        font-weight: 700;
-        color: var(--gold-500);
-        margin-bottom: 0.25rem;
-    }
-
-    .stat-label {
-        font-size: 0.875rem;
-        color: var(--gray-400);
-    }
-
-    /* Wave Separator */
-    .wave-separator {
-        position: relative;
-        height: 80px;
-        margin-top: -80px;
-        overflow: hidden;
-    }
-
-    .wave-separator svg {
-        position: absolute;
-        bottom: 0;
-        width: 100%;
-        height: 80px;
-    }
-
-    /* Features Section */
-    .features-section {
-        background: white;
-        padding: 5rem 2rem;
-    }
-
-    .section-header {
-        text-align: center;
-        margin-bottom: 3rem;
-    }
-
-    .section-title {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: var(--navy-900);
-        margin-bottom: 0.75rem;
-    }
-
-    .section-title span {
-        color: var(--gold-500);
-    }
-
-    .section-subtitle {
-        font-size: 1.1rem;
-        color: var(--gray-600);
-        max-width: 600px;
-        margin: 0 auto;
-    }
-
-    .features-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1.5rem;
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-
-    .feature-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 1.75rem;
-        transition: all 0.3s ease;
-    }
-
-    .feature-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
-    }
-
-    .feature-icon {
-        width: 48px;
-        height: 48px;
-        background: var(--gold-500);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 1.25rem;
-        font-size: 1.25rem;
-        color: var(--navy-900);
-    }
-
-    .feature-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: var(--navy-900);
-        margin-bottom: 0.5rem;
-    }
-
-    .feature-description {
-        font-size: 0.9rem;
-        color: var(--gray-600);
-        line-height: 1.6;
-    }
-
-    /* Workflow Section */
-    .workflow-section {
-        background: white;
-        padding: 5rem 2rem;
-    }
-
-    .workflow-container {
-        max-width: 900px;
-        margin: 0 auto;
-    }
-
-    .progress-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-    }
-
-    .progress-label {
-        font-weight: 500;
-        color: var(--navy-900);
-    }
-
-    .progress-value {
-        font-weight: 600;
-        color: var(--gold-500);
-    }
-
-    .progress-bar {
-        height: 8px;
-        background: var(--gray-200);
-        border-radius: 4px;
-        overflow: hidden;
-        margin-bottom: 2rem;
-    }
-
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%);
-        border-radius: 4px;
-        transition: width 0.5s ease;
-    }
-
-    .workflow-segment {
-        margin-bottom: 2rem;
-    }
-
-    .segment-header {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        margin-bottom: 1rem;
-    }
-
-    .segment-number {
-        width: 32px;
-        height: 32px;
-        background: var(--navy-800);
-        color: white;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }
-
-    .segment-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        color: var(--navy-900);
-    }
-
-    .workflow-steps {
-        margin-left: 16px;
-        border-left: 2px solid var(--gray-200);
-        padding-left: 1.5rem;
-    }
-
-    .workflow-step {
-        display: flex;
-        align-items: center;
-        padding: 0.875rem 1rem;
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 10px;
-        margin-bottom: 0.75rem;
-        position: relative;
-    }
-
-    .workflow-step::before {
-        content: '';
-        position: absolute;
-        left: -1.625rem;
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: var(--gray-200);
-    }
-
-    .workflow-step.completed::before {
-        background: var(--green-500);
-    }
-
-    .workflow-step.current::before {
-        background: var(--gold-500);
-    }
-
-    .workflow-step.current {
-        background: #fffbeb;
-        border-color: var(--gold-500);
-    }
-
-    .step-icon {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-right: 0.75rem;
-        font-size: 0.75rem;
-    }
-
-    .step-icon.completed {
-        background: #dcfce7;
-        color: var(--green-500);
-    }
-
-    .step-icon.current {
-        background: #fef3c7;
-        color: var(--gold-500);
-    }
-
-    .step-icon.pending {
-        background: var(--gray-100);
-        color: var(--gray-400);
-        border: 1px solid var(--gray-200);
-    }
-
-    .step-title {
-        flex: 1;
-        font-weight: 500;
-        color: var(--navy-900);
-    }
-
-    .step-date {
-        font-size: 0.875rem;
-        color: var(--gray-400);
-    }
-
-    .step-badge {
-        background: var(--gold-500);
-        color: var(--navy-900);
-        font-size: 0.75rem;
-        font-weight: 600;
-        padding: 0.25rem 0.625rem;
-        border-radius: 50px;
-        margin-left: 0.75rem;
-    }
-
-    /* Roles Section */
-    .roles-section {
-        background: var(--gray-100);
-        padding: 5rem 2rem;
-    }
-
-    .roles-grid {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 1rem;
-        max-width: 1100px;
-        margin: 0 auto;
-    }
-
-    .role-card {
-        border-radius: 16px;
-        padding: 2rem 1.5rem;
-        text-align: center;
-        color: white;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-
-    .role-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
-    }
-
-    .role-card.kaeufer {
-        background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
-    }
-
-    .role-card.verkaeufer {
-        background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
-    }
-
-    .role-card.makler {
-        background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
-    }
-
-    .role-card.notar {
-        background: var(--navy-800);
-    }
-
-    .role-card.finanzierer {
-        background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
-    }
-
-    .role-icon {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .role-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-    }
-
-    .role-description {
-        font-size: 0.85rem;
-        opacity: 0.9;
-    }
-
-    .role-card-link {
-        text-decoration: none;
-        color: inherit;
-    }
-
-    .role-features {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        margin-top: 1rem;
-        font-size: 0.75rem;
-        opacity: 0.85;
-        text-align: left;
-        padding: 0 0.5rem;
-    }
-
-    .role-features span {
-        display: block;
-    }
-
-    .role-cta {
-        margin-top: 1rem;
-        padding: 0.5rem 1rem;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        transition: background 0.2s;
-    }
-
-    .role-card:hover .role-cta {
-        background: rgba(255, 255, 255, 0.3);
-    }
-
-    /* Demo Section */
-    .demo-section {
-        background: linear-gradient(135deg, var(--navy-50) 0%, white 50%, var(--gold-50) 100%);
-        padding: 4rem 2rem;
-    }
-
-    /* Registration Section */
-    .registration-section {
-        background: white;
-        padding: 4rem 2rem;
-    }
-
-    /* Footer */
-    .landing-footer {
-        background: var(--navy-900);
-        padding: 1.5rem 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .footer-logo {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        color: white;
-        font-weight: 600;
-        font-size: 1.125rem;
-    }
-
-    .footer-logo-icon {
-        width: 32px;
-        height: 32px;
-        background: var(--navy-700);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .footer-copyright {
-        color: var(--gray-400);
-        font-size: 0.875rem;
-    }
-
-    /* Login Modal Overlay - Referenz Design */
-    .login-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(8px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-    }
-
-    .login-modal-container {
-        background: white;
-        border-radius: 20px;
-        max-width: 450px;
-        width: 90%;
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-        overflow: hidden;
-        animation: modalSlideIn 0.3s ease-out;
-    }
-
-    @keyframes modalSlideIn {
-        from {
-            opacity: 0;
-            transform: translateY(-20px) scale(0.95);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-    }
-
-    .login-modal-header {
-        background: linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 100%);
-        padding: 1.5rem 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .login-modal-logo {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        color: white;
-    }
-
-    .login-modal-logo-icon {
-        width: 36px;
-        height: 36px;
-        background: var(--navy-700);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-
-    .login-modal-logo-text {
-        font-size: 1.25rem;
-        font-weight: 700;
-    }
-
-    .login-modal-close {
-        width: 32px;
-        height: 32px;
-        background: rgba(255,255,255,0.1);
-        border: none;
-        border-radius: 8px;
-        color: white;
-        font-size: 1.25rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.2s;
-    }
-
-    .login-modal-close:hover {
-        background: rgba(255,255,255,0.2);
-    }
-
-    .login-modal-body {
-        padding: 2rem;
-    }
-
-    .login-modal-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--navy-900);
-        margin-bottom: 0.5rem;
-    }
-
-    .login-modal-subtitle {
-        color: var(--gray-600);
-        margin-bottom: 1.5rem;
-    }
-
-    .login-modal-footer {
-        text-align: center;
-        padding: 1rem 2rem 2rem;
-        color: var(--gray-600);
-        font-size: 0.9rem;
-    }
-
-    .login-modal-footer a {
-        color: var(--gold-500);
-        font-weight: 600;
-        text-decoration: none;
-    }
-
-    .login-modal-footer a:hover {
-        text-decoration: underline;
-    }
-
-    /* Legacy fallback */
-    .login-header {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-
-    .login-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--navy-900);
-        margin-bottom: 0.5rem;
-    }
-
-    .login-subtitle {
-        color: var(--gray-600);
-    }
-
-    /* Demo Box */
-    .demo-box {
-        background: var(--gray-100);
-        border-radius: 12px;
-        padding: 1.25rem;
-        margin-top: 1.5rem;
-    }
-
-    .demo-title {
-        font-weight: 600;
-        color: var(--navy-900);
-        margin-bottom: 0.75rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-size: 0.9rem;
-    }
-
-    .demo-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.5rem;
-    }
-
-    .demo-item {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 8px;
-        padding: 0.625rem 0.75rem;
-        font-size: 0.8rem;
-    }
-
-    .demo-role {
-        font-weight: 600;
-        color: var(--navy-900);
-    }
-
-    .demo-credentials {
-        color: var(--gray-600);
-        font-family: monospace;
-        font-size: 0.75rem;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 1024px) {
-        .stats-container,
-        .features-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .roles-grid {
-            grid-template-columns: repeat(3, 1fr);
-        }
-    }
-
-    @media (max-width: 768px) {
-        .hero-title {
-            font-size: 2.5rem;
-        }
-        .stats-container,
-        .features-grid {
-            grid-template-columns: 1fr;
-        }
-        .roles-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .hero-buttons {
-            flex-direction: column;
-            align-items: center;
-        }
-        .nav-menu {
-            display: none;
-        }
-        .landing-footer {
-            flex-direction: column;
-            gap: 1rem;
-            text-align: center;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .roles-grid {
-            grid-template-columns: 1fr;
-        }
-        .demo-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-
-def render_auth_modal():
-    """
-    Rendert die Authentifizierungs-Seite (ersetzt Landing Page temporär).
-    Sauberes, zentriertes Layout mit Tab-Navigation.
-    """
-    modal_tab = st.query_params.get("tab", "login")
-
-    # Einfaches, sauberes CSS ohne komplexe Positionierung
-    st.markdown("""
-    <style>
-    /* Auth Page Background */
-    .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
-    }
-
-    /* Auth Container Styling */
-    .auth-container {
-        max-width: 420px;
-        margin: 2rem auto;
-        background: white;
-        border-radius: 16px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        overflow: hidden;
-    }
-
-    .auth-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        padding: 1.5rem;
-        text-align: center;
-        color: white;
-    }
-
-    .auth-logo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.75rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .auth-logo-icon {
-        width: 48px;
-        height: 48px;
-        background: rgba(212, 175, 55, 0.2);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-
-    .auth-logo-text {
-        font-size: 1.5rem;
-        font-weight: 700;
-    }
-
-    .auth-tagline {
-        color: rgba(255,255,255,0.7);
-        font-size: 0.9rem;
-    }
-
-    .auth-tabs {
-        display: flex;
-        background: #f8fafc;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .auth-tab {
-        flex: 1;
-        padding: 0.875rem 0.5rem;
-        text-align: center;
-        color: #64748b;
-        font-weight: 500;
-        font-size: 0.85rem;
-        text-decoration: none !important;
-        transition: all 0.2s;
-    }
-
-    .auth-tab:hover {
-        color: #0f172a;
-        background: #f1f5f9;
-    }
-
-    .auth-tab.active {
-        color: #d4af37;
-        background: white;
-        font-weight: 600;
-        border-bottom: 3px solid #d4af37;
-    }
-
-    .auth-back {
-        text-align: center;
-        margin-top: 1.5rem;
-    }
-
-    .auth-back a {
-        color: rgba(255,255,255,0.7);
-        text-decoration: none;
-        font-size: 0.9rem;
-    }
-
-    .auth-back a:hover {
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Tab classes
-    tab_login = "active" if modal_tab == "login" else ""
-    tab_register = "active" if modal_tab == "register" else ""
-    tab_demo = "active" if modal_tab == "demo" else ""
-    tab_invite = "active" if modal_tab == "invite" else ""
-
-    # Header mit Logo und Tabs
-    st.markdown(f"""
-    <div class="auth-container">
-        <div class="auth-header">
-            <div class="auth-logo">
-                <div class="auth-logo-icon">📋</div>
-                <span class="auth-logo-text">ImmoFlow</span>
-            </div>
-            <div class="auth-tagline">Immobilientransaktionen digital verwalten</div>
-        </div>
-        <div class="auth-tabs">
-            <a href="?modal=auth&tab=login" class="auth-tab {tab_login}">🔑 Login</a>
-            <a href="?modal=auth&tab=register" class="auth-tab {tab_register}">📝 Registrieren</a>
-            <a href="?modal=auth&tab=demo" class="auth-tab {tab_demo}">🎯 Demo</a>
-            <a href="?modal=auth&tab=invite" class="auth-tab {tab_invite}">🔗 Einladung</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Zentrierte Spalte für Formulare
-    col1, col2, col3 = st.columns([1, 2, 1])
-
-    with col2:
-        if modal_tab == "login":
-            st.markdown("### Willkommen zurück!")
-            st.markdown("Melden Sie sich mit Ihren Zugangsdaten an")
-
-            with st.form("auth_login_form"):
-                email = st.text_input("E-Mail", placeholder="ihre@email.de")
-                password = st.text_input("Passwort", type="password", placeholder="Ihr Passwort")
-                remember = st.checkbox("Angemeldet bleiben", value=True)
-
-                if st.form_submit_button("Anmelden", use_container_width=True, type="primary"):
-                    user = None
-                    for u in st.session_state.users.values():
-                        if u.email == email and u.password_hash == hash_password(password):
-                            user = u
-                            break
-
-                    if not user:
-                        for ma in st.session_state.notar_mitarbeiter.values():
-                            if ma.email == email and ma.password_hash == hash_password(password) and ma.aktiv:
-                                st.session_state.current_user = ma
-                                st.session_state.is_notar_mitarbeiter = True
-                                st.query_params.clear()
-                                st.rerun()
-
-                    if user:
-                        st.session_state.current_user = user
-                        st.session_state.is_notar_mitarbeiter = False
-                        if remember:
-                            token = get_session_token(email)
-                            if 'valid_tokens' not in st.session_state:
-                                st.session_state.valid_tokens = {}
-                            st.session_state.valid_tokens[email] = token
-                            save_session_to_browser(email, token)
-                        st.query_params.clear()
-                        st.rerun()
-                    else:
-                        st.error("Ungültige Anmeldedaten")
-
-            st.markdown("---")
-            st.markdown("Neu hier? [Jetzt registrieren](?modal=auth&tab=register)")
-
-        elif modal_tab == "register":
-            url_role = st.query_params.get("role", None)
-            role_map = {"kaeufer": "Käufer", "verkaeufer": "Verkäufer", "makler": "Makler", "finanzierer": "Finanzierer", "notar": "Notar"}
-
-            st.markdown("### Konto erstellen")
-            st.markdown("Registrieren Sie sich kostenlos")
-
-            with st.form("auth_register_form"):
-                reg_name = st.text_input("Name", placeholder="Max Mustermann")
-                reg_email = st.text_input("E-Mail", placeholder="ihre@email.de")
-                reg_pw = st.text_input("Passwort", type="password", placeholder="Mind. 8 Zeichen")
-                reg_pw2 = st.text_input("Passwort bestätigen", type="password")
-
-                options = ["Käufer", "Verkäufer", "Makler", "Finanzierer", "Notar"]
-                default_idx = options.index(role_map.get(url_role, "Käufer")) if url_role in role_map else 0
-                reg_rolle = st.selectbox("Ihre Rolle", options, index=default_idx)
-
-                agb = st.checkbox("AGB und Datenschutz akzeptieren")
-
-                if st.form_submit_button("Registrieren", use_container_width=True, type="primary"):
-                    if not all([reg_name, reg_email, reg_pw, reg_pw2]):
-                        st.error("Bitte alle Felder ausfüllen")
-                    elif len(reg_pw) < 8:
-                        st.error("Passwort mind. 8 Zeichen")
-                    elif reg_pw != reg_pw2:
-                        st.error("Passwörter stimmen nicht überein")
-                    elif not agb:
-                        st.error("Bitte AGB akzeptieren")
-                    elif any(u.email == reg_email for u in st.session_state.users.values()):
-                        st.error("E-Mail bereits registriert")
-                    else:
-                        new_id = f"user_{uuid.uuid4().hex[:8]}"
-                        new_user = User(user_id=new_id, name=reg_name, email=reg_email,
-                                       password_hash=hash_password(reg_pw), rolle=reg_rolle, onboarding_complete=False)
-                        st.session_state.users[new_id] = new_user
-                        st.session_state.current_user = new_user
-                        st.session_state.is_notar_mitarbeiter = False
-                        st.query_params.clear()
-                        st.success("Erfolgreich registriert!")
-                        st.rerun()
-
-            st.markdown("---")
-            st.markdown("Bereits registriert? [Anmelden](?modal=auth&tab=login)")
-
-        elif modal_tab == "demo":
-            st.markdown("### Demo-Zugang")
-            st.markdown("Testen Sie ImmoFlow sofort - ohne Registrierung!")
-
-            demo_roles = [
-                {"name": "Käufer", "icon": "🏠", "email": "kaeufer@demo.de"},
-                {"name": "Verkäufer", "icon": "🔑", "email": "verkaeufer@demo.de"},
-                {"name": "Makler", "icon": "🤝", "email": "makler@demo.de"},
-                {"name": "Notar", "icon": "⚖️", "email": "notar@demo.de"},
-                {"name": "Finanzierer", "icon": "💰", "email": "finanz@demo.de"},
-            ]
-
-            for demo in demo_roles:
-                if st.button(f"{demo['icon']} Als {demo['name']} testen", key=f"demo_{demo['name']}", use_container_width=True):
-                    for u in st.session_state.users.values():
-                        if u.email == demo['email']:
-                            st.session_state.current_user = u
-                            st.session_state.is_notar_mitarbeiter = False
-                            st.query_params.clear()
-                            st.rerun()
-
-            st.success("Sofortiger Zugang mit Beispieldaten!")
-
-        elif modal_tab == "invite":
-            st.markdown("### Einladung annehmen")
-            st.markdown("Sie wurden zu einem Projekt eingeladen?")
-
-            with st.form("auth_invite_form"):
-                code = st.text_input("Einladungscode", placeholder="z.B. INV-ABC123")
-
-                if st.form_submit_button("Einladung prüfen", use_container_width=True, type="primary"):
-                    found = None
-                    check_code = code.strip().split("/")[-1] if "/" in code else code.strip()
-
-                    for einladung in st.session_state.get('einladungen', {}).values():
-                        if getattr(einladung, 'token', '') == check_code or getattr(einladung, 'einladungs_code', '') == check_code:
-                            if not getattr(einladung, 'verwendet', False):
-                                found = einladung
-                                break
-
-                    if found:
-                        st.success(f"Einladung gefunden! Projekt: {getattr(found, 'projekt_name', 'Unbekannt')}")
-                        st.session_state['pending_einladung'] = found
-                    else:
-                        st.error("Ungültiger Einladungscode")
-
-            st.markdown("---")
-            st.markdown("[Jetzt registrieren](?modal=auth&tab=register) um die Einladung anzunehmen")
-
-        # Zurück-Link
-        st.markdown("---")
-        if st.button("← Zurück zur Startseite", use_container_width=True):
-            st.query_params.clear()
-            st.rerun()
-
-
 def login_page():
-    """ImmoFlow Landing Page nach Referenz-Design"""
-    # Design System und Landing Page Styles laden
-    render_immoflow_design_system()
-    render_landing_page_styles()
+    """Login-Seite"""
+    st.title("🏠 Immobilien-Transaktionsplattform")
+
+    # Versionsnummer anzeigen
+    version = get_version_number()
+    st.caption(f"Version {version}")
 
     # Session-Persistenz JavaScript injizieren
     inject_session_persistence()
@@ -14341,407 +13206,107 @@ def login_page():
     restored_user = restore_session_from_storage()
     if restored_user:
         st.session_state.current_user = restored_user
-        is_mitarbeiter = hasattr(restored_user, 'notar_id')
+        is_mitarbeiter = hasattr(restored_user, 'notar_id')  # Mitarbeiter haben notar_id
         st.session_state.is_notar_mitarbeiter = is_mitarbeiter
         st.rerun()
 
-    # ============ AUTH MODAL CHECK - AM ANFANG ============
-    # Modal wird als eigenständige Seite gerendert (ersetzt Landing Page)
-    show_modal = st.query_params.get("modal", None)
-    if show_modal == "auth":
-        render_auth_modal()
-        st.stop()  # Wichtig: Stoppt das Rendern der Landing Page
+    st.subheader("Anmeldung")
 
-    # ============ NAVIGATION BAR ============
-    st.markdown("""
-    <div class="landing-nav">
-        <div class="nav-logo">
-            <div class="nav-logo-icon">📋</div>
-            <span>ImmoFlow</span>
-        </div>
-        <div class="nav-menu">
-            <a href="#funktionen" class="nav-link">Funktionen</a>
-            <a href="#workflow" class="nav-link">Workflow</a>
-            <a href="#rollen" class="nav-link">Rollen</a>
-        </div>
-        <div class="nav-actions">
-            <a href="?modal=auth&tab=login" class="nav-btn-secondary" style="text-decoration:none;">Anmelden</a>
-            <a href="?modal=auth&tab=register" class="nav-btn-primary" style="text-decoration:none;">Jetzt starten</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.form("login_form"):
+        email = st.text_input("E-Mail")
+        password = st.text_input("Passwort", type="password")
+        remember_me = st.checkbox("🔐 Angemeldet bleiben", value=True,
+                                  help="Ihre Sitzung bleibt auch nach einem Seiten-Reload aktiv")
+        submit = st.form_submit_button("Anmelden")
 
-    # ============ HERO SECTION ============
-    st.markdown("""
-    <div class="landing-hero">
-        <div class="hero-badge">
-            <span class="hero-badge-icon">📋</span>
-            Immobilien-Transaktionsplattform
-        </div>
-        <h1 class="hero-title">
-            Immobilientransaktionen.
-            <span class="hero-title-highlight">Digital. Sicher. Effizient.</span>
-        </h1>
-        <p class="hero-subtitle">
-            Verbinden Sie Käufer, Verkäufer, Makler, Notare<br>
-            und Finanzierer auf einer intelligenten Plattform.
-        </p>
-        <div class="hero-buttons">
-            <a href="?modal=auth&tab=register" class="hero-btn-primary" style="text-decoration:none;">Jetzt starten →</a>
-            <a href="?modal=auth&tab=demo" class="hero-btn-secondary" style="text-decoration:none;">Demo ansehen</a>
-        </div>
-        <div class="stats-container">
-            <div class="stat-card">
-                <div class="stat-value" data-target="2500" data-suffix="+">0</div>
-                <div class="stat-label">Transaktionen</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" data-target="98" data-suffix="%">0</div>
-                <div class="stat-label">Zufriedenheit</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" data-target="45" data-suffix="%">0</div>
-                <div class="stat-label">Zeitersparnis</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" data-target="100" data-suffix="%">0</div>
-                <div class="stat-label">Rechtskonform</div>
-            </div>
-        </div>
-    </div>
+        if submit:
+            user = None
+            mitarbeiter = None
 
-    <!-- Count-Up Animation Script -->
-    <script>
-    (function() {
-        function animateCountUp() {
-            const counters = document.querySelectorAll('.stat-value[data-target]');
-            counters.forEach(counter => {
-                const target = parseInt(counter.getAttribute('data-target'));
-                const suffix = counter.getAttribute('data-suffix') || '';
-                const duration = 2000;
-                const step = target / (duration / 16);
-                let current = 0;
+            # Zuerst normale Benutzer prüfen
+            for u in st.session_state.users.values():
+                if u.email == email and u.password_hash == hash_password(password):
+                    user = u
+                    break
 
-                const updateCounter = () => {
-                    current += step;
-                    if (current < target) {
-                        counter.textContent = Math.floor(current).toLocaleString('de-DE') + suffix;
-                        requestAnimationFrame(updateCounter);
-                    } else {
-                        counter.textContent = target.toLocaleString('de-DE') + suffix;
-                    }
-                };
+            # Falls kein normaler Benutzer, Notar-Mitarbeiter prüfen
+            if not user:
+                for ma in st.session_state.notar_mitarbeiter.values():
+                    if ma.email == email and ma.password_hash == hash_password(password):
+                        if ma.aktiv:
+                            mitarbeiter = ma
+                            break
+                        else:
+                            st.error("❌ Ihr Account wurde deaktiviert. Kontaktieren Sie Ihren Notar.")
+                            return
 
-                // Start animation when element is visible
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting && counter.textContent === '0') {
-                            updateCounter();
-                        }
-                    });
-                }, { threshold: 0.5 });
+            if user:
+                st.session_state.current_user = user
+                st.session_state.is_notar_mitarbeiter = False
 
-                observer.observe(counter);
-            });
-        }
+                # Session-Token erstellen und speichern wenn "Angemeldet bleiben" aktiv
+                if remember_me:
+                    token = get_session_token(email)
+                    if 'valid_tokens' not in st.session_state:
+                        st.session_state.valid_tokens = {}
+                    st.session_state.valid_tokens[email] = token
+                    save_session_to_browser(email, token)
 
-        // Run on page load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', animateCountUp);
-        } else {
-            setTimeout(animateCountUp, 100);
-        }
-    })();
-    </script>
-    """, unsafe_allow_html=True)
+                # Login-Event tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={'rolle': user.rolle, 'remember_me': remember_me},
+                    nutzer_id=user.user_id
+                )
 
-    # ============ WAVE SEPARATOR ============
-    st.markdown("""
-    <div class="wave-separator">
-        <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-            <path d="M0 80L60 74.7C120 69.3 240 58.7 360 53.3C480 48 600 48 720 53.3C840 58.7 960 69.3 1080 69.3C1200 69.3 1320 58.7 1380 53.3L1440 48V80H1380C1320 80 1200 80 1080 80C960 80 840 80 720 80C600 80 480 80 360 80C240 80 120 80 60 80H0Z" fill="white"/>
-        </svg>
-    </div>
-    """, unsafe_allow_html=True)
+                create_notification(
+                    user.user_id,
+                    "Willkommen zurück!",
+                    f"Sie haben sich erfolgreich angemeldet als {user.rolle}.",
+                    NotificationType.SUCCESS.value
+                )
+                st.rerun()
+            elif mitarbeiter:
+                # Für Mitarbeiter ein pseudo-User-Objekt erstellen
+                st.session_state.current_user = mitarbeiter
+                st.session_state.is_notar_mitarbeiter = True
 
-    # ============ FEATURES SECTION ============
-    st.markdown("""
-    <div class="features-section" id="funktionen">
-        <div class="section-header">
-            <h2 class="section-title">Warum <span>ImmoFlow</span>?</h2>
-            <p class="section-subtitle">Die moderne Plattform für professionelle Immobilientransaktionen in Deutschland.</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🛡️</div>
-                <h3 class="feature-title">Sichere Dokumentenverwaltung</h3>
-                <p class="feature-description">Ende-zu-Ende-Verschlüsselung für alle sensiblen Dokumente. DSGVO-konform und notariell zertifiziert.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⏱️</div>
-                <h3 class="feature-title">Intelligenter Workflow</h3>
-                <p class="feature-description">Automatische Fortschrittsverfolgung von Onboarding bis zur Eigentumsumschreibung. Keine verpassten Fristen.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">👥</div>
-                <h3 class="feature-title">Alle Parteien vernetzt</h3>
-                <p class="feature-description">Käufer, Verkäufer, Makler, Notar und Finanzierer arbeiten nahtlos auf einer Plattform zusammen.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📑</div>
-                <h3 class="feature-title">Rechtskonforme Abwicklung</h3>
-                <p class="feature-description">GNotKG-konforme Gebührenberechnung, automatische Dokumentenprüfung und Checklisten.</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+                # Session-Token für Mitarbeiter
+                if remember_me:
+                    token = get_session_token(email)
+                    if 'valid_tokens' not in st.session_state:
+                        st.session_state.valid_tokens = {}
+                    st.session_state.valid_tokens[email] = token
+                    save_session_to_browser(email, token)
 
-    # ============ WORKFLOW SECTION ============
-    workflow_html = """
-    <div class="workflow-section" id="workflow">
-        <div class="section-header">
-            <h2 class="section-title">Transparenter <span>Workflow</span></h2>
-            <p class="section-subtitle">Verfolgen Sie jeden Schritt Ihrer Immobilientransaktion in Echtzeit. Vom ersten Kontakt bis zur Eigentumsumschreibung.</p>
-        </div>
-        <div class="workflow-container">
-            <div class="progress-header">
-                <span class="progress-label">Gesamtfortschritt</span>
-                <span class="progress-value">30%</span>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: 30%;"></div>
-            </div>
-            <div class="workflow-segment">
-                <div class="segment-header">
-                    <div class="segment-number">1</div>
-                    <span class="segment-title">Onboarding</span>
-                </div>
-                <div class="workflow-steps">
-                    <div class="workflow-step completed">
-                        <div class="step-icon completed">&#10003;</div>
-                        <span class="step-title">Erstkontakt</span>
-                        <span class="step-date">15. Dez</span>
-                    </div>
-                    <div class="workflow-step completed">
-                        <div class="step-icon completed">&#10003;</div>
-                        <span class="step-title">Objektdaten erfasst</span>
-                        <span class="step-date">16. Dez</span>
-                    </div>
-                    <div class="workflow-step completed">
-                        <div class="step-icon completed">&#10003;</div>
-                        <span class="step-title">Kaufangebot angenommen</span>
-                        <span class="step-date">18. Dez</span>
-                    </div>
-                    <div class="workflow-step current">
-                        <div class="step-icon current">&#9201;</div>
-                        <span class="step-title">Finanzierung best&auml;tigt</span>
-                        <span class="step-badge">Aktuell</span>
-                    </div>
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Notarauftrag erteilt</span>
-                    </div>
-                </div>
-            </div>
-            <div class="workflow-segment">
-                <div class="segment-header">
-                    <div class="segment-number">2</div>
-                    <span class="segment-title">Vor Beurkundung</span>
-                </div>
-                <div class="workflow-steps">
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Akte angelegt</span>
-                    </div>
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Parteien erfasst</span>
-                    </div>
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Ausweise vollst&auml;ndig</span>
-                    </div>
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Vertragsentwurf erstellt</span>
-                    </div>
-                    <div class="workflow-step">
-                        <div class="step-icon pending">&#9675;</div>
-                        <span class="step-title">Notartermin best&auml;tigt</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(workflow_html, unsafe_allow_html=True)
+                # Mitarbeiter-Login tracken
+                safe_track_interaktion(
+                    interaktions_typ='login',
+                    details={
+                        'rolle': 'notar_mitarbeiter',
+                        'mitarbeiter_rolle': mitarbeiter.rolle,
+                        'remember_me': remember_me
+                    },
+                    nutzer_id=mitarbeiter.mitarbeiter_id
+                )
 
-    # ============ ROLES SECTION ============
-    st.markdown("""
-    <div class="roles-section" id="rollen">
-        <div class="section-header">
-            <h2 class="section-title">W&auml;hlen Sie Ihre Rolle</h2>
-            <p class="section-subtitle">Jede Rolle bietet ein ma&szlig;geschneidertes Dashboard mit relevanten Funktionen und Workflows.</p>
-        </div>
-        <div class="roles-grid">
-            <a href="?modal=auth&tab=register&role=kaeufer" class="role-card-link">
-                <div class="role-card kaeufer">
-                    <div class="role-icon">🏠</div>
-                    <div class="role-title">K&auml;ufer</div>
-                    <div class="role-description">Immobilie erwerben</div>
-                    <div class="role-features">
-                        <span>&#10003; Finanzierungsrechner</span>
-                        <span>&#10003; Dokumenten-Upload</span>
-                        <span>&#10003; Terminverwaltung</span>
-                    </div>
-                    <div class="role-cta">Jetzt registrieren &rarr;</div>
-                </div>
-            </a>
-            <a href="?modal=auth&tab=register&role=verkaeufer" class="role-card-link">
-                <div class="role-card verkaeufer">
-                    <div class="role-icon">🔑</div>
-                    <div class="role-title">Verk&auml;ufer</div>
-                    <div class="role-description">Immobilie verkaufen</div>
-                    <div class="role-features">
-                        <span>&#10003; Preisfindungs-Tool</span>
-                        <span>&#10003; Makler-Vermittlung</span>
-                        <span>&#10003; Kosten&uuml;bersicht</span>
-                    </div>
-                    <div class="role-cta">Jetzt registrieren &rarr;</div>
-                </div>
-            </a>
-            <a href="?modal=auth&tab=register&role=makler" class="role-card-link">
-                <div class="role-card makler">
-                    <div class="role-icon">🤝</div>
-                    <div class="role-title">Makler</div>
-                    <div class="role-description">Transaktionen vermitteln</div>
-                    <div class="role-features">
-                        <span>&#10003; Marktanalyse</span>
-                        <span>&#10003; Interessenten-CRM</span>
-                        <span>&#10003; Provisions-Tracking</span>
-                    </div>
-                    <div class="role-cta">Jetzt registrieren &rarr;</div>
-                </div>
-            </a>
-            <a href="?modal=auth&tab=register&role=notar" class="role-card-link">
-                <div class="role-card notar">
-                    <div class="role-icon">⚖️</div>
-                    <div class="role-title">Notar</div>
-                    <div class="role-description">Beurkundung durchf&uuml;hren</div>
-                    <div class="role-features">
-                        <span>&#10003; PDF-Import &amp; OCR</span>
-                        <span>&#10003; Akten-Verwaltung</span>
-                        <span>&#10003; GNotKG-Rechner</span>
-                    </div>
-                    <div class="role-cta">Jetzt registrieren &rarr;</div>
-                </div>
-            </a>
-            <a href="?modal=auth&tab=register&role=finanzierer" class="role-card-link">
-                <div class="role-card finanzierer">
-                    <div class="role-icon">💰</div>
-                    <div class="role-title">Finanzierer</div>
-                    <div class="role-description">Finanzierung bereitstellen</div>
-                    <div class="role-features">
-                        <span>&#10003; Wirtschaftsdaten-Einsicht</span>
-                        <span>&#10003; Angebots-Erstellung</span>
-                        <span>&#10003; Volumen-&Uuml;bersicht</span>
-                    </div>
-                    <div class="role-cta">Jetzt registrieren &rarr;</div>
-                </div>
-            </a>
-        </div>
-    </div>
+                st.success(f"✅ Willkommen zurück, {mitarbeiter.name}! Sie sind angemeldet als Notar-Mitarbeiter.")
+                st.rerun()
+            else:
+                st.error("❌ Ungültige Anmeldedaten")
 
-    <script>
-    function selectRole(role) {
-        // Store selected role for registration form
-        sessionStorage.setItem('selectedRole', role);
-    }
-    </script>
-    """, unsafe_allow_html=True)
+    with st.expander("📋 Demo-Zugangsdaten"):
+        st.markdown("""
+        **Makler:** `makler@demo.de` | `makler123`
 
-    # ============ DEMO SECTION ============
-    st.markdown("""
-    <div class="demo-section" id="demo">
-        <div class="section-header">
-            <h2 class="section-title">Demo <span>ausprobieren</span></h2>
-            <p class="section-subtitle">Testen Sie ImmoFlow mit unseren Demo-Accounts - ohne Registrierung!</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+        **Käufer:** `kaeufer@demo.de` | `kaeufer123`
 
-    demo_cols = st.columns(5)
-    demo_accounts = [
-        {"role": "Käufer", "icon": "🏠", "email": "kaeufer@demo.de", "pw": "kaeufer123", "color": "#10b981"},
-        {"role": "Verkäufer", "icon": "🔑", "email": "verkaeufer@demo.de", "pw": "verkaeufer123", "color": "#f59e0b"},
-        {"role": "Makler", "icon": "🤝", "email": "makler@demo.de", "pw": "makler123", "color": "#3b82f6"},
-        {"role": "Notar", "icon": "⚖️", "email": "notar@demo.de", "pw": "notar123", "color": "#6366f1"},
-        {"role": "Finanzierer", "icon": "💰", "email": "finanzierer@demo.de", "pw": "finanzierer123", "color": "#ec4899"},
-    ]
+        **Verkäufer:** `verkaeufer@demo.de` | `verkaeufer123`
 
-    for i, demo in enumerate(demo_accounts):
-        with demo_cols[i]:
-            st.markdown(f"""
-            <div style="background: white; border-radius: 12px; padding: 1rem; text-align: center; border: 2px solid {demo['color']}20; margin-bottom: 1rem;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">{demo['icon']}</div>
-                <div style="font-weight: 600; color: var(--navy-900);">{demo['role']}</div>
-                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">{demo['email']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Als {demo['role']} testen", key=f"demo_btn_{demo['role']}", use_container_width=True):
-                # Auto-login for demo
-                for u in st.session_state.users.values():
-                    if u.email == demo['email']:
-                        st.session_state.current_user = u
-                        st.session_state.is_notar_mitarbeiter = False
-                        st.rerun()
+        **Finanzierer:** `finanz@demo.de` | `finanz123`
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # ============ CTA SECTION - Verweis auf Modal ============
-    st.markdown("""
-    <div class="registration-section" id="registrierung" style="text-align: center; padding: 3rem 1rem;">
-        <div class="section-header">
-            <h2 class="section-title">Bereit <span>loszulegen</span>?</h2>
-            <p class="section-subtitle">Erstellen Sie jetzt Ihr kostenloses ImmoFlow-Konto</p>
-        </div>
-        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; flex-wrap: wrap;">
-            <a href="?modal=auth&tab=register" class="hero-btn-primary" style="text-decoration: none;">Jetzt registrieren →</a>
-            <a href="?modal=auth&tab=demo" class="hero-btn-secondary" style="text-decoration: none;">Demo testen</a>
-            <a href="?modal=auth&tab=invite" class="hero-btn-secondary" style="text-decoration: none;">Einladung annehmen</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-
-    # ============ FOOTER ============
-    # Design toggle für Landing Page
-    design_icon = "🌙" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "☀️"
-    design_label = "Classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "Navy-Gold"
-    design_action = "classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "navy-gold"
-
-    st.markdown(f"""
-    <div class="landing-footer">
-        <div class="footer-logo">
-            <div class="footer-logo-icon">📋</div>
-            <span>ImmoFlow</span>
-        </div>
-        <div class="footer-copyright">© 2025 ImmoFlow. Alle Rechte vorbehalten.</div>
-        <a href="?design={design_action}" class="footer-design-toggle" style="color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.8rem; margin-left: 1rem;">
-            {design_icon} {design_label}
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ============ DESIGN TOGGLE CHECK ============
-    if st.query_params.get("design"):
-        new_design = st.query_params.get("design")
-        if new_design in ["navy-gold", "classic"]:
-            st.session_state.design_mode = new_design
-        st.query_params.clear()
-        st.rerun()
-
+        **Notar:** `notar@demo.de` | `notar123`
+        """)
 
 def logout():
     """Benutzer abmelden und Session aus Browser löschen"""
@@ -14769,122 +13334,155 @@ def logout():
 # ============================================================================
 
 def makler_dashboard():
-    """Dashboard für Makler - Neues Design nach Referenz"""
-    render_immoflow_design_system()
-    render_user_info_bar()
+    """Dashboard für Makler"""
+    st.title("📊 Makler-Dashboard")
 
+    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # ============ SIDEBAR NAVIGATION ============
-    menu_items = [
-        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
-        {"key": "projekte", "icon": "🏘️", "label": "Objekte"},
-        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
-        {"key": "termine", "icon": "📅", "label": "Termine"},
-        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
-        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
-    ]
+    # Suchleiste
+    search_term = render_dashboard_search("makler")
+    if search_term:
+        st.session_state['makler_search'] = search_term
 
-    if 'makler_menu' not in st.session_state:
-        st.session_state.makler_menu = 'uebersicht'
+    tabs = st.tabs([
+        "📋 Timeline",
+        "📁 Projekte",
+        "📊 Marktanalyse",
+        "👤 Profil",
+        "💼 Bankenmappe",
+        "⚖️ Rechtliche Dokumente",
+        "👥 Teilnehmer-Status",
+        "✉️ Einladungen",
+        "💬 Kommentare",
+        "🪪 Ausweisdaten erfassen",
+        "📅 Termine",
+        "👥 Mitarbeiter",
+        "📨 Nachrichten",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
+        "⏰ Fristen",  # NEU: Fristenmanagement
+        "📈 Reporting",  # NEU: KPIs und Berichte
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
+        "🔒 DSGVO"  # NEU: DSGVO-Datenverwaltung
+    ])
 
-    with st.sidebar:
-        st.markdown('''
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">🏢</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">Makler</span>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+    with tabs[0]:
+        makler_timeline_view()
 
-        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
-        for item in menu_items:
-            is_active = st.session_state.makler_menu == item['key']
-            if st.button(f"{item['icon']} {item['label']}", key=f"mk_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
-                st.session_state.makler_menu = item['key']
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        render_aktentasche_sidebar(user_id)
-        render_benachrichtigungs_badge(user_id)
-
-        st.markdown("---")
-        user_name = st.session_state.current_user.name or "Benutzer"
-        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">🏢 {user_name[:15]}</span></div>', unsafe_allow_html=True)
-        if st.button("🚪 Abmelden", key="mk_logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # ============ MAIN CONTENT ============
-    current_menu = st.session_state.makler_menu
-
-    search_col, notif_col = st.columns([6, 1])
-    with search_col:
-        search_term = st.text_input("🔍", placeholder="Suchen...", key="mk_search_input", label_visibility="collapsed")
-        st.session_state['makler_search'] = search_term or ''
-    with notif_col:
-        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
-
-    if current_menu == "uebersicht":
-        user_name = st.session_state.current_user.name or "Benutzer"
-        render_dashboard_welcome(user_name, "makler")
-        stats = get_makler_dashboard_stats(user_id)
-        render_dashboard_stats(stats)
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.makler_ids]
-        render_dashboard_projects(projekte)
-
-        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
-        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
-        cols = st.columns(3)
-        with cols[0]:
-            if st.button("➕ Neues Objekt", key="mk_quick_neu", use_container_width=True):
-                st.session_state.makler_menu = 'projekte'
-                st.rerun()
-        with cols[1]:
-            if st.button("✉️ Einladung senden", key="mk_quick_einlad", use_container_width=True):
-                st.session_state.makler_menu = 'einstellungen'
-                st.rerun()
-        with cols[2]:
-            if st.button("📊 Marktanalyse", key="mk_quick_markt", use_container_width=True):
-                st.session_state.makler_menu = 'einstellungen'
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif current_menu == "projekte":
+    with tabs[1]:
         makler_projekte_view()
 
-    elif current_menu == "dokumente":
+    with tabs[2]:
+        makler_marktanalyse_view()
+
+    with tabs[3]:
+        makler_profil_view()
+
+    with tabs[4]:
+        render_bank_folder_view()
+
+    with tabs[5]:
         makler_rechtliche_dokumente()
 
-    elif current_menu == "termine":
-        st.subheader("📅 Meine Termine")
-        render_termin_kalender(user_id, UserRole.MAKLER.value)
+    with tabs[6]:
+        makler_teilnehmer_status()
 
-    elif current_menu == "nachrichten":
+    with tabs[7]:
+        makler_einladungen()
+
+    with tabs[8]:
+        makler_kommentare()
+
+    with tabs[9]:
+        makler_ausweis_erfassung()
+
+    with tabs[10]:
+        # Termin-Übersicht für Makler mit Kalender
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.MAKLER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[11]:
+        # Mitarbeiter-Verwaltung
+        render_makler_mitarbeiter_verwaltung(user_id)
+
+    with tabs[12]:
+        # Kommunikationszentrale
         render_kommunikationszentrale(user_id)
 
-    elif current_menu == "einstellungen":
-        st.subheader("⚙️ Einstellungen & Tools")
-        tabs = st.tabs(["📊 Markt", "👤 Profil", "👥 Team", "✉️ Einladungen", "📈 Reports", "🔒 DSGVO", "🗑️ Papierkorb"])
-        with tabs[0]:
-            makler_marktanalyse_view()
-        with tabs[1]:
-            makler_profil_view()
-        with tabs[2]:
-            render_makler_mitarbeiter_verwaltung(user_id)
-        with tabs[3]:
-            makler_einladungen()
-        with tabs[4]:
-            render_reporting_dashboard(user_id)
-        with tabs[5]:
-            render_dsgvo_tab_makler(user_id)
-        with tabs[6]:
-            render_papierkorb_tab(user_id, ist_notar=False)
+    with tabs[13]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        makler_projekte = [p for p in st.session_state.projekte.values()
+                          if p.makler_id == user_id]
+        if makler_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="makler_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[14]:
+        # Fristenmanagement
+        render_fristenmanagement(user_id)
+
+    with tabs[15]:
+        # Reporting Dashboard
+        render_reporting_dashboard(user_id)
+
+    with tabs[16]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[17]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Text-to-Speech Einstellungen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Dokument vorlesen testen")
+
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Makler können Sie Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann angepasst werden.
+        """
+        render_tts_controls(demo_text, "makler_demo_tts", user_id)
+
+    with tabs[18]:
+        # DSGVO-Datenverwaltung für Makler
+        render_dsgvo_tab_makler(user_id)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -15975,10 +14573,8 @@ def onboarding_flow():
 # ============================================================================
 
 def kaeufer_dashboard():
-    """Dashboard für Käufer - Neues Design nach Referenz"""
-    # ImmoFlow Design System laden
-    render_immoflow_design_system()
-    render_user_info_bar()
+    """Dashboard für Käufer"""
+    st.title("🏠 Käufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -15987,156 +14583,134 @@ def kaeufer_dashboard():
     # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
+        # User muss erst Dokumente akzeptieren
         return
+
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
 
     # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # ============ SIDEBAR NAVIGATION ============
-    kaeufer_menu_items = [
-        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
-        {"key": "projekte", "icon": "🏠", "label": "Projekte"},
-        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
-        {"key": "termine", "icon": "📅", "label": "Termine"},
-        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
-        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
-    ]
-
-    # Menü-Auswahl initialisieren
-    if 'kaeufer_menu' not in st.session_state:
-        st.session_state.kaeufer_menu = 'uebersicht'
-
-    # Sidebar
-    with st.sidebar:
-        # Logo und Rolle
-        st.markdown('''
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">🏠</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">Käufer</span>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
-
-        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
-
-        # Menü-Items
-        for item in kaeufer_menu_items:
-            is_active = st.session_state.kaeufer_menu == item['key']
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(
-                f"{item['icon']} {item['label']}",
-                key=f"kaeufer_menu_{item['key']}",
-                use_container_width=True,
-                type=btn_type
-            ):
-                st.session_state.kaeufer_menu = item['key']
-                st.rerun()
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # Aktentasche
-        render_aktentasche_sidebar(user_id)
-
-        # Benachrichtigungen
-        render_benachrichtigungs_badge(user_id)
-
-        # Profil-Bereich am Ende
-        st.markdown("---")
-        user_name = st.session_state.current_user.name or "Benutzer"
-        st.markdown(f'''
-        <div class="profile-card" style="padding: 0.5rem;">
-            <div class="profile-avatar" style="display:inline-block; width:32px; height:32px; background:var(--gold-500); border-radius:8px; text-align:center; line-height:32px;">🏠</div>
-            <span style="margin-left: 0.5rem; font-weight: 500;">{user_name[:15]}</span>
-        </div>
-        ''', unsafe_allow_html=True)
-
-        if st.button("🚪 Abmelden", key="kaeufer_logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # ============ MAIN CONTENT ============
-    current_menu = st.session_state.kaeufer_menu
-
     # Suchleiste
-    search_col, notif_col = st.columns([6, 1])
-    with search_col:
-        search_term = st.text_input("🔍", placeholder="Suchen...", key="kaeufer_search_input", label_visibility="collapsed")
-        st.session_state['kaeufer_search'] = search_term or ''
-    with notif_col:
-        st.markdown('<div class="dash-notification">🔔<span class="dash-notification-badge"></span></div>', unsafe_allow_html=True)
+    search_term = render_dashboard_search("kaeufer")
+    if search_term:
+        st.session_state['kaeufer_search'] = search_term
+    else:
+        st.session_state['kaeufer_search'] = ''
 
-    # ============ CONTENT BASIEREND AUF MENÜ ============
-    if current_menu == "uebersicht":
-        # Willkommens-Bereich
-        user_name = st.session_state.current_user.name or "Benutzer"
-        render_dashboard_welcome(user_name, "kaeufer")
+    tabs = st.tabs([
+        "🏠 Mein Portal",  # NEU: Mandanten-Portal Übersicht
+        "📊 Timeline",
+        "📋 Projekte",
+        "📝 Aufgaben",
+        "💰 Finanzierung",
+        "🔧 Handwerker",
+        "🪪 Ausweis",
+        "💬 Nachrichten",
+        "📄 Dokumente",
+        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
+        "📅 Termine",
+        "🗑️ Papierkorb",  # NEU: Papierkorb-System
+        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
+    ])
 
-        # Statistik-Karten
-        stats = get_kaeufer_dashboard_stats(user_id)
-        render_dashboard_stats(stats)
+    with tabs[0]:
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.KAEUFER.value)
 
-        # Projekte des Käufers
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-        render_dashboard_projects(projekte)
+    with tabs[1]:
+        kaeufer_timeline_view()
 
-        # Schnellaktionen
-        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
-        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
-        action_cols = st.columns(3)
-        with action_cols[0]:
-            if st.button("📁 Neues Projekt", key="quick_neues_projekt", use_container_width=True):
-                st.session_state.kaeufer_menu = 'projekte'
-                st.rerun()
-        with action_cols[1]:
-            if st.button("📅 Termin planen", key="quick_termin", use_container_width=True):
-                st.session_state.kaeufer_menu = 'termine'
-                st.rerun()
-        with action_cols[2]:
-            if st.button("👥 Partei einladen", key="quick_einladen", use_container_width=True):
-                st.info("Funktion in Entwicklung")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif current_menu == "projekte":
+    with tabs[2]:
         kaeufer_projekte_view()
 
-    elif current_menu == "dokumente":
-        kaeufer_dokumente_view()
+    with tabs[3]:
+        kaeufer_aufgaben_view()
 
-    elif current_menu == "termine":
-        st.subheader("📅 Meine Termine")
-        render_termin_kalender(user_id, UserRole.KAEUFER.value)
+    with tabs[4]:
+        kaeufer_finanzierung_view()
 
-    elif current_menu == "nachrichten":
+    with tabs[5]:
+        kaeufer_handwerker_empfehlungen()
+
+    with tabs[6]:
+        # Personalausweis-Upload mit OCR
+        st.subheader("🪪 Ausweisdaten erfassen")
+        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
+
+    with tabs[7]:
         kaeufer_nachrichten()
 
-    elif current_menu == "einstellungen":
-        # Einstellungen-Seite
-        st.subheader("⚙️ Einstellungen")
-        tabs = st.tabs(["🪪 Ausweis", "💰 Finanzierung", "🔧 Handwerker", "🔊 Vorlesen", "🗑️ Papierkorb"])
+    with tabs[8]:
+        kaeufer_dokumente_view()
 
-        with tabs[0]:
-            st.subheader("🪪 Ausweisdaten erfassen")
-            render_ausweis_upload(user_id, UserRole.KAEUFER.value)
+    with tabs[9]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        kaeufer_projekte = [p for p in st.session_state.projekte.values()
+                           if user_id in p.kaeufer_ids]
+        if kaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="kaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
 
-        with tabs[1]:
-            kaeufer_finanzierung_view()
+    with tabs[10]:
+        # Termin-Übersicht für Käufer mit Kalender
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
 
-        with tabs[2]:
-            kaeufer_handwerker_empfehlungen()
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
 
-        with tabs[3]:
-            st.subheader("🔊 Dokumente vorlesen")
-            render_tts_einstellungen(user_id)
-            demo_text = "Dies ist ein Beispieltext zum Testen der Vorlesefunktion."
-            render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
+        with termin_ansicht[0]:
+            # Vollständiger Kalender mit allen Terminen
+            render_termin_kalender(user_id, UserRole.KAEUFER.value)
 
-        with tabs[4]:
-            render_papierkorb_tab(user_id, ist_notar=False)
+        with termin_ansicht[1]:
+            # Projekt-basierte Ansicht
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
+    with tabs[11]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[12]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Kaufvertrag vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
+        So können Sie den Inhalt besser verstehen und prüfen.
+        """
+        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -19587,127 +18161,131 @@ def kaeufer_dokumente_view():
 # ============================================================================
 
 def verkaeufer_dashboard():
-    """Dashboard für Verkäufer - Neues Design nach Referenz"""
-    render_immoflow_design_system()
-    render_user_info_bar()
+    """Dashboard für Verkäufer"""
+    st.title("🏡 Verkäufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
 
+    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.VERKAEUFER.value):
+        # User muss erst Dokumente akzeptieren
         return
 
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # ============ SIDEBAR NAVIGATION ============
-    menu_items = [
-        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
-        {"key": "projekte", "icon": "🏠", "label": "Meine Objekte"},
-        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
-        {"key": "termine", "icon": "📅", "label": "Termine"},
-        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
-        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
-    ]
+    # Suchleiste
+    search_term = render_dashboard_search("verkaeufer")
+    if search_term:
+        st.session_state['verkaeufer_search'] = search_term
+    else:
+        st.session_state['verkaeufer_search'] = ''
 
-    if 'verkaeufer_menu' not in st.session_state:
-        st.session_state.verkaeufer_menu = 'uebersicht'
+    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine", "🗑️ Papierkorb", "🔊 Vorlesen"])
 
-    with st.sidebar:
-        st.markdown('''
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">🏡</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">Verkäufer</span>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+    with tabs[0]:
+        # Mandanten-Portal Übersicht
+        render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
 
-        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
-        for item in menu_items:
-            is_active = st.session_state.verkaeufer_menu == item['key']
-            if st.button(f"{item['icon']} {item['label']}", key=f"vk_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
-                st.session_state.verkaeufer_menu = item['key']
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tabs[1]:
+        verkaeufer_timeline_view()
 
-        render_aktentasche_sidebar(user_id)
-        render_benachrichtigungs_badge(user_id)
-
-        st.markdown("---")
-        user_name = st.session_state.current_user.name or "Benutzer"
-        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">🏡 {user_name[:15]}</span></div>', unsafe_allow_html=True)
-        if st.button("🚪 Abmelden", key="vk_logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # ============ MAIN CONTENT ============
-    current_menu = st.session_state.verkaeufer_menu
-
-    search_col, notif_col = st.columns([6, 1])
-    with search_col:
-        search_term = st.text_input("🔍", placeholder="Suchen...", key="vk_search_input", label_visibility="collapsed")
-        st.session_state['verkaeufer_search'] = search_term or ''
-    with notif_col:
-        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
-
-    if current_menu == "uebersicht":
-        user_name = st.session_state.current_user.name or "Benutzer"
-        render_dashboard_welcome(user_name, "verkaeufer")
-        stats = get_verkaeufer_dashboard_stats(user_id)
-        render_dashboard_stats(stats)
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-        render_dashboard_projects(projekte)
-
-        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
-        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
-        cols = st.columns(3)
-        with cols[0]:
-            if st.button("📈 Preisfindung", key="vk_quick_preis", use_container_width=True):
-                st.session_state.verkaeufer_menu = 'einstellungen'
-                st.rerun()
-        with cols[1]:
-            if st.button("🔍 Makler finden", key="vk_quick_makler", use_container_width=True):
-                st.session_state.verkaeufer_menu = 'einstellungen'
-                st.rerun()
-        with cols[2]:
-            if st.button("📄 Dokument hochladen", key="vk_quick_doc", use_container_width=True):
-                st.session_state.verkaeufer_menu = 'dokumente'
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif current_menu == "projekte":
+    with tabs[2]:
         verkaeufer_projekte_view()
 
-    elif current_menu == "dokumente":
+    with tabs[3]:
+        verkaeufer_preisfindung_view()
+
+    with tabs[4]:
+        verkaeufer_makler_finden()
+
+    with tabs[5]:
+        # Personalausweis-Upload mit OCR
+        st.subheader("🪪 Ausweisdaten erfassen")
+        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
+
+    with tabs[6]:
         verkaeufer_dokumente_view()
 
-    elif current_menu == "termine":
-        st.subheader("📅 Meine Termine")
-        render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
+    with tabs[7]:
+        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
 
-    elif current_menu == "nachrichten":
+    with tabs[8]:
         verkaeufer_nachrichten()
 
-    elif current_menu == "einstellungen":
-        st.subheader("⚙️ Einstellungen")
-        tabs = st.tabs(["📈 Preisfindung", "🔍 Makler", "🪪 Ausweis", "💶 Kosten", "🔊 Vorlesen", "🗑️ Papierkorb"])
-        with tabs[0]:
-            verkaeufer_preisfindung_view()
-        with tabs[1]:
-            verkaeufer_makler_finden()
-        with tabs[2]:
-            render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
-        with tabs[3]:
-            verkaeufer_eigene_kosten_view()
-        with tabs[4]:
-            render_tts_einstellungen(user_id)
-        with tabs[5]:
-            render_papierkorb_tab(user_id, ist_notar=False)
+    with tabs[9]:
+        verkaeufer_eigene_kosten_view()
+
+    with tabs[10]:
+        # Vertragsvergleich - Side-by-Side Diff
+        st.subheader("🔄 Vertragsversionen vergleichen")
+        verkaeufer_projekte = [p for p in st.session_state.projekte.values()
+                              if user_id in p.verkaeufer_ids]
+        if verkaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="verkaeufer_vertragsvergleich_projekt"
+            )
+            if selected_projekt_id:
+                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with tabs[11]:
+        # Termin-Übersicht für Verkäufer mit Kalender
+        st.subheader("📅 Meine Termine")
+        user_id = st.session_state.current_user.user_id
+
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[12]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[13]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Vertragsdokumente vorlesen")
+        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
 
 
 def verkaeufer_preisfindung_view():
@@ -20991,112 +19569,90 @@ def verkaeufer_nachrichten():
 # ============================================================================
 
 def finanzierer_dashboard():
-    """Dashboard für Finanzierer - Neues Design nach Referenz"""
-    render_immoflow_design_system()
-    render_user_info_bar()
+    """Dashboard für Finanzierer"""
+    st.title("💼 Finanzierer-Dashboard")
 
+    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # ============ SIDEBAR NAVIGATION ============
-    menu_items = [
-        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
-        {"key": "anfragen", "icon": "📋", "label": "Anfragen"},
-        {"key": "angebote", "icon": "💰", "label": "Angebote"},
-        {"key": "termine", "icon": "📅", "label": "Termine"},
-        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
-    ]
+    # Suchleiste
+    search_term = render_dashboard_search("finanzierer")
+    if search_term:
+        st.session_state['finanzierer_search'] = search_term
+    else:
+        st.session_state['finanzierer_search'] = ''
 
-    if 'finanzierer_menu' not in st.session_state:
-        st.session_state.finanzierer_menu = 'uebersicht'
+    tabs = st.tabs([
+        "📊 Timeline",
+        "📋 Wirtschaftsdaten Käufer",
+        "💰 Finanzierungsangebote erstellen",
+        "📜 Meine Angebote",
+        "📅 Termine",
+        "🗑️ Papierkorb",
+        "🔊 Vorlesen"
+    ])
 
-    with st.sidebar:
-        st.markdown('''
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">💼</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">Finanzierer</span>
-            </div>
-        </div>
-        ''', unsafe_allow_html=True)
+    with tabs[0]:
+        finanzierer_timeline_view()
 
-        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
-        for item in menu_items:
-            is_active = st.session_state.finanzierer_menu == item['key']
-            if st.button(f"{item['icon']} {item['label']}", key=f"fin_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
-                st.session_state.finanzierer_menu = item['key']
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        render_aktentasche_sidebar(user_id)
-        render_benachrichtigungs_badge(user_id)
-
-        st.markdown("---")
-        user_name = st.session_state.current_user.name or "Benutzer"
-        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">💼 {user_name[:15]}</span></div>', unsafe_allow_html=True)
-        if st.button("🚪 Abmelden", key="fin_logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # ============ MAIN CONTENT ============
-    current_menu = st.session_state.finanzierer_menu
-
-    search_col, notif_col = st.columns([6, 1])
-    with search_col:
-        search_term = st.text_input("🔍", placeholder="Suchen...", key="fin_search_input", label_visibility="collapsed")
-        st.session_state['finanzierer_search'] = search_term or ''
-    with notif_col:
-        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
-
-    if current_menu == "uebersicht":
-        user_name = st.session_state.current_user.name or "Benutzer"
-        render_dashboard_welcome(user_name, "finanzierer")
-        stats = get_finanzierer_dashboard_stats(user_id)
-        render_dashboard_stats(stats)
-        projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'finanzierer_ids', [])]
-        render_dashboard_projects(projekte)
-
-        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
-        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
-        cols = st.columns(3)
-        with cols[0]:
-            if st.button("💰 Angebot erstellen", key="fin_quick_angebot", use_container_width=True):
-                st.session_state.finanzierer_menu = 'angebote'
-                st.rerun()
-        with cols[1]:
-            if st.button("📋 Wirtschaftsdaten", key="fin_quick_daten", use_container_width=True):
-                st.session_state.finanzierer_menu = 'anfragen'
-                st.rerun()
-        with cols[2]:
-            if st.button("📅 Termin planen", key="fin_quick_termin", use_container_width=True):
-                st.session_state.finanzierer_menu = 'termine'
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif current_menu == "anfragen":
+    with tabs[1]:
         finanzierer_wirtschaftsdaten_view()
 
-    elif current_menu == "angebote":
-        tabs = st.tabs(["💰 Neues Angebot", "📜 Meine Angebote"])
-        with tabs[0]:
-            finanzierer_angebote_erstellen()
-        with tabs[1]:
-            finanzierer_angebote_liste()
+    with tabs[2]:
+        finanzierer_angebote_erstellen()
 
-    elif current_menu == "termine":
+    with tabs[3]:
+        finanzierer_angebote_liste()
+
+    with tabs[4]:
+        # Termin-Übersicht für Finanzierer mit Kalender
         st.subheader("📅 Meine Termine")
-        render_termin_kalender(user_id, UserRole.FINANZIERER.value)
+        user_id = st.session_state.current_user.user_id
 
-    elif current_menu == "einstellungen":
-        st.subheader("⚙️ Einstellungen")
-        tabs = st.tabs(["🔊 Vorlesen", "🗑️ Papierkorb"])
-        with tabs[0]:
-            render_tts_einstellungen(user_id)
-        with tabs[1]:
-            render_papierkorb_tab(user_id, ist_notar=False)
+        # Kalender-Ansicht
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.FINANZIERER.value)
+
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+
+    with tabs[5]:
+        # Papierkorb
+        render_papierkorb_tab(user_id, ist_notar=False)
+
+    with tabs[6]:
+        # TTS-Einstellungen
+        st.subheader("🔊 Dokumente vorlesen")
+        render_tts_einstellungen(user_id)
+
+        st.markdown("---")
+        st.markdown("### 📄 Finanzierungsdokumente vorlesen")
+
+        # Demo-Text
+        demo_text = """
+        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
+        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
+        """
+        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -21579,925 +20135,360 @@ NOTAR_UNTERMENUS = {
 }
 
 
-def render_immoflow_design_system():
+def render_notar_menu_styles():
     """
-    Rendert das ImmoFlow Design-System basierend auf dem gewählten Modus:
-    - "navy-gold": Navy-Gold Farbschema für professionelle Immobilientransaktionen
-    - "classic": Minimales klassisches Streamlit-Design
-
-    Farben (Navy-Gold):
-    - Primary: Deep Navy (#0f172a, #1e293b)
-    - Accent: Warm Gold (#d4af37, #f59e0b)
-    - Background: White/Light Gray (#ffffff, #f8fafc)
-    - Text: Navy/Gray (#0f172a, #64748b)
+    Rendert Custom CSS für das Notar-Dashboard Menü.
+    Grautöne, Schatten und aufgeräumtes Design.
     """
-    # Initialisiere design_mode falls nicht vorhanden
-    if 'design_mode' not in st.session_state:
-        st.session_state.design_mode = "navy-gold"
-
-    # Classic Mode: Minimales Streamlit-Design
-    if st.session_state.design_mode == "classic":
-        st.markdown("""
-        <style>
-        /* Classic Mode: Minimales Design */
-        .stApp {
-            background: #ffffff;
-        }
-        [data-testid="stSidebar"] {
-            background: #f0f2f6;
-            border-right: 1px solid #e0e0e0;
-        }
-        [data-testid="stSidebar"] * {
-            color: #262730 !important;
-        }
-        .user-info-bar {
-            background: #f0f2f6 !important;
-            border: 1px solid #e0e0e0 !important;
-        }
-        .user-info-bar * {
-            color: #262730 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        return
-
-    # Navy-Gold Mode: Vollständiges Design-System
     st.markdown("""
     <style>
-    /* ==================== IMMOFLOW DESIGN SYSTEM ==================== */
-    /* Navy-Gold Professional Theme für Immobilientransaktionen */
-
-    :root {
-        --navy-900: #0f172a;
-        --navy-800: #1e293b;
-        --navy-700: #334155;
-        --navy-600: #475569;
-        --navy-500: #64748b;
-        --navy-400: #94a3b8;
-        --navy-300: #cbd5e1;
-        --navy-200: #e2e8f0;
-        --navy-100: #f1f5f9;
-        --navy-50: #f8fafc;
-
-        --gold-500: #d4af37;
-        --gold-400: #f59e0b;
-        --gold-300: #fbbf24;
-        --gold-200: #fcd34d;
-        --gold-100: #fef3c7;
-
-        --success: #10b981;
-        --warning: #f59e0b;
-        --error: #ef4444;
-        --info: #3b82f6;
-    }
-
-    /* ==================== GLOBAL ANIMATIONS ==================== */
-
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
-    }
-
-    @keyframes pulse-gold {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(212, 175, 55, 0); }
-    }
-
-    /* ==================== MAIN APP CONTAINER ==================== */
-
-    .stApp {
-        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 50%, var(--navy-100) 100%);
-    }
-
-    .main .block-container {
-        animation: fadeIn 0.5s ease-out;
-    }
-
     /* ==================== SIDEBAR STYLING ==================== */
 
+    /* Sidebar Hintergrund */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
-        border-right: 1px solid var(--navy-700);
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+        border-right: 1px solid #dee2e6;
     }
 
+    /* Sidebar Inhalt Container - ganz oben */
     [data-testid="stSidebar"] > div:first-child {
         padding-top: 0 !important;
         margin-top: 0 !important;
     }
 
+    /* Streamlit Sidebar Block Container - kein Top-Spacing */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         padding-top: 0 !important;
         gap: 0.5rem !important;
     }
 
+    /* Erstes Element in Sidebar ganz oben */
     [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0 !important;
         padding-top: 0 !important;
     }
 
-    /* Sidebar Text & Labels */
-    [data-testid="stSidebar"] label,
-    [data-testid="stSidebar"] .stMarkdown,
-    [data-testid="stSidebar"] span {
-        color: var(--navy-200) !important;
-    }
+    /* ==================== EXPANDER (MENÜGRUPPEN) STYLING ==================== */
 
-    [data-testid="stSidebar"] h1,
-    [data-testid="stSidebar"] h2,
-    [data-testid="stSidebar"] h3 {
-        color: #ffffff !important;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid var(--gold-500);
-        margin-bottom: 1rem;
-    }
-
-    /* ==================== EXPANDER (MENÜGRUPPEN) ==================== */
-
+    /* Expander Container - Karten-Look */
     [data-testid="stSidebar"] .streamlit-expanderHeader {
-        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
-        border: 1px solid var(--navy-600);
-        border-radius: 10px;
-        padding: 0.7rem 1rem;
-        margin-bottom: 0.4rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        margin-bottom: 0.3rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease;
         font-weight: 600;
-        color: #ffffff !important;
+        color: #495057;
     }
 
     [data-testid="stSidebar"] .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, var(--navy-600) 0%, var(--navy-700) 100%);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-        border-color: var(--gold-500);
-        transform: translateX(4px);
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-color: #ced4da;
     }
 
+    /* Expander Content */
     [data-testid="stSidebar"] .streamlit-expanderContent {
-        background: var(--navy-800);
-        border: 1px solid var(--navy-700);
+        background: #ffffff;
+        border: 1px solid #e9ecef;
         border-top: none;
-        border-radius: 0 0 10px 10px;
-        margin-top: -6px;
+        border-radius: 0 0 8px 8px;
+        margin-top: -4px;
         margin-bottom: 0.5rem;
-        padding: 0.75rem;
-        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+        padding: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
 
-    /* ==================== SIDEBAR BUTTONS ==================== */
+    /* ==================== SIDEBAR BUTTONS STYLING ==================== */
 
-    /* Sidebar Buttons - Sauberes, einheitliches Styling */
-    [data-testid="stSidebar"] button {
-        width: 100% !important;
-        border-radius: 8px !important;
-        padding: 0.75rem 1rem !important;
-        margin: 0.25rem 0 !important;
-        font-weight: 500 !important;
-        font-size: 0.9rem !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        transition: all 0.2s ease !important;
-    }
-
+    /* Alle Sidebar Buttons - Basis */
     [data-testid="stSidebar"] button[kind="secondary"] {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        color: #e2e8f0 !important;
-    }
-
-    [data-testid="stSidebar"] button[kind="secondary"] p,
-    [data-testid="stSidebar"] button[kind="secondary"] span,
-    [data-testid="stSidebar"] button[kind="secondary"] div {
-        color: #e2e8f0 !important;
-        text-align: left !important;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        color: #495057;
+        font-weight: 500;
+        padding: 0.5rem 0.75rem;
+        margin: 0.15rem 0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
     }
 
     [data-testid="stSidebar"] button[kind="secondary"]:hover {
-        background: rgba(212, 175, 55, 0.15) !important;
-        border-color: var(--gold-500) !important;
-        color: #ffffff !important;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        border-color: #adb5bd;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+        transform: translateY(-1px);
     }
 
-    [data-testid="stSidebar"] button[kind="secondary"]:hover p,
-    [data-testid="stSidebar"] button[kind="secondary"]:hover span,
-    [data-testid="stSidebar"] button[kind="secondary"]:hover div {
-        color: #ffffff !important;
-    }
-
-    /* Aktiver Button - Gold Hintergrund */
+    /* Aktiver Menüpunkt - Primary Button in Sidebar */
     [data-testid="stSidebar"] button[kind="primary"] {
-        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%) !important;
-        border: none !important;
-        color: var(--navy-900) !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3) !important;
-    }
-
-    [data-testid="stSidebar"] button[kind="primary"] p,
-    [data-testid="stSidebar"] button[kind="primary"] span,
-    [data-testid="stSidebar"] button[kind="primary"] div {
-        color: var(--navy-900) !important;
-        text-align: left !important;
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        border: 1px solid #343a40;
+        border-radius: 6px;
+        color: #ffffff;
+        font-weight: 600;
+        padding: 0.5rem 0.75rem;
+        margin: 0.15rem 0;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3);
     }
 
     [data-testid="stSidebar"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, var(--gold-400) 0%, var(--gold-300) 100%) !important;
-        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4) !important;
+        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4);
     }
 
-    /* ==================== USER INFO BAR (Top Right) ==================== */
+    /* ==================== HAUPTMENÜ LEISTE STYLING ==================== */
 
-    .user-info-bar {
-        position: fixed;
-        top: 0.5rem;
-        right: 1rem;
-        z-index: 999;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        background: white;
-        padding: 0.5rem 1rem;
-        border-radius: 12px;
-        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1);
-        border: 1px solid var(--navy-100);
-    }
-
-    .user-info-name {
-        font-size: 0.85rem;
-        color: var(--navy-700);
-        font-weight: 500;
-    }
-
-    .user-info-role {
-        font-size: 0.7rem;
-        color: var(--navy-400);
-    }
-
-    .user-info-divider {
-        width: 1px;
-        height: 24px;
-        background: var(--navy-200);
-    }
-
-    .user-info-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        font-size: 1rem;
-        color: var(--navy-500);
-    }
-
-    .user-info-btn:hover {
-        background: var(--navy-100);
-        color: var(--navy-700);
-    }
-
-    .user-info-btn.logout:hover {
-        background: #fee2e2;
-        color: #dc2626;
-    }
-
-    .user-info-btn.settings:hover {
-        background: var(--gold-100);
-        color: var(--gold-500);
-    }
-
-    /* ==================== ACCOUNT SETTINGS MODAL ==================== */
-
-    .account-settings-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(15, 23, 42, 0.5);
-        backdrop-filter: blur(4px);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .account-settings-card {
-        background: white;
-        border-radius: 20px;
-        max-width: 480px;
-        width: 95%;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .account-settings-header {
-        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
-        padding: 1.25rem 1.5rem;
-        border-radius: 20px 20px 0 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .account-settings-title {
-        color: white;
-        font-size: 1.25rem;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .account-settings-close {
-        width: 36px;
-        height: 36px;
-        background: rgba(255, 255, 255, 0.15);
-        border: none;
-        border-radius: 10px;
-        color: white;
-        font-size: 1.25rem;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.2s;
-    }
-
-    .account-settings-close:hover {
-        background: rgba(255, 255, 255, 0.25);
-    }
-
-    .account-settings-body {
-        padding: 1.5rem;
-    }
-
-    .account-settings-section {
-        margin-bottom: 1.5rem;
-    }
-
-    .account-settings-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--navy-600);
-        margin-bottom: 0.5rem;
-    }
-
-    /* ==================== HAUPTMENÜ LEISTE ==================== */
-
+    /* Container für Hauptmenü */
     .hauptmenu-container {
-        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
-        border-radius: 16px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
-        border: 1px solid var(--navy-200);
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
     }
 
+    /* Hauptmenü Buttons - Inaktiv */
     div[data-testid="column"] button[kind="secondary"] {
-        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
-        border: 2px solid var(--navy-200);
-        border-radius: 12px;
-        color: var(--navy-600) !important;
-        font-weight: 600;
-        padding: 0.85rem 0.6rem;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 0.75rem 0.5rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        transition: all 0.25s ease;
     }
 
     div[data-testid="column"] button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%);
-        border-color: var(--navy-400);
-        color: var(--navy-800) !important;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
-        transform: translateY(-3px);
-    }
-
-    div[data-testid="column"] button[kind="primary"] {
-        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
-        border: 2px solid var(--gold-500);
-        border-radius: 12px;
-        color: #ffffff !important;
-        font-weight: 700;
-        padding: 0.85rem 0.6rem;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25), 0 0 0 2px rgba(212, 175, 55, 0.3);
-    }
-
-    div[data-testid="column"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
-        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.35), 0 0 0 3px rgba(212, 175, 55, 0.4);
-        transform: translateY(-3px);
-    }
-
-    /* ==================== BREADCRUMB ==================== */
-
-    .breadcrumb-nav {
-        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 100%);
-        border-radius: 10px;
-        padding: 0.6rem 1.2rem;
-        margin: 0.5rem 0 1.5rem 0;
-        border-left: 4px solid var(--gold-500);
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-        color: var(--navy-600);
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-
-    /* ==================== CONTENT CARDS ==================== */
-
-    .content-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 1.75rem;
-        margin-top: 1.5rem;
-        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
-        border: 1px solid var(--navy-100);
-        animation: fadeInUp 0.4s ease-out;
-    }
-
-    /* ==================== METRIC CARDS (Stats) ==================== */
-
-    [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%);
-        border-radius: 16px;
-        padding: 1.5rem;
-        border: 1px solid var(--navy-100);
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-        transition: all 0.3s ease;
-    }
-
-    [data-testid="stMetric"]:hover {
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%);
+        border-color: #adb5bd;
+        color: #495057;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         transform: translateY(-2px);
     }
 
-    [data-testid="stMetricLabel"] {
-        color: var(--navy-500) !important;
+    /* Hauptmenü Buttons - Aktiv */
+    div[data-testid="column"] button[kind="primary"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        border: 1px solid #212529;
+        border-radius: 10px;
+        color: #ffffff;
         font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.5px;
+        padding: 0.75rem 0.5rem;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.35);
     }
 
-    [data-testid="stMetricValue"] {
-        color: var(--navy-900) !important;
-        font-weight: 700;
-        font-size: 1.75rem;
+    div[data-testid="column"] button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #5a6268 0%, #3d4349 100%);
+        box-shadow: 0 6px 16px rgba(52, 58, 64, 0.45);
+        transform: translateY(-2px);
     }
 
-    /* ==================== DIVIDER ==================== */
+    /* ==================== BREADCRUMB STYLING ==================== */
+
+    .breadcrumb-nav {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        margin: 0.5rem 0 1rem 0;
+        border-left: 4px solid #495057;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    /* ==================== CONTENT CONTAINER ==================== */
+
+    .content-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        border: 1px solid #e9ecef;
+    }
+
+    /* ==================== DIVIDER STYLING ==================== */
 
     hr {
         border: none;
         height: 1px;
-        background: linear-gradient(90deg, transparent 0%, var(--navy-200) 50%, transparent 100%);
-        margin: 1.5rem 0;
+        background: linear-gradient(90deg, transparent 0%, #dee2e6 50%, transparent 100%);
+        margin: 1rem 0;
     }
 
-    /* ==================== SCROLLBAR ==================== */
+    /* ==================== NAVIGATION TITLE ==================== */
+
+    [data-testid="stSidebar"] h3 {
+        color: #343a40;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #495057;
+        margin-bottom: 1rem;
+    }
+
+    /* ==================== SCROLLBAR STYLING ==================== */
 
     [data-testid="stSidebar"]::-webkit-scrollbar {
         width: 6px;
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-track {
-        background: var(--navy-800);
+        background: #f1f3f4;
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb {
-        background: var(--navy-600);
+        background: #adb5bd;
         border-radius: 3px;
     }
 
     [data-testid="stSidebar"]::-webkit-scrollbar-thumb:hover {
-        background: var(--gold-500);
+        background: #6c757d;
     }
 
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
+    /* ==================== GLOBALE BUTTON OVERRIDES (KEINE BLAUTÖNE) ==================== */
 
-    ::-webkit-scrollbar-track {
-        background: var(--navy-100);
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: var(--navy-400);
-        border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--navy-500);
-    }
-
-    /* ==================== GLOBAL BUTTONS ==================== */
-
+    /* Alle Primary Buttons global in Grautönen */
     .stButton > button[kind="primary"],
     button[kind="primary"] {
-        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%) !important;
-        border: 2px solid var(--gold-500) !important;
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
+        border: 1px solid #343a40 !important;
         color: #ffffff !important;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.25) !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.3px;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
     }
 
     .stButton > button[kind="primary"]:hover,
     button[kind="primary"]:hover {
-        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%) !important;
-        border-color: var(--gold-400) !important;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35), 0 0 0 2px rgba(212, 175, 55, 0.3) !important;
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
+        border-color: #495057 !important;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
     }
 
     .stButton > button[kind="primary"]:active,
     button[kind="primary"]:active {
-        background: linear-gradient(135deg, var(--navy-900) 0%, #000000 100%) !important;
-        transform: translateY(0);
+        background: linear-gradient(135deg, #343a40 0%, #212529 100%) !important;
     }
 
+    /* Secondary Buttons global */
     .stButton > button[kind="secondary"],
     button[kind="secondary"] {
-        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%) !important;
-        border: 2px solid var(--navy-200) !important;
-        color: var(--navy-700) !important;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08) !important;
-        font-weight: 600 !important;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        border: 1px solid #dee2e6 !important;
+        color: #495057 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
     }
 
     .stButton > button[kind="secondary"]:hover,
     button[kind="secondary"]:hover {
-        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%) !important;
-        border-color: var(--navy-400) !important;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12) !important;
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, #ffffff 0%, #f1f3f4 100%) !important;
+        border-color: #adb5bd !important;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12) !important;
     }
 
+    /* Streamlit Standard-Button Override */
     .stButton > button {
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        padding: 0.6rem 1.2rem !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
     }
 
-    /* Form Submit Buttons - Gold Accent */
+    /* Form Submit Buttons */
     .stForm button[type="submit"] {
-        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%) !important;
-        border: none !important;
-        color: var(--navy-900) !important;
-        border-radius: 10px !important;
-        box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4) !important;
-        font-weight: 700 !important;
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%) !important;
+        border: 1px solid #343a40 !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        box-shadow: 0 3px 8px rgba(52, 58, 64, 0.3) !important;
     }
 
     .stForm button[type="submit"]:hover {
-        background: linear-gradient(135deg, var(--gold-400) 0%, var(--gold-300) 100%) !important;
-        box-shadow: 0 8px 24px rgba(212, 175, 55, 0.5) !important;
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
+        box-shadow: 0 4px 12px rgba(52, 58, 64, 0.4) !important;
     }
 
     /* Download Buttons */
     .stDownloadButton > button {
-        background: linear-gradient(135deg, var(--navy-600) 0%, var(--navy-700) 100%) !important;
-        border: 1px solid var(--navy-500) !important;
+        background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+        border: 1px solid #5a6268 !important;
         color: #ffffff !important;
-        border-radius: 10px !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3) !important;
     }
 
     .stDownloadButton > button:hover {
-        background: linear-gradient(135deg, var(--navy-500) 0%, var(--navy-600) 100%) !important;
-        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3) !important;
-        transform: translateY(-2px);
+        background: linear-gradient(135deg, #7c858d 0%, #6c757d 100%) !important;
+        box-shadow: 0 3px 8px rgba(108, 117, 125, 0.4) !important;
     }
 
-    /* ==================== TABS STYLING ==================== */
+    /* ==================== TABS STYLING (Grautöne) ==================== */
 
     .stTabs [data-baseweb="tab-list"] {
-        background: linear-gradient(135deg, var(--navy-50) 0%, #ffffff 100%);
-        border-radius: 12px;
-        padding: 0.4rem;
-        gap: 0.3rem;
-        border: 1px solid var(--navy-100);
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 8px;
+        padding: 0.25rem;
+        gap: 0.25rem;
     }
 
     .stTabs [data-baseweb="tab"] {
         background: transparent;
-        border-radius: 8px;
-        color: var(--navy-500);
-        font-weight: 600;
-        padding: 0.6rem 1.2rem;
-        transition: all 0.25s ease;
+        border-radius: 6px;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
     }
 
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(15, 23, 42, 0.05);
-        color: var(--navy-700);
+        background: rgba(255, 255, 255, 0.7);
+        color: #495057;
     }
 
     .stTabs [aria-selected="true"] {
-        background: var(--navy-800) !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+        background: #ffffff !important;
+        color: #343a40 !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
+    /* Tab Unterline entfernen und durch eigenes Styling ersetzen */
     .stTabs [data-baseweb="tab-highlight"] {
-        background-color: var(--gold-500) !important;
+        background-color: #495057 !important;
     }
 
     .stTabs [data-baseweb="tab-border"] {
         display: none;
     }
 
-    /* ==================== INPUT FIELDS ==================== */
+    /* ==================== INPUT FIELDS STYLING ==================== */
 
     .stTextInput > div > div > input,
     .stSelectbox > div > div > div,
-    .stMultiSelect > div > div > div,
-    .stTextArea textarea {
-        border: 2px solid var(--navy-200) !important;
-        border-radius: 10px !important;
-        background: #ffffff !important;
-        transition: all 0.25s ease !important;
+    .stMultiSelect > div > div > div {
+        border-color: #ced4da !important;
+        border-radius: 6px !important;
     }
 
     .stTextInput > div > div > input:focus,
-    .stSelectbox > div > div > div:focus-within,
-    .stTextArea textarea:focus {
-        border-color: var(--gold-500) !important;
-        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #6c757d !important;
+        box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.2) !important;
     }
 
-    /* ==================== SUCCESS/WARNING/ERROR/INFO ==================== */
+    /* ==================== MOBILE RESPONSIVE DESIGN ==================== */
 
-    .stSuccess {
-        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
-        border-left: 4px solid var(--success) !important;
-        border-radius: 10px !important;
-    }
-
-    .stWarning {
-        background: linear-gradient(135deg, var(--gold-100) 0%, #fef3c7 100%) !important;
-        border-left: 4px solid var(--gold-500) !important;
-        border-radius: 10px !important;
-    }
-
-    .stError {
-        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%) !important;
-        border-left: 4px solid var(--error) !important;
-        border-radius: 10px !important;
-    }
-
-    .stInfo {
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
-        border-left: 4px solid var(--info) !important;
-        border-radius: 10px !important;
-    }
-
-    /* ==================== EXPANDER (Main Content) ==================== */
-
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #ffffff 0%, var(--navy-50) 100%) !important;
-        border: 1px solid var(--navy-200) !important;
-        border-radius: 12px !important;
-        font-weight: 600 !important;
-        color: var(--navy-800) !important;
-        transition: all 0.25s ease !important;
-    }
-
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, var(--navy-50) 0%, var(--navy-100) 100%) !important;
-        border-color: var(--navy-300) !important;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
-    }
-
-    /* ==================== PROGRESS BAR ==================== */
-
-    .stProgress > div > div > div {
-        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%) !important;
-        border-radius: 10px !important;
-    }
-
-    .stProgress > div > div {
-        background: var(--navy-200) !important;
-        border-radius: 10px !important;
-    }
-
-    /* ==================== DATAFRAME ==================== */
-
-    .stDataFrame {
-        border-radius: 12px !important;
-        overflow: hidden;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-    }
-
-    .stDataFrame thead th {
-        background: var(--navy-800) !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-    }
-
-    .stDataFrame tbody tr:hover {
-        background: var(--navy-50) !important;
-    }
-
-    /* ==================== HEADER STYLING ==================== */
-
-    h1 {
-        color: var(--navy-900) !important;
-        font-weight: 800 !important;
-        letter-spacing: -0.5px;
-    }
-
-    h2 {
-        color: var(--navy-800) !important;
-        font-weight: 700 !important;
-    }
-
-    h3 {
-        color: var(--navy-700) !important;
-        font-weight: 600 !important;
-    }
-
-    /* ==================== IMMOFLOW CUSTOM COMPONENTS ==================== */
-
-    /* Hero Badge */
-    .immoflow-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: linear-gradient(135deg, var(--gold-100) 0%, #ffffff 100%);
-        border: 1px solid var(--gold-400);
-        border-radius: 50px;
-        padding: 0.4rem 1rem;
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--gold-500);
-        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2);
-    }
-
-    /* Project Card */
-    .project-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 0;
-        overflow: hidden;
-        border: 1px solid var(--navy-100);
-        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .project-card:hover {
-        box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
-        transform: translateY(-4px);
-    }
-
-    .project-card-header {
-        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
-        padding: 1rem 1.25rem;
-        color: #ffffff;
-    }
-
-    .project-card-body {
-        padding: 1.25rem;
-    }
-
-    /* Status Badge */
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.35rem;
-        padding: 0.35rem 0.85rem;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .status-onboarding {
-        background: var(--gold-100);
-        color: var(--gold-500);
-    }
-
-    .status-active {
-        background: #dcfce7;
-        color: #16a34a;
-    }
-
-    .status-pending {
-        background: #fef3c7;
-        color: #d97706;
-    }
-
-    .status-completed {
-        background: #dbeafe;
-        color: #2563eb;
-    }
-
-    /* Role Cards */
-    .role-card {
-        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
-        border-radius: 16px;
-        padding: 1.5rem;
-        color: #ffffff;
-        text-align: center;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        border: 2px solid transparent;
-        cursor: pointer;
-    }
-
-    .role-card:hover {
-        transform: translateY(-6px) scale(1.02);
-        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
-        border-color: var(--gold-500);
-    }
-
-    .role-card-icon {
-        font-size: 2.5rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .role-card-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
-    }
-
-    .role-card-desc {
-        font-size: 0.85rem;
-        color: var(--navy-300);
-    }
-
-    /* Milestone Bar */
-    .milestone-bar {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: var(--navy-100);
-        border-radius: 12px;
-        padding: 0.5rem;
-        margin: 1rem 0;
-    }
-
-    .milestone-item {
-        flex: 1;
-        text-align: center;
-        padding: 0.75rem;
-        border-radius: 8px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        transition: all 0.25s ease;
-    }
-
-    .milestone-done {
-        background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%);
-        color: var(--navy-900);
-    }
-
-    .milestone-current {
-        background: var(--navy-800);
-        color: #ffffff;
-        animation: pulse-gold 2s infinite;
-    }
-
-    .milestone-pending {
-        background: #ffffff;
-        color: var(--navy-400);
-    }
-
-    /* ==================== MOBILE RESPONSIVE ==================== */
-
+    /* Tablet und kleiner (max-width: 992px) */
     @media screen and (max-width: 992px) {
+        /* Sidebar kompakter */
         [data-testid="stSidebar"] {
             width: 280px !important;
         }
 
+        /* Hauptmenü Buttons kompakter */
         div[data-testid="column"] button {
             padding: 0.5rem 0.25rem !important;
             font-size: 0.75rem !important;
@@ -22917,1020 +20908,8 @@ def render_immoflow_design_system():
         color: white;
         border-color: #495057;
     }
-
-    /* ==================== DASHBOARD SIDEBAR (Referenz-Design) ==================== */
-
-    /* Sidebar Logo Section */
-    .sidebar-logo {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 1.25rem 1rem;
-        border-bottom: 1px solid var(--navy-700);
-        margin-bottom: 0.5rem;
-    }
-
-    .sidebar-logo-icon {
-        width: 40px;
-        height: 40px;
-        background: var(--navy-700);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-
-    .sidebar-logo-text {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .sidebar-logo-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: white;
-    }
-
-    .sidebar-logo-role {
-        font-size: 0.8rem;
-        color: var(--navy-400);
-    }
-
-    /* Dashboard Menu Items */
-    .dash-menu {
-        padding: 0.5rem;
-    }
-
-    .dash-menu-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem 1rem;
-        border-radius: 10px;
-        color: var(--navy-300);
-        font-weight: 500;
-        font-size: 0.95rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        margin-bottom: 0.25rem;
-        text-decoration: none;
-        background: transparent;
-        border: none;
-        width: 100%;
-        text-align: left;
-    }
-
-    .dash-menu-item:hover {
-        background: var(--navy-700);
-        color: white;
-    }
-
-    .dash-menu-item.active {
-        background: var(--gold-500);
-        color: var(--navy-900);
-        font-weight: 600;
-    }
-
-    .dash-menu-item.active:hover {
-        background: var(--gold-400);
-    }
-
-    .dash-menu-icon {
-        font-size: 1.1rem;
-        width: 24px;
-        text-align: center;
-    }
-
-    /* User Profile Section at Bottom */
-    .sidebar-profile {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 1rem;
-        border-top: 1px solid var(--navy-700);
-        background: var(--navy-900);
-    }
-
-    .profile-card {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .profile-avatar {
-        width: 40px;
-        height: 40px;
-        background: var(--gold-500);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-    }
-
-    .profile-info {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .profile-name {
-        font-weight: 600;
-        color: white;
-        font-size: 0.9rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .profile-role {
-        font-size: 0.75rem;
-        color: var(--navy-400);
-    }
-
-    .profile-logout {
-        color: var(--navy-400);
-        cursor: pointer;
-        padding: 0.5rem;
-        border-radius: 8px;
-        transition: all 0.2s;
-    }
-
-    .profile-logout:hover {
-        background: var(--navy-700);
-        color: white;
-    }
-
-    /* ==================== DASHBOARD MAIN CONTENT ==================== */
-
-    /* Search Bar */
-    .dash-search-bar {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        padding: 0.75rem 1rem;
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-    }
-
-    .dash-search-input {
-        flex: 1;
-        border: none;
-        outline: none;
-        font-size: 0.95rem;
-        color: var(--navy-600);
-    }
-
-    .dash-search-input::placeholder {
-        color: var(--gray-400);
-    }
-
-    .dash-notification {
-        position: relative;
-        cursor: pointer;
-        padding: 0.5rem;
-    }
-
-    .dash-notification-badge {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 8px;
-        height: 8px;
-        background: var(--gold-500);
-        border-radius: 50%;
-    }
-
-    /* Welcome Section */
-    .dash-welcome {
-        margin-bottom: 1.5rem;
-    }
-
-    .dash-welcome-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--navy-900);
-        margin-bottom: 0.25rem;
-    }
-
-    .dash-welcome-subtitle {
-        color: var(--gray-600);
-        font-size: 1rem;
-    }
-
-    /* Stat Cards Grid */
-    .dash-stats-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-
-    .dash-stat-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 1.25rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        transition: all 0.2s ease;
-    }
-
-    .dash-stat-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        transform: translateY(-2px);
-    }
-
-    .dash-stat-label {
-        font-size: 0.875rem;
-        color: var(--gray-600);
-        margin-bottom: 0.5rem;
-    }
-
-    .dash-stat-value {
-        font-size: 1.75rem;
-        font-weight: 700;
-        color: var(--navy-900);
-    }
-
-    .dash-stat-change {
-        font-size: 0.8rem;
-        color: var(--green-500);
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        margin-top: 0.25rem;
-    }
-
-    .dash-stat-icon {
-        width: 40px;
-        height: 40px;
-        background: var(--gray-100);
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--gray-500);
-        font-size: 1.1rem;
-    }
-
-    /* Section Header */
-    .dash-section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-
-    .dash-section-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: var(--navy-900);
-    }
-
-    .dash-section-link {
-        color: var(--navy-600);
-        font-size: 0.9rem;
-        font-weight: 500;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-        transition: color 0.2s;
-    }
-
-    .dash-section-link:hover {
-        color: var(--navy-900);
-    }
-
-    /* Project Cards */
-    .dash-projects-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-
-    .dash-project-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 1.25rem;
-        border-left: 4px solid transparent;
-        transition: all 0.2s ease;
-    }
-
-    .dash-project-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .dash-project-card.status-vor-beurkundung {
-        border-left-color: var(--green-500);
-    }
-
-    .dash-project-card.status-onboarding {
-        border-left-color: var(--gold-500);
-    }
-
-    .dash-project-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 0.5rem;
-    }
-
-    .dash-project-title {
-        font-weight: 600;
-        color: var(--navy-900);
-        font-size: 1rem;
-    }
-
-    .dash-project-badge {
-        font-size: 0.7rem;
-        font-weight: 600;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        text-transform: uppercase;
-    }
-
-    .dash-project-badge.vor-beurkundung {
-        background: #dcfce7;
-        color: #16a34a;
-    }
-
-    .dash-project-badge.onboarding {
-        background: #fef3c7;
-        color: #d97706;
-    }
-
-    .dash-project-address {
-        color: var(--gray-500);
-        font-size: 0.85rem;
-        margin-bottom: 0.75rem;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
-    }
-
-    .dash-project-details {
-        display: flex;
-        gap: 1rem;
-        font-size: 0.85rem;
-        color: var(--navy-700);
-        margin-bottom: 0.75rem;
-    }
-
-    .dash-project-price {
-        font-weight: 600;
-    }
-
-    .dash-project-progress {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.8rem;
-        color: var(--gray-500);
-        margin-bottom: 0.25rem;
-    }
-
-    .dash-project-progress-bar {
-        height: 6px;
-        background: var(--gray-200);
-        border-radius: 3px;
-        overflow: hidden;
-    }
-
-    .dash-project-progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-400) 100%);
-        border-radius: 3px;
-        transition: width 0.3s ease;
-    }
-
-    /* Quick Actions */
-    .dash-quick-actions {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 1.25rem;
-    }
-
-    .dash-quick-title {
-        font-weight: 600;
-        color: var(--navy-900);
-        margin-bottom: 1rem;
-    }
-
-    .dash-quick-buttons {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-    }
-
-    .dash-quick-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.625rem 1rem;
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 10px;
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: var(--navy-700);
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .dash-quick-btn:hover {
-        background: var(--gray-50);
-        border-color: var(--navy-300);
-    }
-
-    /* Responsive */
-    @media (max-width: 1024px) {
-        .dash-stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .dash-projects-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .dash-stats-grid {
-            grid-template-columns: 1fr;
-        }
-        .dash-quick-buttons {
-            flex-direction: column;
-        }
-        .dash-quick-btn {
-            width: 100%;
-            justify-content: center;
-        }
-    }
     </style>
     """, unsafe_allow_html=True)
-
-
-# ==================== USER INFO BAR & ACCOUNT SETTINGS ====================
-
-def render_user_info_bar():
-    """
-    Rendert die User-Info-Leiste oben rechts mit Name, Einstellungen und Logout.
-    Muss am Anfang jedes Dashboards aufgerufen werden.
-    """
-    if not st.session_state.current_user:
-        return
-
-    user = st.session_state.current_user
-    user_name = getattr(user, 'name', 'Benutzer') or 'Benutzer'
-    user_rolle = getattr(user, 'rolle', '')
-
-    # Role Labels
-    role_labels = {
-        "Käufer": "Käufer",
-        "Verkäufer": "Verkäufer",
-        "Makler": "Makler",
-        "Notar": "Notar",
-        "Finanzierer": "Finanzierer"
-    }
-    role_label = role_labels.get(user_rolle, user_rolle)
-
-    # Design mode icon
-    design_icon = "🌙" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "☀️"
-    design_title = "Klassisches Design" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "Navy-Gold Design"
-    design_action = "classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "navy-gold"
-
-    # User Info Bar HTML
-    st.markdown(f"""
-    <div class="user-info-bar">
-        <div>
-            <div class="user-info-name">{user_name[:20]}</div>
-            <div class="user-info-role">{role_label}</div>
-        </div>
-        <div class="user-info-divider"></div>
-        <a href="?design={design_action}" class="user-info-btn design-toggle" title="{design_title}">{design_icon}</a>
-        <a href="?settings=account" class="user-info-btn settings" title="Kontoeinstellungen">⚙️</a>
-        <a href="?action=logout" class="user-info-btn logout" title="Abmelden">🚪</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Check for design toggle action
-    if st.query_params.get("design"):
-        new_design = st.query_params.get("design")
-        if new_design in ["navy-gold", "classic"]:
-            st.session_state.design_mode = new_design
-        st.query_params.clear()
-        st.rerun()
-
-    # Check for logout action
-    if st.query_params.get("action") == "logout":
-        st.query_params.clear()
-        logout()
-
-    # Check for settings modal
-    if st.query_params.get("settings") == "account":
-        render_account_settings_modal()
-
-
-def render_account_settings_modal():
-    """
-    Rendert das Konto-Einstellungen Modal.
-    """
-    if not st.session_state.current_user:
-        return
-
-    user = st.session_state.current_user
-
-    # Modal HTML Header
-    st.markdown("""
-    <style>
-    /* Account Settings Form Positioning */
-    .account-form-container {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(6px);
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 1rem;
-    }
-    </style>
-    <div class="account-form-container">
-        <div class="account-settings-card">
-            <div class="account-settings-header">
-                <div class="account-settings-title">⚙️ Kontoeinstellungen</div>
-                <a href="?" class="account-settings-close">&times;</a>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Form content with Streamlit
-    col1, col2, col3 = st.columns([1, 3, 1])
-
-    with col2:
-        st.markdown("### Kontodaten bearbeiten")
-
-        with st.form("account_settings_form"):
-            current_name = getattr(user, 'name', '') or ''
-            current_email = getattr(user, 'email', '') or ''
-
-            new_name = st.text_input("Name", value=current_name, placeholder="Ihr Name")
-            new_email = st.text_input("E-Mail", value=current_email, placeholder="ihre@email.de")
-
-            st.markdown("---")
-            st.markdown("**Passwort ändern** (leer lassen, wenn Sie es nicht ändern möchten)")
-            new_password = st.text_input("Neues Passwort", type="password", placeholder="Mind. 8 Zeichen")
-            new_password_confirm = st.text_input("Passwort bestätigen", type="password")
-
-            submitted = st.form_submit_button("Änderungen speichern", use_container_width=True)
-
-            if submitted:
-                changes_made = False
-
-                # Update name
-                if new_name and new_name != current_name:
-                    user.name = new_name
-                    changes_made = True
-
-                # Update email
-                if new_email and new_email != current_email:
-                    # Check if email is already taken
-                    email_taken = any(
-                        u.email == new_email and u.user_id != user.user_id
-                        for u in st.session_state.users.values()
-                    )
-                    if email_taken:
-                        st.error("Diese E-Mail-Adresse ist bereits registriert.")
-                    else:
-                        user.email = new_email
-                        changes_made = True
-
-                # Update password
-                if new_password:
-                    if len(new_password) < 8:
-                        st.error("Das Passwort muss mindestens 8 Zeichen haben.")
-                    elif new_password != new_password_confirm:
-                        st.error("Die Passwörter stimmen nicht überein.")
-                    else:
-                        user.password_hash = hash_password(new_password)
-                        changes_made = True
-
-                if changes_made:
-                    st.success("Ihre Änderungen wurden gespeichert!")
-                    st.query_params.clear()
-                    st.rerun()
-
-        st.markdown("---")
-        if st.button("← Zurück zum Dashboard", use_container_width=True):
-            st.query_params.clear()
-            st.rerun()
-
-    st.stop()
-
-
-# ==================== DASHBOARD UI COMPONENTS (Referenz-Design) ====================
-
-def render_dashboard_sidebar_html(role: str, user_name: str, menu_items: list, active_menu: str):
-    """
-    Rendert die Sidebar im Navy-Design als HTML.
-    """
-    # Menu Items HTML generieren
-    menu_html = ""
-    for item in menu_items:
-        active_class = "active" if item['key'] == active_menu else ""
-        menu_html += f'''
-            <div class="dash-menu-item {active_class}" data-menu="{item['key']}">
-                <span class="dash-menu-icon">{item['icon']}</span>
-                <span>{item['label']}</span>
-            </div>
-        '''
-
-    # Role Label basierend auf Rolle
-    role_labels = {
-        "kaeufer": "Käufer",
-        "verkaeufer": "Verkäufer",
-        "makler": "Makler",
-        "notar": "Notar",
-        "finanzierer": "Finanzierer"
-    }
-    role_label = role_labels.get(role, role.capitalize())
-
-    sidebar_html = f'''
-    <div class="immo-sidebar-wrapper">
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">🏠</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">{role_label}</span>
-            </div>
-        </div>
-        <div class="dash-menu">
-            {menu_html}
-        </div>
-        <div class="sidebar-profile">
-            <div class="profile-card">
-                <div class="profile-avatar">🏠</div>
-                <div class="profile-info">
-                    <div class="profile-name">{user_name[:12]}...</div>
-                    <div class="profile-role">{role_label}</div>
-                </div>
-                <div class="profile-logout">➡</div>
-            </div>
-        </div>
-    </div>
-    '''
-    return sidebar_html
-
-
-def render_dashboard_welcome(user_name: str, role: str):
-    """Rendert den Willkommens-Bereich."""
-    role_labels = {
-        "kaeufer": "Käufer",
-        "verkaeufer": "Verkäufer",
-        "makler": "Makler",
-        "notar": "Notar",
-        "finanzierer": "Finanzierer"
-    }
-    role_label = role_labels.get(role, role.capitalize())
-
-    st.markdown(f'''
-    <div class="dash-welcome">
-        <h1 class="dash-welcome-title">Willkommen zurück! 👋</h1>
-        <p class="dash-welcome-subtitle">Hier ist Ihre aktuelle Übersicht als {role_label}.</p>
-    </div>
-    ''', unsafe_allow_html=True)
-
-
-def render_dashboard_stats(stats: list):
-    """
-    Rendert die Stat-Cards.
-    stats: Liste von Dictionaries mit keys: label, value, icon, change (optional)
-    """
-    # Baue HTML als einzelnen String ohne Zeilenumbrüche in Tags
-    cards_html = ""
-    for stat in stats:
-        change_part = ""
-        if stat.get('change'):
-            change_part = '<div class="dash-stat-change">&#8599; ' + str(stat["change"]) + '</div>'
-
-        card = (
-            '<div class="dash-stat-card">'
-            '<div class="dash-stat-content">'
-            '<div class="dash-stat-label">' + str(stat['label']) + '</div>'
-            '<div class="dash-stat-value">' + str(stat['value']) + '</div>'
-            + change_part +
-            '</div>'
-            '<div class="dash-stat-icon">' + str(stat['icon']) + '</div>'
-            '</div>'
-        )
-        cards_html += card
-
-    full_html = '<div class="dash-stats-grid">' + cards_html + '</div>'
-    st.markdown(full_html, unsafe_allow_html=True)
-
-
-def render_dashboard_projects(projekte: list, show_all_link: bool = True):
-    """
-    Rendert die Projekt-Karten.
-    """
-    # Section Header
-    link_html = '<span class="dash-section-link">Alle anzeigen →</span>' if show_all_link else ''
-    st.markdown(f'''
-    <div class="dash-section-header">
-        <h2 class="dash-section-title">Aktuelle Projekte</h2>
-        {link_html}
-    </div>
-    ''', unsafe_allow_html=True)
-
-    if not projekte:
-        st.info("Noch keine Projekte vorhanden.")
-        return
-
-    # Projekt-Cards
-    projects_html = '<div class="dash-projects-grid">'
-
-    for projekt in projekte[:4]:  # Max 4 Projekte anzeigen
-        # Status Badge bestimmen
-        progress = getattr(projekt, 'workflow_progress', 0)
-        if progress < 20:
-            status_class = "onboarding"
-            badge_text = "Onboarding"
-            card_class = "status-onboarding"
-        elif progress < 50:
-            status_class = "vor-beurkundung"
-            badge_text = "Vor Beurkundung"
-            card_class = "status-vor-beurkundung"
-        else:
-            status_class = "vor-beurkundung"
-            badge_text = "In Bearbeitung"
-            card_class = "status-vor-beurkundung"
-
-        # Adresse formatieren
-        adresse = getattr(projekt, 'adresse', '') or 'Adresse nicht angegeben'
-        if len(adresse) > 30:
-            adresse = adresse[:30] + "..."
-
-        # Kaufpreis formatieren
-        kaufpreis = getattr(projekt, 'kaufpreis', 0)
-        if kaufpreis > 0:
-            preis_str = f"{kaufpreis:,.0f} €".replace(",", ".")
-        else:
-            preis_str = "Preis n.a."
-
-        # Wohnfläche und Zimmer
-        flaeche = getattr(projekt, 'wohnflaeche', 0) or 0
-        zimmer = getattr(projekt, 'zimmer', 0) or 0
-
-        details_parts = [preis_str]
-        if flaeche > 0:
-            details_parts.append(f"{flaeche} m²")
-        if zimmer > 0:
-            details_parts.append(f"{zimmer} Zimmer")
-        details_str = " | ".join(details_parts)
-
-        projects_html += f'''
-        <div class="dash-project-card {card_class}">
-            <div class="dash-project-header">
-                <span class="dash-project-title">{projekt.name}</span>
-                <span class="dash-project-badge {status_class}">{badge_text}</span>
-            </div>
-            <div class="dash-project-address">📍 {adresse}</div>
-            <div class="dash-project-details">{details_str}</div>
-            <div class="dash-project-progress">
-                <span>Fortschritt</span>
-                <span>{progress}%</span>
-            </div>
-            <div class="dash-project-progress-bar">
-                <div class="dash-project-progress-fill" style="width: {progress}%"></div>
-            </div>
-        </div>
-        '''
-
-    projects_html += '</div>'
-    st.markdown(projects_html, unsafe_allow_html=True)
-
-
-def render_dashboard_quick_actions(actions: list):
-    """
-    Rendert die Schnellaktionen.
-    actions: Liste von Dictionaries mit keys: icon, label, key
-    """
-    st.markdown('''
-    <div class="dash-quick-actions">
-        <h3 class="dash-quick-title">Schnellaktionen</h3>
-        <div class="dash-quick-buttons">
-    ''', unsafe_allow_html=True)
-
-    cols = st.columns(len(actions))
-    for i, action in enumerate(actions):
-        with cols[i]:
-            if st.button(f"{action['icon']} {action['label']}", key=action['key'], use_container_width=True):
-                if action.get('callback'):
-                    action['callback']()
-                st.session_state[f"quick_action_{action['key']}"] = True
-
-    st.markdown('</div></div>', unsafe_allow_html=True)
-
-
-def get_kaeufer_dashboard_stats(user_id: str) -> list:
-    """Berechnet die Statistiken für das Käufer-Dashboard."""
-    # Projekte des Käufers
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-
-    # Offene Aufgaben zählen
-    offene_aufgaben = 0
-    for projekt in projekte:
-        for aufgabe in projekt.aufgaben:
-            if aufgabe.get('assigned_to') == user_id and aufgabe.get('status') != 'erledigt':
-                offene_aufgaben += 1
-
-    # Nächster Termin finden
-    from datetime import datetime, timedelta
-    heute = datetime.now()
-    naechster_termin = None
-    for projekt in projekte:
-        for termin in getattr(projekt, 'termine', []):
-            termin_datum = termin.get('datum')
-            if termin_datum:
-                if isinstance(termin_datum, str):
-                    try:
-                        termin_dt = datetime.fromisoformat(termin_datum)
-                    except:
-                        continue
-                else:
-                    termin_dt = termin_datum
-                if termin_dt > heute:
-                    if naechster_termin is None or termin_dt < naechster_termin:
-                        naechster_termin = termin_dt
-
-    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
-
-    # Durchschnittlicher Fortschritt
-    if projekte:
-        avg_progress = sum(getattr(p, 'workflow_progress', 0) for p in projekte) // len(projekte)
-    else:
-        avg_progress = 0
-
-    return [
-        {"label": "Aktive Projekte", "value": str(len(projekte)), "icon": "📁"},
-        {"label": "Offene Aufgaben", "value": str(offene_aufgaben), "icon": "⏱"},
-        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
-        {"label": "Fortschritt", "value": f"{avg_progress}%", "icon": "📈", "change": "+12%"}
-    ]
-
-
-def get_verkaeufer_dashboard_stats(user_id: str) -> list:
-    """Berechnet die Statistiken für das Verkäufer-Dashboard."""
-    from datetime import datetime
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-
-    offene_aufgaben = 0
-    for projekt in projekte:
-        for aufgabe in projekt.aufgaben:
-            if aufgabe.get('assigned_to') == user_id and aufgabe.get('status') != 'erledigt':
-                offene_aufgaben += 1
-
-    heute = datetime.now()
-    naechster_termin = None
-    for projekt in projekte:
-        for termin in getattr(projekt, 'termine', []):
-            termin_datum = termin.get('datum')
-            if termin_datum:
-                try:
-                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
-                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
-                        naechster_termin = termin_dt
-                except:
-                    continue
-
-    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
-    avg_progress = sum(getattr(p, 'workflow_progress', 0) for p in projekte) // len(projekte) if projekte else 0
-
-    return [
-        {"label": "Aktive Objekte", "value": str(len(projekte)), "icon": "🏠"},
-        {"label": "Offene Aufgaben", "value": str(offene_aufgaben), "icon": "⏱"},
-        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
-        {"label": "Verkaufsfortschritt", "value": f"{avg_progress}%", "icon": "📈", "change": "+8%"}
-    ]
-
-
-def get_makler_dashboard_stats(user_id: str) -> list:
-    """Berechnet die Statistiken für das Makler-Dashboard."""
-    from datetime import datetime
-    projekte = [p for p in st.session_state.projekte.values() if getattr(p, 'makler_id', '') == user_id]
-
-    # Aktive Interessenten zählen (Käufer in Projekten)
-    interessenten = 0
-    for projekt in projekte:
-        interessenten += len(getattr(projekt, 'kaeufer_ids', []))
-
-    heute = datetime.now()
-    naechster_termin = None
-    for projekt in projekte:
-        for termin in getattr(projekt, 'termine', []):
-            termin_datum = termin.get('datum')
-            if termin_datum:
-                try:
-                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
-                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
-                        naechster_termin = termin_dt
-                except:
-                    continue
-
-    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
-
-    # Provision berechnen (summe der Kaufpreise * 3%)
-    provision_summe = sum(getattr(p, 'kaufpreis', 0) * 0.03 for p in projekte if getattr(p, 'workflow_progress', 0) > 50)
-
-    return [
-        {"label": "Aktive Objekte", "value": str(len(projekte)), "icon": "🏘️"},
-        {"label": "Interessenten", "value": str(interessenten), "icon": "👥"},
-        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
-        {"label": "Prov. (erwartet)", "value": f"{provision_summe/1000:.0f}k €", "icon": "💰", "change": "+15%"}
-    ]
-
-
-def get_finanzierer_dashboard_stats(user_id: str) -> list:
-    """Berechnet die Statistiken für das Finanzierer-Dashboard."""
-    from datetime import datetime
-    projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'finanzierer_ids', [])]
-
-    # Finanzierungsanfragen
-    anfragen = len(projekte)
-
-    # Genehmigte Finanzierungen
-    genehmigt = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) > 30)
-
-    # Finanzierungsvolumen
-    volumen = sum(getattr(p, 'kaufpreis', 0) for p in projekte)
-
-    heute = datetime.now()
-    naechster_termin = None
-    for projekt in projekte:
-        for termin in getattr(projekt, 'termine', []):
-            termin_datum = termin.get('datum')
-            if termin_datum:
-                try:
-                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
-                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
-                        naechster_termin = termin_dt
-                except:
-                    continue
-
-    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
-
-    return [
-        {"label": "Anfragen", "value": str(anfragen), "icon": "📋"},
-        {"label": "Genehmigt", "value": str(genehmigt), "icon": "✅"},
-        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
-        {"label": "Volumen", "value": f"{volumen/1000000:.1f}M €", "icon": "💰", "change": "+22%"}
-    ]
-
-
-def get_notar_dashboard_stats(user_id: str) -> list:
-    """Berechnet die Statistiken für das Notar-Dashboard."""
-    from datetime import datetime
-    projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'notar_ids', [])]
-
-    # Offene Beurkundungen
-    offene = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) < 80)
-
-    # Abgeschlossene
-    abgeschlossen = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) >= 80)
-
-    heute = datetime.now()
-    naechster_termin = None
-    for projekt in projekte:
-        for termin in getattr(projekt, 'termine', []):
-            termin_datum = termin.get('datum')
-            if termin_datum:
-                try:
-                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
-                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
-                        naechster_termin = termin_dt
-                except:
-                    continue
-
-    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
-
-    return [
-        {"label": "Aktive Akten", "value": str(len(projekte)), "icon": "📁"},
-        {"label": "Offene Beurk.", "value": str(offene), "icon": "⏱"},
-        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
-        {"label": "Abgeschlossen", "value": str(abgeschlossen), "icon": "✅", "change": "+5"}
-    ]
 
 
 def render_notar_bottom_nav():
@@ -24308,138 +21287,85 @@ def render_notar_content(selection: str, user_id: str):
 
 
 def notar_dashboard():
-    """Dashboard für Notar - Neues Design nach Referenz"""
-    render_immoflow_design_system()
-    render_user_info_bar()
+    """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
+    # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
+    render_notar_menu_styles()
+
+    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # ============ SIDEBAR NAVIGATION ============
-    menu_items = [
-        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
-        {"key": "akten", "icon": "📁", "label": "Akten"},
-        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
-        {"key": "termine", "icon": "📅", "label": "Termine"},
-        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
-        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
-    ]
+    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
+    selection = render_notar_sidebar_menu(user_id)
 
-    if 'notar_menu_new' not in st.session_state:
-        st.session_state.notar_menu_new = 'uebersicht'
+    # Titel mit aktuellem Bereich ermitteln
+    aktueller_bereich = ""
+    aktueller_bereich_icon = ""
+    aktive_gruppe = ""
 
-    with st.sidebar:
-        st.markdown('''
-        <div class="sidebar-logo">
-            <div class="sidebar-logo-icon">⚖️</div>
-            <div class="sidebar-logo-text">
-                <span class="sidebar-logo-title">ImmoFlow</span>
-                <span class="sidebar-logo-role">Notar</span>
-            </div>
+    # Suche in Hauptmenü und Untermenüs
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == selection:
+                aktueller_bereich = item['name']
+                aktueller_bereich_icon = item['icon']
+                aktive_gruppe = gruppe_name
+                break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == selection:
+                        aktueller_bereich = sub_item['name']
+                        aktueller_bereich_icon = sub_item['icon']
+                        aktive_gruppe = gruppe_name
+                        break
+
+    # Kompakter Dashboard Header
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
+    ">
+        <h1 style="color: #ffffff; margin: 0; font-size: 1.2rem;">
+            ⚖️ Notar
+        </h1>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
+    render_notar_timeline_kompakt(user_id)
+
+    # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
+    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
+    render_notar_hauptmenu_leiste()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Kompakte Breadcrumb-Navigation
+    if aktueller_bereich and aktive_gruppe:
+        st.markdown(f"""
+        <div class="breadcrumb-nav">
+            {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
         </div>
-        ''', unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
-        for item in menu_items:
-            is_active = st.session_state.notar_menu_new == item['key']
-            if st.button(f"{item['icon']} {item['label']}", key=f"not_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
-                st.session_state.notar_menu_new = item['key']
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Inhalt rendern
+    render_notar_content(selection, user_id)
 
-        render_aktentasche_sidebar(user_id)
-        render_benachrichtigungs_badge(user_id)
-
-        st.markdown("---")
-        user_name = st.session_state.current_user.name or "Benutzer"
-        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">⚖️ {user_name[:15]}</span></div>', unsafe_allow_html=True)
-        if st.button("🚪 Abmelden", key="not_logout", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.current_user = None
-            st.rerun()
-
-    # ============ MAIN CONTENT ============
-    current_menu = st.session_state.notar_menu_new
-
-    search_col, notif_col = st.columns([6, 1])
-    with search_col:
-        search_term = st.text_input("🔍", placeholder="Suchen...", key="not_search_input", label_visibility="collapsed")
-    with notif_col:
-        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
-
-    if current_menu == "uebersicht":
-        user_name = st.session_state.current_user.name or "Benutzer"
-        render_dashboard_welcome(user_name, "notar")
-        stats = get_notar_dashboard_stats(user_id)
-        render_dashboard_stats(stats)
-
-        # Timeline-Kompaktansicht
-        render_notar_timeline_kompakt(user_id)
-
-        # Projekte
-        projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'notar_ids', [])]
-        render_dashboard_projects(projekte)
-
-        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
-        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
-        cols = st.columns(3)
-        with cols[0]:
-            if st.button("📁 Neue Akte", key="not_quick_akte", use_container_width=True):
-                st.session_state.notar_menu_new = 'akten'
-                st.rerun()
-        with cols[1]:
-            if st.button("📄 PDF Import", key="not_quick_pdf", use_container_width=True):
-                st.session_state.notar_menu_new = 'dokumente'
-                st.rerun()
-        with cols[2]:
-            if st.button("📅 Notartermin", key="not_quick_termin", use_container_width=True):
-                st.session_state.notar_menu_new = 'termine'
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    elif current_menu == "akten":
-        st.subheader("📁 Akten-Verwaltung")
-        tabs = st.tabs(["📊 Timeline", "📋 Alle Akten", "👥 Teilnehmer", "✉️ Einladungen"])
-        with tabs[0]:
-            render_notar_content('timeline', user_id)
-        with tabs[1]:
-            render_notar_content('projekte', user_id)
-        with tabs[2]:
-            render_notar_content('teilnehmer', user_id)
-        with tabs[3]:
-            render_notar_content('einladungen', user_id)
-
-    elif current_menu == "dokumente":
-        st.subheader("📄 Dokumente")
-        tabs = st.tabs(["📥 PDF Import", "📋 Anforderungen", "✅ Freigaben", "⚖️ Rechtsdoku"])
-        with tabs[0]:
-            render_notar_content('pdf_import', user_id)
-        with tabs[1]:
-            render_notar_content('dokumentenanforderungen', user_id)
-        with tabs[2]:
-            render_notar_content('dokumentenfreigaben', user_id)
-        with tabs[3]:
-            render_notar_content('rechtsdokumente', user_id)
-
-    elif current_menu == "termine":
-        st.subheader("📅 Termine")
-        render_termin_kalender(user_id, UserRole.NOTAR.value)
-
-    elif current_menu == "nachrichten":
-        render_notar_content('kommunikation', user_id)
-
-    elif current_menu == "einstellungen":
-        st.subheader("⚙️ Einstellungen & Verwaltung")
-        tabs = st.tabs(["👤 Mitarbeiter", "🔒 DSGVO", "🗑️ Papierkorb", "🔊 Vorlesen"])
-        with tabs[0]:
-            render_notar_content('mitarbeiter', user_id)
-        with tabs[1]:
-            render_notar_content('dsgvo', user_id)
-        with tabs[2]:
-            render_notar_content('papierkorb', user_id)
-        with tabs[3]:
-            render_notar_content('vorlesen', user_id)
+    # Bottom Navigation für Mobile (wird nur auf Mobile angezeigt via CSS)
+    render_notar_bottom_nav()
 
 
 def berechne_projekt_fortschritt(projekt_id: str) -> int:
