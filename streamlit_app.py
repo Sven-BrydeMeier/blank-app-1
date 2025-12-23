@@ -14289,158 +14289,121 @@ def logout():
 # ============================================================================
 
 def makler_dashboard():
-    """Dashboard für Makler"""
-    # ImmoFlow Design System laden
+    """Dashboard für Makler - Neues Design nach Referenz"""
     render_immoflow_design_system()
 
-    st.title("📊 Makler-Dashboard")
-
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
-    render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Suchleiste
-    search_term = render_dashboard_search("makler")
-    if search_term:
-        st.session_state['makler_search'] = search_term
+    # ============ SIDEBAR NAVIGATION ============
+    menu_items = [
+        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
+        {"key": "projekte", "icon": "🏘️", "label": "Objekte"},
+        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
+        {"key": "termine", "icon": "📅", "label": "Termine"},
+        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
+        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
+    ]
 
-    tabs = st.tabs([
-        "📋 Timeline",
-        "📁 Projekte",
-        "📊 Marktanalyse",
-        "👤 Profil",
-        "💼 Bankenmappe",
-        "⚖️ Rechtliche Dokumente",
-        "👥 Teilnehmer-Status",
-        "✉️ Einladungen",
-        "💬 Kommentare",
-        "🪪 Ausweisdaten erfassen",
-        "📅 Termine",
-        "👥 Mitarbeiter",
-        "📨 Nachrichten",
-        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
-        "⏰ Fristen",  # NEU: Fristenmanagement
-        "📈 Reporting",  # NEU: KPIs und Berichte
-        "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
-        "🔒 DSGVO"  # NEU: DSGVO-Datenverwaltung
-    ])
+    if 'makler_menu' not in st.session_state:
+        st.session_state.makler_menu = 'uebersicht'
 
-    with tabs[0]:
-        makler_timeline_view()
+    with st.sidebar:
+        st.markdown('''
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">🏢</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">Makler</span>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
 
-    with tabs[1]:
-        makler_projekte_view()
+        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
+        for item in menu_items:
+            is_active = st.session_state.makler_menu == item['key']
+            if st.button(f"{item['icon']} {item['label']}", key=f"mk_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.makler_menu = item['key']
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[2]:
-        makler_marktanalyse_view()
-
-    with tabs[3]:
-        makler_profil_view()
-
-    with tabs[4]:
-        render_bank_folder_view()
-
-    with tabs[5]:
-        makler_rechtliche_dokumente()
-
-    with tabs[6]:
-        makler_teilnehmer_status()
-
-    with tabs[7]:
-        makler_einladungen()
-
-    with tabs[8]:
-        makler_kommentare()
-
-    with tabs[9]:
-        makler_ausweis_erfassung()
-
-    with tabs[10]:
-        # Termin-Übersicht für Makler mit Kalender
-        st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
-        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-        with termin_ansicht[0]:
-            render_termin_kalender(user_id, UserRole.MAKLER.value)
-
-        with termin_ansicht[1]:
-            projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
-            if projekte:
-                for projekt in projekte:
-                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                        render_termin_verwaltung(projekt, UserRole.MAKLER.value)
-            else:
-                st.info("Noch keine Projekte vorhanden.")
-
-    with tabs[11]:
-        # Mitarbeiter-Verwaltung
-        render_makler_mitarbeiter_verwaltung(user_id)
-
-    with tabs[12]:
-        # Kommunikationszentrale
-        render_kommunikationszentrale(user_id)
-
-    with tabs[13]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        makler_projekte = [p for p in st.session_state.projekte.values()
-                          if p.makler_id == user_id]
-        if makler_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="makler_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
-
-    with tabs[14]:
-        # Fristenmanagement
-        render_fristenmanagement(user_id)
-
-    with tabs[15]:
-        # Reporting Dashboard
-        render_reporting_dashboard(user_id)
-
-    with tabs[16]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[17]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Text-to-Speech Einstellungen")
-        render_tts_einstellungen(user_id)
+        render_aktentasche_sidebar(user_id)
+        render_benachrichtigungs_badge(user_id)
 
         st.markdown("---")
-        st.markdown("### 📄 Dokument vorlesen testen")
+        user_name = st.session_state.current_user.name or "Benutzer"
+        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">🏢 {user_name[:15]}</span></div>', unsafe_allow_html=True)
+        if st.button("🚪 Abmelden", key="mk_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.rerun()
 
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Makler können Sie Vertragsdokumente vorlesen lassen.
-        Die Geschwindigkeit kann angepasst werden.
-        """
-        render_tts_controls(demo_text, "makler_demo_tts", user_id)
+    # ============ MAIN CONTENT ============
+    current_menu = st.session_state.makler_menu
 
-    with tabs[18]:
-        # DSGVO-Datenverwaltung für Makler
-        render_dsgvo_tab_makler(user_id)
+    search_col, notif_col = st.columns([6, 1])
+    with search_col:
+        search_term = st.text_input("🔍", placeholder="Suchen...", key="mk_search_input", label_visibility="collapsed")
+        st.session_state['makler_search'] = search_term or ''
+    with notif_col:
+        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
+
+    if current_menu == "uebersicht":
+        user_name = st.session_state.current_user.name or "Benutzer"
+        render_dashboard_welcome(user_name, "makler")
+        stats = get_makler_dashboard_stats(user_id)
+        render_dashboard_stats(stats)
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.makler_ids]
+        render_dashboard_projects(projekte)
+
+        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
+        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        with cols[0]:
+            if st.button("➕ Neues Objekt", key="mk_quick_neu", use_container_width=True):
+                st.session_state.makler_menu = 'projekte'
+                st.rerun()
+        with cols[1]:
+            if st.button("✉️ Einladung senden", key="mk_quick_einlad", use_container_width=True):
+                st.session_state.makler_menu = 'einstellungen'
+                st.rerun()
+        with cols[2]:
+            if st.button("📊 Marktanalyse", key="mk_quick_markt", use_container_width=True):
+                st.session_state.makler_menu = 'einstellungen'
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif current_menu == "projekte":
+        makler_projekte_view()
+
+    elif current_menu == "dokumente":
+        makler_rechtliche_dokumente()
+
+    elif current_menu == "termine":
+        st.subheader("📅 Meine Termine")
+        render_termin_kalender(user_id, UserRole.MAKLER.value)
+
+    elif current_menu == "nachrichten":
+        render_kommunikationszentrale(user_id)
+
+    elif current_menu == "einstellungen":
+        st.subheader("⚙️ Einstellungen & Tools")
+        tabs = st.tabs(["📊 Markt", "👤 Profil", "👥 Team", "✉️ Einladungen", "📈 Reports", "🔒 DSGVO", "🗑️ Papierkorb"])
+        with tabs[0]:
+            makler_marktanalyse_view()
+        with tabs[1]:
+            makler_profil_view()
+        with tabs[2]:
+            render_makler_mitarbeiter_verwaltung(user_id)
+        with tabs[3]:
+            makler_einladungen()
+        with tabs[4]:
+            render_reporting_dashboard(user_id)
+        with tabs[5]:
+            render_dsgvo_tab_makler(user_id)
+        with tabs[6]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -19142,134 +19105,126 @@ def kaeufer_dokumente_view():
 # ============================================================================
 
 def verkaeufer_dashboard():
-    """Dashboard für Verkäufer"""
-    # ImmoFlow Design System laden
+    """Dashboard für Verkäufer - Neues Design nach Referenz"""
     render_immoflow_design_system()
-
-    st.title("🏡 Verkäufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
 
-    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.VERKAEUFER.value):
-        # User muss erst Dokumente akzeptieren
         return
 
-    # Aktentasche in der Sidebar
-    render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Suchleiste
-    search_term = render_dashboard_search("verkaeufer")
-    if search_term:
-        st.session_state['verkaeufer_search'] = search_term
-    else:
-        st.session_state['verkaeufer_search'] = ''
+    # ============ SIDEBAR NAVIGATION ============
+    menu_items = [
+        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
+        {"key": "projekte", "icon": "🏠", "label": "Meine Objekte"},
+        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
+        {"key": "termine", "icon": "📅", "label": "Termine"},
+        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
+        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
+    ]
 
-    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine", "🗑️ Papierkorb", "🔊 Vorlesen"])
+    if 'verkaeufer_menu' not in st.session_state:
+        st.session_state.verkaeufer_menu = 'uebersicht'
 
-    with tabs[0]:
-        # Mandanten-Portal Übersicht
-        render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
+    with st.sidebar:
+        st.markdown('''
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">🏡</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">Verkäufer</span>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
 
-    with tabs[1]:
-        verkaeufer_timeline_view()
+        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
+        for item in menu_items:
+            is_active = st.session_state.verkaeufer_menu == item['key']
+            if st.button(f"{item['icon']} {item['label']}", key=f"vk_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.verkaeufer_menu = item['key']
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[2]:
-        verkaeufer_projekte_view()
-
-    with tabs[3]:
-        verkaeufer_preisfindung_view()
-
-    with tabs[4]:
-        verkaeufer_makler_finden()
-
-    with tabs[5]:
-        # Personalausweis-Upload mit OCR
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
-
-    with tabs[6]:
-        verkaeufer_dokumente_view()
-
-    with tabs[7]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
-
-    with tabs[8]:
-        verkaeufer_nachrichten()
-
-    with tabs[9]:
-        verkaeufer_eigene_kosten_view()
-
-    with tabs[10]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        verkaeufer_projekte = [p for p in st.session_state.projekte.values()
-                              if user_id in p.verkaeufer_ids]
-        if verkaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="verkaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with tabs[11]:
-        # Termin-Übersicht für Verkäufer mit Kalender
-        st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
-        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-        with termin_ansicht[0]:
-            render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
-
-        with termin_ansicht[1]:
-            projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-            if projekte:
-                for projekt in projekte:
-                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                        render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
-            else:
-                st.info("Noch keine Projekte vorhanden.")
-
-    with tabs[12]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[13]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
+        render_aktentasche_sidebar(user_id)
+        render_benachrichtigungs_badge(user_id)
 
         st.markdown("---")
-        st.markdown("### 📄 Vertragsdokumente vorlesen")
-        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
+        user_name = st.session_state.current_user.name or "Benutzer"
+        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">🏡 {user_name[:15]}</span></div>', unsafe_allow_html=True)
+        if st.button("🚪 Abmelden", key="vk_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.rerun()
 
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
-        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
-        """
-        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
+    # ============ MAIN CONTENT ============
+    current_menu = st.session_state.verkaeufer_menu
+
+    search_col, notif_col = st.columns([6, 1])
+    with search_col:
+        search_term = st.text_input("🔍", placeholder="Suchen...", key="vk_search_input", label_visibility="collapsed")
+        st.session_state['verkaeufer_search'] = search_term or ''
+    with notif_col:
+        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
+
+    if current_menu == "uebersicht":
+        user_name = st.session_state.current_user.name or "Benutzer"
+        render_dashboard_welcome(user_name, "verkaeufer")
+        stats = get_verkaeufer_dashboard_stats(user_id)
+        render_dashboard_stats(stats)
+        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+        render_dashboard_projects(projekte)
+
+        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
+        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        with cols[0]:
+            if st.button("📈 Preisfindung", key="vk_quick_preis", use_container_width=True):
+                st.session_state.verkaeufer_menu = 'einstellungen'
+                st.rerun()
+        with cols[1]:
+            if st.button("🔍 Makler finden", key="vk_quick_makler", use_container_width=True):
+                st.session_state.verkaeufer_menu = 'einstellungen'
+                st.rerun()
+        with cols[2]:
+            if st.button("📄 Dokument hochladen", key="vk_quick_doc", use_container_width=True):
+                st.session_state.verkaeufer_menu = 'dokumente'
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif current_menu == "projekte":
+        verkaeufer_projekte_view()
+
+    elif current_menu == "dokumente":
+        verkaeufer_dokumente_view()
+
+    elif current_menu == "termine":
+        st.subheader("📅 Meine Termine")
+        render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
+
+    elif current_menu == "nachrichten":
+        verkaeufer_nachrichten()
+
+    elif current_menu == "einstellungen":
+        st.subheader("⚙️ Einstellungen")
+        tabs = st.tabs(["📈 Preisfindung", "🔍 Makler", "🪪 Ausweis", "💶 Kosten", "🔊 Vorlesen", "🗑️ Papierkorb"])
+        with tabs[0]:
+            verkaeufer_preisfindung_view()
+        with tabs[1]:
+            verkaeufer_makler_finden()
+        with tabs[2]:
+            render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
+        with tabs[3]:
+            verkaeufer_eigene_kosten_view()
+        with tabs[4]:
+            render_tts_einstellungen(user_id)
+        with tabs[5]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
 
 def verkaeufer_preisfindung_view():
@@ -20553,93 +20508,111 @@ def verkaeufer_nachrichten():
 # ============================================================================
 
 def finanzierer_dashboard():
-    """Dashboard für Finanzierer"""
-    # ImmoFlow Design System laden
+    """Dashboard für Finanzierer - Neues Design nach Referenz"""
     render_immoflow_design_system()
 
-    st.title("💼 Finanzierer-Dashboard")
-
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
-    render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Suchleiste
-    search_term = render_dashboard_search("finanzierer")
-    if search_term:
-        st.session_state['finanzierer_search'] = search_term
-    else:
-        st.session_state['finanzierer_search'] = ''
+    # ============ SIDEBAR NAVIGATION ============
+    menu_items = [
+        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
+        {"key": "anfragen", "icon": "📋", "label": "Anfragen"},
+        {"key": "angebote", "icon": "💰", "label": "Angebote"},
+        {"key": "termine", "icon": "📅", "label": "Termine"},
+        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
+    ]
 
-    tabs = st.tabs([
-        "📊 Timeline",
-        "📋 Wirtschaftsdaten Käufer",
-        "💰 Finanzierungsangebote erstellen",
-        "📜 Meine Angebote",
-        "📅 Termine",
-        "🗑️ Papierkorb",
-        "🔊 Vorlesen"
-    ])
+    if 'finanzierer_menu' not in st.session_state:
+        st.session_state.finanzierer_menu = 'uebersicht'
 
-    with tabs[0]:
-        finanzierer_timeline_view()
+    with st.sidebar:
+        st.markdown('''
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">💼</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">Finanzierer</span>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
 
-    with tabs[1]:
-        finanzierer_wirtschaftsdaten_view()
+        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
+        for item in menu_items:
+            is_active = st.session_state.finanzierer_menu == item['key']
+            if st.button(f"{item['icon']} {item['label']}", key=f"fin_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.finanzierer_menu = item['key']
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    with tabs[2]:
-        finanzierer_angebote_erstellen()
-
-    with tabs[3]:
-        finanzierer_angebote_liste()
-
-    with tabs[4]:
-        # Termin-Übersicht für Finanzierer mit Kalender
-        st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
-        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-        with termin_ansicht[0]:
-            render_termin_kalender(user_id, UserRole.FINANZIERER.value)
-
-        with termin_ansicht[1]:
-            projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
-            if projekte:
-                for projekt in projekte:
-                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                        render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
-            else:
-                st.info("Noch keine Projekte vorhanden.")
-
-    with tabs[5]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[6]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
+        render_aktentasche_sidebar(user_id)
+        render_benachrichtigungs_badge(user_id)
 
         st.markdown("---")
-        st.markdown("### 📄 Finanzierungsdokumente vorlesen")
+        user_name = st.session_state.current_user.name or "Benutzer"
+        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">💼 {user_name[:15]}</span></div>', unsafe_allow_html=True)
+        if st.button("🚪 Abmelden", key="fin_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.rerun()
 
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
-        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
-        """
-        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
+    # ============ MAIN CONTENT ============
+    current_menu = st.session_state.finanzierer_menu
+
+    search_col, notif_col = st.columns([6, 1])
+    with search_col:
+        search_term = st.text_input("🔍", placeholder="Suchen...", key="fin_search_input", label_visibility="collapsed")
+        st.session_state['finanzierer_search'] = search_term or ''
+    with notif_col:
+        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
+
+    if current_menu == "uebersicht":
+        user_name = st.session_state.current_user.name or "Benutzer"
+        render_dashboard_welcome(user_name, "finanzierer")
+        stats = get_finanzierer_dashboard_stats(user_id)
+        render_dashboard_stats(stats)
+        projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'finanzierer_ids', [])]
+        render_dashboard_projects(projekte)
+
+        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
+        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        with cols[0]:
+            if st.button("💰 Angebot erstellen", key="fin_quick_angebot", use_container_width=True):
+                st.session_state.finanzierer_menu = 'angebote'
+                st.rerun()
+        with cols[1]:
+            if st.button("📋 Wirtschaftsdaten", key="fin_quick_daten", use_container_width=True):
+                st.session_state.finanzierer_menu = 'anfragen'
+                st.rerun()
+        with cols[2]:
+            if st.button("📅 Termin planen", key="fin_quick_termin", use_container_width=True):
+                st.session_state.finanzierer_menu = 'termine'
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif current_menu == "anfragen":
+        finanzierer_wirtschaftsdaten_view()
+
+    elif current_menu == "angebote":
+        tabs = st.tabs(["💰 Neues Angebot", "📜 Meine Angebote"])
+        with tabs[0]:
+            finanzierer_angebote_erstellen()
+        with tabs[1]:
+            finanzierer_angebote_liste()
+
+    elif current_menu == "termine":
+        st.subheader("📅 Meine Termine")
+        render_termin_kalender(user_id, UserRole.FINANZIERER.value)
+
+    elif current_menu == "einstellungen":
+        st.subheader("⚙️ Einstellungen")
+        tabs = st.tabs(["🔊 Vorlesen", "🗑️ Papierkorb"])
+        with tabs[0]:
+            render_tts_einstellungen(user_id)
+        with tabs[1]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -22974,6 +22947,148 @@ def get_kaeufer_dashboard_stats(user_id: str) -> list:
     ]
 
 
+def get_verkaeufer_dashboard_stats(user_id: str) -> list:
+    """Berechnet die Statistiken für das Verkäufer-Dashboard."""
+    from datetime import datetime
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    offene_aufgaben = 0
+    for projekt in projekte:
+        for aufgabe in projekt.aufgaben:
+            if aufgabe.get('assigned_to') == user_id and aufgabe.get('status') != 'erledigt':
+                offene_aufgaben += 1
+
+    heute = datetime.now()
+    naechster_termin = None
+    for projekt in projekte:
+        for termin in getattr(projekt, 'termine', []):
+            termin_datum = termin.get('datum')
+            if termin_datum:
+                try:
+                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
+                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
+                        naechster_termin = termin_dt
+                except:
+                    continue
+
+    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
+    avg_progress = sum(getattr(p, 'workflow_progress', 0) for p in projekte) // len(projekte) if projekte else 0
+
+    return [
+        {"label": "Aktive Objekte", "value": str(len(projekte)), "icon": "🏠"},
+        {"label": "Offene Aufgaben", "value": str(offene_aufgaben), "icon": "⏱"},
+        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
+        {"label": "Verkaufsfortschritt", "value": f"{avg_progress}%", "icon": "📈", "change": "+8%"}
+    ]
+
+
+def get_makler_dashboard_stats(user_id: str) -> list:
+    """Berechnet die Statistiken für das Makler-Dashboard."""
+    from datetime import datetime
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.makler_ids]
+
+    # Aktive Interessenten zählen (Käufer in Projekten)
+    interessenten = 0
+    for projekt in projekte:
+        interessenten += len(projekt.kaeufer_ids)
+
+    heute = datetime.now()
+    naechster_termin = None
+    for projekt in projekte:
+        for termin in getattr(projekt, 'termine', []):
+            termin_datum = termin.get('datum')
+            if termin_datum:
+                try:
+                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
+                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
+                        naechster_termin = termin_dt
+                except:
+                    continue
+
+    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
+
+    # Provision berechnen (summe der Kaufpreise * 3%)
+    provision_summe = sum(getattr(p, 'kaufpreis', 0) * 0.03 for p in projekte if getattr(p, 'workflow_progress', 0) > 50)
+
+    return [
+        {"label": "Aktive Objekte", "value": str(len(projekte)), "icon": "🏘️"},
+        {"label": "Interessenten", "value": str(interessenten), "icon": "👥"},
+        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
+        {"label": "Prov. (erwartet)", "value": f"{provision_summe/1000:.0f}k €", "icon": "💰", "change": "+15%"}
+    ]
+
+
+def get_finanzierer_dashboard_stats(user_id: str) -> list:
+    """Berechnet die Statistiken für das Finanzierer-Dashboard."""
+    from datetime import datetime
+    projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'finanzierer_ids', [])]
+
+    # Finanzierungsanfragen
+    anfragen = len(projekte)
+
+    # Genehmigte Finanzierungen
+    genehmigt = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) > 30)
+
+    # Finanzierungsvolumen
+    volumen = sum(getattr(p, 'kaufpreis', 0) for p in projekte)
+
+    heute = datetime.now()
+    naechster_termin = None
+    for projekt in projekte:
+        for termin in getattr(projekt, 'termine', []):
+            termin_datum = termin.get('datum')
+            if termin_datum:
+                try:
+                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
+                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
+                        naechster_termin = termin_dt
+                except:
+                    continue
+
+    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
+
+    return [
+        {"label": "Anfragen", "value": str(anfragen), "icon": "📋"},
+        {"label": "Genehmigt", "value": str(genehmigt), "icon": "✅"},
+        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
+        {"label": "Volumen", "value": f"{volumen/1000000:.1f}M €", "icon": "💰", "change": "+22%"}
+    ]
+
+
+def get_notar_dashboard_stats(user_id: str) -> list:
+    """Berechnet die Statistiken für das Notar-Dashboard."""
+    from datetime import datetime
+    projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'notar_ids', [])]
+
+    # Offene Beurkundungen
+    offene = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) < 80)
+
+    # Abgeschlossene
+    abgeschlossen = sum(1 for p in projekte if getattr(p, 'workflow_progress', 0) >= 80)
+
+    heute = datetime.now()
+    naechster_termin = None
+    for projekt in projekte:
+        for termin in getattr(projekt, 'termine', []):
+            termin_datum = termin.get('datum')
+            if termin_datum:
+                try:
+                    termin_dt = datetime.fromisoformat(termin_datum) if isinstance(termin_datum, str) else termin_datum
+                    if termin_dt > heute and (naechster_termin is None or termin_dt < naechster_termin):
+                        naechster_termin = termin_dt
+                except:
+                    continue
+
+    termin_str = naechster_termin.strftime("%d. %b") if naechster_termin else "-"
+
+    return [
+        {"label": "Aktive Akten", "value": str(len(projekte)), "icon": "📁"},
+        {"label": "Offene Beurk.", "value": str(offene), "icon": "⏱"},
+        {"label": "Nächster Termin", "value": termin_str, "icon": "📅"},
+        {"label": "Abgeschlossen", "value": str(abgeschlossen), "icon": "✅", "change": "+5"}
+    ]
+
+
 def render_notar_bottom_nav():
     """
     Rendert die Bottom-Navigation für Mobile.
@@ -23349,85 +23464,137 @@ def render_notar_content(selection: str, user_id: str):
 
 
 def notar_dashboard():
-    """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
-
-    # ImmoFlow Design System laden (Navy-Gold Theme)
+    """Dashboard für Notar - Neues Design nach Referenz"""
     render_immoflow_design_system()
 
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
-    render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
-    selection = render_notar_sidebar_menu(user_id)
+    # ============ SIDEBAR NAVIGATION ============
+    menu_items = [
+        {"key": "uebersicht", "icon": "📊", "label": "Übersicht"},
+        {"key": "akten", "icon": "📁", "label": "Akten"},
+        {"key": "dokumente", "icon": "📄", "label": "Dokumente"},
+        {"key": "termine", "icon": "📅", "label": "Termine"},
+        {"key": "nachrichten", "icon": "💬", "label": "Nachrichten"},
+        {"key": "einstellungen", "icon": "⚙️", "label": "Einstellungen"},
+    ]
 
-    # Titel mit aktuellem Bereich ermitteln
-    aktueller_bereich = ""
-    aktueller_bereich_icon = ""
-    aktive_gruppe = ""
+    if 'notar_menu_new' not in st.session_state:
+        st.session_state.notar_menu_new = 'uebersicht'
 
-    # Suche in Hauptmenü und Untermenüs
-    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-        for item in gruppe_data['items']:
-            if item['key'] == selection:
-                aktueller_bereich = item['name']
-                aktueller_bereich_icon = item['icon']
-                aktive_gruppe = gruppe_name
-                break
-            # Prüfe auch Untermenüs
-            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
-                for sub_item in NOTAR_UNTERMENUS[item['key']]:
-                    if sub_item['key'] == selection:
-                        aktueller_bereich = sub_item['name']
-                        aktueller_bereich_icon = sub_item['icon']
-                        aktive_gruppe = gruppe_name
-                        break
-
-    # Kompakter Dashboard Header
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.75rem;
-        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
-    ">
-        <h1 style="color: #ffffff; margin: 0; font-size: 1.2rem;">
-            ⚖️ Notar
-        </h1>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
-    render_notar_timeline_kompakt(user_id)
-
-    # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
-    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
-    render_notar_hauptmenu_leiste()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # Kompakte Breadcrumb-Navigation
-    if aktueller_bereich and aktive_gruppe:
-        st.markdown(f"""
-        <div class="breadcrumb-nav">
-            {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
+    with st.sidebar:
+        st.markdown('''
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">⚖️</div>
+            <div class="sidebar-logo-text">
+                <span class="sidebar-logo-title">ImmoFlow</span>
+                <span class="sidebar-logo-role">Notar</span>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
 
-    # Inhalt rendern
-    render_notar_content(selection, user_id)
+        st.markdown('<div class="dash-menu">', unsafe_allow_html=True)
+        for item in menu_items:
+            is_active = st.session_state.notar_menu_new == item['key']
+            if st.button(f"{item['icon']} {item['label']}", key=f"not_menu_{item['key']}", use_container_width=True, type="primary" if is_active else "secondary"):
+                st.session_state.notar_menu_new = item['key']
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Bottom Navigation für Mobile (wird nur auf Mobile angezeigt via CSS)
-    render_notar_bottom_nav()
+        render_aktentasche_sidebar(user_id)
+        render_benachrichtigungs_badge(user_id)
+
+        st.markdown("---")
+        user_name = st.session_state.current_user.name or "Benutzer"
+        st.markdown(f'<div style="padding:0.5rem;"><span style="font-weight:500;">⚖️ {user_name[:15]}</span></div>', unsafe_allow_html=True)
+        if st.button("🚪 Abmelden", key="not_logout", use_container_width=True):
+            st.session_state.logged_in = False
+            st.session_state.current_user = None
+            st.rerun()
+
+    # ============ MAIN CONTENT ============
+    current_menu = st.session_state.notar_menu_new
+
+    search_col, notif_col = st.columns([6, 1])
+    with search_col:
+        search_term = st.text_input("🔍", placeholder="Suchen...", key="not_search_input", label_visibility="collapsed")
+    with notif_col:
+        st.markdown('<div class="dash-notification">🔔</div>', unsafe_allow_html=True)
+
+    if current_menu == "uebersicht":
+        user_name = st.session_state.current_user.name or "Benutzer"
+        render_dashboard_welcome(user_name, "notar")
+        stats = get_notar_dashboard_stats(user_id)
+        render_dashboard_stats(stats)
+
+        # Timeline-Kompaktansicht
+        render_notar_timeline_kompakt(user_id)
+
+        # Projekte
+        projekte = [p for p in st.session_state.projekte.values() if user_id in getattr(p, 'notar_ids', [])]
+        render_dashboard_projects(projekte)
+
+        st.markdown('<div class="dash-quick-actions">', unsafe_allow_html=True)
+        st.markdown('<h3 class="dash-quick-title">Schnellaktionen</h3>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        with cols[0]:
+            if st.button("📁 Neue Akte", key="not_quick_akte", use_container_width=True):
+                st.session_state.notar_menu_new = 'akten'
+                st.rerun()
+        with cols[1]:
+            if st.button("📄 PDF Import", key="not_quick_pdf", use_container_width=True):
+                st.session_state.notar_menu_new = 'dokumente'
+                st.rerun()
+        with cols[2]:
+            if st.button("📅 Notartermin", key="not_quick_termin", use_container_width=True):
+                st.session_state.notar_menu_new = 'termine'
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif current_menu == "akten":
+        st.subheader("📁 Akten-Verwaltung")
+        tabs = st.tabs(["📊 Timeline", "📋 Alle Akten", "👥 Teilnehmer", "✉️ Einladungen"])
+        with tabs[0]:
+            render_notar_content('timeline', user_id)
+        with tabs[1]:
+            render_notar_content('projekte', user_id)
+        with tabs[2]:
+            render_notar_content('teilnehmer', user_id)
+        with tabs[3]:
+            render_notar_content('einladungen', user_id)
+
+    elif current_menu == "dokumente":
+        st.subheader("📄 Dokumente")
+        tabs = st.tabs(["📥 PDF Import", "📋 Anforderungen", "✅ Freigaben", "⚖️ Rechtsdoku"])
+        with tabs[0]:
+            render_notar_content('pdf_import', user_id)
+        with tabs[1]:
+            render_notar_content('dokumentenanforderungen', user_id)
+        with tabs[2]:
+            render_notar_content('dokumentenfreigaben', user_id)
+        with tabs[3]:
+            render_notar_content('rechtsdokumente', user_id)
+
+    elif current_menu == "termine":
+        st.subheader("📅 Termine")
+        render_termin_kalender(user_id, UserRole.NOTAR.value)
+
+    elif current_menu == "nachrichten":
+        render_notar_content('kommunikation', user_id)
+
+    elif current_menu == "einstellungen":
+        st.subheader("⚙️ Einstellungen & Verwaltung")
+        tabs = st.tabs(["👤 Mitarbeiter", "🔒 DSGVO", "🗑️ Papierkorb", "🔊 Vorlesen"])
+        with tabs[0]:
+            render_notar_content('mitarbeiter', user_id)
+        with tabs[1]:
+            render_notar_content('dsgvo', user_id)
+        with tabs[2]:
+            render_notar_content('papierkorb', user_id)
+        with tabs[3]:
+            render_notar_content('vorlesen', user_id)
 
 
 def berechne_projekt_fortschritt(projekt_id: str) -> int:
