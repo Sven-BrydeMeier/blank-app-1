@@ -14052,106 +14052,84 @@ def render_landing_page_styles():
 
 def render_auth_modal():
     """
-    Rendert das Authentifizierungs-Modal als echtes Overlay mit Blur-Effekt.
-    Diese Funktion wird am ENDE der login_page aufgerufen und positioniert sich über allem.
+    Rendert das Authentifizierungs-Modal als eigenständige Seite.
+    Ersetzt die Landing Page vollständig wenn aktiv.
     """
     modal_tab = st.query_params.get("tab", "login")
 
-    # CSS für das Overlay - positioniert alles über der Seite
+    # Modal Styles
     st.markdown("""
     <style>
-    /* Overlay das über alles schwebt */
-    .auth-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(15, 23, 42, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        z-index: 999999;
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        padding-top: 5vh;
-        overflow-y: auto;
+    /* Verstecke Streamlit Default Header */
+    header[data-testid="stHeader"] {
+        display: none !important;
     }
 
-    /* Modal Card */
-    .auth-modal-card {
+    /* Modal Container */
+    .auth-page {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        padding: 2rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .auth-card {
         background: white;
-        border-radius: 20px;
-        max-width: 480px;
-        width: 95%;
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
-        margin-bottom: 2rem;
+        border-radius: 24px;
+        max-width: 450px;
+        width: 100%;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
     }
 
-    /* Modal Header */
-    .auth-modal-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        padding: 1.25rem 1.5rem;
-        border-radius: 20px 20px 0 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .auth-header {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        padding: 1.5rem;
+        text-align: center;
     }
 
-    .auth-modal-logo {
+    .auth-logo {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 0.75rem;
-        color: white;
+        margin-bottom: 0.5rem;
     }
 
-    .auth-modal-logo-icon {
-        width: 42px;
-        height: 42px;
+    .auth-logo-icon {
+        width: 48px;
+        height: 48px;
         background: rgba(212, 175, 55, 0.2);
-        border-radius: 10px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.4rem;
-    }
-
-    .auth-modal-logo-text {
-        font-size: 1.4rem;
-        font-weight: 700;
-    }
-
-    .auth-modal-close {
-        width: 38px;
-        height: 38px;
-        background: rgba(255,255,255,0.15);
-        border: none;
-        border-radius: 10px;
-        color: white;
         font-size: 1.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 0.2s;
     }
 
-    .auth-modal-close:hover {
-        background: rgba(255,255,255,0.25);
+    .auth-logo-text {
+        font-size: 1.6rem;
+        font-weight: 700;
         color: white;
+    }
+
+    .auth-tagline {
+        color: rgba(255,255,255,0.7);
+        font-size: 0.9rem;
     }
 
     /* Tab Navigation */
-    .auth-modal-tabs {
+    .auth-tabs {
         display: flex;
-        background: #f1f5f9;
+        background: #f8fafc;
         border-bottom: 1px solid #e2e8f0;
     }
 
-    .auth-modal-tab {
+    .auth-tab {
         flex: 1;
-        padding: 0.875rem 0.5rem;
+        padding: 1rem 0.5rem;
         text-align: center;
         color: #64748b;
         font-weight: 500;
@@ -14160,104 +14138,99 @@ def render_auth_modal():
         border: none;
         background: transparent;
         transition: all 0.2s;
-        text-decoration: none;
+        text-decoration: none !important;
         display: block;
     }
 
-    .auth-modal-tab:hover {
+    .auth-tab:hover {
         color: #0f172a;
-        background: #e2e8f0;
+        background: #f1f5f9;
     }
 
-    .auth-modal-tab.active {
-        color: #d4a015;
+    .auth-tab.active {
+        color: #d4af37;
         background: white;
         font-weight: 600;
-        border-bottom: 3px solid #d4a015;
+        border-bottom: 3px solid #d4af37;
     }
 
-    /* Modal Body */
-    .auth-modal-body {
-        padding: 1.5rem;
+    /* Body */
+    .auth-body {
+        padding: 2rem;
     }
 
-    .auth-modal-title {
-        font-size: 1.35rem;
+    .auth-title {
+        font-size: 1.5rem;
         font-weight: 700;
         color: #0f172a;
-        margin-bottom: 0.25rem;
         text-align: center;
+        margin-bottom: 0.5rem;
     }
 
-    .auth-modal-subtitle {
+    .auth-subtitle {
         color: #64748b;
         text-align: center;
-        margin-bottom: 1.25rem;
-        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
     }
 
-    /* Demo Role Buttons */
-    .demo-role-grid {
+    /* Form Styling */
+    .stTextInput > div > div > input {
+        border-radius: 12px !important;
+        border: 2px solid #e2e8f0 !important;
+        padding: 0.875rem 1rem !important;
+    }
+
+    .stTextInput > div > div > input:focus {
+        border-color: #d4af37 !important;
+        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15) !important;
+    }
+
+    .stSelectbox > div > div {
+        border-radius: 12px !important;
+    }
+
+    .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #d4af37 0%, #b8960c 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 0.875rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        width: 100% !important;
+    }
+
+    .stFormSubmitButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4) !important;
+    }
+
+    /* Demo Buttons */
+    .demo-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 0.75rem;
-        margin-bottom: 1rem;
     }
 
-    .demo-role-btn {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 1rem 0.75rem;
+    /* Back Link */
+    .back-link {
+        margin-top: 1.5rem;
         text-align: center;
-        cursor: pointer;
-        transition: all 0.2s;
     }
 
-    .demo-role-btn:hover {
-        border-color: #d4a015;
-        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-        transform: translateY(-2px);
-    }
-
-    .demo-role-icon {
-        font-size: 1.75rem;
-        margin-bottom: 0.25rem;
-    }
-
-    .demo-role-name {
-        font-weight: 600;
+    .back-link a {
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
         font-size: 0.9rem;
-        color: #0f172a;
     }
 
-    .demo-role-desc {
-        font-size: 0.7rem;
-        color: #64748b;
+    .back-link a:hover {
+        color: white;
     }
 
-    /* Einladung Info Box */
-    .invite-info-box {
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #93c5fd;
-        border-radius: 12px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .invite-info-title {
-        font-weight: 600;
-        color: #1e40af;
-        margin-bottom: 0.25rem;
-    }
-
-    .invite-info-text {
-        font-size: 0.85rem;
-        color: #3b82f6;
-    }
-
-    /* Footer Link */
-    .auth-modal-footer {
+    /* Footer Link in Card */
+    .auth-footer {
         text-align: center;
         padding: 1rem;
         color: #64748b;
@@ -14265,272 +14238,194 @@ def render_auth_modal():
         border-top: 1px solid #e2e8f0;
     }
 
-    .auth-modal-footer a {
-        color: #d4a015;
+    .auth-footer a {
+        color: #d4af37;
         font-weight: 600;
         text-decoration: none;
-    }
-
-    .auth-modal-footer a:hover {
-        text-decoration: underline;
-    }
-
-    /* Hide Streamlit elements behind modal */
-    .main .block-container {
-        pointer-events: none;
-    }
-
-    /* Style form inputs im Modal */
-    .stTextInput input {
-        border-radius: 10px !important;
-        border: 2px solid #e2e8f0 !important;
-        padding: 0.75rem 1rem !important;
-    }
-
-    .stTextInput input:focus {
-        border-color: #d4a015 !important;
-        box-shadow: 0 0 0 3px rgba(212, 160, 21, 0.15) !important;
-    }
-
-    .stSelectbox > div > div {
-        border-radius: 10px !important;
-    }
-
-    .stFormSubmitButton button {
-        background: linear-gradient(135deg, #d4a015 0%, #b8860b 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 0.75rem !important;
-        font-weight: 600 !important;
-    }
-
-    .stFormSubmitButton button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 15px rgba(212, 160, 21, 0.4) !important;
-    }
-
-    .stButton button {
-        border-radius: 10px !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # Modal HTML Struktur mit Tabs
-    tab_login_class = "active" if modal_tab == "login" else ""
-    tab_register_class = "active" if modal_tab == "register" else ""
-    tab_demo_class = "active" if modal_tab == "demo" else ""
-    tab_invite_class = "active" if modal_tab == "invite" else ""
+    # Tab classes
+    tab_login = "active" if modal_tab == "login" else ""
+    tab_register = "active" if modal_tab == "register" else ""
+    tab_demo = "active" if modal_tab == "demo" else ""
+    tab_invite = "active" if modal_tab == "invite" else ""
 
+    # Render Modal HTML Structure
     st.markdown(f"""
-    <div class="auth-modal-overlay">
-        <div class="auth-modal-card">
-            <div class="auth-modal-header">
-                <div class="auth-modal-logo">
-                    <div class="auth-modal-logo-icon">📋</div>
-                    <span class="auth-modal-logo-text">ImmoFlow</span>
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">
+                    <div class="auth-logo-icon">📋</div>
+                    <span class="auth-logo-text">ImmoFlow</span>
                 </div>
-                <a href="?" class="auth-modal-close">&times;</a>
+                <div class="auth-tagline">Immobilientransaktionen digital verwalten</div>
             </div>
-            <div class="auth-modal-tabs">
-                <a href="?modal=auth&tab=login" class="auth-modal-tab {tab_login_class}">🔑 Login</a>
-                <a href="?modal=auth&tab=register" class="auth-modal-tab {tab_register_class}">📝 Registrieren</a>
-                <a href="?modal=auth&tab=demo" class="auth-modal-tab {tab_demo_class}">🎯 Demo</a>
-                <a href="?modal=auth&tab=invite" class="auth-modal-tab {tab_invite_class}">🔗 Einladung</a>
+            <div class="auth-tabs">
+                <a href="?modal=auth&tab=login" class="auth-tab {tab_login}">🔑 Login</a>
+                <a href="?modal=auth&tab=register" class="auth-tab {tab_register}">📝 Registrieren</a>
+                <a href="?modal=auth&tab=demo" class="auth-tab {tab_demo}">🎯 Demo</a>
+                <a href="?modal=auth&tab=invite" class="auth-tab {tab_invite}">🔗 Einladung</a>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Formular-Container wird mit ID markiert für CSS-Targeting
-    st.markdown('<div id="auth-modal-forms"></div>', unsafe_allow_html=True)
+    # Form Container - positioned over the card
+    col1, col2, col3 = st.columns([1, 3, 1])
 
-    st.markdown("""
-    <style>
-    /* Positioniere alle Streamlit-Elemente nach dem Modal-Marker */
-    #auth-modal-forms ~ div {
-        position: fixed !important;
-        top: calc(5vh + 145px) !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        z-index: 9999999 !important;
-        background: white !important;
-        width: 95% !important;
-        max-width: 450px !important;
-        border-radius: 0 0 20px 20px !important;
-        padding: 1.5rem !important;
-        box-shadow: 0 15px 40px rgba(0,0,0,0.2) !important;
-        max-height: 55vh !important;
-        overflow-y: auto !important;
-    }
+    with col2:
+        # Tab-specific content
+        if modal_tab == "login":
+            st.markdown("### Willkommen zurück!")
+            st.markdown("Melden Sie sich mit Ihren Zugangsdaten an")
 
-    /* Style für h2 im Modal */
-    #auth-modal-forms ~ div h2 {
-        font-size: 1.4rem !important;
-        text-align: center !important;
-        color: #0f172a !important;
-        margin: 0 0 0.25rem 0 !important;
-    }
+            with st.form("auth_login_form"):
+                email = st.text_input("E-Mail", placeholder="ihre@email.de")
+                password = st.text_input("Passwort", type="password", placeholder="Ihr Passwort")
+                remember = st.checkbox("Angemeldet bleiben", value=True)
 
-    /* Style für p im Modal */
-    #auth-modal-forms ~ div p {
-        text-align: center !important;
-        color: #64748b !important;
-        margin-bottom: 1rem !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Tab-spezifischer Inhalt
-    if modal_tab == "login":
-        st.markdown('<h2 class="auth-modal-title">Willkommen zurück!</h2>', unsafe_allow_html=True)
-        st.markdown('<p class="auth-modal-subtitle">Melden Sie sich an</p>', unsafe_allow_html=True)
-
-        with st.form("modal_login_form"):
-            email = st.text_input("E-Mail", placeholder="ihre@email.de")
-            password = st.text_input("Passwort", type="password", placeholder="Ihr Passwort")
-            remember = st.checkbox("Angemeldet bleiben", value=True)
-
-            if st.form_submit_button("Anmelden →", use_container_width=True):
-                user = None
-                for u in st.session_state.users.values():
-                    if u.email == email and u.password_hash == hash_password(password):
-                        user = u
-                        break
-
-                if not user:
-                    for ma in st.session_state.notar_mitarbeiter.values():
-                        if ma.email == email and ma.password_hash == hash_password(password) and ma.aktiv:
-                            st.session_state.current_user = ma
-                            st.session_state.is_notar_mitarbeiter = True
-                            st.query_params.clear()
-                            st.rerun()
-
-                if user:
-                    st.session_state.current_user = user
-                    st.session_state.is_notar_mitarbeiter = False
-                    if remember:
-                        token = get_session_token(email)
-                        if 'valid_tokens' not in st.session_state:
-                            st.session_state.valid_tokens = {}
-                        st.session_state.valid_tokens[email] = token
-                        save_session_to_browser(email, token)
-                    st.query_params.clear()
-                    st.rerun()
-                else:
-                    st.error("Ungültige Anmeldedaten")
-
-        st.markdown('<div style="text-align:center; color:#64748b; margin-top:1rem;">Neu hier? <a href="?modal=auth&tab=register" style="color:#d4a015; font-weight:600;">Registrieren</a></div>', unsafe_allow_html=True)
-
-    elif modal_tab == "register":
-        url_role = st.query_params.get("role", None)
-        role_map = {"kaeufer": "Käufer", "verkaeufer": "Verkäufer", "makler": "Makler", "finanzierer": "Finanzierer", "notar": "Notar"}
-
-        st.markdown('<h2 class="auth-modal-title">Konto erstellen</h2>', unsafe_allow_html=True)
-        st.markdown('<p class="auth-modal-subtitle">Kostenlos registrieren</p>', unsafe_allow_html=True)
-
-        with st.form("modal_register_form"):
-            reg_name = st.text_input("Name", placeholder="Max Mustermann")
-            reg_email = st.text_input("E-Mail", placeholder="ihre@email.de")
-            reg_pw = st.text_input("Passwort", type="password", placeholder="Mind. 8 Zeichen")
-            reg_pw2 = st.text_input("Passwort bestätigen", type="password")
-
-            options = ["Käufer", "Verkäufer", "Makler", "Finanzierer", "Notar"]
-            default_idx = options.index(role_map.get(url_role, "Käufer")) if url_role in role_map else 0
-            reg_rolle = st.selectbox("Rolle", options, index=default_idx)
-
-            agb = st.checkbox("AGB und Datenschutz akzeptieren")
-
-            if st.form_submit_button("Registrieren →", use_container_width=True):
-                if not all([reg_name, reg_email, reg_pw, reg_pw2]):
-                    st.error("Alle Felder ausfüllen")
-                elif len(reg_pw) < 8:
-                    st.error("Passwort mind. 8 Zeichen")
-                elif reg_pw != reg_pw2:
-                    st.error("Passwörter stimmen nicht überein")
-                elif not agb:
-                    st.error("AGB akzeptieren")
-                elif any(u.email == reg_email for u in st.session_state.users.values()):
-                    st.error("E-Mail bereits registriert")
-                else:
-                    new_id = f"user_{uuid.uuid4().hex[:8]}"
-                    new_user = User(user_id=new_id, name=reg_name, email=reg_email,
-                                   password_hash=hash_password(reg_pw), rolle=reg_rolle, onboarding_complete=False)
-                    st.session_state.users[new_id] = new_user
-                    st.session_state.current_user = new_user
-                    st.session_state.is_notar_mitarbeiter = False
-                    st.query_params.clear()
-                    st.success("Erfolgreich registriert!")
-                    st.rerun()
-
-        st.markdown('<div style="text-align:center; color:#64748b; margin-top:1rem;">Bereits registriert? <a href="?modal=auth&tab=login" style="color:#d4a015; font-weight:600;">Anmelden</a></div>', unsafe_allow_html=True)
-
-    elif modal_tab == "demo":
-        st.markdown('<h2 class="auth-modal-title">Demo-Zugang</h2>', unsafe_allow_html=True)
-        st.markdown('<p class="auth-modal-subtitle">Sofort testen - ohne Registrierung</p>', unsafe_allow_html=True)
-
-        demo_roles = [
-            {"name": "Käufer", "icon": "🏠", "email": "kaeufer@demo.de", "desc": "Immobilie kaufen"},
-            {"name": "Verkäufer", "icon": "🔑", "email": "verkaeufer@demo.de", "desc": "Immobilie verkaufen"},
-            {"name": "Makler", "icon": "🤝", "email": "makler@demo.de", "desc": "Vermittlung"},
-            {"name": "Notar", "icon": "⚖️", "email": "notar@demo.de", "desc": "Beurkundung"},
-            {"name": "Finanzierer", "icon": "💰", "email": "finanz@demo.de", "desc": "Finanzierung"},
-        ]
-
-        cols = st.columns(2)
-        for i, demo in enumerate(demo_roles):
-            with cols[i % 2]:
-                if st.button(f"{demo['icon']} {demo['name']}", key=f"demo_{demo['name']}", use_container_width=True, type="primary" if i == 0 else "secondary"):
+                if st.form_submit_button("Anmelden", use_container_width=True):
+                    user = None
                     for u in st.session_state.users.values():
-                        if u.email == demo['email']:
-                            st.session_state.current_user = u
-                            st.session_state.is_notar_mitarbeiter = False
-                            st.query_params.clear()
-                            st.rerun()
-
-        st.markdown("""
-        <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:1rem; margin-top:1rem;">
-            <strong style="color:#166534;">✅ Demo-Vorteile:</strong>
-            <div style="color:#15803d; font-size:0.85rem; margin-top:0.5rem;">
-                Sofortiger Zugang • Alle Funktionen testbar • Beispieldaten vorhanden
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    elif modal_tab == "invite":
-        st.markdown('<h2 class="auth-modal-title">Einladung annehmen</h2>', unsafe_allow_html=True)
-        st.markdown('<p class="auth-modal-subtitle">Projekt-Einladung einlösen</p>', unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="invite-info-box">
-            <div class="invite-info-title">🔗 So funktioniert's</div>
-            <div class="invite-info-text">Geben Sie den Einladungscode ein, den Sie erhalten haben.</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.form("modal_invite_form"):
-            code = st.text_input("Einladungscode", placeholder="z.B. INV-ABC123")
-
-            if st.form_submit_button("Einladung prüfen →", use_container_width=True):
-                found = None
-                check_code = code.strip().split("/")[-1] if "/" in code else code.strip()
-
-                for einladung in st.session_state.get('einladungen', {}).values():
-                    if getattr(einladung, 'token', '') == check_code or getattr(einladung, 'einladungs_code', '') == check_code:
-                        if not getattr(einladung, 'verwendet', False):
-                            found = einladung
+                        if u.email == email and u.password_hash == hash_password(password):
+                            user = u
                             break
 
-                if found:
-                    st.success(f"Einladung gefunden! Projekt: {getattr(found, 'projekt_name', 'Unbekannt')}")
-                    st.session_state['pending_einladung'] = found
-                    st.info("Bitte registrieren Sie sich, um die Einladung anzunehmen.")
-                else:
-                    st.error("Ungültiger Einladungscode")
+                    if not user:
+                        for ma in st.session_state.notar_mitarbeiter.values():
+                            if ma.email == email and ma.password_hash == hash_password(password) and ma.aktiv:
+                                st.session_state.current_user = ma
+                                st.session_state.is_notar_mitarbeiter = True
+                                st.query_params.clear()
+                                st.rerun()
 
-        st.markdown('<div style="text-align:center; color:#64748b; margin-top:1rem;"><a href="?modal=auth&tab=register" style="color:#d4a015; font-weight:600;">Jetzt registrieren</a></div>', unsafe_allow_html=True)
+                    if user:
+                        st.session_state.current_user = user
+                        st.session_state.is_notar_mitarbeiter = False
+                        if remember:
+                            token = get_session_token(email)
+                            if 'valid_tokens' not in st.session_state:
+                                st.session_state.valid_tokens = {}
+                            st.session_state.valid_tokens[email] = token
+                            save_session_to_browser(email, token)
+                        st.query_params.clear()
+                        st.rerun()
+                    else:
+                        st.error("Ungültige Anmeldedaten")
 
-    # Seite hier beenden
+            st.markdown("---")
+            st.markdown("Neu hier? [Jetzt registrieren](?modal=auth&tab=register)")
+
+        elif modal_tab == "register":
+            url_role = st.query_params.get("role", None)
+            role_map = {"kaeufer": "Käufer", "verkaeufer": "Verkäufer", "makler": "Makler", "finanzierer": "Finanzierer", "notar": "Notar"}
+
+            st.markdown("### Konto erstellen")
+            st.markdown("Registrieren Sie sich kostenlos")
+
+            with st.form("auth_register_form"):
+                reg_name = st.text_input("Name", placeholder="Max Mustermann")
+                reg_email = st.text_input("E-Mail", placeholder="ihre@email.de")
+                reg_pw = st.text_input("Passwort", type="password", placeholder="Mind. 8 Zeichen")
+                reg_pw2 = st.text_input("Passwort bestätigen", type="password")
+
+                options = ["Käufer", "Verkäufer", "Makler", "Finanzierer", "Notar"]
+                default_idx = options.index(role_map.get(url_role, "Käufer")) if url_role in role_map else 0
+                reg_rolle = st.selectbox("Ihre Rolle", options, index=default_idx)
+
+                agb = st.checkbox("AGB und Datenschutz akzeptieren")
+
+                if st.form_submit_button("Registrieren", use_container_width=True):
+                    if not all([reg_name, reg_email, reg_pw, reg_pw2]):
+                        st.error("Bitte alle Felder ausfüllen")
+                    elif len(reg_pw) < 8:
+                        st.error("Passwort mind. 8 Zeichen")
+                    elif reg_pw != reg_pw2:
+                        st.error("Passwörter stimmen nicht überein")
+                    elif not agb:
+                        st.error("Bitte AGB akzeptieren")
+                    elif any(u.email == reg_email for u in st.session_state.users.values()):
+                        st.error("E-Mail bereits registriert")
+                    else:
+                        new_id = f"user_{uuid.uuid4().hex[:8]}"
+                        new_user = User(user_id=new_id, name=reg_name, email=reg_email,
+                                       password_hash=hash_password(reg_pw), rolle=reg_rolle, onboarding_complete=False)
+                        st.session_state.users[new_id] = new_user
+                        st.session_state.current_user = new_user
+                        st.session_state.is_notar_mitarbeiter = False
+                        st.query_params.clear()
+                        st.success("Erfolgreich registriert!")
+                        st.rerun()
+
+            st.markdown("---")
+            st.markdown("Bereits registriert? [Anmelden](?modal=auth&tab=login)")
+
+        elif modal_tab == "demo":
+            st.markdown("### Demo-Zugang")
+            st.markdown("Testen Sie ImmoFlow sofort - ohne Registrierung!")
+
+            demo_roles = [
+                {"name": "Käufer", "icon": "🏠", "email": "kaeufer@demo.de", "desc": "Immobilie kaufen"},
+                {"name": "Verkäufer", "icon": "🔑", "email": "verkaeufer@demo.de", "desc": "Immobilie verkaufen"},
+                {"name": "Makler", "icon": "🤝", "email": "makler@demo.de", "desc": "Vermittlung"},
+                {"name": "Notar", "icon": "⚖️", "email": "notar@demo.de", "desc": "Beurkundung"},
+                {"name": "Finanzierer", "icon": "💰", "email": "finanz@demo.de", "desc": "Finanzierung"},
+            ]
+
+            cols = st.columns(2)
+            for i, demo in enumerate(demo_roles):
+                with cols[i % 2]:
+                    btn_type = "primary" if i == 0 else "secondary"
+                    if st.button(f"{demo['icon']} {demo['name']}", key=f"demo_{demo['name']}", use_container_width=True, type=btn_type):
+                        for u in st.session_state.users.values():
+                            if u.email == demo['email']:
+                                st.session_state.current_user = u
+                                st.session_state.is_notar_mitarbeiter = False
+                                st.query_params.clear()
+                                st.rerun()
+
+            st.markdown("---")
+            st.success("**Demo-Vorteile:** Sofortiger Zugang • Alle Funktionen testbar • Beispieldaten vorhanden")
+
+        elif modal_tab == "invite":
+            st.markdown("### Einladung annehmen")
+            st.markdown("Sie wurden zu einem Projekt eingeladen?")
+
+            st.info("🔗 **So funktioniert's:** Geben Sie den Einladungscode ein, den Sie erhalten haben.")
+
+            with st.form("auth_invite_form"):
+                code = st.text_input("Einladungscode", placeholder="z.B. INV-ABC123")
+
+                if st.form_submit_button("Einladung prüfen", use_container_width=True):
+                    found = None
+                    check_code = code.strip().split("/")[-1] if "/" in code else code.strip()
+
+                    for einladung in st.session_state.get('einladungen', {}).values():
+                        if getattr(einladung, 'token', '') == check_code or getattr(einladung, 'einladungs_code', '') == check_code:
+                            if not getattr(einladung, 'verwendet', False):
+                                found = einladung
+                                break
+
+                    if found:
+                        st.success(f"Einladung gefunden! Projekt: {getattr(found, 'projekt_name', 'Unbekannt')}")
+                        st.session_state['pending_einladung'] = found
+                        st.info("Bitte registrieren Sie sich, um die Einladung anzunehmen.")
+                    else:
+                        st.error("Ungültiger Einladungscode")
+
+            st.markdown("---")
+            st.markdown("[Jetzt registrieren](?modal=auth&tab=register) um die Einladung anzunehmen")
+
+        # Back to Landing Page Link
+        st.markdown("---")
+        if st.button("← Zurück zur Startseite", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+
+    # Stop rendering - don't show landing page
     st.stop()
 
 
@@ -14554,32 +14449,10 @@ def login_page():
     # ============ AUTH MODAL CHECK ============
     show_modal = st.query_params.get("modal", None)
 
-    # CSS für Modal-Overlay wenn aktiv
+    # Wenn Auth-Modal aktiv, zeige nur das Modal (ersetzt Landing Page)
     if show_modal == "auth":
-        st.markdown("""
-        <style>
-        /* Blur entire main content when modal is active */
-        [data-testid="stMain"] > div > div > div {
-            filter: blur(5px) !important;
-            pointer-events: none !important;
-            user-select: none !important;
-        }
-
-        /* Modal-Overlay sichtbar machen */
-        .auth-modal-overlay {
-            filter: none !important;
-            pointer-events: auto !important;
-        }
-
-        /* Modal-Formulare nicht bluren */
-        #auth-modal-forms,
-        #auth-modal-forms ~ * {
-            filter: none !important;
-            pointer-events: auto !important;
-            user-select: auto !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        render_auth_modal()
+        # render_auth_modal() ruft st.stop() auf, daher wird hier nicht weitergegangen
 
     # ============ NAVIGATION BAR ============
     st.markdown("""
@@ -14954,10 +14827,6 @@ def login_page():
         <div class="footer-copyright">© 2025 ImmoFlow. Alle Rechte vorbehalten.</div>
     </div>
     """, unsafe_allow_html=True)
-
-    # ============ AUTH MODAL OVERLAY (at the end for proper overlay) ============
-    if show_modal == "auth":
-        render_auth_modal()
 
 
 def logout():
