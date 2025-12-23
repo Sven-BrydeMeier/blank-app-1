@@ -13325,6 +13325,49 @@ def login_page():
         **Notar:** `notar@demo.de` | `notar123`
         """)
 
+    # === DEMO-SCHNELLZUGANG (für Testphase) ===
+    st.markdown("---")
+    st.markdown("### 🧪 Demo-Schnellzugang")
+    st.caption("Klicken Sie auf eine Rolle, um sich direkt als Demo-Benutzer anzumelden:")
+
+    # Demo-Benutzer Konfiguration
+    demo_users = {
+        "🏢 Makler": "makler@demo.de",
+        "🛒 Käufer": "kaeufer@demo.de",
+        "🏠 Verkäufer": "verkaeufer@demo.de",
+        "⚖️ Notar": "notar@demo.de",
+        "🏦 Finanzierer": "finanz@demo.de",
+    }
+
+    # Buttons in einer Reihe
+    cols = st.columns(len(demo_users))
+
+    for idx, (role_label, email) in enumerate(demo_users.items()):
+        with cols[idx]:
+            if st.button(role_label, key=f"demo_login_{email}", use_container_width=True):
+                # Demo-Benutzer finden und einloggen
+                for user in st.session_state.users.values():
+                    if user.email == email:
+                        st.session_state.current_user = user
+                        st.session_state.is_notar_mitarbeiter = False
+
+                        # Login-Event tracken
+                        safe_track_interaktion(
+                            interaktions_typ='demo_login',
+                            details={'rolle': user.rolle, 'demo': True},
+                            nutzer_id=user.user_id
+                        )
+
+                        create_notification(
+                            user.user_id,
+                            "Demo-Zugang aktiv",
+                            f"Sie sind als Demo-{user.rolle} angemeldet.",
+                            NotificationType.INFO.value
+                        )
+                        st.rerun()
+
+    st.caption("⚠️ *Diese Demo-Buttons werden nach der Testphase entfernt.*")
+
 def logout():
     """Benutzer abmelden und Session aus Browser löschen"""
     # Session-Token invalidieren
@@ -13354,11 +13397,13 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     """
     Rendert eine fixierte Menüleiste über dem Hauptfenster.
     Links: Rolle/Dashboard-Name
+    Mitte: Schnellaktionen (Suche, Benachrichtigungen, etc.)
     Rechts: User-Info
     """
     user = st.session_state.current_user
     user_name = getattr(user, 'name', 'Benutzer')
     user_role = getattr(user, 'rolle', '')
+    user_id = getattr(user, 'user_id', '')
 
     # Rollen-Anzeige formatieren
     role_display = {
@@ -13378,6 +13423,19 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         elif len(parts) == 1:
             initials = parts[0][:2].upper()
 
+    # Benachrichtigungen zählen
+    notif_count = 0
+    if user_id and 'benachrichtigungen' in st.session_state:
+        user_notifs = [n for n in st.session_state.benachrichtigungen
+                       if n.empfaenger_id == user_id and not n.gelesen]
+        notif_count = len(user_notifs)
+
+    notif_badge = f'<span class="topbar-badge">{notif_count}</span>' if notif_count > 0 else ''
+
+    # Design-Mode
+    design_mode = st.session_state.get('design_mode', 'navy-gold')
+    design_icon = "🌙" if design_mode == "navy-gold" else "☀️"
+
     # Vollständige Topbar als fixiertes Element
     st.markdown(f"""
     <style>
@@ -13389,18 +13447,12 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         right: 0;
         z-index: 999999;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
-        padding: 0.6rem 1.5rem;
+        padding: 0.5rem 1.5rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         border-bottom: 3px solid #c9a227;
-    }}
-
-    /* Platzhalter für Topbar-Höhe */
-    .topbar-spacer {{
-        height: 60px;
-        margin-bottom: 1rem;
     }}
 
     .topbar-left {{
@@ -13410,35 +13462,113 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     }}
 
     .topbar-icon {{
-        font-size: 1.6rem;
+        font-size: 1.5rem;
     }}
 
     .topbar-title {{
         color: #ffffff;
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         font-weight: 700;
         margin: 0;
     }}
 
+    /* Mitte - Aktionen */
+    .topbar-center {{
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }}
+
+    .topbar-action {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        text-decoration: none;
+        position: relative;
+    }}
+
+    .topbar-action:hover {{
+        background: rgba(201, 162, 39, 0.3);
+        border-color: #c9a227;
+        transform: translateY(-1px);
+    }}
+
+    .topbar-action.active {{
+        background: #c9a227;
+        color: #1e3a5f;
+    }}
+
+    .topbar-badge {{
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #dc3545;
+        color: white;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 5px;
+        border-radius: 10px;
+        min-width: 16px;
+        text-align: center;
+    }}
+
+    .topbar-search {{
+        display: flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 0.3rem 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        gap: 0.5rem;
+    }}
+
+    .topbar-search input {{
+        background: transparent;
+        border: none;
+        color: #ffffff;
+        font-size: 0.85rem;
+        width: 150px;
+        outline: none;
+    }}
+
+    .topbar-search input::placeholder {{
+        color: rgba(255, 255, 255, 0.5);
+    }}
+
+    .topbar-search-icon {{
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+    }}
+
+    /* Rechte Seite */
     .topbar-right {{
         display: flex;
         align-items: center;
-        gap: 1rem;
+        gap: 0.75rem;
     }}
 
     .topbar-user-box {{
         display: flex;
         align-items: center;
-        gap: 0.6rem;
+        gap: 0.5rem;
         background: rgba(255, 255, 255, 0.15);
-        padding: 0.4rem 0.8rem;
+        padding: 0.3rem 0.7rem;
         border-radius: 20px;
         border: 1px solid rgba(255, 255, 255, 0.25);
     }}
 
     .topbar-avatar {{
-        width: 32px;
-        height: 32px;
+        width: 30px;
+        height: 30px;
         background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%);
         border-radius: 50%;
         display: flex;
@@ -13446,7 +13576,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         justify-content: center;
         font-weight: 700;
         color: #1e3a5f;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }}
 
     .topbar-user-details {{
@@ -13457,36 +13587,44 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     .topbar-username {{
         color: #ffffff;
         font-weight: 600;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         line-height: 1.2;
     }}
 
     .topbar-userrole {{
         color: #c9a227;
-        font-size: 0.7rem;
+        font-size: 0.65rem;
         font-weight: 500;
     }}
 
     /* Haupt-Content nach unten verschieben */
     .main .block-container {{
-        padding-top: 70px !important;
+        padding-top: 65px !important;
     }}
 
     /* Sidebar auch nach unten */
     [data-testid="stSidebar"] > div:first-child {{
-        padding-top: 70px !important;
+        padding-top: 65px !important;
     }}
 
     /* Mobile */
     @media (max-width: 768px) {{
-        .topbar-user-details {{
+        .topbar-user-details, .topbar-search {{
             display: none;
         }}
         .topbar-title {{
-            font-size: 1rem;
+            font-size: 0.9rem;
         }}
         .immoflow-topbar {{
-            padding: 0.5rem 1rem;
+            padding: 0.4rem 0.8rem;
+        }}
+        .topbar-center {{
+            gap: 0.3rem;
+        }}
+        .topbar-action {{
+            width: 32px;
+            height: 32px;
+            font-size: 1rem;
         }}
     }}
     </style>
@@ -13495,6 +13633,27 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         <div class="topbar-left">
             <span class="topbar-icon">{role_icon}</span>
             <h1 class="topbar-title">{role_name}</h1>
+        </div>
+        <div class="topbar-center">
+            <div class="topbar-search">
+                <span class="topbar-search-icon">🔍</span>
+                <input type="text" placeholder="Suchen..." id="topbar-search-input">
+            </div>
+            <div class="topbar-action" title="Benachrichtigungen">
+                🔔{notif_badge}
+            </div>
+            <div class="topbar-action" title="Neues Projekt / Neue Akte">
+                ➕
+            </div>
+            <div class="topbar-action" title="Design wechseln">
+                {design_icon}
+            </div>
+            <div class="topbar-action" title="Einstellungen">
+                ⚙️
+            </div>
+            <div class="topbar-action" title="Hilfe">
+                ❓
+            </div>
         </div>
         <div class="topbar-right">
             <div class="topbar-user-box">
@@ -29403,8 +29562,17 @@ def render_akten_import():
                 'dateiname': uploaded_file.name
             }
 
-        pdf_bytes = uploaded_file.read()
-        st.session_state.akten_import_state['pdf_bytes'] = pdf_bytes
+        # pdf_bytes aus Session State holen oder neu lesen
+        # WICHTIG: Bei Form-Submit kann der File-Stream leer sein
+        if st.session_state.akten_import_state.get('pdf_bytes') and len(st.session_state.akten_import_state['pdf_bytes']) > 0:
+            pdf_bytes = st.session_state.akten_import_state['pdf_bytes']
+        else:
+            pdf_bytes = uploaded_file.read()
+            if pdf_bytes and len(pdf_bytes) > 0:
+                st.session_state.akten_import_state['pdf_bytes'] = pdf_bytes
+            elif st.session_state.akten_import_state.get('pdf_bytes'):
+                # Fallback auf gespeicherte Bytes
+                pdf_bytes = st.session_state.akten_import_state['pdf_bytes']
 
         # === SCHRITT 1: PDF ANALYSE ===
         st.markdown("---")
@@ -29811,15 +29979,31 @@ def render_akten_import():
                             'dateiname': None
                         }
 
+                        # Import erfolgreich - merken für Tab-Wechsel
+                        st.session_state['akten_import_erfolg'] = {
+                            'akte_id': akte.akte_id,
+                            'bezeichnung': bezeichnung,
+                            'dokumente': len(akte.dokumente),
+                            'ordner': len(akte.ordner),
+                            'kaeufer': akte.kaeufer_namen,
+                            'verkaeufer': akte.verkaeufer_namen
+                        }
+
+                        # Debug: Bestätigen dass Akte gespeichert wurde
                         st.success(f"✅ Akte '{bezeichnung}' wurde erfolgreich importiert!")
                         st.info(f"📊 {len(akte.dokumente)} Dokumente in {len(akte.ordner)} Ordnern erstellt.")
+                        st.info(f"🆔 Akte-ID: {akte.akte_id} | Notar-ID: {akte.notar_id}")
+                        st.info(f"📂 Gesamt-Akten im System: {len(st.session_state.importierte_akten)}")
 
                         if akte.kaeufer_namen:
                             st.info(f"👥 Käufer: {', '.join(akte.kaeufer_namen)}")
                         if akte.verkaeufer_namen:
                             st.info(f"👥 Verkäufer: {', '.join(akte.verkaeufer_namen)}")
 
-                        st.rerun()
+                        st.balloons()
+
+                        # Hinweis zum Wechseln zum Verwaltungs-Tab
+                        st.success("📂 Wechseln Sie zum Tab **'Akten verwalten'** um Ihre importierte Akte zu sehen.")
 
 
 def erstelle_akte_aus_pdf_erweitert(
@@ -30014,6 +30198,23 @@ def render_akten_verwaltung():
 
     notar_id = st.session_state.current_user.user_id
 
+    # Debug-Info anzeigen falls kürzlich importiert
+    if st.session_state.get('akten_import_erfolg'):
+        erfolg = st.session_state['akten_import_erfolg']
+        st.success(f"✅ Zuletzt importiert: **{erfolg['bezeichnung']}** (ID: {erfolg['akte_id']})")
+        # Import-Erfolg-Nachricht nur einmal anzeigen
+        del st.session_state['akten_import_erfolg']
+
+    # Debug: Alle Akten im System anzeigen
+    alle_akten = st.session_state.importierte_akten
+    if alle_akten:
+        with st.expander("🔧 Debug: Alle Akten im System", expanded=False):
+            st.write(f"**Aktuelle Notar-ID:** {notar_id}")
+            st.write(f"**Gesamt-Akten im System:** {len(alle_akten)}")
+            for aid, a in alle_akten.items():
+                match_status = "✅ MATCH" if a.notar_id == notar_id else "❌ Keine Übereinstimmung"
+                st.write(f"- **{a.bezeichnung}** (Akte-ID: {aid[:8]}) | Notar-ID: {a.notar_id} | {match_status}")
+
     # Nur Akten des aktuellen Notars
     meine_akten = {
         akte_id: akte
@@ -30023,6 +30224,7 @@ def render_akten_verwaltung():
 
     if not meine_akten:
         st.info("📭 Noch keine Akten importiert. Nutzen Sie den Tab 'Neue Akte importieren' um Akten hochzuladen.")
+        st.caption(f"ℹ️ Ihre Notar-ID: {notar_id}")
         return
 
     # Akten-Liste
