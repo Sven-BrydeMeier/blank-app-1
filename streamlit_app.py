@@ -14857,6 +14857,7 @@ def logout():
 def makler_dashboard():
     """Dashboard für Makler - Neues Design nach Referenz"""
     render_immoflow_design_system()
+    render_user_info_bar()
 
     user_id = st.session_state.current_user.user_id
     render_aktentasche_teilen_dialog(user_id)
@@ -16063,6 +16064,7 @@ def kaeufer_dashboard():
     """Dashboard für Käufer - Neues Design nach Referenz"""
     # ImmoFlow Design System laden
     render_immoflow_design_system()
+    render_user_info_bar()
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -19673,6 +19675,7 @@ def kaeufer_dokumente_view():
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer - Neues Design nach Referenz"""
     render_immoflow_design_system()
+    render_user_info_bar()
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -21076,6 +21079,7 @@ def verkaeufer_nachrichten():
 def finanzierer_dashboard():
     """Dashboard für Finanzierer - Neues Design nach Referenz"""
     render_immoflow_design_system()
+    render_user_info_bar()
 
     user_id = st.session_state.current_user.user_id
     render_aktentasche_teilen_dialog(user_id)
@@ -21813,6 +21817,7 @@ def render_immoflow_design_system():
 
     /* ==================== SIDEBAR BUTTONS ==================== */
 
+    /* Sidebar Buttons - Gold/Navy mit Navy Text, linksbündig */
     [data-testid="stSidebar"] button[kind="secondary"] {
         background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
         border: 1px solid var(--navy-600);
@@ -21823,6 +21828,13 @@ def render_immoflow_design_system():
         margin: 0.2rem 0;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+
+    [data-testid="stSidebar"] button[kind="secondary"] p,
+    [data-testid="stSidebar"] button[kind="secondary"] span {
+        text-align: left !important;
     }
 
     [data-testid="stSidebar"] button[kind="secondary"]:hover {
@@ -21833,6 +21845,7 @@ def render_immoflow_design_system():
         transform: translateX(4px);
     }
 
+    /* Aktiver Button - Gold Hintergrund mit Navy Text */
     [data-testid="stSidebar"] button[kind="primary"] {
         background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-400) 100%);
         border: 1px solid var(--gold-400);
@@ -21842,12 +21855,162 @@ def render_immoflow_design_system():
         padding: 0.6rem 0.85rem;
         margin: 0.2rem 0;
         box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4);
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+
+    [data-testid="stSidebar"] button[kind="primary"] p,
+    [data-testid="stSidebar"] button[kind="primary"] span {
+        text-align: left !important;
+        color: var(--navy-900) !important;
     }
 
     [data-testid="stSidebar"] button[kind="primary"]:hover {
         background: linear-gradient(135deg, var(--gold-400) 0%, var(--gold-300) 100%);
         box-shadow: 0 6px 24px rgba(212, 175, 55, 0.5);
         transform: translateX(4px);
+    }
+
+    /* ==================== USER INFO BAR (Top Right) ==================== */
+
+    .user-info-bar {
+        position: fixed;
+        top: 0.5rem;
+        right: 1rem;
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: white;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1);
+        border: 1px solid var(--navy-100);
+    }
+
+    .user-info-name {
+        font-size: 0.85rem;
+        color: var(--navy-700);
+        font-weight: 500;
+    }
+
+    .user-info-role {
+        font-size: 0.7rem;
+        color: var(--navy-400);
+    }
+
+    .user-info-divider {
+        width: 1px;
+        height: 24px;
+        background: var(--navy-200);
+    }
+
+    .user-info-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 1rem;
+        color: var(--navy-500);
+    }
+
+    .user-info-btn:hover {
+        background: var(--navy-100);
+        color: var(--navy-700);
+    }
+
+    .user-info-btn.logout:hover {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .user-info-btn.settings:hover {
+        background: var(--gold-100);
+        color: var(--gold-500);
+    }
+
+    /* ==================== ACCOUNT SETTINGS MODAL ==================== */
+
+    .account-settings-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .account-settings-card {
+        background: white;
+        border-radius: 20px;
+        max-width: 480px;
+        width: 95%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .account-settings-header {
+        background: linear-gradient(135deg, var(--navy-800) 0%, var(--navy-900) 100%);
+        padding: 1.25rem 1.5rem;
+        border-radius: 20px 20px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .account-settings-title {
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .account-settings-close {
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.15);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .account-settings-close:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .account-settings-body {
+        padding: 1.5rem;
+    }
+
+    .account-settings-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .account-settings-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--navy-600);
+        margin-bottom: 0.5rem;
     }
 
     /* ==================== HAUPTMENÜ LEISTE ==================== */
@@ -23263,6 +23426,155 @@ def render_immoflow_design_system():
     """, unsafe_allow_html=True)
 
 
+# ==================== USER INFO BAR & ACCOUNT SETTINGS ====================
+
+def render_user_info_bar():
+    """
+    Rendert die User-Info-Leiste oben rechts mit Name, Einstellungen und Logout.
+    Muss am Anfang jedes Dashboards aufgerufen werden.
+    """
+    if not st.session_state.current_user:
+        return
+
+    user = st.session_state.current_user
+    user_name = getattr(user, 'name', 'Benutzer') or 'Benutzer'
+    user_rolle = getattr(user, 'rolle', '')
+
+    # Role Labels
+    role_labels = {
+        "Käufer": "Käufer",
+        "Verkäufer": "Verkäufer",
+        "Makler": "Makler",
+        "Notar": "Notar",
+        "Finanzierer": "Finanzierer"
+    }
+    role_label = role_labels.get(user_rolle, user_rolle)
+
+    # User Info Bar HTML
+    st.markdown(f"""
+    <div class="user-info-bar">
+        <div>
+            <div class="user-info-name">{user_name[:20]}</div>
+            <div class="user-info-role">{role_label}</div>
+        </div>
+        <div class="user-info-divider"></div>
+        <a href="?settings=account" class="user-info-btn settings" title="Kontoeinstellungen">⚙️</a>
+        <a href="?action=logout" class="user-info-btn logout" title="Abmelden">🚪</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Check for logout action
+    if st.query_params.get("action") == "logout":
+        st.query_params.clear()
+        logout()
+
+    # Check for settings modal
+    if st.query_params.get("settings") == "account":
+        render_account_settings_modal()
+
+
+def render_account_settings_modal():
+    """
+    Rendert das Konto-Einstellungen Modal.
+    """
+    if not st.session_state.current_user:
+        return
+
+    user = st.session_state.current_user
+
+    # Modal HTML Header
+    st.markdown("""
+    <style>
+    /* Account Settings Form Positioning */
+    .account-form-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(6px);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    </style>
+    <div class="account-form-container">
+        <div class="account-settings-card">
+            <div class="account-settings-header">
+                <div class="account-settings-title">⚙️ Kontoeinstellungen</div>
+                <a href="?" class="account-settings-close">&times;</a>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Form content with Streamlit
+    col1, col2, col3 = st.columns([1, 3, 1])
+
+    with col2:
+        st.markdown("### Kontodaten bearbeiten")
+
+        with st.form("account_settings_form"):
+            current_name = getattr(user, 'name', '') or ''
+            current_email = getattr(user, 'email', '') or ''
+
+            new_name = st.text_input("Name", value=current_name, placeholder="Ihr Name")
+            new_email = st.text_input("E-Mail", value=current_email, placeholder="ihre@email.de")
+
+            st.markdown("---")
+            st.markdown("**Passwort ändern** (leer lassen, wenn Sie es nicht ändern möchten)")
+            new_password = st.text_input("Neues Passwort", type="password", placeholder="Mind. 8 Zeichen")
+            new_password_confirm = st.text_input("Passwort bestätigen", type="password")
+
+            submitted = st.form_submit_button("Änderungen speichern", use_container_width=True)
+
+            if submitted:
+                changes_made = False
+
+                # Update name
+                if new_name and new_name != current_name:
+                    user.name = new_name
+                    changes_made = True
+
+                # Update email
+                if new_email and new_email != current_email:
+                    # Check if email is already taken
+                    email_taken = any(
+                        u.email == new_email and u.user_id != user.user_id
+                        for u in st.session_state.users.values()
+                    )
+                    if email_taken:
+                        st.error("Diese E-Mail-Adresse ist bereits registriert.")
+                    else:
+                        user.email = new_email
+                        changes_made = True
+
+                # Update password
+                if new_password:
+                    if len(new_password) < 8:
+                        st.error("Das Passwort muss mindestens 8 Zeichen haben.")
+                    elif new_password != new_password_confirm:
+                        st.error("Die Passwörter stimmen nicht überein.")
+                    else:
+                        user.password_hash = hash_password(new_password)
+                        changes_made = True
+
+                if changes_made:
+                    st.success("Ihre Änderungen wurden gespeichert!")
+                    st.query_params.clear()
+                    st.rerun()
+
+        st.markdown("---")
+        if st.button("← Zurück zum Dashboard", use_container_width=True):
+            st.query_params.clear()
+            st.rerun()
+
+    st.stop()
+
+
 # ==================== DASHBOARD UI COMPONENTS (Referenz-Design) ====================
 
 def render_dashboard_sidebar_html(role: str, user_name: str, menu_items: list, active_menu: str):
@@ -24033,6 +24345,7 @@ def render_notar_content(selection: str, user_id: str):
 def notar_dashboard():
     """Dashboard für Notar - Neues Design nach Referenz"""
     render_immoflow_design_system()
+    render_user_info_bar()
 
     user_id = st.session_state.current_user.user_id
     render_aktentasche_teilen_dialog(user_id)
