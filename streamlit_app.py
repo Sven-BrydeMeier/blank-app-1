@@ -13744,6 +13744,52 @@ def render_landing_page_styles():
         opacity: 0.9;
     }
 
+    .role-card-link {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .role-features {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin-top: 1rem;
+        font-size: 0.75rem;
+        opacity: 0.85;
+        text-align: left;
+        padding: 0 0.5rem;
+    }
+
+    .role-features span {
+        display: block;
+    }
+
+    .role-cta {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: background 0.2s;
+    }
+
+    .role-card:hover .role-cta {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Demo Section */
+    .demo-section {
+        background: linear-gradient(135deg, var(--navy-50) 0%, white 50%, var(--gold-50) 100%);
+        padding: 4rem 2rem;
+    }
+
+    /* Registration Section */
+    .registration-section {
+        background: white;
+        padding: 4rem 2rem;
+    }
+
     /* Footer */
     .landing-footer {
         background: var(--navy-900);
@@ -13938,8 +13984,8 @@ def login_page():
             <a href="#rollen" class="nav-link">Rollen</a>
         </div>
         <div class="nav-actions">
-            <span class="nav-btn-secondary">Anmelden</span>
-            <button class="nav-btn-primary">Jetzt starten</button>
+            <a href="#login" class="nav-btn-secondary" style="text-decoration:none;">Anmelden</a>
+            <a href="#registrierung" class="nav-btn-primary" style="text-decoration:none;">Jetzt starten</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -13960,28 +14006,72 @@ def login_page():
             und Finanzierer auf einer intelligenten Plattform.
         </p>
         <div class="hero-buttons">
-            <button class="hero-btn-primary">Jetzt starten →</button>
-            <button class="hero-btn-secondary">Demo ansehen</button>
+            <a href="#registrierung" class="hero-btn-primary" style="text-decoration:none;">Jetzt starten →</a>
+            <a href="#demo" class="hero-btn-secondary" style="text-decoration:none;">Demo ansehen</a>
         </div>
         <div class="stats-container">
             <div class="stat-card">
-                <div class="stat-value">2.500+</div>
+                <div class="stat-value" data-target="2500" data-suffix="+">0</div>
                 <div class="stat-label">Transaktionen</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">98%</div>
+                <div class="stat-value" data-target="98" data-suffix="%">0</div>
                 <div class="stat-label">Zufriedenheit</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">45%</div>
+                <div class="stat-value" data-target="45" data-suffix="%">0</div>
                 <div class="stat-label">Zeitersparnis</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">100%</div>
+                <div class="stat-value" data-target="100" data-suffix="%">0</div>
                 <div class="stat-label">Rechtskonform</div>
             </div>
         </div>
     </div>
+
+    <!-- Count-Up Animation Script -->
+    <script>
+    (function() {
+        function animateCountUp() {
+            const counters = document.querySelectorAll('.stat-value[data-target]');
+            counters.forEach(counter => {
+                const target = parseInt(counter.getAttribute('data-target'));
+                const suffix = counter.getAttribute('data-suffix') || '';
+                const duration = 2000;
+                const step = target / (duration / 16);
+                let current = 0;
+
+                const updateCounter = () => {
+                    current += step;
+                    if (current < target) {
+                        counter.textContent = Math.floor(current).toLocaleString('de-DE') + suffix;
+                        requestAnimationFrame(updateCounter);
+                    } else {
+                        counter.textContent = target.toLocaleString('de-DE') + suffix;
+                    }
+                };
+
+                // Start animation when element is visible
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && counter.textContent === '0') {
+                            updateCounter();
+                        }
+                    });
+                }, { threshold: 0.5 });
+
+                observer.observe(counter);
+            });
+        }
+
+        // Run on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', animateCountUp);
+        } else {
+            setTimeout(animateCountUp, 100);
+        }
+    })();
+    </script>
     """, unsafe_allow_html=True)
 
     # ============ WAVE SEPARATOR ============
@@ -14109,48 +14199,242 @@ def login_page():
     st.markdown("""
     <div class="roles-section" id="rollen">
         <div class="section-header">
-            <h2 class="section-title">Wählen Sie Ihre Rolle</h2>
-            <p class="section-subtitle">Jede Rolle bietet ein maßgeschneidertes Dashboard mit relevanten Funktionen und Workflows.</p>
+            <h2 class="section-title">W&auml;hlen Sie Ihre Rolle</h2>
+            <p class="section-subtitle">Jede Rolle bietet ein ma&szlig;geschneidertes Dashboard mit relevanten Funktionen und Workflows.</p>
         </div>
         <div class="roles-grid">
-            <div class="role-card kaeufer">
-                <div class="role-icon">🏠</div>
-                <div class="role-title">Käufer</div>
-                <div class="role-description">Immobilie erwerben</div>
-            </div>
-            <div class="role-card verkaeufer">
-                <div class="role-icon">🔑</div>
-                <div class="role-title">Verkäufer</div>
-                <div class="role-description">Immobilie verkaufen</div>
-            </div>
-            <div class="role-card makler">
-                <div class="role-icon">🤝</div>
-                <div class="role-title">Makler</div>
-                <div class="role-description">Transaktionen vermitteln</div>
-            </div>
-            <div class="role-card notar">
-                <div class="role-icon">⚖️</div>
-                <div class="role-title">Notar</div>
-                <div class="role-description">Beurkundung durchführen</div>
-            </div>
-            <div class="role-card finanzierer">
-                <div class="role-icon">💰</div>
-                <div class="role-title">Finanzierer</div>
-                <div class="role-description">Finanzierung bereitstellen</div>
-            </div>
+            <a href="#registrierung" class="role-card-link" onclick="selectRole('kaeufer')">
+                <div class="role-card kaeufer">
+                    <div class="role-icon">🏠</div>
+                    <div class="role-title">K&auml;ufer</div>
+                    <div class="role-description">Immobilie erwerben</div>
+                    <div class="role-features">
+                        <span>&#10003; Finanzierungsrechner</span>
+                        <span>&#10003; Dokumenten-Upload</span>
+                        <span>&#10003; Terminverwaltung</span>
+                    </div>
+                    <div class="role-cta">Jetzt registrieren &rarr;</div>
+                </div>
+            </a>
+            <a href="#registrierung" class="role-card-link" onclick="selectRole('verkaeufer')">
+                <div class="role-card verkaeufer">
+                    <div class="role-icon">🔑</div>
+                    <div class="role-title">Verk&auml;ufer</div>
+                    <div class="role-description">Immobilie verkaufen</div>
+                    <div class="role-features">
+                        <span>&#10003; Preisfindungs-Tool</span>
+                        <span>&#10003; Makler-Vermittlung</span>
+                        <span>&#10003; Kosten&uuml;bersicht</span>
+                    </div>
+                    <div class="role-cta">Jetzt registrieren &rarr;</div>
+                </div>
+            </a>
+            <a href="#registrierung" class="role-card-link" onclick="selectRole('makler')">
+                <div class="role-card makler">
+                    <div class="role-icon">🤝</div>
+                    <div class="role-title">Makler</div>
+                    <div class="role-description">Transaktionen vermitteln</div>
+                    <div class="role-features">
+                        <span>&#10003; Marktanalyse</span>
+                        <span>&#10003; Interessenten-CRM</span>
+                        <span>&#10003; Provisions-Tracking</span>
+                    </div>
+                    <div class="role-cta">Jetzt registrieren &rarr;</div>
+                </div>
+            </a>
+            <a href="#registrierung" class="role-card-link" onclick="selectRole('notar')">
+                <div class="role-card notar">
+                    <div class="role-icon">⚖️</div>
+                    <div class="role-title">Notar</div>
+                    <div class="role-description">Beurkundung durchf&uuml;hren</div>
+                    <div class="role-features">
+                        <span>&#10003; PDF-Import &amp; OCR</span>
+                        <span>&#10003; Akten-Verwaltung</span>
+                        <span>&#10003; GNotKG-Rechner</span>
+                    </div>
+                    <div class="role-cta">Jetzt registrieren &rarr;</div>
+                </div>
+            </a>
+            <a href="#registrierung" class="role-card-link" onclick="selectRole('finanzierer')">
+                <div class="role-card finanzierer">
+                    <div class="role-icon">💰</div>
+                    <div class="role-title">Finanzierer</div>
+                    <div class="role-description">Finanzierung bereitstellen</div>
+                    <div class="role-features">
+                        <span>&#10003; Wirtschaftsdaten-Einsicht</span>
+                        <span>&#10003; Angebots-Erstellung</span>
+                        <span>&#10003; Volumen-&Uuml;bersicht</span>
+                    </div>
+                    <div class="role-cta">Jetzt registrieren &rarr;</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <script>
+    function selectRole(role) {
+        // Store selected role for registration form
+        sessionStorage.setItem('selectedRole', role);
+    }
+    </script>
+    """, unsafe_allow_html=True)
+
+    # ============ DEMO SECTION ============
+    st.markdown("""
+    <div class="demo-section" id="demo">
+        <div class="section-header">
+            <h2 class="section-title">Demo <span>ausprobieren</span></h2>
+            <p class="section-subtitle">Testen Sie ImmoFlow mit unseren Demo-Accounts - ohne Registrierung!</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+    demo_cols = st.columns(5)
+    demo_accounts = [
+        {"role": "Käufer", "icon": "🏠", "email": "kaeufer@demo.de", "pw": "kaeufer123", "color": "#10b981"},
+        {"role": "Verkäufer", "icon": "🔑", "email": "verkaeufer@demo.de", "pw": "verkaeufer123", "color": "#f59e0b"},
+        {"role": "Makler", "icon": "🤝", "email": "makler@demo.de", "pw": "makler123", "color": "#3b82f6"},
+        {"role": "Notar", "icon": "⚖️", "email": "notar@demo.de", "pw": "notar123", "color": "#6366f1"},
+        {"role": "Finanzierer", "icon": "💰", "email": "finanzierer@demo.de", "pw": "finanzierer123", "color": "#ec4899"},
+    ]
+
+    for i, demo in enumerate(demo_accounts):
+        with demo_cols[i]:
+            st.markdown(f"""
+            <div style="background: white; border-radius: 12px; padding: 1rem; text-align: center; border: 2px solid {demo['color']}20; margin-bottom: 1rem;">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">{demo['icon']}</div>
+                <div style="font-weight: 600; color: var(--navy-900);">{demo['role']}</div>
+                <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.5rem;">{demo['email']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"Als {demo['role']} testen", key=f"demo_btn_{demo['role']}", use_container_width=True):
+                # Auto-login for demo
+                for u in st.session_state.users.values():
+                    if u.email == demo['email']:
+                        st.session_state.current_user = u
+                        st.session_state.is_notar_mitarbeiter = False
+                        st.rerun()
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # ============ REGISTRATION SECTION ============
+    st.markdown("""
+    <div class="registration-section" id="registrierung">
+        <div class="section-header">
+            <h2 class="section-title">Jetzt <span>registrieren</span></h2>
+            <p class="section-subtitle">Erstellen Sie Ihr kostenloses ImmoFlow-Konto oder nutzen Sie einen Einladungslink.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    reg_col1, reg_col2 = st.columns(2)
+
+    with reg_col1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, var(--gold-100) 0%, white 100%); border-radius: 16px; padding: 1.5rem; border: 1px solid var(--gold-200);">
+            <h3 style="color: var(--navy-900); margin-bottom: 0.5rem;">📧 Einladungslink</h3>
+            <p style="color: var(--gray-600); font-size: 0.9rem;">Haben Sie einen Einladungslink erhalten? Geben Sie ihn hier ein, um einem Projekt beizutreten.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        einladungs_code = st.text_input("Einladungscode eingeben", placeholder="z.B. INV-ABC123-XYZ", key="einladungs_code_input")
+        if st.button("Einladung annehmen", key="btn_einladung_annehmen", use_container_width=True, type="primary"):
+            if einladungs_code:
+                # Check if invitation exists
+                einladung_gefunden = False
+                for einladung in st.session_state.einladungen.values():
+                    if einladung.einladungs_code == einladungs_code and einladung.status == 'offen':
+                        einladung_gefunden = True
+                        st.session_state['pending_einladung'] = einladung
+                        st.success(f"Einladung gefunden! Bitte registrieren Sie sich als {einladung.rolle}.")
+                        break
+                if not einladung_gefunden:
+                    st.error("Ungültiger oder bereits verwendeter Einladungscode.")
+            else:
+                st.warning("Bitte geben Sie einen Einladungscode ein.")
+
+    with reg_col2:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, var(--navy-100) 0%, white 100%); border-radius: 16px; padding: 1.5rem; border: 1px solid var(--navy-200);">
+            <h3 style="color: var(--navy-900); margin-bottom: 0.5rem;">✨ Neues Konto erstellen</h3>
+            <p style="color: var(--gray-600); font-size: 0.9rem;">Registrieren Sie sich kostenlos und starten Sie Ihre erste Immobilientransaktion.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("registration_form"):
+            reg_name = st.text_input("Vollständiger Name", placeholder="Max Mustermann")
+            reg_email = st.text_input("E-Mail-Adresse", placeholder="ihre@email.de")
+            reg_password = st.text_input("Passwort wählen", type="password", placeholder="Mind. 8 Zeichen")
+            reg_password_confirm = st.text_input("Passwort bestätigen", type="password", placeholder="Passwort wiederholen")
+
+            # Role selection
+            pending_einladung = st.session_state.get('pending_einladung')
+            if pending_einladung:
+                reg_rolle = pending_einladung.rolle
+                st.info(f"Rolle aus Einladung: {reg_rolle}")
+            else:
+                reg_rolle = st.selectbox("Rolle auswählen", ["kaeufer", "verkaeufer", "makler", "notar", "finanzierer"],
+                                        format_func=lambda x: {"kaeufer": "🏠 Käufer", "verkaeufer": "🔑 Verkäufer",
+                                                              "makler": "🤝 Makler", "notar": "⚖️ Notar",
+                                                              "finanzierer": "💰 Finanzierer"}[x])
+
+            agb_accepted = st.checkbox("Ich akzeptiere die AGB und Datenschutzerklärung")
+
+            if st.form_submit_button("Konto erstellen", use_container_width=True, type="primary"):
+                if not all([reg_name, reg_email, reg_password, reg_password_confirm]):
+                    st.error("Bitte füllen Sie alle Felder aus.")
+                elif reg_password != reg_password_confirm:
+                    st.error("Die Passwörter stimmen nicht überein.")
+                elif len(reg_password) < 8:
+                    st.error("Das Passwort muss mindestens 8 Zeichen lang sein.")
+                elif not agb_accepted:
+                    st.error("Bitte akzeptieren Sie die AGB.")
+                elif any(u.email == reg_email for u in st.session_state.users.values()):
+                    st.error("Diese E-Mail-Adresse ist bereits registriert.")
+                else:
+                    # Create new user
+                    new_user_id = f"user_{uuid.uuid4().hex[:8]}"
+                    new_user = User(
+                        user_id=new_user_id,
+                        email=reg_email,
+                        password_hash=hash_password(reg_password),
+                        rolle=reg_rolle,
+                        name=reg_name,
+                        created_at=datetime.now().isoformat(),
+                        onboarding_complete=False
+                    )
+                    st.session_state.users[new_user_id] = new_user
+
+                    # Handle invitation if present
+                    if pending_einladung:
+                        pending_einladung.status = 'angenommen'
+                        pending_einladung.angenommen_von = new_user_id
+                        pending_einladung.angenommen_am = datetime.now().isoformat()
+                        # Add to project
+                        if pending_einladung.projekt_id in st.session_state.projekte:
+                            projekt = st.session_state.projekte[pending_einladung.projekt_id]
+                            if reg_rolle == 'kaeufer':
+                                projekt.kaeufer_ids.append(new_user_id)
+                            elif reg_rolle == 'verkaeufer':
+                                projekt.verkaeufer_ids.append(new_user_id)
+                        st.session_state.pop('pending_einladung', None)
+
+                    st.session_state.current_user = new_user
+                    st.session_state.is_notar_mitarbeiter = False
+                    st.success("Registrierung erfolgreich! Willkommen bei ImmoFlow.")
+                    st.rerun()
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
     # ============ LOGIN SECTION ============
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div id="login"></div>', unsafe_allow_html=True)
     col_left, col_center, col_right = st.columns([1, 2, 1])
 
     with col_center:
         st.markdown("""
         <div class="login-header">
             <h2 class="login-title">Anmelden</h2>
-            <p class="login-subtitle">Melden Sie sich an, um fortzufahren</p>
+            <p class="login-subtitle">Bereits registriert? Melden Sie sich hier an.</p>
         </div>
         """, unsafe_allow_html=True)
 
