@@ -2428,14 +2428,21 @@ def get_workflow_steps_for_segment(segment_id: str, include_conditional: bool = 
     steps = []
     for step in WORKFLOW_TEMPLATE_KV["steps"]:
         if step["segment_id"] == segment_id:
-            # Prüfe Condition
-            if step.get("condition"):
-                cond = step["condition"]
-                if cond["condition_id"] == "requires_financing":
-                    if cond["value"] == True and not financing_required:
+            # Prüfe Condition (kann String oder Dict sein)
+            cond = step.get("condition")
+            if cond:
+                # Condition ist ein String (z.B. "requires_financing")
+                if isinstance(cond, str):
+                    if cond == "requires_financing" and not financing_required:
                         if not include_conditional:
                             continue
                         # Step wird als SKIPPED markiert
+                # Condition ist ein Dict mit condition_id und value
+                elif isinstance(cond, dict):
+                    if cond.get("condition_id") == "requires_financing":
+                        if cond.get("value") == True and not financing_required:
+                            if not include_conditional:
+                                continue
             steps.append(step)
     return sorted(steps, key=lambda x: x["order"])
 
@@ -2459,12 +2466,16 @@ def calculate_step_status(step_code: str, completed_steps: List[str], financing_
     if not step:
         return WorkflowStepStatus.OPEN.value
 
-    # Prüfe Condition
-    if step.get("condition"):
-        cond = step["condition"]
-        if cond["condition_id"] == "requires_financing":
-            if cond["value"] == True and not financing_required:
+    # Prüfe Condition (kann String oder Dict sein)
+    cond = step.get("condition")
+    if cond:
+        if isinstance(cond, str):
+            if cond == "requires_financing" and not financing_required:
                 return WorkflowStepStatus.SKIPPED.value
+        elif isinstance(cond, dict):
+            if cond.get("condition_id") == "requires_financing":
+                if cond.get("value") == True and not financing_required:
+                    return WorkflowStepStatus.SKIPPED.value
 
     # Bereits erledigt?
     if step_code in completed_steps:
@@ -2483,9 +2494,15 @@ def calculate_step_status(step_code: str, completed_steps: List[str], financing_
 
         if dep_step and dep_step.get("condition"):
             cond = dep_step["condition"]
-            if cond["condition_id"] == "requires_financing" and cond["value"] == True and not financing_required:
-                # Dependency ist übersprungen, also kein Blocker
-                continue
+            # Condition kann String oder Dict sein
+            if isinstance(cond, str):
+                if cond == "requires_financing" and not financing_required:
+                    # Dependency ist übersprungen, also kein Blocker
+                    continue
+            elif isinstance(cond, dict):
+                if cond.get("condition_id") == "requires_financing" and cond.get("value") == True and not financing_required:
+                    # Dependency ist übersprungen, also kein Blocker
+                    continue
 
         if dep not in completed_steps:
             blocked_by.append(dep)
