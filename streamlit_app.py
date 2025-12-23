@@ -23059,26 +23059,27 @@ def render_dashboard_stats(stats: list):
     Rendert die Stat-Cards.
     stats: Liste von Dictionaries mit keys: label, value, icon, change (optional)
     """
-    stats_html = '<div class="dash-stats-grid">'
-
+    # Baue HTML als einzelnen String ohne Zeilenumbrüche in Tags
+    cards_html = ""
     for stat in stats:
-        change_html = ""
+        change_part = ""
         if stat.get('change'):
-            change_html = f'<div class="dash-stat-change">↗ {stat["change"]}</div>'
+            change_part = '<div class="dash-stat-change">&#8599; ' + str(stat["change"]) + '</div>'
 
-        stats_html += f'''
-        <div class="dash-stat-card">
-            <div class="dash-stat-content">
-                <div class="dash-stat-label">{stat['label']}</div>
-                <div class="dash-stat-value">{stat['value']}</div>
-                {change_html}
-            </div>
-            <div class="dash-stat-icon">{stat['icon']}</div>
-        </div>
-        '''
+        card = (
+            '<div class="dash-stat-card">'
+            '<div class="dash-stat-content">'
+            '<div class="dash-stat-label">' + str(stat['label']) + '</div>'
+            '<div class="dash-stat-value">' + str(stat['value']) + '</div>'
+            + change_part +
+            '</div>'
+            '<div class="dash-stat-icon">' + str(stat['icon']) + '</div>'
+            '</div>'
+        )
+        cards_html += card
 
-    stats_html += '</div>'
-    st.markdown(stats_html, unsafe_allow_html=True)
+    full_html = '<div class="dash-stats-grid">' + cards_html + '</div>'
+    st.markdown(full_html, unsafe_allow_html=True)
 
 
 def render_dashboard_projects(projekte: list, show_all_link: bool = True):
