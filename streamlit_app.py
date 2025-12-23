@@ -6882,6 +6882,7 @@ def init_session_state():
         st.session_state.initialized = True
         st.session_state.current_user = None
         st.session_state.users = {}
+        st.session_state.design_mode = "navy-gold"  # "navy-gold" oder "classic"
         st.session_state.projekte = {}
         st.session_state.legal_documents = {}
         st.session_state.financing_offers = {}
@@ -14831,15 +14832,31 @@ def login_page():
     st.markdown("<br><br>", unsafe_allow_html=True)
 
     # ============ FOOTER ============
-    st.markdown("""
+    # Design toggle für Landing Page
+    design_icon = "🌙" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "☀️"
+    design_label = "Classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "Navy-Gold"
+    design_action = "classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "navy-gold"
+
+    st.markdown(f"""
     <div class="landing-footer">
         <div class="footer-logo">
             <div class="footer-logo-icon">📋</div>
             <span>ImmoFlow</span>
         </div>
         <div class="footer-copyright">© 2025 ImmoFlow. Alle Rechte vorbehalten.</div>
+        <a href="?design={design_action}" class="footer-design-toggle" style="color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.8rem; margin-left: 1rem;">
+            {design_icon} {design_label}
+        </a>
     </div>
     """, unsafe_allow_html=True)
+
+    # ============ DESIGN TOGGLE CHECK ============
+    if st.query_params.get("design"):
+        new_design = st.query_params.get("design")
+        if new_design in ["navy-gold", "classic"]:
+            st.session_state.design_mode = new_design
+        st.query_params.clear()
+        st.rerun()
 
     # ============ AUTH MODAL OVERLAY ============
     # Das Modal wird AM ENDE gerendert, damit es ÜBER der geblurrten Landing Page erscheint
@@ -21686,15 +21703,47 @@ NOTAR_UNTERMENUS = {
 
 def render_immoflow_design_system():
     """
-    Rendert das ImmoFlow Design-System: Navy-Gold Farbschema
-    im deutschen FinTech/PropTech-Stil für professionelle Immobilientransaktionen.
+    Rendert das ImmoFlow Design-System basierend auf dem gewählten Modus:
+    - "navy-gold": Navy-Gold Farbschema für professionelle Immobilientransaktionen
+    - "classic": Minimales klassisches Streamlit-Design
 
-    Farben:
+    Farben (Navy-Gold):
     - Primary: Deep Navy (#0f172a, #1e293b)
     - Accent: Warm Gold (#d4af37, #f59e0b)
     - Background: White/Light Gray (#ffffff, #f8fafc)
     - Text: Navy/Gray (#0f172a, #64748b)
     """
+    # Initialisiere design_mode falls nicht vorhanden
+    if 'design_mode' not in st.session_state:
+        st.session_state.design_mode = "navy-gold"
+
+    # Classic Mode: Minimales Streamlit-Design
+    if st.session_state.design_mode == "classic":
+        st.markdown("""
+        <style>
+        /* Classic Mode: Minimales Design */
+        .stApp {
+            background: #ffffff;
+        }
+        [data-testid="stSidebar"] {
+            background: #f0f2f6;
+            border-right: 1px solid #e0e0e0;
+        }
+        [data-testid="stSidebar"] * {
+            color: #262730 !important;
+        }
+        .user-info-bar {
+            background: #f0f2f6 !important;
+            border: 1px solid #e0e0e0 !important;
+        }
+        .user-info-bar * {
+            color: #262730 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        return
+
+    # Navy-Gold Mode: Vollständiges Design-System
     st.markdown("""
     <style>
     /* ==================== IMMOFLOW DESIGN SYSTEM ==================== */
@@ -23469,6 +23518,11 @@ def render_user_info_bar():
     }
     role_label = role_labels.get(user_rolle, user_rolle)
 
+    # Design mode icon
+    design_icon = "🌙" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "☀️"
+    design_title = "Klassisches Design" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "Navy-Gold Design"
+    design_action = "classic" if st.session_state.get('design_mode', 'navy-gold') == "navy-gold" else "navy-gold"
+
     # User Info Bar HTML
     st.markdown(f"""
     <div class="user-info-bar">
@@ -23477,10 +23531,19 @@ def render_user_info_bar():
             <div class="user-info-role">{role_label}</div>
         </div>
         <div class="user-info-divider"></div>
+        <a href="?design={design_action}" class="user-info-btn design-toggle" title="{design_title}">{design_icon}</a>
         <a href="?settings=account" class="user-info-btn settings" title="Kontoeinstellungen">⚙️</a>
         <a href="?action=logout" class="user-info-btn logout" title="Abmelden">🚪</a>
     </div>
     """, unsafe_allow_html=True)
+
+    # Check for design toggle action
+    if st.query_params.get("design"):
+        new_design = st.query_params.get("design")
+        if new_design in ["navy-gold", "classic"]:
+            st.session_state.design_mode = new_design
+        st.query_params.clear()
+        st.rerun()
 
     # Check for logout action
     if st.query_params.get("action") == "logout":
