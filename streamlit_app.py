@@ -13330,12 +13330,234 @@ def logout():
     st.rerun()
 
 # ============================================================================
+# FIXIERTE TOPBAR FÜR ALLE DASHBOARDS
+# ============================================================================
+
+def render_fixed_topbar(role_icon: str, role_name: str, menu_items: list = None):
+    """
+    Rendert eine fixierte Menüleiste über dem Hauptfenster.
+
+    Args:
+        role_icon: Icon für die Rolle (z.B. "⚖️" für Notar)
+        role_name: Name der Rolle (z.B. "Notar-Dashboard")
+        menu_items: Optional - Liste von Menüpunkten [{icon, name, key}]
+    """
+    user = st.session_state.current_user
+    user_name = getattr(user, 'name', 'Benutzer')
+    user_email = getattr(user, 'email', '')
+    user_role = getattr(user, 'role', '')
+
+    # CSS für fixierte Topbar
+    st.markdown("""
+    <style>
+    /* Fixierte Topbar */
+    .fixed-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+        padding: 0.6rem 1.2rem;
+        margin: -1rem -1rem 1rem -1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-bottom: 2px solid #c9a227;
+    }
+
+    /* Linke Seite - Rolle/Menü */
+    .topbar-left {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .topbar-role {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .topbar-role-icon {
+        font-size: 1.4rem;
+    }
+
+    /* Menü-Items in der Topbar */
+    .topbar-menu {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .topbar-menu-item {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .topbar-menu-item:hover {
+        background: rgba(201, 162, 39, 0.3);
+        border-color: #c9a227;
+    }
+
+    .topbar-menu-item.active {
+        background: #c9a227;
+        color: #1e3a5f;
+        border-color: #c9a227;
+    }
+
+    /* Rechte Seite - User Info */
+    .topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .topbar-user {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.4rem 1rem;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .topbar-user-avatar {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: #1e3a5f;
+        font-size: 0.9rem;
+    }
+
+    .topbar-user-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .topbar-user-name {
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        line-height: 1.2;
+    }
+
+    .topbar-user-role {
+        color: #c9a227;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .topbar-logout {
+        background: rgba(220, 53, 69, 0.2);
+        color: #ff6b6b;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 500;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .topbar-logout:hover {
+        background: rgba(220, 53, 69, 0.4);
+        border-color: #dc3545;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+        .fixed-topbar {
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+
+        .topbar-menu {
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .topbar-user-info {
+            display: none;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # User Initialen für Avatar
+    initials = ""
+    if user_name:
+        parts = user_name.split()
+        if len(parts) >= 2:
+            initials = parts[0][0].upper() + parts[-1][0].upper()
+        elif len(parts) == 1:
+            initials = parts[0][:2].upper()
+
+    # Rollen-Anzeige formatieren
+    role_display = {
+        'makler': 'Makler',
+        'kaeufer': 'Käufer',
+        'verkaeufer': 'Verkäufer',
+        'notar': 'Notar',
+        'finanzberater': 'Finanzberater'
+    }.get(user_role, user_role)
+
+    # Menü-Items HTML
+    menu_html = ""
+    if menu_items:
+        for item in menu_items:
+            active_class = "active" if item.get('active', False) else ""
+            menu_html += f'<span class="topbar-menu-item {active_class}">{item["icon"]} {item["name"]}</span>'
+
+    # Topbar rendern
+    st.markdown(f"""
+    <div class="fixed-topbar">
+        <div class="topbar-left">
+            <div class="topbar-role">
+                <span class="topbar-role-icon">{role_icon}</span>
+                <span>{role_name}</span>
+            </div>
+            <div class="topbar-menu">
+                {menu_html}
+            </div>
+        </div>
+        <div class="topbar-right">
+            <div class="topbar-user">
+                <div class="topbar-user-avatar">{initials}</div>
+                <div class="topbar-user-info">
+                    <span class="topbar-user-name">{user_name}</span>
+                    <span class="topbar-user-role">{role_display}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ============================================================================
 # MAKLER-BEREICH
 # ============================================================================
 
 def makler_dashboard():
     """Dashboard für Makler"""
-    st.title("📊 Makler-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("📊", "Makler-Dashboard")
 
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
@@ -14574,7 +14796,8 @@ def onboarding_flow():
 
 def kaeufer_dashboard():
     """Dashboard für Käufer"""
-    st.title("🏠 Käufer-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("🏠", "Käufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -18162,7 +18385,8 @@ def kaeufer_dokumente_view():
 
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer"""
-    st.title("🏡 Verkäufer-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("🏡", "Verkäufer-Dashboard")
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -19570,7 +19794,8 @@ def verkaeufer_nachrichten():
 
 def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
-    st.title("💼 Finanzierer-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("💼", "Finanzierer-Dashboard")
 
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
@@ -21291,6 +21516,9 @@ def notar_dashboard():
 
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
+
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("⚖️", "Notar-Dashboard")
 
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
@@ -30496,8 +30724,8 @@ def notarmitarbeiter_dashboard():
     """Dashboard für Notar-Mitarbeiter"""
     mitarbeiter = st.session_state.current_user
 
-    st.title("⚖️ Notar-Mitarbeiter-Dashboard")
-    st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("⚖️", "Notar-Mitarbeiter")
 
     # Benachrichtigungs-Badge in der Sidebar
     render_benachrichtigungs_badge(mitarbeiter.user_id)
