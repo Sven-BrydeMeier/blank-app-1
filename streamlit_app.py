@@ -13354,11 +13354,10 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     """
     Rendert eine fixierte Menüleiste über dem Hauptfenster.
     Links: Rolle/Dashboard-Name
-    Rechts: User-Info mit Logout-Button
+    Rechts: User-Info
     """
     user = st.session_state.current_user
     user_name = getattr(user, 'name', 'Benutzer')
-    user_email = getattr(user, 'email', '')
     user_role = getattr(user, 'rolle', '')
 
     # Rollen-Anzeige formatieren
@@ -13379,64 +13378,67 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         elif len(parts) == 1:
             initials = parts[0][:2].upper()
 
-    # CSS für fixierte Topbar
-    st.markdown("""
+    # Vollständige Topbar als fixiertes Element
+    st.markdown(f"""
     <style>
-    /* Fixierte Topbar Container */
-    .topbar-container {
-        position: sticky;
+    /* Fixierte Topbar - volle Breite */
+    .immoflow-topbar {{
+        position: fixed;
         top: 0;
-        z-index: 999;
+        left: 0;
+        right: 0;
+        z-index: 999999;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
-        padding: 0.75rem 1.5rem;
-        margin: -1rem -1rem 1.5rem -1rem;
-        border-bottom: 3px solid #c9a227;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    .topbar-content {
+        padding: 0.6rem 1.5rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        max-width: 100%;
-    }
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        border-bottom: 3px solid #c9a227;
+    }}
 
-    .topbar-left {
+    /* Platzhalter für Topbar-Höhe */
+    .topbar-spacer {{
+        height: 60px;
+        margin-bottom: 1rem;
+    }}
+
+    .topbar-left {{
         display: flex;
         align-items: center;
         gap: 0.75rem;
-    }
+    }}
 
-    .topbar-icon {
-        font-size: 1.8rem;
-    }
+    .topbar-icon {{
+        font-size: 1.6rem;
+    }}
 
-    .topbar-title {
+    .topbar-title {{
         color: #ffffff;
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         font-weight: 700;
         margin: 0;
-    }
+    }}
 
-    .topbar-right {
+    .topbar-right {{
         display: flex;
         align-items: center;
         gap: 1rem;
-    }
+    }}
 
-    .topbar-user-box {
+    .topbar-user-box {{
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 0.5rem 1rem;
-        border-radius: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
+        gap: 0.6rem;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+    }}
 
-    .topbar-avatar {
-        width: 36px;
-        height: 36px;
+    .topbar-avatar {{
+        width: 32px;
+        height: 32px;
         background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%);
         border-radius: 50%;
         display: flex;
@@ -13444,77 +13446,63 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         justify-content: center;
         font-weight: 700;
         color: #1e3a5f;
-        font-size: 0.95rem;
-    }
+        font-size: 0.85rem;
+    }}
 
-    .topbar-user-details {
+    .topbar-user-details {{
         display: flex;
         flex-direction: column;
-    }
+    }}
 
-    .topbar-username {
+    .topbar-username {{
         color: #ffffff;
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.85rem;
         line-height: 1.2;
-    }
+    }}
 
-    .topbar-userrole {
+    .topbar-userrole {{
         color: #c9a227;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 500;
-    }
+    }}
 
-    /* Streamlit Button in Topbar stylen */
-    .topbar-logout-container button {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
-        color: white !important;
-        border: none !important;
-        padding: 0.4rem 1rem !important;
-        border-radius: 20px !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-    }
+    /* Haupt-Content nach unten verschieben */
+    .main .block-container {{
+        padding-top: 70px !important;
+    }}
 
-    .topbar-logout-container button:hover {
-        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%) !important;
-    }
+    /* Sidebar auch nach unten */
+    [data-testid="stSidebar"] > div:first-child {{
+        padding-top: 70px !important;
+    }}
 
     /* Mobile */
-    @media (max-width: 768px) {
-        .topbar-user-details {
+    @media (max-width: 768px) {{
+        .topbar-user-details {{
             display: none;
-        }
-        .topbar-title {
+        }}
+        .topbar-title {{
             font-size: 1rem;
-        }
-    }
+        }}
+        .immoflow-topbar {{
+            padding: 0.5rem 1rem;
+        }}
+    }}
     </style>
-    """, unsafe_allow_html=True)
 
-    # Topbar mit Streamlit Columns für funktionierenden Logout-Button
-    col_left, col_right = st.columns([3, 2])
-
-    with col_left:
-        st.markdown(f"""
-        <div class="topbar-container">
-            <div class="topbar-content">
-                <div class="topbar-left">
-                    <span class="topbar-icon">{role_icon}</span>
-                    <h1 class="topbar-title">{role_name}</h1>
-                </div>
-            </div>
+    <div class="immoflow-topbar">
+        <div class="topbar-left">
+            <span class="topbar-icon">{role_icon}</span>
+            <h1 class="topbar-title">{role_name}</h1>
         </div>
-        """, unsafe_allow_html=True)
-
-    # User-Info und Logout rechts oben anzeigen
-    st.markdown(f"""
-    <div style="position: fixed; top: 10px; right: 20px; z-index: 1000; display: flex; align-items: center; gap: 1rem;">
-        <div class="topbar-user-box">
-            <div class="topbar-avatar">{initials}</div>
-            <div class="topbar-user-details">
-                <span class="topbar-username">{user_name}</span>
-                <span class="topbar-userrole">{role_display}</span>
+        <div class="topbar-right">
+            <div class="topbar-user-box">
+                <div class="topbar-avatar">{initials}</div>
+                <div class="topbar-user-details">
+                    <span class="topbar-username">{user_name}</span>
+                    <span class="topbar-userrole">{role_display}</span>
+                </div>
             </div>
         </div>
     </div>
@@ -28921,14 +28909,50 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text.""".format(text=text[:4000])
 
     import re
 
-    # Käufer/Verkäufer Muster
-    kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if kaeufer_match:
-        ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+    # === AKTENVORBLATT-FORMAT PARSING ===
+    # Im Aktenvorblatt: Auftraggeber = Verkäufer, Gegner = Käufer
 
-    verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if verkaeufer_match:
-        ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+    # Auftraggeber (= Verkäufer im Aktenvorblatt-Format)
+    auftraggeber_match = re.search(r'Auftraggeber[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if auftraggeber_match:
+        ergebnis["verkaeufer"] = [{"name": auftraggeber_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # Gegner (= Käufer im Aktenvorblatt-Format)
+    gegner_match = re.search(r'Gegner[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if gegner_match:
+        ergebnis["kaeufer"] = [{"name": gegner_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # Standard Käufer/Verkäufer Muster (falls Auftraggeber/Gegner nicht gefunden)
+    if not ergebnis["kaeufer"]:
+        kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
+        if kaeufer_match:
+            ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    if not ergebnis["verkaeufer"]:
+        verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
+        if verkaeufer_match:
+            ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # === AKTEN-METADATEN AUS AKTENVORBLATT ===
+    # Aktennummer/Aktenzeichen (oben rechts im Aktenvorblatt)
+    aktennr_match = re.search(r'Aktennr\.?[:\s]+([^\n\s]+)', text, re.IGNORECASE)
+    if aktennr_match:
+        ergebnis["aktenzeichen"] = aktennr_match.group(1).strip()
+
+    # Notar-Kürzel aus "SB / Referat:" (z.B. SQ = Sven-Bryde Meier)
+    sb_match = re.search(r'(?:SB|Sachbearbeiter)[:\s/]*(?:Referat)?[:\s]*([A-Z]{1,3})', text, re.IGNORECASE)
+    if sb_match:
+        ergebnis["notar_kuerzel"] = sb_match.group(1).strip().upper()
+
+    # Anlagedatum aus "angelegt am:"
+    angelegt_match = re.search(r'angelegt\s+am[:\s]+(\d{1,2}[./]\d{1,2}[./]\d{2,4})', text, re.IGNORECASE)
+    if angelegt_match:
+        ergebnis["angelegt_am"] = angelegt_match.group(1).strip()
+
+    # Titel der Akte (oft in der oberen rechten Ecke)
+    titel_match = re.search(r'(?:Akte|Vorgang|Betreff)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if titel_match:
+        ergebnis["akte_titel"] = titel_match.group(1).strip()
 
     # Kaufpreis
     preis_match = re.search(r'(?:Kaufpreis|Preis)[:\s]+([0-9.,]+)\s*(?:EUR|€)?', text, re.IGNORECASE)
@@ -29461,10 +29485,41 @@ def render_akten_import():
         if beteiligte:
             st.success(f"✅ Beteiligte erkannt mit: {beteiligte.get('ki_verwendet', 'Unbekannt')}")
 
+            # === AKTENVORBLATT-METADATEN ===
+            if beteiligte.get('aktenzeichen') or beteiligte.get('notar_kuerzel') or beteiligte.get('angelegt_am'):
+                st.markdown("#### 📋 Akten-Metadaten (aus Aktenvorblatt)")
+                col_meta1, col_meta2, col_meta3 = st.columns(3)
+                with col_meta1:
+                    if beteiligte.get('aktenzeichen'):
+                        st.write(f"**Aktenzeichen:** {beteiligte['aktenzeichen']}")
+                    if beteiligte.get('akte_titel'):
+                        st.write(f"**Titel:** {beteiligte['akte_titel']}")
+                with col_meta2:
+                    if beteiligte.get('notar_kuerzel'):
+                        # Notar-Kürzel Mapping
+                        notar_mapping = {
+                            'SQ': 'Sven-Bryde Meier',
+                            'SM': 'Sven Meier',
+                            # Weitere Kürzel können hier ergänzt werden
+                        }
+                        notar_name = notar_mapping.get(beteiligte['notar_kuerzel'], '')
+                        if notar_name:
+                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']} ({notar_name})")
+                        else:
+                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']}")
+                with col_meta3:
+                    if beteiligte.get('angelegt_am'):
+                        st.write(f"**Angelegt am:** {beteiligte['angelegt_am']}")
+
+                st.markdown("---")
+
+            # Hinweis auf Aktenvorblatt-Terminologie
+            st.caption("ℹ️ Im Aktenvorblatt: **Auftraggeber** = Verkäufer, **Gegner** = Käufer")
+
             col_b1, col_b2 = st.columns(2)
 
             with col_b1:
-                st.markdown("#### 🏠 Käufer")
+                st.markdown("#### 🏠 Käufer (Gegner)")
                 if beteiligte.get('kaeufer'):
                     for k in beteiligte['kaeufer']:
                         if isinstance(k, dict):
@@ -29479,7 +29534,7 @@ def render_akten_import():
                     st.write("*Keine Käufer erkannt*")
 
             with col_b2:
-                st.markdown("#### 🏷️ Verkäufer")
+                st.markdown("#### 🏷️ Verkäufer (Auftraggeber)")
                 if beteiligte.get('verkaeufer'):
                     for v in beteiligte['verkaeufer']:
                         if isinstance(v, dict):
@@ -29534,8 +29589,22 @@ def render_akten_import():
 
             # Tabelle mit Zuordnungen
             with st.expander("📋 Dokumente bearbeiten", expanded=True):
+                # Header
+                col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 3, 1, 1, 2])
+                with col_h1:
+                    st.write("✓")
+                with col_h2:
+                    st.write("**Dokument**")
+                with col_h3:
+                    st.write("**Seite**")
+                with col_h4:
+                    st.write("**Ansicht**")
+                with col_h5:
+                    st.write("**Ordner**")
+                st.markdown("---")
+
                 for i, eintrag in enumerate(dokument_eintraege[:50]):  # Max 50
-                    col_check, col_titel, col_seite, col_ordner = st.columns([0.5, 3, 1, 2])
+                    col_check, col_titel, col_seite, col_view, col_ordner = st.columns([0.5, 3, 1, 1, 2])
 
                     with col_check:
                         aktiv = st.checkbox(
@@ -29550,7 +29619,25 @@ def render_akten_import():
                         st.write(f"**{eintrag['titel'][:50]}**" + ("..." if len(eintrag['titel']) > 50 else ""))
 
                     with col_seite:
-                        st.write(f"S. {eintrag['seite']}")
+                        # Berechne Seitenbereich
+                        start_seite = eintrag['seite']
+                        if i + 1 < len(dokument_eintraege):
+                            end_seite = dokument_eintraege[i + 1]['seite'] - 1
+                        else:
+                            end_seite = struktur.get('seiten_anzahl', start_seite)
+                        if start_seite == end_seite:
+                            st.write(f"S. {start_seite}")
+                        else:
+                            st.write(f"S. {start_seite}-{end_seite}")
+
+                    with col_view:
+                        if st.button("👁️", key=f"view_dok_{i}", help=f"Dokument ansehen (Seite {start_seite})"):
+                            st.session_state['akten_preview_doc'] = {
+                                'titel': eintrag['titel'],
+                                'start_seite': start_seite,
+                                'end_seite': end_seite,
+                                'index': i
+                            }
 
                     with col_ordner:
                         aktueller_ordner = zuordnungen.get(i, {}).get('ordner', 'Sonstiges')
@@ -29566,6 +29653,55 @@ def render_akten_import():
 
                 if len(dokument_eintraege) > 50:
                     st.info(f"*... und {len(dokument_eintraege) - 50} weitere Dokumente*")
+
+            # === DOKUMENTEN-VORSCHAU ===
+            if st.session_state.get('akten_preview_doc') and pdf_bytes:
+                preview_info = st.session_state['akten_preview_doc']
+                with st.expander(f"📄 Vorschau: {preview_info['titel']}", expanded=True):
+                    st.markdown(f"**Seiten {preview_info['start_seite']} bis {preview_info['end_seite']}**")
+
+                    col_prev, col_close = st.columns([4, 1])
+                    with col_close:
+                        if st.button("❌ Schließen", key="close_preview"):
+                            del st.session_state['akten_preview_doc']
+                            st.rerun()
+
+                    # PDF-Seiten extrahieren und anzeigen
+                    try:
+                        import io
+                        from PyPDF2 import PdfReader, PdfWriter
+                        import base64
+
+                        reader = PdfReader(io.BytesIO(pdf_bytes))
+                        writer = PdfWriter()
+
+                        # 0-basierter Index
+                        start_idx = max(0, preview_info['start_seite'] - 1)
+                        end_idx = min(len(reader.pages), preview_info['end_seite'])
+
+                        for page_num in range(start_idx, end_idx):
+                            writer.add_page(reader.pages[page_num])
+
+                        # Extrahiertes PDF als Bytes
+                        output = io.BytesIO()
+                        writer.write(output)
+                        preview_pdf_bytes = output.getvalue()
+
+                        # Download-Button für das extrahierte Dokument
+                        st.download_button(
+                            label=f"📥 Download: {preview_info['titel'][:30]}...",
+                            data=preview_pdf_bytes,
+                            file_name=f"{preview_info['titel'][:50].replace('/', '-')}.pdf",
+                            mime="application/pdf"
+                        )
+
+                        # PDF Base64 für Anzeige
+                        pdf_base64 = base64.b64encode(preview_pdf_bytes).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="600" type="application/pdf"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
+
+                    except Exception as e:
+                        st.error(f"Fehler bei der Vorschau: {str(e)}")
 
             # Zusammenfassung
             aktive_docs = sum(1 for z in zuordnungen.values() if z.get('aktiv', True))
