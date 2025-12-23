@@ -28909,14 +28909,50 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text.""".format(text=text[:4000])
 
     import re
 
-    # Käufer/Verkäufer Muster
-    kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if kaeufer_match:
-        ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+    # === AKTENVORBLATT-FORMAT PARSING ===
+    # Im Aktenvorblatt: Auftraggeber = Verkäufer, Gegner = Käufer
 
-    verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if verkaeufer_match:
-        ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+    # Auftraggeber (= Verkäufer im Aktenvorblatt-Format)
+    auftraggeber_match = re.search(r'Auftraggeber[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if auftraggeber_match:
+        ergebnis["verkaeufer"] = [{"name": auftraggeber_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # Gegner (= Käufer im Aktenvorblatt-Format)
+    gegner_match = re.search(r'Gegner[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if gegner_match:
+        ergebnis["kaeufer"] = [{"name": gegner_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # Standard Käufer/Verkäufer Muster (falls Auftraggeber/Gegner nicht gefunden)
+    if not ergebnis["kaeufer"]:
+        kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
+        if kaeufer_match:
+            ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    if not ergebnis["verkaeufer"]:
+        verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
+        if verkaeufer_match:
+            ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
+
+    # === AKTEN-METADATEN AUS AKTENVORBLATT ===
+    # Aktennummer/Aktenzeichen (oben rechts im Aktenvorblatt)
+    aktennr_match = re.search(r'Aktennr\.?[:\s]+([^\n\s]+)', text, re.IGNORECASE)
+    if aktennr_match:
+        ergebnis["aktenzeichen"] = aktennr_match.group(1).strip()
+
+    # Notar-Kürzel aus "SB / Referat:" (z.B. SQ = Sven-Bryde Meier)
+    sb_match = re.search(r'(?:SB|Sachbearbeiter)[:\s/]*(?:Referat)?[:\s]*([A-Z]{1,3})', text, re.IGNORECASE)
+    if sb_match:
+        ergebnis["notar_kuerzel"] = sb_match.group(1).strip().upper()
+
+    # Anlagedatum aus "angelegt am:"
+    angelegt_match = re.search(r'angelegt\s+am[:\s]+(\d{1,2}[./]\d{1,2}[./]\d{2,4})', text, re.IGNORECASE)
+    if angelegt_match:
+        ergebnis["angelegt_am"] = angelegt_match.group(1).strip()
+
+    # Titel der Akte (oft in der oberen rechten Ecke)
+    titel_match = re.search(r'(?:Akte|Vorgang|Betreff)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if titel_match:
+        ergebnis["akte_titel"] = titel_match.group(1).strip()
 
     # Kaufpreis
     preis_match = re.search(r'(?:Kaufpreis|Preis)[:\s]+([0-9.,]+)\s*(?:EUR|€)?', text, re.IGNORECASE)
@@ -29449,10 +29485,41 @@ def render_akten_import():
         if beteiligte:
             st.success(f"✅ Beteiligte erkannt mit: {beteiligte.get('ki_verwendet', 'Unbekannt')}")
 
+            # === AKTENVORBLATT-METADATEN ===
+            if beteiligte.get('aktenzeichen') or beteiligte.get('notar_kuerzel') or beteiligte.get('angelegt_am'):
+                st.markdown("#### 📋 Akten-Metadaten (aus Aktenvorblatt)")
+                col_meta1, col_meta2, col_meta3 = st.columns(3)
+                with col_meta1:
+                    if beteiligte.get('aktenzeichen'):
+                        st.write(f"**Aktenzeichen:** {beteiligte['aktenzeichen']}")
+                    if beteiligte.get('akte_titel'):
+                        st.write(f"**Titel:** {beteiligte['akte_titel']}")
+                with col_meta2:
+                    if beteiligte.get('notar_kuerzel'):
+                        # Notar-Kürzel Mapping
+                        notar_mapping = {
+                            'SQ': 'Sven-Bryde Meier',
+                            'SM': 'Sven Meier',
+                            # Weitere Kürzel können hier ergänzt werden
+                        }
+                        notar_name = notar_mapping.get(beteiligte['notar_kuerzel'], '')
+                        if notar_name:
+                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']} ({notar_name})")
+                        else:
+                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']}")
+                with col_meta3:
+                    if beteiligte.get('angelegt_am'):
+                        st.write(f"**Angelegt am:** {beteiligte['angelegt_am']}")
+
+                st.markdown("---")
+
+            # Hinweis auf Aktenvorblatt-Terminologie
+            st.caption("ℹ️ Im Aktenvorblatt: **Auftraggeber** = Verkäufer, **Gegner** = Käufer")
+
             col_b1, col_b2 = st.columns(2)
 
             with col_b1:
-                st.markdown("#### 🏠 Käufer")
+                st.markdown("#### 🏠 Käufer (Gegner)")
                 if beteiligte.get('kaeufer'):
                     for k in beteiligte['kaeufer']:
                         if isinstance(k, dict):
@@ -29467,7 +29534,7 @@ def render_akten_import():
                     st.write("*Keine Käufer erkannt*")
 
             with col_b2:
-                st.markdown("#### 🏷️ Verkäufer")
+                st.markdown("#### 🏷️ Verkäufer (Auftraggeber)")
                 if beteiligte.get('verkaeufer'):
                     for v in beteiligte['verkaeufer']:
                         if isinstance(v, dict):
