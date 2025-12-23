@@ -7086,11 +7086,11 @@ def init_session_state():
 def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
     demo_users = [
-        User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
-        User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
-        User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
-        User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
-        User("notar1", "Nina Notar", "notar@demo.de", UserRole.NOTAR.value, hash_password("notar123"), projekt_ids=["projekt1"]),
+        User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123"), onboarding_complete=True),
+        User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"], onboarding_complete=True),
+        User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"], onboarding_complete=True),
+        User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"], onboarding_complete=True),
+        User("notar1", "Nina Notar", "notar@demo.de", UserRole.NOTAR.value, hash_password("notar123"), projekt_ids=["projekt1"], onboarding_complete=True),
     ]
     for user in demo_users:
         st.session_state.users[user.user_id] = user
@@ -13823,30 +13823,126 @@ def render_landing_page_styles():
         font-size: 0.875rem;
     }
 
-    /* Login Modal Overlay */
-    .login-overlay {
+    /* Login Modal Overlay - Referenz Design */
+    .login-modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(15, 23, 42, 0.5);
-        backdrop-filter: blur(4px);
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(8px);
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 2000;
+        z-index: 9999;
     }
 
-    .login-modal {
+    .login-modal-container {
         background: white;
-        border-radius: 24px;
-        padding: 2.5rem;
-        max-width: 420px;
+        border-radius: 20px;
+        max-width: 450px;
         width: 90%;
-        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        animation: modalSlideIn 0.3s ease-out;
     }
 
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .login-modal-header {
+        background: linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 100%);
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .login-modal-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+    }
+
+    .login-modal-logo-icon {
+        width: 36px;
+        height: 36px;
+        background: var(--navy-700);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .login-modal-logo-text {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .login-modal-close {
+        width: 32px;
+        height: 32px;
+        background: rgba(255,255,255,0.1);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .login-modal-close:hover {
+        background: rgba(255,255,255,0.2);
+    }
+
+    .login-modal-body {
+        padding: 2rem;
+    }
+
+    .login-modal-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--navy-900);
+        margin-bottom: 0.5rem;
+    }
+
+    .login-modal-subtitle {
+        color: var(--gray-600);
+        margin-bottom: 1.5rem;
+    }
+
+    .login-modal-footer {
+        text-align: center;
+        padding: 1rem 2rem 2rem;
+        color: var(--gray-600);
+        font-size: 0.9rem;
+    }
+
+    .login-modal-footer a {
+        color: var(--gold-500);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .login-modal-footer a:hover {
+        text-decoration: underline;
+    }
+
+    /* Legacy fallback */
     .login-header {
         text-align: center;
         margin-bottom: 2rem;
@@ -13954,6 +14050,293 @@ def render_landing_page_styles():
     """, unsafe_allow_html=True)
 
 
+def render_login_modal():
+    """Rendert das Login-Modal als zentrierte Seite mit Modal-Design"""
+    # Vollständige Modal-Styles
+    st.markdown("""
+    <style>
+    /* Hide default Streamlit header/footer for modal page */
+    #MainMenu, footer, header {visibility: hidden;}
+
+    /* Modal page background */
+    .stApp {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
+    }
+
+    /* Modal container styles */
+    .modal-page-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 2rem;
+    }
+
+    .modal-card {
+        background: white;
+        border-radius: 20px;
+        max-width: 450px;
+        width: 100%;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+    }
+
+    .modal-logo-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .modal-logo-text {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .modal-close-btn {
+        width: 36px;
+        height: 36px;
+        background: rgba(255,255,255,0.1);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        transition: background 0.2s;
+    }
+
+    .modal-close-btn:hover {
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+
+    .modal-body {
+        padding: 2rem;
+    }
+
+    .modal-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+
+    .modal-subtitle {
+        color: #64748b;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .modal-footer {
+        text-align: center;
+        padding: 1rem 2rem 2rem;
+        color: #64748b;
+    }
+
+    .modal-footer a {
+        color: #d4a015;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .modal-footer a:hover {
+        text-decoration: underline;
+    }
+
+    .modal-demo-box {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
+    .modal-demo-title {
+        font-weight: 600;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .modal-demo-info {
+        font-size: 0.85rem;
+        color: #64748b;
+        line-height: 1.6;
+    }
+
+    /* Style Streamlit form elements in modal */
+    .stTextInput > div > div > input {
+        border-radius: 10px !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    .stTextInput > div > div > input:focus {
+        border-color: #d4a015 !important;
+        box-shadow: 0 0 0 3px rgba(212, 160, 21, 0.1) !important;
+    }
+
+    .stCheckbox label {
+        color: #64748b !important;
+    }
+
+    .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #d4a015 0%, #b8860b 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        transition: transform 0.2s, box-shadow 0.2s !important;
+    }
+
+    .stFormSubmitButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(212, 160, 21, 0.4) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Modal Header (HTML)
+    st.markdown("""
+    <div class="modal-header">
+        <div class="modal-logo">
+            <div class="modal-logo-icon">📋</div>
+            <span class="modal-logo-text">ImmoFlow</span>
+        </div>
+        <a href="?" class="modal-close-btn">&times;</a>
+    </div>
+    <div class="modal-body">
+        <h2 class="modal-title">Willkommen zurück</h2>
+        <p class="modal-subtitle">Melden Sie sich mit Ihren Zugangsdaten an</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Zentriertes Formular
+    col1, col2, col3 = st.columns([1, 3, 1])
+
+    with col2:
+        with st.form("modal_login_form", clear_on_submit=False):
+            email = st.text_input("E-Mail", placeholder="ihre@email.de", key="modal_email")
+            password = st.text_input("Passwort", type="password", placeholder="Ihr Passwort", key="modal_password")
+            remember_me = st.checkbox("Angemeldet bleiben", value=True, key="modal_remember")
+
+            submit = st.form_submit_button("Anmelden →", use_container_width=True, type="primary")
+
+            if submit:
+                user = None
+                mitarbeiter = None
+
+                # Benutzer suchen
+                for u in st.session_state.users.values():
+                    if u.email == email and u.password_hash == hash_password(password):
+                        user = u
+                        break
+
+                # Notar-Mitarbeiter suchen
+                if not user:
+                    for ma in st.session_state.notar_mitarbeiter.values():
+                        if ma.email == email and ma.password_hash == hash_password(password):
+                            if ma.aktiv:
+                                mitarbeiter = ma
+                                break
+                            else:
+                                st.error("Ihr Account wurde deaktiviert.")
+                                st.stop()
+
+                if user:
+                    st.session_state.current_user = user
+                    st.session_state.is_notar_mitarbeiter = False
+
+                    if remember_me:
+                        token = get_session_token(email)
+                        if 'valid_tokens' not in st.session_state:
+                            st.session_state.valid_tokens = {}
+                        st.session_state.valid_tokens[email] = token
+                        save_session_to_browser(email, token)
+
+                    safe_track_interaktion(
+                        interaktions_typ='login',
+                        details={'rolle': user.rolle, 'remember_me': remember_me},
+                        nutzer_id=user.user_id
+                    )
+
+                    create_notification(
+                        user.user_id,
+                        "Willkommen zurück!",
+                        "Sie haben sich erfolgreich angemeldet.",
+                        NotificationType.SUCCESS.value
+                    )
+                    st.query_params.clear()
+                    st.rerun()
+                elif mitarbeiter:
+                    st.session_state.current_user = mitarbeiter
+                    st.session_state.is_notar_mitarbeiter = True
+
+                    if remember_me:
+                        token = get_session_token(email)
+                        if 'valid_tokens' not in st.session_state:
+                            st.session_state.valid_tokens = {}
+                        st.session_state.valid_tokens[email] = token
+                        save_session_to_browser(email, token)
+
+                    safe_track_interaktion(
+                        interaktions_typ='login',
+                        details={
+                            'rolle': 'notar_mitarbeiter',
+                            'mitarbeiter_rolle': mitarbeiter.rolle,
+                            'remember_me': remember_me
+                        },
+                        nutzer_id=mitarbeiter.mitarbeiter_id
+                    )
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    st.error("Ungültige Anmeldedaten. Bitte überprüfen Sie E-Mail und Passwort.")
+
+        # Footer und Demo-Info
+        st.markdown("""
+        <div class="modal-footer">
+            Noch kein Konto? <a href="?#registrierung">Jetzt registrieren</a>
+        </div>
+        <div class="modal-demo-box">
+            <div class="modal-demo-title">🎯 Demo-Zugangsdaten</div>
+            <div class="modal-demo-info">
+                <strong>Makler:</strong> makler@demo.de / makler123<br>
+                <strong>Käufer:</strong> kaeufer@demo.de / kaeufer123<br>
+                <strong>Verkäufer:</strong> verkaeufer@demo.de / verkaeufer123<br>
+                <strong>Notar:</strong> notar@demo.de / notar123
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Seite hier beenden - Rest der Landing Page nicht rendern
+    st.stop()
+
+
 def login_page():
     """ImmoFlow Landing Page nach Referenz-Design"""
     # Design System und Landing Page Styles laden
@@ -13971,6 +14354,13 @@ def login_page():
         st.session_state.is_notar_mitarbeiter = is_mitarbeiter
         st.rerun()
 
+    # ============ LOGIN MODAL HANDLING ============
+    show_modal = st.query_params.get("modal", None)
+
+    if show_modal == "login":
+        # Render Login Modal Overlay
+        render_login_modal()
+
     # ============ NAVIGATION BAR ============
     st.markdown("""
     <div class="landing-nav">
@@ -13984,7 +14374,7 @@ def login_page():
             <a href="#rollen" class="nav-link">Rollen</a>
         </div>
         <div class="nav-actions">
-            <a href="#login" class="nav-btn-secondary" style="text-decoration:none;">Anmelden</a>
+            <a href="?modal=login" class="nav-btn-secondary" style="text-decoration:none;">Anmelden</a>
             <a href="#registrierung" class="nav-btn-primary" style="text-decoration:none;">Jetzt starten</a>
         </div>
     </div>
