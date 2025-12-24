@@ -13439,162 +13439,164 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     # Vollständige Topbar als fixiertes Element
     st.markdown(f"""
     <style>
-    /* Fixierte Topbar - volle Breite */
+    /* Fixierte Topbar - volle Breite - WICHTIG: !important für alle Farben */
     .immoflow-topbar {{
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 999999;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
-        padding: 0.5rem 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        border-bottom: 3px solid #c9a227;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
+        padding: 0.5rem 1.5rem !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        border-bottom: 3px solid #c9a227 !important;
     }}
 
     .topbar-left {{
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
     }}
 
     .topbar-icon {{
-        font-size: 1.5rem;
+        font-size: 1.5rem !important;
+        color: #ffffff !important;
     }}
 
     .topbar-title {{
-        color: #ffffff;
-        font-size: 1.1rem;
-        font-weight: 700;
-        margin: 0;
+        color: #ffffff !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
     }}
 
     /* Mitte - Aktionen */
     .topbar-center {{
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
     }}
 
     .topbar-action {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 36px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        color: #ffffff;
-        font-size: 1.1rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        text-decoration: none;
-        position: relative;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 36px !important;
+        height: 36px !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        color: #ffffff !important;
+        font-size: 1.1rem !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        text-decoration: none !important;
+        position: relative !important;
     }}
 
     .topbar-action:hover {{
-        background: rgba(201, 162, 39, 0.3);
-        border-color: #c9a227;
-        transform: translateY(-1px);
+        background: rgba(201, 162, 39, 0.3) !important;
+        border-color: #c9a227 !important;
+        transform: translateY(-1px) !important;
     }}
 
     .topbar-action.active {{
-        background: #c9a227;
-        color: #1e3a5f;
+        background: #c9a227 !important;
+        color: #1e3a5f !important;
     }}
 
     .topbar-badge {{
-        position: absolute;
-        top: -5px;
-        right: -5px;
-        background: #dc3545;
-        color: white;
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 5px;
-        border-radius: 10px;
-        min-width: 16px;
-        text-align: center;
+        position: absolute !important;
+        top: -5px !important;
+        right: -5px !important;
+        background: #dc3545 !important;
+        color: white !important;
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        padding: 2px 5px !important;
+        border-radius: 10px !important;
+        min-width: 16px !important;
+        text-align: center !important;
     }}
 
     .topbar-search {{
-        display: flex;
-        align-items: center;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 20px;
-        padding: 0.3rem 0.8rem;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        gap: 0.5rem;
+        display: flex !important;
+        align-items: center !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 20px !important;
+        padding: 0.3rem 0.8rem !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        gap: 0.5rem !important;
     }}
 
     .topbar-search input {{
-        background: transparent;
-        border: none;
-        color: #ffffff;
-        font-size: 0.85rem;
+        background: transparent !important;
+        border: none !important;
+        color: #ffffff !important;
+        font-size: 0.85rem !important;
         width: 150px;
         outline: none;
     }}
 
     .topbar-search input::placeholder {{
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.5) !important;
     }}
 
     .topbar-search-icon {{
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 0.9rem !important;
     }}
 
     /* Rechte Seite */
     .topbar-right {{
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
     }}
 
     .topbar-user-box {{
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: rgba(255, 255, 255, 0.15);
-        padding: 0.3rem 0.7rem;
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        padding: 0.3rem 0.7rem !important;
+        border-radius: 20px !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
     }}
 
     .topbar-avatar {{
-        width: 30px;
-        height: 30px;
-        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        color: #1e3a5f;
-        font-size: 0.8rem;
+        width: 30px !important;
+        height: 30px !important;
+        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: 700 !important;
+        color: #1e3a5f !important;
+        font-size: 0.8rem !important;
     }}
 
     .topbar-user-details {{
-        display: flex;
-        flex-direction: column;
+        display: flex !important;
+        flex-direction: column !important;
     }}
 
     .topbar-username {{
-        color: #ffffff;
-        font-weight: 600;
-        font-size: 0.8rem;
-        line-height: 1.2;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+        line-height: 1.2 !important;
     }}
 
     .topbar-userrole {{
-        color: #c9a227;
-        font-size: 0.65rem;
-        font-weight: 500;
+        color: #c9a227 !important;
+        font-size: 0.65rem !important;
+        font-weight: 500 !important;
     }}
 
     /* Haupt-Content nach unten verschieben */
@@ -13668,6 +13670,48 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     """, unsafe_allow_html=True)
 
 
+def render_topbar_actions():
+    """
+    Rendert funktionale Topbar-Aktionen in der Sidebar.
+    Diese ergänzen die visuelle Topbar mit echten Streamlit-Buttons.
+    """
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### ⚡ Schnellaktionen")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔔 Benachrichtigungen", key="topbar_notif", use_container_width=True):
+                st.session_state['show_notifications_panel'] = True
+                st.rerun()
+
+            if st.button("➕ Neues Projekt", key="topbar_new", use_container_width=True):
+                st.session_state['show_new_project_dialog'] = True
+                st.rerun()
+
+        with col2:
+            if st.button("⚙️ Einstellungen", key="topbar_settings", use_container_width=True):
+                st.session_state['show_settings_panel'] = True
+                st.rerun()
+
+            if st.button("🚪 Abmelden", key="topbar_logout", use_container_width=True):
+                logout()
+
+        # Design-Wechsel
+        current_design = st.session_state.get('design_mode', 'navy-gold')
+        design_label = "☀️ Helles Design" if current_design == "navy-gold" else "🌙 Dunkles Design"
+
+        if st.button(design_label, key="topbar_design", use_container_width=True):
+            if current_design == "navy-gold":
+                st.session_state['design_mode'] = 'light'
+            else:
+                st.session_state['design_mode'] = 'navy-gold'
+            st.rerun()
+
+        st.markdown("---")
+
+
 # ============================================================================
 # MAKLER-BEREICH
 # ============================================================================
@@ -13677,8 +13721,12 @@ def makler_dashboard():
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("📊", "Makler-Dashboard")
 
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
+
+    # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
     # Benachrichtigungs-Badge in der Sidebar
@@ -14926,6 +14974,9 @@ def kaeufer_dashboard():
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
         # User muss erst Dokumente akzeptieren
         return
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -18516,6 +18567,9 @@ def verkaeufer_dashboard():
         # User muss erst Dokumente akzeptieren
         return
 
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
+
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
@@ -19915,8 +19969,12 @@ def finanzierer_dashboard():
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("💼", "Finanzierer-Dashboard")
 
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
+
+    # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
     # Benachrichtigungs-Badge in der Sidebar
@@ -21638,8 +21696,15 @@ def notar_dashboard():
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("⚖️", "Notar-Dashboard")
 
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+
+    # WICHTIG: Sidebar-Menü ZUERST rendern, damit es oben erscheint
+    selection = render_notar_sidebar_menu(user_id)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
+
+    # Aktentasche in der Sidebar (nach dem Menü)
     render_aktentasche_sidebar(user_id)
 
     # Benachrichtigungs-Badge in der Sidebar
@@ -21650,9 +21715,6 @@ def notar_dashboard():
 
     # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
-
-    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
-    selection = render_notar_sidebar_menu(user_id)
 
     # Titel mit aktuellem Bereich ermitteln
     aktueller_bereich = ""
