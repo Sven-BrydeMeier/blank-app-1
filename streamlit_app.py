@@ -14603,14 +14603,23 @@ def makler_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("📊", "Makler-Dashboard")
+
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Sidebar-Menü rendern
     selection = render_sidebar_menu("makler", MAKLER_MENU_ITEMS, current_selection)
 
-    # Header rendern
-    render_dashboard_header("Dashboard - Makler", "makler")
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
 
     # Dialoge (werden benötigt)
     render_aktentasche_teilen_dialog(user_id)
@@ -16057,14 +16066,23 @@ def kaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("🏠", "Käufer-Dashboard")
+
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Sidebar-Menü rendern
     selection = render_sidebar_menu("kaeufer", KAEUFER_MENU_ITEMS, current_selection)
 
-    # Header rendern
-    render_dashboard_header("Dashboard - Käufer", "kaeufer")
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
 
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
@@ -19848,14 +19866,23 @@ def verkaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("🏡", "Verkäufer-Dashboard")
+
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Sidebar-Menü rendern
     selection = render_sidebar_menu("verkaeufer", VERKAEUFER_MENU_ITEMS, current_selection)
 
-    # Header rendern
-    render_dashboard_header("Dashboard - Verkäufer", "verkaeufer")
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
 
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
@@ -21464,14 +21491,23 @@ def finanzierer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("💼", "Finanzierer-Dashboard")
+
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Sidebar-Menü rendern
     selection = render_sidebar_menu("finanzierer", FINANZIERER_MENU_ITEMS, current_selection)
 
-    # Header rendern
-    render_dashboard_header("Dashboard - Finanzierer", "finanzierer")
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
 
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
@@ -23387,16 +23423,25 @@ def notar_dashboard():
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
 
+    # Fixierte Topbar mit Rolle links und User rechts
+    render_fixed_topbar("⚖️", "Notar-Dashboard")
+
     # Menü-Auswahl prüfen
     current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
+
+    # Schnellaktionen in der Sidebar (oben)
+    render_topbar_actions()
 
     # Wenn "dashboard" gewählt, zeige neues Dashboard-Home
     if current_selection == 'dashboard':
         # Sidebar-Menü rendern (vereinfacht)
         _render_notar_sidebar_menu_new(user_id)
 
-        # Header rendern
-        render_dashboard_header("Dashboard - Notar", "notar")
+        # Aktentasche in der Sidebar
+        render_aktentasche_sidebar(user_id)
+
+        # Benachrichtigungs-Badge in der Sidebar
+        render_benachrichtigungs_badge(user_id)
 
         # Dialoge
         render_aktentasche_teilen_dialog(user_id)
@@ -23407,6 +23452,12 @@ def notar_dashboard():
     else:
         # Vorhandenes Notar-System für andere Menüpunkte
         selection = render_notar_sidebar_menu(user_id)
+
+        # Aktentasche in der Sidebar
+        render_aktentasche_sidebar(user_id)
+
+        # Benachrichtigungs-Badge in der Sidebar
+        render_benachrichtigungs_badge(user_id)
 
         # Dialoge
         render_aktentasche_teilen_dialog(user_id)
