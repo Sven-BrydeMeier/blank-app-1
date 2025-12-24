@@ -13390,6 +13390,145 @@ def logout():
     st.rerun()
 
 # ============================================================================
+# DESIGN-MODUS (Hell/Dunkel)
+# ============================================================================
+
+def apply_design_mode():
+    """
+    Wendet das aktuelle Design (hell/dunkel) an.
+    Muss am Anfang jedes Dashboards aufgerufen werden.
+    """
+    design_mode = st.session_state.get('design_mode', 'navy-gold')
+
+    if design_mode == 'light':
+        # Helles Design
+        st.markdown("""
+        <style>
+        /* Helles Design - Streamlit Overrides */
+        .stApp {
+            background-color: #f5f5f5 !important;
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: #ffffff !important;
+        }
+
+        [data-testid="stSidebar"] * {
+            color: #333333 !important;
+        }
+
+        .stMarkdown, .stText, p, span, label, h1, h2, h3, h4, h5, h6 {
+            color: #333333 !important;
+        }
+
+        /* Topbar bleibt dunkel auch im hellen Modus für Kontrast */
+        .immoflow-topbar {
+            background: linear-gradient(135deg, #2c5282 0%, #3d6aa6 100%) !important;
+        }
+
+        /* Buttons im hellen Modus */
+        .stButton > button {
+            background-color: #2c5282 !important;
+            color: white !important;
+        }
+
+        /* Sidebar Buttons */
+        [data-testid="stSidebar"] .stButton > button {
+            background-color: #e2e8f0 !important;
+            color: #2c5282 !important;
+            border: 1px solid #cbd5e0 !important;
+        }
+
+        [data-testid="stSidebar"] .stButton > button:hover {
+            background-color: #cbd5e0 !important;
+        }
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab"] {
+            background-color: #e2e8f0 !important;
+            color: #333333 !important;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background-color: #2c5282 !important;
+            color: white !important;
+        }
+
+        /* Expander */
+        .streamlit-expanderHeader {
+            background-color: #e2e8f0 !important;
+            color: #333333 !important;
+        }
+
+        /* Cards/Container */
+        [data-testid="stExpander"], .element-container {
+            background-color: #ffffff !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        # Dunkles Design (Standard Navy-Gold)
+        st.markdown("""
+        <style>
+        /* Dunkles Design - Navy Gold */
+        .stApp {
+            background-color: #0e1525 !important;
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: #1a2332 !important;
+        }
+
+        .stMarkdown, .stText, p, span, label {
+            color: #e2e8f0 !important;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: #c9a227 !important;
+        }
+
+        /* Buttons im dunklen Modus */
+        .stButton > button {
+            background-color: #1e3a5f !important;
+            color: #c9a227 !important;
+            border: 1px solid #c9a227 !important;
+        }
+
+        .stButton > button:hover {
+            background-color: #2d4a6f !important;
+        }
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab"] {
+            background-color: #1a2332 !important;
+            color: #e2e8f0 !important;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background-color: #1e3a5f !important;
+            color: #c9a227 !important;
+            border-bottom: 2px solid #c9a227 !important;
+        }
+
+        /* Expander */
+        .streamlit-expanderHeader {
+            background-color: #1a2332 !important;
+            color: #c9a227 !important;
+        }
+
+        /* Input fields */
+        .stTextInput > div > div > input,
+        .stSelectbox > div > div > div,
+        .stTextArea > div > div > textarea {
+            background-color: #1a2332 !important;
+            color: #e2e8f0 !important;
+            border-color: #2d4a6f !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+
+# ============================================================================
 # FIXIERTE TOPBAR FÜR ALLE DASHBOARDS
 # ============================================================================
 
@@ -13599,6 +13738,24 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         font-weight: 500 !important;
     }}
 
+    .topbar-logout {{
+        color: #ff6b6b !important;
+        font-size: 0.7rem !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        padding: 0.2rem 0.5rem !important;
+        border-radius: 4px !important;
+        background: rgba(255, 107, 107, 0.1) !important;
+        border: 1px solid rgba(255, 107, 107, 0.3) !important;
+        margin-left: 0.5rem !important;
+        transition: all 0.2s ease !important;
+    }}
+
+    .topbar-logout:hover {{
+        background: rgba(255, 107, 107, 0.3) !important;
+        color: #ffffff !important;
+    }}
+
     /* Haupt-Content nach unten verschieben */
     .main .block-container {{
         padding-top: 65px !important;
@@ -13641,19 +13798,19 @@ def render_fixed_topbar(role_icon: str, role_name: str):
                 <span class="topbar-search-icon">🔍</span>
                 <input type="text" placeholder="Suchen..." id="topbar-search-input">
             </div>
-            <div class="topbar-action" title="Benachrichtigungen">
+            <div class="topbar-action" title="Benachrichtigungen" id="topbar-btn-notif">
                 🔔{notif_badge}
             </div>
-            <div class="topbar-action" title="Neues Projekt / Neue Akte">
+            <div class="topbar-action" title="Neues Projekt / Neue Akte" id="topbar-btn-new">
                 ➕
             </div>
-            <div class="topbar-action" title="Design wechseln">
+            <div class="topbar-action" title="Design wechseln" id="topbar-btn-design">
                 {design_icon}
             </div>
-            <div class="topbar-action" title="Einstellungen">
+            <div class="topbar-action" title="Einstellungen" id="topbar-btn-settings">
                 ⚙️
             </div>
-            <div class="topbar-action" title="Hilfe">
+            <div class="topbar-action" title="Hilfe" id="topbar-btn-help">
                 ❓
             </div>
         </div>
@@ -13664,45 +13821,139 @@ def render_fixed_topbar(role_icon: str, role_name: str):
                     <span class="topbar-username">{user_name}</span>
                     <span class="topbar-userrole">{role_display}</span>
                 </div>
+                <span class="topbar-logout" id="topbar-btn-logout" title="Abmelden">Abmelden</span>
             </div>
         </div>
     </div>
+    """, unsafe_allow_html=True)
+
+    # Funktionale Buttons - Prüfen auf Aktionen via Query-Parameter
+    _handle_topbar_actions()
+
+
+def _handle_topbar_actions():
+    """
+    Verarbeitet Topbar-Aktionen basierend auf Query-Parametern.
+    Diese werden durch JavaScript-Klicks auf die HTML-Buttons gesetzt.
+    """
+    params = st.query_params
+
+    # Logout-Aktion
+    if params.get("topbar_action") == "logout":
+        st.query_params.clear()
+        logout()
+        return
+
+    # Design-Wechsel
+    if params.get("topbar_action") == "design":
+        st.query_params.clear()
+        current_design = st.session_state.get('design_mode', 'navy-gold')
+        if current_design == "navy-gold":
+            st.session_state['design_mode'] = 'light'
+        else:
+            st.session_state['design_mode'] = 'navy-gold'
+        st.rerun()
+
+    # Benachrichtigungen
+    if params.get("topbar_action") == "notif":
+        st.query_params.clear()
+        st.session_state['show_notifications_panel'] = True
+        st.rerun()
+
+    # Neues Projekt
+    if params.get("topbar_action") == "new":
+        st.query_params.clear()
+        st.session_state['show_new_project_dialog'] = True
+        st.rerun()
+
+    # Einstellungen
+    if params.get("topbar_action") == "settings":
+        st.query_params.clear()
+        st.session_state['show_settings_panel'] = True
+        st.rerun()
+
+    # Suche
+    search_query = params.get("topbar_search")
+    if search_query:
+        st.session_state['global_search_query'] = search_query
+        st.query_params.clear()
+        st.rerun()
+
+    # JavaScript für Topbar-Buttons injizieren
+    st.markdown("""
+    <script>
+    // Warten bis DOM geladen ist
+    function initTopbarButtons() {
+        // Logout-Button
+        const logoutBtn = document.getElementById('topbar-btn-logout');
+        if (logoutBtn) {
+            logoutBtn.onclick = function() {
+                window.location.href = window.location.pathname + '?topbar_action=logout';
+            };
+        }
+
+        // Design-Button
+        const designBtn = document.getElementById('topbar-btn-design');
+        if (designBtn) {
+            designBtn.onclick = function() {
+                window.location.href = window.location.pathname + '?topbar_action=design';
+            };
+        }
+
+        // Benachrichtigungen-Button
+        const notifBtn = document.getElementById('topbar-btn-notif');
+        if (notifBtn) {
+            notifBtn.onclick = function() {
+                window.location.href = window.location.pathname + '?topbar_action=notif';
+            };
+        }
+
+        // Neues Projekt-Button
+        const newBtn = document.getElementById('topbar-btn-new');
+        if (newBtn) {
+            newBtn.onclick = function() {
+                window.location.href = window.location.pathname + '?topbar_action=new';
+            };
+        }
+
+        // Einstellungen-Button
+        const settingsBtn = document.getElementById('topbar-btn-settings');
+        if (settingsBtn) {
+            settingsBtn.onclick = function() {
+                window.location.href = window.location.pathname + '?topbar_action=settings';
+            };
+        }
+
+        // Suche-Input
+        const searchInput = document.getElementById('topbar-search-input');
+        if (searchInput) {
+            searchInput.onkeypress = function(e) {
+                if (e.key === 'Enter' && this.value.trim()) {
+                    window.location.href = window.location.pathname + '?topbar_search=' + encodeURIComponent(this.value.trim());
+                }
+            };
+        }
+    }
+
+    // Mehrfach versuchen, da Streamlit das DOM dynamisch lädt
+    setTimeout(initTopbarButtons, 100);
+    setTimeout(initTopbarButtons, 500);
+    setTimeout(initTopbarButtons, 1000);
+    </script>
     """, unsafe_allow_html=True)
 
 
 def render_topbar_actions():
     """
     Rendert funktionale Topbar-Aktionen in der Sidebar.
-    Diese ergänzen die visuelle Topbar mit echten Streamlit-Buttons.
+    Enthält nur noch die wichtigsten Aktionen (ohne Abmelden - ist jetzt in Topbar).
     """
     with st.sidebar:
-        st.markdown("---")
-        st.markdown("### ⚡ Schnellaktionen")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("🔔 Benachrichtigungen", key="topbar_notif", use_container_width=True):
-                st.session_state['show_notifications_panel'] = True
-                st.rerun()
-
-            if st.button("➕ Neues Projekt", key="topbar_new", use_container_width=True):
-                st.session_state['show_new_project_dialog'] = True
-                st.rerun()
-
-        with col2:
-            if st.button("⚙️ Einstellungen", key="topbar_settings", use_container_width=True):
-                st.session_state['show_settings_panel'] = True
-                st.rerun()
-
-            if st.button("🚪 Abmelden", key="topbar_logout", use_container_width=True):
-                logout()
-
-        # Design-Wechsel
+        # Design-Wechsel als kompakter Button
         current_design = st.session_state.get('design_mode', 'navy-gold')
         design_label = "☀️ Helles Design" if current_design == "navy-gold" else "🌙 Dunkles Design"
 
-        if st.button(design_label, key="topbar_design", use_container_width=True):
+        if st.button(design_label, key="sidebar_design", use_container_width=True):
             if current_design == "navy-gold":
                 st.session_state['design_mode'] = 'light'
             else:
@@ -13718,6 +13969,9 @@ def render_topbar_actions():
 
 def makler_dashboard():
     """Dashboard für Makler"""
+    # Design-Modus anwenden
+    apply_design_mode()
+
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("📊", "Makler-Dashboard")
 
@@ -14962,6 +15216,9 @@ def onboarding_flow():
 
 def kaeufer_dashboard():
     """Dashboard für Käufer"""
+    # Design-Modus anwenden
+    apply_design_mode()
+
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("🏠", "Käufer-Dashboard")
 
@@ -18554,6 +18811,9 @@ def kaeufer_dokumente_view():
 
 def verkaeufer_dashboard():
     """Dashboard für Verkäufer"""
+    # Design-Modus anwenden
+    apply_design_mode()
+
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("🏡", "Verkäufer-Dashboard")
 
@@ -19966,6 +20226,9 @@ def verkaeufer_nachrichten():
 
 def finanzierer_dashboard():
     """Dashboard für Finanzierer"""
+    # Design-Modus anwenden
+    apply_design_mode()
+
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("💼", "Finanzierer-Dashboard")
 
@@ -21689,6 +21952,9 @@ def render_notar_content(selection: str, user_id: str):
 
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
+
+    # Design-Modus anwenden
+    apply_design_mode()
 
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
