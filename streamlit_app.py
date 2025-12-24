@@ -13467,10 +13467,10 @@ def apply_design_mode():
         </style>
         """, unsafe_allow_html=True)
     else:
-        # Dunkles Design (Standard Navy-Gold)
+        # Dunkles Design (Standard Navy-Gold) - VERBESSERT für besseren Kontrast
         st.markdown("""
         <style>
-        /* Dunkles Design - Navy Gold */
+        /* Dunkles Design - Navy Gold - Verbesserter Kontrast */
         .stApp {
             background-color: #0e1525 !important;
         }
@@ -13479,7 +13479,13 @@ def apply_design_mode():
             background-color: #1a2332 !important;
         }
 
-        .stMarkdown, .stText, p, span, label {
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span,
+        [data-testid="stSidebar"] label {
+            color: #e2e8f0 !important;
+        }
+
+        .stMarkdown p, .stText, .main p, .main span {
             color: #e2e8f0 !important;
         }
 
@@ -13487,15 +13493,34 @@ def apply_design_mode():
             color: #c9a227 !important;
         }
 
-        /* Buttons im dunklen Modus */
+        /* Buttons im dunklen Modus - WEISSE SCHRIFT für Kontrast */
         .stButton > button {
-            background-color: #1e3a5f !important;
-            color: #c9a227 !important;
+            background-color: #2d4a6f !important;
+            background-image: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
+            color: #ffffff !important;
             border: 1px solid #c9a227 !important;
+            font-weight: 600 !important;
         }
 
         .stButton > button:hover {
-            background-color: #2d4a6f !important;
+            background-color: #3d5a7f !important;
+            background-image: linear-gradient(135deg, #2d4a6f 0%, #3d5a7f 100%) !important;
+            color: #ffffff !important;
+            border-color: #e6c84a !important;
+        }
+
+        .stButton > button:active {
+            background-color: #c9a227 !important;
+            color: #1e3a5f !important;
+        }
+
+        /* Primary Buttons */
+        .stButton > button[kind="primary"] {
+            background-color: #c9a227 !important;
+            background-image: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
+            color: #1e3a5f !important;
+            border: none !important;
+            font-weight: 700 !important;
         }
 
         /* Tabs */
@@ -13516,13 +13541,53 @@ def apply_design_mode():
             color: #c9a227 !important;
         }
 
+        .streamlit-expanderContent {
+            background-color: #0e1525 !important;
+            border: 1px solid #2d4a6f !important;
+        }
+
         /* Input fields */
         .stTextInput > div > div > input,
         .stSelectbox > div > div > div,
         .stTextArea > div > div > textarea {
             background-color: #1a2332 !important;
-            color: #e2e8f0 !important;
+            color: #ffffff !important;
             border-color: #2d4a6f !important;
+        }
+
+        .stTextInput > div > div > input::placeholder {
+            color: #8899aa !important;
+        }
+
+        /* Selectbox */
+        .stSelectbox > div > div {
+            background-color: #1a2332 !important;
+            color: #ffffff !important;
+        }
+
+        /* Radio/Checkbox */
+        .stRadio > div, .stCheckbox > div {
+            color: #e2e8f0 !important;
+        }
+
+        /* Metriken */
+        [data-testid="stMetricValue"] {
+            color: #c9a227 !important;
+        }
+
+        [data-testid="stMetricLabel"] {
+            color: #e2e8f0 !important;
+        }
+
+        /* Dataframe/Table */
+        .stDataFrame {
+            background-color: #1a2332 !important;
+        }
+
+        /* Info/Warning/Error Boxes */
+        .stAlert {
+            background-color: #1a2332 !important;
+            color: #e2e8f0 !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -13879,77 +13944,43 @@ def _handle_topbar_actions():
         st.query_params.clear()
         st.rerun()
 
-    # JavaScript für Topbar-Buttons injizieren
-    st.markdown("""
-    <script>
-    // Warten bis DOM geladen ist
-    function initTopbarButtons() {
-        // Logout-Button
-        const logoutBtn = document.getElementById('topbar-btn-logout');
-        if (logoutBtn) {
-            logoutBtn.onclick = function() {
-                window.location.href = window.location.pathname + '?topbar_action=logout';
-            };
-        }
-
-        // Design-Button
-        const designBtn = document.getElementById('topbar-btn-design');
-        if (designBtn) {
-            designBtn.onclick = function() {
-                window.location.href = window.location.pathname + '?topbar_action=design';
-            };
-        }
-
-        // Benachrichtigungen-Button
-        const notifBtn = document.getElementById('topbar-btn-notif');
-        if (notifBtn) {
-            notifBtn.onclick = function() {
-                window.location.href = window.location.pathname + '?topbar_action=notif';
-            };
-        }
-
-        // Neues Projekt-Button
-        const newBtn = document.getElementById('topbar-btn-new');
-        if (newBtn) {
-            newBtn.onclick = function() {
-                window.location.href = window.location.pathname + '?topbar_action=new';
-            };
-        }
-
-        // Einstellungen-Button
-        const settingsBtn = document.getElementById('topbar-btn-settings');
-        if (settingsBtn) {
-            settingsBtn.onclick = function() {
-                window.location.href = window.location.pathname + '?topbar_action=settings';
-            };
-        }
-
-        // Suche-Input
-        const searchInput = document.getElementById('topbar-search-input');
-        if (searchInput) {
-            searchInput.onkeypress = function(e) {
-                if (e.key === 'Enter' && this.value.trim()) {
-                    window.location.href = window.location.pathname + '?topbar_search=' + encodeURIComponent(this.value.trim());
-                }
-            };
-        }
-    }
-
-    // Mehrfach versuchen, da Streamlit das DOM dynamisch lädt
-    setTimeout(initTopbarButtons, 100);
-    setTimeout(initTopbarButtons, 500);
-    setTimeout(initTopbarButtons, 1000);
-    </script>
-    """, unsafe_allow_html=True)
-
 
 def render_topbar_actions():
     """
     Rendert funktionale Topbar-Aktionen in der Sidebar.
-    Enthält nur noch die wichtigsten Aktionen (ohne Abmelden - ist jetzt in Topbar).
+    Enthält Suche, Design-Wechsel und Abmelden.
     """
     with st.sidebar:
-        # Design-Wechsel als kompakter Button
+        # === SUCHE ===
+        st.markdown("### 🔍 Suche")
+        search_query = st.text_input(
+            "Suchen...",
+            value=st.session_state.get('global_search_query', ''),
+            placeholder="Projekte, Akten, Personen...",
+            key="sidebar_search",
+            label_visibility="collapsed"
+        )
+        if search_query:
+            st.session_state['global_search_query'] = search_query
+
+        st.markdown("---")
+
+        # === SCHNELLAKTIONEN ===
+        st.markdown("### ⚡ Aktionen")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔔 Benachricht.", key="sidebar_notif", use_container_width=True):
+                st.session_state['show_notifications_panel'] = not st.session_state.get('show_notifications_panel', False)
+                st.rerun()
+
+        with col2:
+            if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
+                st.session_state['show_new_project_dialog'] = True
+                st.rerun()
+
+        # === DESIGN-WECHSEL ===
         current_design = st.session_state.get('design_mode', 'navy-gold')
         design_label = "☀️ Helles Design" if current_design == "navy-gold" else "🌙 Dunkles Design"
 
@@ -13959,6 +13990,10 @@ def render_topbar_actions():
             else:
                 st.session_state['design_mode'] = 'navy-gold'
             st.rerun()
+
+        # === ABMELDEN ===
+        if st.button("🚪 Abmelden", key="sidebar_logout", use_container_width=True):
+            logout()
 
         st.markdown("---")
 
