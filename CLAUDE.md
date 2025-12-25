@@ -93,8 +93,27 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 - Dokumente rechts (aktuell ausgewähltes Dokument wird highlighted)
 - Dokumentaktionen: Als erledigt markieren, An Partei senden, In Entwurf übernehmen
 
+**Sidebar-Menü mit Navigation:**
+- 🏠 Dashboard (Home-Button) - Zurück zum 4-Quadranten-Dashboard
+- 📁 Akten - Akten-Übersichtsseite mit Sortierung und Suche
+- 📋 Vorgänge, 💬 Nachrichten, 📄 Dokumente, 📅 Termine, ⚙️ Einstellungen
+
+**Suche in der Sidebar:**
+- Echtzeit-Suche nach Aktenzeichen, Namen, Parteien
+- Klickbare Suchergebnisse → direkt zur Akte
+- 📬 Posteingang-Badge zeigt neue Dokumente an
+
+**Akten-Übersichtsseite:**
+- Alle Akten in Tabellenansicht
+- Sortierung nach: Aktenzeichen, Datum (neueste/älteste), Status
+- Suche nach Aktenzeichen, Name, Status
+- 📬 Posteingang-Spalte mit Anzahl neuer Dokumente
+- Klick auf 📂 → Akte öffnen
+- Klick auf 📬 → Direkt zum Posteingang der Akte
+
 **Notar-spezifische Funktionen:**
 - `_render_notar_dashboard_home()` - Haupt-Dashboard mit 4-Quadranten
+- `_render_notar_akten_uebersicht()` - Akten-Übersicht mit Sortierung/Suche
 - `_render_notar_termine_widget()` - Termine des Tages (klickbar)
 - `_render_notar_posteingang_widget()` - Posteingang (klickbar)
 - `_render_notar_entwurf_widget()` - Urkundsentwurf-Akten (klickbar)
@@ -102,6 +121,7 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 - `_render_notar_akte_detail()` - Akten-Detailansicht mit Ordnerstruktur
 - `_render_urkunden_assistent()` - Step-by-Step Urkundenerstellung
 - `_render_urkunden_ki()` - KI-gestützte Urkundenerstellung
+- `_suche_notar_akten()` - Suche in Akten/Projekten mit Posteingang-Info
 
 ## Wichtige Funktionen
 
@@ -141,10 +161,10 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 ## Letzte Änderungen
 
 1. **Notar-Dashboard komplett überarbeitet** - 4-Quadranten-Layout mit klickbaren Widgets
-2. **Termine des Tages** - Klickbare Termine mit Navigation zur Akte
-3. **Posteingang** - Neue Dokumente von Parteien mit Status und Fristen
-4. **Urkundsentwurf-Widget** - Akten die Entwurf benötigen mit Assistent/KI-Optionen
-5. **Beurkundete Verträge** - 3 Stadien (Fälligkeit, Kaufpreis, Eingetragen)
+2. **Sidebar-Suche funktional** - Echtzeit-Suche mit klickbaren Ergebnissen
+3. **Home-Button im Sidebar-Menü** - Dashboard-Button führt zurück zum Haupt-Dashboard
+4. **Akten-Übersichtsseite** - Alle Akten sortierbar, durchsuchbar, mit Posteingang-Badge
+5. **Posteingang-Badge** - 📬 zeigt neue Dokumente pro Akte an (Anzahl sichtbar)
 6. **Akten-Detailansicht** - Ordnerstruktur (Entwürfe, Urkunden) mit Dokumentaktionen
 7. **Timeline am oberen Rand** - Übersicht aller Vorgänge nach Status
 8. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
