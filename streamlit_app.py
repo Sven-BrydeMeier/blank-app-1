@@ -23400,6 +23400,9 @@ def notar_dashboard():
 
 def _render_notar_sidebar_menu_new(user_id: str):
     """Neues vereinfachtes Sidebar-Menü für Notar-Dashboard"""
+    # Aktuelle Ansicht ermitteln
+    current_view = st.session_state.get('notar_current_view', 'dashboard')
+
     notar_menu_items = [
         {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
         {"key": "akten", "label": "Akten", "icon": "📁"},
@@ -23414,7 +23417,7 @@ def _render_notar_sidebar_menu_new(user_id: str):
         st.markdown("#### Menü")
 
         for item in notar_menu_items:
-            is_active = item['key'] == 'dashboard'
+            is_active = item['key'] == current_view
 
             if st.button(
                 f"{item.get('icon', '')} {item['label']}",
@@ -23422,12 +23425,28 @@ def _render_notar_sidebar_menu_new(user_id: str):
                 use_container_width=True,
                 type="primary" if is_active else "secondary"
             ):
-                if item['key'] != 'dashboard':
-                    # Wechsel zum bisherigen Notar-System
+                # Reset aller Ansichten
+                st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_highlight_doc'] = None
+                st.session_state['notar_show_assistent'] = False
+                st.session_state['notar_show_ki'] = False
+
+                if item['key'] == 'dashboard':
+                    # Zurück zum Dashboard-Home
+                    st.session_state['notar_menu_selection'] = 'dashboard'
+                    st.session_state['notar_current_view'] = 'dashboard'
+                    st.rerun()
+                elif item['key'] == 'akten':
+                    # Zeige Akten-Übersicht im neuen Dashboard
+                    st.session_state['notar_menu_selection'] = 'dashboard'
+                    st.session_state['notar_current_view'] = 'akten'
+                    st.rerun()
+                else:
+                    # Wechsel zum bisherigen Notar-System für andere Menüpunkte
                     st.session_state['notar_menu_selection'] = item['key']
+                    st.session_state['notar_current_view'] = item['key']
                     # Map zu bestehenden Keys
                     key_mapping = {
-                        'akten': 'projekte',
                         'vorgaenge': 'projekte',
                         'nachrichten': 'nachrichten',
                         'dokumente': 'aktenverwaltung',
@@ -23440,6 +23459,34 @@ def _render_notar_sidebar_menu_new(user_id: str):
 
         st.markdown("---")
 
+        # === SUCHE ===
+        st.markdown("#### 🔍 Suche")
+        suchbegriff = st.text_input("Akten durchsuchen", key="notar_suche_input",
+                                    placeholder="Aktenzeichen, Name...")
+
+        if suchbegriff and len(suchbegriff) >= 2:
+            suchergebnisse = _suche_notar_akten(user_id, suchbegriff)
+            if suchergebnisse:
+                st.markdown(f"**{len(suchergebnisse)} Ergebnis(se):**")
+                for i, ergebnis in enumerate(suchergebnisse[:5]):
+                    # Posteingang-Badge
+                    badge = " 📬" if ergebnis.get('hat_posteingang') else ""
+                    if st.button(f"📁 {ergebnis['aktenzeichen']}{badge}",
+                                key=f"suche_result_{i}",
+                                help=ergebnis.get('kurzbezeichnung', ''),
+                                use_container_width=True):
+                        if ergebnis.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
+                            st.session_state['notar_current_view'] = 'dashboard'
+                            st.session_state['notar_menu_selection'] = 'dashboard'
+                        elif ergebnis.get('projekt_id'):
+                            st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
+                        st.rerun()
+            else:
+                st.caption("Keine Ergebnisse gefunden")
+
+        st.markdown("---")
+
 
 def _render_notar_dashboard_home(user_id: str):
     """Rendert die Notar-Dashboard Startseite mit 4-Quadranten-Layout"""
@@ -23448,6 +23495,12 @@ def _render_notar_dashboard_home(user_id: str):
     # Prüfe ob eine Akte geöffnet werden soll
     if st.session_state.get('notar_open_akte_id'):
         _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
+        return
+
+    # Prüfe ob Akten-Übersicht angezeigt werden soll
+    current_view = st.session_state.get('notar_current_view', 'dashboard')
+    if current_view == 'akten':
+        _render_notar_akten_uebersicht(user_id)
         return
 
     heute = date.today()
@@ -23503,6 +23556,327 @@ def _get_notar_akten(user_id: str) -> list:
             if getattr(a, 'notar_id', None) == user_id:
                 akten.append(a)
     return akten
+
+
+def _suche_notar_akten(user_id: str, suchbegriff: str) -> list:
+    """Sucht in Akten und Projekten nach dem Suchbegriff"""
+    from datetime import datetime, timedelta
+    ergebnisse = []
+    suchbegriff_lower = suchbegriff.lower()
+
+    # In Akten suchen
+    if hasattr(st.session_state, 'akten'):
+        for a in st.session_state.akten.values():
+            if getattr(a, 'notar_id', None) != user_id:
+                continue
+
+            aktenzeichen = getattr(a, 'aktenzeichen', '')
+            kurzbezeichnung = getattr(a, 'kurzbezeichnung', '')
+            betreff = getattr(a, 'betreff', '')
+            verkaeufer = getattr(a, 'verkaeufer_nachname', '')
+            kaeufer = getattr(a, 'kaeufer_nachname', '')
+
+            if (suchbegriff_lower in aktenzeichen.lower() or
+                suchbegriff_lower in kurzbezeichnung.lower() or
+                suchbegriff_lower in betreff.lower() or
+                suchbegriff_lower in verkaeufer.lower() or
+                suchbegriff_lower in kaeufer.lower()):
+
+                # Prüfe ob Posteingang vorhanden
+                hat_posteingang = _hat_akte_posteingang(a.akte_id, user_id)
+
+                ergebnisse.append({
+                    'akte_id': a.akte_id,
+                    'projekt_id': getattr(a, 'projekt_id', None),
+                    'aktenzeichen': aktenzeichen or a.akte_id[:8].upper(),
+                    'kurzbezeichnung': kurzbezeichnung,
+                    'hat_posteingang': hat_posteingang,
+                    'typ': 'akte'
+                })
+
+    # In Projekten suchen (falls keine Akten gefunden)
+    if not ergebnisse:
+        for p in st.session_state.projekte.values():
+            if p.notar_id != user_id:
+                continue
+
+            name = p.name or ''
+            adresse = p.adresse or ''
+
+            if (suchbegriff_lower in name.lower() or
+                suchbegriff_lower in adresse.lower() or
+                suchbegriff_lower in p.projekt_id.lower()):
+
+                # Prüfe ob Posteingang vorhanden
+                hat_posteingang = _hat_projekt_posteingang(p.projekt_id, user_id)
+
+                ergebnisse.append({
+                    'akte_id': None,
+                    'projekt_id': p.projekt_id,
+                    'aktenzeichen': p.projekt_id[:8].upper(),
+                    'kurzbezeichnung': name or adresse,
+                    'hat_posteingang': hat_posteingang,
+                    'typ': 'projekt'
+                })
+
+    return ergebnisse[:10]
+
+
+def _hat_akte_posteingang(akte_id: str, user_id: str) -> bool:
+    """Prüft ob eine Akte neue Dokumente im Posteingang hat"""
+    from datetime import datetime, timedelta
+
+    if not hasattr(st.session_state, 'dokumente'):
+        return False
+
+    for dok in st.session_state.dokumente.values():
+        if getattr(dok, 'akte_id', None) != akte_id:
+            continue
+
+        status = getattr(dok, 'status', '')
+        if status == 'erledigt':
+            continue
+
+        # Prüfe ob Dokument kürzlich hochgeladen wurde
+        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
+        if erstellt_am:
+            if isinstance(erstellt_am, str):
+                try:
+                    erstellt_am = datetime.fromisoformat(erstellt_am)
+                except:
+                    continue
+
+            if datetime.now() - erstellt_am <= timedelta(days=7):
+                return True
+
+    return False
+
+
+def _hat_projekt_posteingang(projekt_id: str, user_id: str) -> bool:
+    """Prüft ob ein Projekt neue Dokumente im Posteingang hat"""
+    from datetime import datetime, timedelta
+
+    if not hasattr(st.session_state, 'dokumente'):
+        return False
+
+    for dok in st.session_state.dokumente.values():
+        if getattr(dok, 'projekt_id', None) != projekt_id:
+            continue
+
+        status = getattr(dok, 'status', '')
+        if status == 'erledigt':
+            continue
+
+        # Prüfe ob Dokument kürzlich hochgeladen wurde
+        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
+        if erstellt_am:
+            if isinstance(erstellt_am, str):
+                try:
+                    erstellt_am = datetime.fromisoformat(erstellt_am)
+                except:
+                    continue
+
+            if datetime.now() - erstellt_am <= timedelta(days=7):
+                return True
+
+    return False
+
+
+def _render_notar_akten_uebersicht(user_id: str):
+    """Rendert die Akten-Übersichtsseite mit Sortierung und Suche"""
+    from datetime import datetime
+
+    st.markdown("## 📁 Alle Akten")
+
+    # Suchfeld im Hauptbereich
+    col_suche, col_sort = st.columns([2, 1])
+
+    with col_suche:
+        suche_hauptbereich = st.text_input("🔍 Akten durchsuchen",
+                                           key="akten_suche_hauptbereich",
+                                           placeholder="Aktenzeichen, Name, Partei...")
+
+    with col_sort:
+        sortierung = st.selectbox("Sortieren nach",
+                                  ["Aktenzeichen", "Datum (neueste)", "Datum (älteste)", "Status"],
+                                  key="akten_sortierung")
+
+    st.markdown("---")
+
+    # Alle Akten und Projekte sammeln
+    alle_akten = []
+
+    # Aus Akten-Datenstruktur
+    if hasattr(st.session_state, 'akten'):
+        for a in st.session_state.akten.values():
+            if getattr(a, 'notar_id', None) != user_id:
+                continue
+
+            aktenzeichen = getattr(a, 'aktenzeichen', a.akte_id[:8].upper())
+            kurzbezeichnung = getattr(a, 'kurzbezeichnung', '')
+            status = getattr(a, 'status', 'Neu')
+            erstellt_am = getattr(a, 'erstellt_am', datetime.now())
+
+            # Posteingang prüfen
+            hat_posteingang = _hat_akte_posteingang(a.akte_id, user_id)
+            posteingang_count = _zaehle_posteingang(a.akte_id, None, user_id)
+
+            alle_akten.append({
+                'akte_id': a.akte_id,
+                'projekt_id': getattr(a, 'projekt_id', None),
+                'aktenzeichen': aktenzeichen,
+                'kurzbezeichnung': kurzbezeichnung,
+                'status': status,
+                'erstellt_am': erstellt_am,
+                'hat_posteingang': hat_posteingang,
+                'posteingang_count': posteingang_count,
+                'typ': 'akte'
+            })
+
+    # Projekte ohne Akte hinzufügen
+    for p in st.session_state.projekte.values():
+        if p.notar_id != user_id:
+            continue
+
+        # Prüfen ob bereits als Akte vorhanden
+        bereits_vorhanden = any(a['projekt_id'] == p.projekt_id for a in alle_akten)
+        if bereits_vorhanden:
+            continue
+
+        hat_posteingang = _hat_projekt_posteingang(p.projekt_id, user_id)
+        posteingang_count = _zaehle_posteingang(None, p.projekt_id, user_id)
+
+        alle_akten.append({
+            'akte_id': None,
+            'projekt_id': p.projekt_id,
+            'aktenzeichen': p.projekt_id[:8].upper(),
+            'kurzbezeichnung': p.name or p.adresse or '',
+            'status': p.status,
+            'erstellt_am': getattr(p, 'erstellt_am', datetime.now()),
+            'hat_posteingang': hat_posteingang,
+            'posteingang_count': posteingang_count,
+            'typ': 'projekt'
+        })
+
+    # Suche anwenden
+    if suche_hauptbereich and len(suche_hauptbereich) >= 2:
+        suche_lower = suche_hauptbereich.lower()
+        alle_akten = [a for a in alle_akten if
+                      suche_lower in a['aktenzeichen'].lower() or
+                      suche_lower in a['kurzbezeichnung'].lower() or
+                      suche_lower in a['status'].lower()]
+
+    # Sortierung anwenden
+    if sortierung == "Aktenzeichen":
+        alle_akten.sort(key=lambda x: x['aktenzeichen'])
+    elif sortierung == "Datum (neueste)":
+        alle_akten.sort(key=lambda x: x['erstellt_am'] if x['erstellt_am'] else datetime.min, reverse=True)
+    elif sortierung == "Datum (älteste)":
+        alle_akten.sort(key=lambda x: x['erstellt_am'] if x['erstellt_am'] else datetime.min)
+    elif sortierung == "Status":
+        alle_akten.sort(key=lambda x: x['status'])
+
+    # Akten anzeigen
+    if not alle_akten:
+        st.info("Keine Akten gefunden")
+    else:
+        st.markdown(f"**{len(alle_akten)} Akte(n) gefunden**")
+
+        # Tabellenkopf
+        col_az, col_bez, col_status, col_post, col_aktion = st.columns([2, 3, 2, 1, 2])
+        with col_az:
+            st.markdown("**Aktenzeichen**")
+        with col_bez:
+            st.markdown("**Bezeichnung**")
+        with col_status:
+            st.markdown("**Status**")
+        with col_post:
+            st.markdown("**📬**")
+        with col_aktion:
+            st.markdown("**Aktion**")
+
+        st.markdown("---")
+
+        for i, akte in enumerate(alle_akten):
+            col_az, col_bez, col_status, col_post, col_aktion = st.columns([2, 3, 2, 1, 2])
+
+            with col_az:
+                st.markdown(f"**{akte['aktenzeichen']}**")
+
+            with col_bez:
+                st.markdown(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
+
+            with col_status:
+                # Status-Badge
+                status = akte['status']
+                if status == 'Abgeschlossen':
+                    st.markdown("🟢 Abgeschlossen")
+                elif status == 'Neu':
+                    st.markdown("🔵 Neu")
+                else:
+                    st.markdown(f"🟡 {status[:15]}")
+
+            with col_post:
+                if akte['hat_posteingang']:
+                    st.markdown(f"📬 {akte['posteingang_count']}")
+                else:
+                    st.markdown("-")
+
+            with col_aktion:
+                btn_col1, btn_col2 = st.columns(2)
+
+                with btn_col1:
+                    if st.button("📂", key=f"open_akte_{i}", help="Akte öffnen"):
+                        if akte.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = akte['akte_id']
+                            st.session_state['notar_current_view'] = 'dashboard'
+                        elif akte.get('projekt_id'):
+                            st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                        st.rerun()
+
+                with btn_col2:
+                    if akte['hat_posteingang']:
+                        if st.button("📬", key=f"post_akte_{i}", help="Zum Posteingang"):
+                            if akte.get('akte_id'):
+                                st.session_state['notar_open_akte_id'] = akte['akte_id']
+                                st.session_state['notar_akte_folder'] = 'sonstiges'  # Posteingang zeigen
+                            st.session_state['notar_current_view'] = 'dashboard'
+                            st.rerun()
+
+
+def _zaehle_posteingang(akte_id: str, projekt_id: str, user_id: str) -> int:
+    """Zählt die Anzahl neuer Dokumente im Posteingang"""
+    from datetime import datetime, timedelta
+
+    count = 0
+    if not hasattr(st.session_state, 'dokumente'):
+        return 0
+
+    for dok in st.session_state.dokumente.values():
+        # Prüfe Zuordnung
+        if akte_id and getattr(dok, 'akte_id', None) != akte_id:
+            continue
+        if projekt_id and getattr(dok, 'projekt_id', None) != projekt_id:
+            continue
+        if not akte_id and not projekt_id:
+            continue
+
+        status = getattr(dok, 'status', '')
+        if status == 'erledigt':
+            continue
+
+        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
+        if erstellt_am:
+            if isinstance(erstellt_am, str):
+                try:
+                    erstellt_am = datetime.fromisoformat(erstellt_am)
+                except:
+                    continue
+
+            if datetime.now() - erstellt_am <= timedelta(days=7):
+                count += 1
+
+    return count
 
 
 def _get_notar_termine_heute(user_id: str, heute) -> list:
