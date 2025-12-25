@@ -60,6 +60,48 @@
 
 **Notar:**
 - Dashboard + erweitertes Notar-Menü (Akten, Vorgänge, Dokumente, Termine, etc.)
+- **WICHTIG:** Beim Notar heißen "Projekte" immer "Akten"
+
+### Notar-Dashboard (4-Quadranten-Layout)
+
+Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
+
+**Timeline am oberen Rand:**
+- Zeigt Anzahl der Vorgänge pro Status-Kategorie (Vorbereitung, Finanzierung, Beurkundung, Nach Kaufvertrag, Abgeschlossen)
+
+**4-Quadranten-Layout:**
+
+| Links oben: Termine des Tages | Rechts oben: Posteingang |
+|-------------------------------|--------------------------|
+| - Datum oben angezeigt | - Neue Dokumente der Parteien |
+| - Uhrzeit + Aktenzeichen + Kurzbezeichnung | - Datum, Aktenzeichen, Dokument, Absender |
+| - Klick → öffnet Akte | - Status: erledigt/offen/dringend + Frist |
+| | - Klick auf Dokument → direkt zum Dokument |
+| | - Klick auf Aktenzeichen → zur Akte |
+
+| Links unten: Urkundsentwurf erforderlich | Rechts unten: Beurkundete Verträge |
+|------------------------------------------|-----------------------------------|
+| - Akten mit allen Daten für Entwurf | - 3 Stadien als Tabs |
+| - Button: Urkundenassistent (Step-by-Step) | - 1️⃣ Kaufpreisfälligkeit raus? |
+| - Button: Urkunde-KI (automatischer Entwurf) | - 2️⃣ Kaufpreis Eingang bestätigt |
+| | - 3️⃣ Auflassung/Grundschuld eingetragen |
+
+**Akten-Detailansicht:**
+- Zurück-Button zum Dashboard
+- Timeline der Akte am oberen Rand
+- Ordnerstruktur links: Entwürfe, Urkunden, Grundbuch, Parteien, Korrespondenz, Sonstiges
+- Dokumente rechts (aktuell ausgewähltes Dokument wird highlighted)
+- Dokumentaktionen: Als erledigt markieren, An Partei senden, In Entwurf übernehmen
+
+**Notar-spezifische Funktionen:**
+- `_render_notar_dashboard_home()` - Haupt-Dashboard mit 4-Quadranten
+- `_render_notar_termine_widget()` - Termine des Tages (klickbar)
+- `_render_notar_posteingang_widget()` - Posteingang (klickbar)
+- `_render_notar_entwurf_widget()` - Urkundsentwurf-Akten (klickbar)
+- `_render_notar_beurkundete_widget()` - Beurkundete Verträge nach 3 Stadien
+- `_render_notar_akte_detail()` - Akten-Detailansicht mit Ordnerstruktur
+- `_render_urkunden_assistent()` - Step-by-Step Urkundenerstellung
+- `_render_urkunden_ki()` - KI-gestützte Urkundenerstellung
 
 ## Wichtige Funktionen
 
@@ -98,7 +140,11 @@
 
 ## Letzte Änderungen
 
-1. **Neues Dashboard-Design** - Einheitliches Widget-basiertes Design für alle Rollen
-2. **Sidebar-Menü an erster Position** - Menü wird vor Suche/Aktionen angezeigt
-3. **Abmelden nur im Topbar** - Abmelden-Button aus Sidebar-Menü entfernt
-4. **Fixierte Topbar wiederhergestellt** - Rolle und User-Info immer sichtbar
+1. **Notar-Dashboard komplett überarbeitet** - 4-Quadranten-Layout mit klickbaren Widgets
+2. **Termine des Tages** - Klickbare Termine mit Navigation zur Akte
+3. **Posteingang** - Neue Dokumente von Parteien mit Status und Fristen
+4. **Urkundsentwurf-Widget** - Akten die Entwurf benötigen mit Assistent/KI-Optionen
+5. **Beurkundete Verträge** - 3 Stadien (Fälligkeit, Kaufpreis, Eingetragen)
+6. **Akten-Detailansicht** - Ordnerstruktur (Entwürfe, Urkunden) mit Dokumentaktionen
+7. **Timeline am oberen Rand** - Übersicht aller Vorgänge nach Status
+8. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
