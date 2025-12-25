@@ -14583,23 +14583,9 @@ def _handle_topbar_actions():
 def render_topbar_actions():
     """
     Rendert funktionale Topbar-Aktionen in der Sidebar.
-    Enthält Suche, Design-Wechsel und Abmelden.
+    Enthält Design-Wechsel und Neu-Button.
     """
     with st.sidebar:
-        # === SUCHE ===
-        st.markdown("### 🔍 Suche")
-        search_query = st.text_input(
-            "Suchen...",
-            value=st.session_state.get('global_search_query', ''),
-            placeholder="Projekte, Akten, Personen...",
-            key="sidebar_search",
-            label_visibility="collapsed"
-        )
-        if search_query:
-            st.session_state['global_search_query'] = search_query
-
-        st.markdown("---")
-
         # === SCHNELLAKTIONEN ===
         st.markdown("### ⚡ Aktionen")
 
