@@ -23399,63 +23399,124 @@ def notar_dashboard():
 
 
 def _render_notar_sidebar_menu_new(user_id: str):
-    """Neues vereinfachtes Sidebar-Menü für Notar-Dashboard"""
+    """Neues vereinfachtes Sidebar-Menü für Notar-Dashboard mit aufklappbaren Untermenüs"""
     # Aktuelle Ansicht ermitteln
     current_view = st.session_state.get('notar_current_view', 'dashboard')
-
-    notar_menu_items = [
-        {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-        {"key": "akten", "label": "Akten", "icon": "📁"},
-        {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
-        {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-        {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-        {"key": "termine", "label": "Termine", "icon": "📅"},
-        {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-    ]
+    expanded_menu = st.session_state.get('notar_expanded_menu', None)
 
     with st.sidebar:
         st.markdown("#### Menü")
 
-        for item in notar_menu_items:
+        # === DASHBOARD (Home) ===
+        is_dashboard_active = current_view == 'dashboard' and not st.session_state.get('notar_open_akte_id')
+        if st.button(
+            "🏠 Dashboard",
+            key="notar_menu_dashboard",
+            use_container_width=True,
+            type="primary" if is_dashboard_active else "secondary"
+        ):
+            st.session_state['notar_open_akte_id'] = None
+            st.session_state['notar_highlight_doc'] = None
+            st.session_state['notar_show_assistent'] = False
+            st.session_state['notar_show_ki'] = False
+            st.session_state['notar_menu_selection'] = 'dashboard'
+            st.session_state['notar_current_view'] = 'dashboard'
+            st.rerun()
+
+        # === AKTEN (mit Untermenü) ===
+        is_akten_active = current_view == 'akten' or st.session_state.get('notar_open_akte_id')
+
+        # Akten-Hauptbutton der Untermenü öffnet/schließt
+        col_akten, col_arrow = st.columns([4, 1])
+        with col_akten:
+            if st.button(
+                "📁 Akten",
+                key="notar_menu_akten_main",
+                use_container_width=True,
+                type="primary" if is_akten_active else "secondary"
+            ):
+                # Toggle Untermenü
+                if expanded_menu == 'akten':
+                    st.session_state['notar_expanded_menu'] = None
+                else:
+                    st.session_state['notar_expanded_menu'] = 'akten'
+                # Zeige Akten-Übersicht
+                st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_menu_selection'] = 'dashboard'
+                st.session_state['notar_current_view'] = 'akten'
+                st.rerun()
+
+        with col_arrow:
+            arrow = "▼" if expanded_menu == 'akten' else "▶"
+            st.markdown(f"<div style='padding: 8px; text-align: center;'>{arrow}</div>", unsafe_allow_html=True)
+
+        # Akten-Untermenü (wenn aufgeklappt)
+        if expanded_menu == 'akten' or is_akten_active:
+            st.markdown("""
+            <style>
+            .submenu-item { margin-left: 20px; }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Untermenüpunkte
+            submenu_items = [
+                {"key": "alle_akten", "label": "Alle Akten", "icon": "📋"},
+                {"key": "neue_akte", "label": "Neue Akte anlegen", "icon": "➕"},
+                {"key": "posteingang", "label": "Posteingang", "icon": "📬"},
+                {"key": "entwuerfe", "label": "Entwürfe", "icon": "📝"},
+                {"key": "beurkundungen", "label": "Beurkundungen", "icon": "✅"},
+            ]
+
+            for sub_item in submenu_items:
+                sub_key = sub_item['key']
+                sub_active = st.session_state.get('notar_akten_submenu') == sub_key
+
+                if st.button(
+                    f"   {sub_item['icon']} {sub_item['label']}",
+                    key=f"notar_submenu_{sub_key}",
+                    use_container_width=True,
+                    type="primary" if sub_active else "secondary"
+                ):
+                    st.session_state['notar_akten_submenu'] = sub_key
+                    st.session_state['notar_open_akte_id'] = None
+                    st.session_state['notar_menu_selection'] = 'dashboard'
+                    st.session_state['notar_current_view'] = 'akten'
+                    st.rerun()
+
+        # === WEITERE MENÜPUNKTE ===
+        other_menu_items = [
+            {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
+            {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+            {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+            {"key": "termine", "label": "Termine", "icon": "📅"},
+            {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+        ]
+
+        for item in other_menu_items:
             is_active = item['key'] == current_view
 
             if st.button(
-                f"{item.get('icon', '')} {item['label']}",
+                f"{item['icon']} {item['label']}",
                 key=f"notar_menu_new_{item['key']}",
                 use_container_width=True,
                 type="primary" if is_active else "secondary"
             ):
-                # Reset aller Ansichten
                 st.session_state['notar_open_akte_id'] = None
                 st.session_state['notar_highlight_doc'] = None
-                st.session_state['notar_show_assistent'] = False
-                st.session_state['notar_show_ki'] = False
-
-                if item['key'] == 'dashboard':
-                    # Zurück zum Dashboard-Home
-                    st.session_state['notar_menu_selection'] = 'dashboard'
-                    st.session_state['notar_current_view'] = 'dashboard'
-                    st.rerun()
-                elif item['key'] == 'akten':
-                    # Zeige Akten-Übersicht im neuen Dashboard
-                    st.session_state['notar_menu_selection'] = 'dashboard'
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-                else:
-                    # Wechsel zum bisherigen Notar-System für andere Menüpunkte
-                    st.session_state['notar_menu_selection'] = item['key']
-                    st.session_state['notar_current_view'] = item['key']
-                    # Map zu bestehenden Keys
-                    key_mapping = {
-                        'vorgaenge': 'projekte',
-                        'nachrichten': 'nachrichten',
-                        'dokumente': 'aktenverwaltung',
-                        'termine': 'termine',
-                        'einstellungen': 'settings',
-                    }
-                    if item['key'] in key_mapping:
-                        st.session_state['notar_bereich'] = key_mapping[item['key']]
-                    st.rerun()
+                st.session_state['notar_expanded_menu'] = None
+                st.session_state['notar_menu_selection'] = item['key']
+                st.session_state['notar_current_view'] = item['key']
+                # Map zu bestehenden Keys
+                key_mapping = {
+                    'vorgaenge': 'projekte',
+                    'nachrichten': 'nachrichten',
+                    'dokumente': 'aktenverwaltung',
+                    'termine': 'termine',
+                    'einstellungen': 'settings',
+                }
+                if item['key'] in key_mapping:
+                    st.session_state['notar_bereich'] = key_mapping[item['key']]
+                st.rerun()
 
         st.markdown("---")
 
@@ -23686,8 +23747,38 @@ def _render_notar_akten_uebersicht(user_id: str):
     """Rendert die Akten-Übersichtsseite mit Sortierung und Suche"""
     from datetime import datetime
 
-    st.markdown("## 📁 Alle Akten")
+    # Prüfe welches Untermenü gewählt wurde
+    submenu = st.session_state.get('notar_akten_submenu', 'alle_akten')
 
+    # Titel je nach Untermenü
+    titel_mapping = {
+        'alle_akten': "📁 Alle Akten",
+        'neue_akte': "➕ Neue Akte anlegen",
+        'posteingang': "📬 Posteingang",
+        'entwuerfe': "📝 Entwürfe",
+        'beurkundungen': "✅ Beurkundungen",
+    }
+
+    st.markdown(f"## {titel_mapping.get(submenu, '📁 Alle Akten')}")
+
+    # Spezielle Ansichten je nach Untermenü
+    if submenu == 'neue_akte':
+        _render_neue_akte_formular(user_id)
+        return
+
+    if submenu == 'posteingang':
+        _render_akten_posteingang_liste(user_id)
+        return
+
+    if submenu == 'entwuerfe':
+        _render_akten_entwuerfe_liste(user_id)
+        return
+
+    if submenu == 'beurkundungen':
+        _render_akten_beurkundungen_liste(user_id)
+        return
+
+    # Standard: Alle Akten anzeigen
     # Suchfeld im Hauptbereich
     col_suche, col_sort = st.columns([2, 1])
 
@@ -23877,6 +23968,220 @@ def _zaehle_posteingang(akte_id: str, projekt_id: str, user_id: str) -> int:
                 count += 1
 
     return count
+
+
+def _render_neue_akte_formular(user_id: str):
+    """Rendert das Formular zum Anlegen einer neuen Akte"""
+    st.info("Legen Sie hier eine neue Akte an")
+
+    with st.form("neue_akte_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            verkaufer_name = st.text_input("Verkäufer Nachname *")
+            aktenjahr = st.number_input("Jahr", min_value=20, max_value=99, value=24)
+
+        with col2:
+            kaeufer_name = st.text_input("Käufer Nachname *")
+            aktennummer = st.number_input("Aktennummer", min_value=1, max_value=9999, value=1)
+
+        betreff = st.text_input("Betreff / Kurzbezeichnung")
+
+        hauptbereich = st.selectbox("Hauptbereich", [
+            "Immobilienrecht",
+            "Erbrecht",
+            "Gesellschaftsrecht",
+            "Familienrecht",
+            "Sonstiges"
+        ])
+
+        submitted = st.form_submit_button("Akte anlegen", type="primary", use_container_width=True)
+
+        if submitted:
+            if verkaufer_name and kaeufer_name:
+                st.success(f"Akte '{verkaufer_name} ./. {kaeufer_name} {aktennummer}/{aktenjahr}' wurde angelegt!")
+                # Hier würde die echte Akte erstellt werden
+            else:
+                st.error("Bitte Verkäufer und Käufer Namen eingeben")
+
+
+def _render_akten_posteingang_liste(user_id: str):
+    """Rendert die Liste aller Akten mit Posteingang"""
+    from datetime import datetime
+
+    st.info("Akten mit neuen Dokumenten der letzten 7 Tage")
+
+    # Sammle alle Akten mit Posteingang
+    akten_mit_posteingang = []
+
+    # Aus Akten
+    if hasattr(st.session_state, 'akten'):
+        for a in st.session_state.akten.values():
+            if getattr(a, 'notar_id', None) != user_id:
+                continue
+            if _hat_akte_posteingang(a.akte_id, user_id):
+                count = _zaehle_posteingang(a.akte_id, None, user_id)
+                akten_mit_posteingang.append({
+                    'akte_id': a.akte_id,
+                    'aktenzeichen': getattr(a, 'aktenzeichen', a.akte_id[:8].upper()),
+                    'kurzbezeichnung': getattr(a, 'kurzbezeichnung', ''),
+                    'posteingang_count': count,
+                })
+
+    # Aus Projekten
+    for p in st.session_state.projekte.values():
+        if p.notar_id != user_id:
+            continue
+        if _hat_projekt_posteingang(p.projekt_id, user_id):
+            # Prüfen ob nicht schon als Akte vorhanden
+            if not any(a['akte_id'] and getattr(st.session_state.akten.get(a['akte_id']), 'projekt_id', None) == p.projekt_id
+                      for a in akten_mit_posteingang if hasattr(st.session_state, 'akten')):
+                count = _zaehle_posteingang(None, p.projekt_id, user_id)
+                akten_mit_posteingang.append({
+                    'akte_id': None,
+                    'projekt_id': p.projekt_id,
+                    'aktenzeichen': p.projekt_id[:8].upper(),
+                    'kurzbezeichnung': p.name or p.adresse or '',
+                    'posteingang_count': count,
+                })
+
+    if not akten_mit_posteingang:
+        st.success("Kein neuer Posteingang vorhanden")
+    else:
+        st.markdown(f"**{len(akten_mit_posteingang)} Akte(n) mit Posteingang**")
+        st.markdown("---")
+
+        for i, akte in enumerate(akten_mit_posteingang):
+            col1, col2, col3 = st.columns([3, 2, 2])
+
+            with col1:
+                st.markdown(f"**{akte['aktenzeichen']}**")
+                st.caption(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
+
+            with col2:
+                st.markdown(f"📬 **{akte['posteingang_count']}** neue(s) Dokument(e)")
+
+            with col3:
+                if st.button("📂 Öffnen", key=f"post_open_{i}", use_container_width=True):
+                    if akte.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = akte['akte_id']
+                    elif akte.get('projekt_id'):
+                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                    st.session_state['notar_current_view'] = 'dashboard'
+                    st.rerun()
+
+
+def _render_akten_entwuerfe_liste(user_id: str):
+    """Rendert die Liste der Akten die Entwürfe benötigen"""
+
+    st.info("Akten die einen Urkundsentwurf benötigen")
+
+    # Hole Projekte die Entwurf benötigen
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    entwurf_akten = _get_notar_entwurf_akten(user_id, projekte)
+
+    if not entwurf_akten:
+        st.success("Alle Entwürfe sind aktuell")
+    else:
+        st.markdown(f"**{len(entwurf_akten)} Akte(n) benötigen Entwurf**")
+        st.markdown("---")
+
+        for i, akte in enumerate(entwurf_akten):
+            col1, col2, col3 = st.columns([3, 2, 2])
+
+            with col1:
+                st.markdown(f"**{akte['aktenzeichen']}**")
+                st.caption(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
+
+            with col2:
+                if akte.get('braucht_finale_urkunde'):
+                    st.markdown("⚡ **Finale Urkunde**")
+                else:
+                    st.markdown("📝 Entwurf")
+
+            with col3:
+                if st.button("📋 Assistent", key=f"entw_ass_{i}", use_container_width=True):
+                    if akte.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_show_assistent'] = True
+                    st.session_state['notar_current_view'] = 'dashboard'
+                    st.rerun()
+
+
+def _render_akten_beurkundungen_liste(user_id: str):
+    """Rendert die Liste der beurkundeten Akten nach Stadien"""
+
+    st.info("Beurkundete Verträge nach Bearbeitungsstand")
+
+    # Hole beurkundete Verträge
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    stadien = _get_notar_beurkundete_vertraege(user_id, projekte)
+
+    # Tabs für die 3 Stadien
+    tab1, tab2, tab3 = st.tabs([
+        f"1️⃣ Kaufpreisfälligkeit ({len(stadien['stadium_1'])})",
+        f"2️⃣ Kaufpreis bestätigt ({len(stadien['stadium_2'])})",
+        f"3️⃣ Eingetragen ({len(stadien['stadium_3'])})"
+    ])
+
+    with tab1:
+        st.caption("Warten auf Kaufpreisfälligkeit")
+        if not stadien['stadium_1']:
+            st.info("Keine Vorgänge in diesem Stadium")
+        else:
+            for i, v in enumerate(stadien['stadium_1']):
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown(f"**{v['aktenzeichen']}**")
+                    st.caption(v['kurzbezeichnung'][:30])
+                with col2:
+                    if v.get('bank'):
+                        st.caption(f"🏦 {v['bank']}")
+                with col3:
+                    if st.button("📂", key=f"beur1_{i}"):
+                        if v.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = v['akte_id']
+                        st.session_state['notar_current_view'] = 'dashboard'
+                        st.rerun()
+
+    with tab2:
+        st.caption("Kaufpreis und Darlehen bestätigt")
+        if not stadien['stadium_2']:
+            st.info("Keine Vorgänge in diesem Stadium")
+        else:
+            for i, v in enumerate(stadien['stadium_2']):
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown(f"**{v['aktenzeichen']}**")
+                    st.caption(v['kurzbezeichnung'][:30])
+                with col2:
+                    if v.get('bank'):
+                        st.caption(f"🏦 {v['bank']}")
+                with col3:
+                    if st.button("📂", key=f"beur2_{i}"):
+                        if v.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = v['akte_id']
+                        st.session_state['notar_current_view'] = 'dashboard'
+                        st.rerun()
+
+    with tab3:
+        st.caption("Auflassung/Grundschuld eingetragen")
+        if not stadien['stadium_3']:
+            st.info("Keine Vorgänge in diesem Stadium")
+        else:
+            for i, v in enumerate(stadien['stadium_3']):
+                col1, col2, col3 = st.columns([3, 2, 2])
+                with col1:
+                    st.markdown(f"**{v['aktenzeichen']}**")
+                    st.caption(v['kurzbezeichnung'][:30])
+                with col2:
+                    st.markdown("✅ Abgeschlossen")
+                with col3:
+                    if st.button("📂", key=f"beur3_{i}"):
+                        if v.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = v['akte_id']
+                        st.session_state['notar_current_view'] = 'dashboard'
+                        st.rerun()
 
 
 def _get_notar_termine_heute(user_id: str, heute) -> list:
