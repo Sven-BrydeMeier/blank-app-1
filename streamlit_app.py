@@ -13818,10 +13818,6 @@ def render_sidebar_menu(role: str, menu_items: list, current_selection: str) -> 
 
         st.markdown("---")
 
-        # Abmelden Button
-        if st.button("🚪 Abmelden", key=f"logout_{role}", use_container_width=True):
-            logout()
-
     return selection
 
 
@@ -14609,11 +14605,11 @@ def makler_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
 
-    # Schnellaktionen in der Sidebar (oben)
-    render_topbar_actions()
-
-    # Sidebar-Menü rendern
+    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("makler", MAKLER_MENU_ITEMS, current_selection)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -16072,11 +16068,11 @@ def kaeufer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
 
-    # Schnellaktionen in der Sidebar (oben)
-    render_topbar_actions()
-
-    # Sidebar-Menü rendern
+    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("kaeufer", KAEUFER_MENU_ITEMS, current_selection)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -19872,11 +19868,11 @@ def verkaeufer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
 
-    # Schnellaktionen in der Sidebar (oben)
-    render_topbar_actions()
-
-    # Sidebar-Menü rendern
+    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("verkaeufer", VERKAEUFER_MENU_ITEMS, current_selection)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -21497,11 +21493,11 @@ def finanzierer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
 
-    # Schnellaktionen in der Sidebar (oben)
-    render_topbar_actions()
-
-    # Sidebar-Menü rendern
+    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("finanzierer", FINANZIERER_MENU_ITEMS, current_selection)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -23429,13 +23425,13 @@ def notar_dashboard():
     # Menü-Auswahl prüfen
     current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
 
-    # Schnellaktionen in der Sidebar (oben)
-    render_topbar_actions()
-
     # Wenn "dashboard" gewählt, zeige neues Dashboard-Home
     if current_selection == 'dashboard':
-        # Sidebar-Menü rendern (vereinfacht)
+        # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
         _render_notar_sidebar_menu_new(user_id)
+
+        # Schnellaktionen in der Sidebar (nach dem Menü)
+        render_topbar_actions()
 
         # Aktentasche in der Sidebar
         render_aktentasche_sidebar(user_id)
@@ -23451,7 +23447,11 @@ def notar_dashboard():
         _render_notar_dashboard_home(user_id)
     else:
         # Vorhandenes Notar-System für andere Menüpunkte
+        # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
         selection = render_notar_sidebar_menu(user_id)
+
+        # Schnellaktionen in der Sidebar (nach dem Menü)
+        render_topbar_actions()
 
         # Aktentasche in der Sidebar
         render_aktentasche_sidebar(user_id)
@@ -23530,9 +23530,6 @@ def _render_notar_sidebar_menu_new(user_id: str):
                     st.rerun()
 
         st.markdown("---")
-
-        if st.button("🚪 Abmelden", key="notar_logout_new", use_container_width=True):
-            logout()
 
 
 def _render_notar_dashboard_home(user_id: str):
