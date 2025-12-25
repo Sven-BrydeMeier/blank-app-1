@@ -14389,11 +14389,13 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         border: 1px solid rgba(255, 107, 107, 0.3) !important;
         margin-left: 0.5rem !important;
         transition: all 0.2s ease !important;
+        text-decoration: none !important;
     }}
 
     .topbar-logout:hover {{
         background: rgba(255, 107, 107, 0.3) !important;
         color: #ffffff !important;
+        text-decoration: none !important;
     }}
 
     /* Haupt-Content nach unten verschieben */
@@ -14461,7 +14463,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
                     <span class="topbar-username">{user_name}</span>
                     <span class="topbar-userrole">{role_display}</span>
                 </div>
-                <span class="topbar-logout" id="topbar-btn-logout" title="Abmelden">Abmelden</span>
+                <a href="?topbar_action=logout" class="topbar-logout" title="Abmelden">Abmelden</a>
             </div>
         </div>
     </div>
@@ -14543,17 +14545,9 @@ def render_topbar_actions():
         # === SCHNELLAKTIONEN ===
         st.markdown("### ⚡ Aktionen")
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("🔔 Benachricht.", key="sidebar_notif", use_container_width=True):
-                st.session_state['show_notifications_panel'] = not st.session_state.get('show_notifications_panel', False)
-                st.rerun()
-
-        with col2:
-            if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
-                st.session_state['show_new_project_dialog'] = True
-                st.rerun()
+        if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
+            st.session_state['show_new_project_dialog'] = True
+            st.rerun()
 
         # === DESIGN-WECHSEL ===
         current_design = st.session_state.get('design_mode', 'navy-gold')
@@ -14565,10 +14559,6 @@ def render_topbar_actions():
             else:
                 st.session_state['design_mode'] = 'navy-gold'
             st.rerun()
-
-        # === ABMELDEN ===
-        if st.button("🚪 Abmelden", key="sidebar_logout", use_container_width=True):
-            logout()
 
         st.markdown("---")
 
@@ -14613,9 +14603,6 @@ def makler_dashboard():
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
 
     # Dialoge (werden benötigt)
     render_aktentasche_teilen_dialog(user_id)
@@ -16076,9 +16063,6 @@ def kaeufer_dashboard():
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
 
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
@@ -19877,9 +19861,6 @@ def verkaeufer_dashboard():
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
 
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
-
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
@@ -21501,9 +21482,6 @@ def finanzierer_dashboard():
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(user_id)
 
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
@@ -23436,9 +23414,6 @@ def notar_dashboard():
         # Aktentasche in der Sidebar
         render_aktentasche_sidebar(user_id)
 
-        # Benachrichtigungs-Badge in der Sidebar
-        render_benachrichtigungs_badge(user_id)
-
         # Dialoge
         render_aktentasche_teilen_dialog(user_id)
         render_aktentasche_download(user_id)
@@ -23455,9 +23430,6 @@ def notar_dashboard():
 
         # Aktentasche in der Sidebar
         render_aktentasche_sidebar(user_id)
-
-        # Benachrichtigungs-Badge in der Sidebar
-        render_benachrichtigungs_badge(user_id)
 
         # Dialoge
         render_aktentasche_teilen_dialog(user_id)
@@ -33064,9 +33036,6 @@ def notarmitarbeiter_dashboard():
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("⚖️", "Notar-Mitarbeiter")
 
-    # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(mitarbeiter.user_id)
-
     # Tab-Liste basierend auf Berechtigungen
     tab_labels = ["📊 Timeline", "📋 Projekte"]
 
@@ -39146,26 +39115,6 @@ def main():
     if st.session_state.current_user is None:
         login_page()
         return
-
-    # Sidebar - minimiert, da User-Info jetzt in der Topbar ist
-    with st.sidebar:
-        # Logout-Button prominent oben
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 1rem;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        if st.button("🚪 Abmelden", use_container_width=True, type="primary"):
-            logout()
-
-        st.markdown("---")
-
-        # Benachrichtigungen nur für normale Benutzer
-        if not st.session_state.get("is_notar_mitarbeiter", False):
-            render_notifications()
 
     # Hauptbereich
     # Prüfe ob Mitarbeiter oder normaler Benutzer
