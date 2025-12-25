@@ -13584,6 +13584,14 @@ def inject_new_dashboard_css():
         border-bottom: 1px solid #f1f3f4;
         font-size: 0.9rem;
         color: #495057;
+        gap: 0.5rem;
+    }
+
+    .checklist-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #3b82f6;
+        cursor: default;
     }
 
     .checklist-item:last-child {
@@ -13592,7 +13600,19 @@ def inject_new_dashboard_css():
 
     .checklist-item.completed {
         color: #9e9e9e;
+    }
+
+    .checklist-item.completed span {
         text-decoration: line-through;
+    }
+
+    /* Empty State */
+    .empty-state {
+        color: #9e9e9e;
+        font-size: 0.85rem;
+        padding: 1rem 0;
+        text-align: center;
+        font-style: italic;
     }
 
     /* Nachrichten */
@@ -13841,20 +13861,30 @@ def render_heute_widget(stats: dict):
 
 def render_aufgaben_widget(aufgaben: list, key_prefix: str):
     """
-    Rendert das Aufgaben/Checklisten Widget mit echten Streamlit Checkboxen.
+    Rendert das Aufgaben/Checklisten Widget.
 
     Args:
         aufgaben: Liste von Dicts mit 'text', 'completed'
         key_prefix: Prefix für Checkbox-Keys
     """
-    st.markdown("**Meine Aufgaben / Checkliste**")
+    # Aufgaben als HTML-Checkliste
+    aufgaben_html = ""
+    for aufgabe in aufgaben[:6]:  # Max 6 Aufgaben
+        checked = "checked" if aufgabe.get('completed', False) else ""
+        completed_class = "completed" if aufgabe.get('completed', False) else ""
+        aufgaben_html += f'''
+            <div class="checklist-item {completed_class}">
+                <input type="checkbox" {checked} disabled>
+                <span>{aufgabe['text']}</span>
+            </div>
+        '''
 
-    for i, aufgabe in enumerate(aufgaben):
-        completed = st.checkbox(
-            aufgabe['text'],
-            value=aufgabe.get('completed', False),
-            key=f"{key_prefix}_aufgabe_{i}"
-        )
+    st.markdown(f"""
+    <div class="widget-card">
+        <div class="widget-title">Meine Aufgaben / Checkliste</div>
+        {aufgaben_html if aufgaben_html else '<div class="empty-state">Keine Aufgaben</div>'}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_nachrichten_widget(nachrichten: list):
@@ -13864,15 +13894,22 @@ def render_nachrichten_widget(nachrichten: list):
     Args:
         nachrichten: Liste von Dicts mit 'sender', 'text'
     """
-    st.markdown("**Nachrichten (zuletzt)**")
-
+    # Nachrichten als HTML
+    nachrichten_html = ""
     for msg in nachrichten[:5]:  # Max 5 Nachrichten
-        st.markdown(f"""
-        <div class="message-item">
-            <div class="message-sender">{msg['sender']}:</div>
-            <div class="message-text">{msg['text']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        nachrichten_html += f'''
+            <div class="message-item">
+                <div class="message-sender">{msg['sender']}:</div>
+                <div class="message-text">{msg['text']}</div>
+            </div>
+        '''
+
+    st.markdown(f"""
+    <div class="widget-card">
+        <div class="widget-title">Nachrichten (zuletzt)</div>
+        {nachrichten_html if nachrichten_html else '<div class="empty-state">Keine Nachrichten</div>'}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_vorgaenge_widget(vorgaenge: list):
@@ -13882,16 +13919,23 @@ def render_vorgaenge_widget(vorgaenge: list):
     Args:
         vorgaenge: Liste von Dicts mit 'id', 'address', 'status'
     """
-    st.markdown("**Meine Vorgänge**")
-
+    # Vorgänge als HTML
+    vorgaenge_html = ""
     for v in vorgaenge[:5]:
         status_class = "status-offen" if v.get('status') == 'offen' else "status-ok"
-        st.markdown(f"""
-        <div class="vorgang-item">
-            <span><span class="vorgang-id">{v['id']}</span> • <span class="vorgang-address">{v['address']}</span></span>
-            <span class="vorgang-status {status_class}">{v.get('status_text', '')}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        vorgaenge_html += f'''
+            <div class="vorgang-item">
+                <span><span class="vorgang-id">{v['id']}</span> • <span class="vorgang-address">{v['address']}</span></span>
+                <span class="vorgang-status {status_class}">{v.get('status_text', '')}</span>
+            </div>
+        '''
+
+    st.markdown(f"""
+    <div class="widget-card">
+        <div class="widget-title">Meine Vorgänge</div>
+        {vorgaenge_html if vorgaenge_html else '<div class="empty-state">Keine Vorgänge</div>'}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_timeline_widget(steps: list):
@@ -13901,8 +13945,8 @@ def render_timeline_widget(steps: list):
     Args:
         steps: Liste von Dicts mit 'text', 'status' (done, pending, active)
     """
-    st.markdown("**Timeline (Auszug)**")
-
+    # Timeline als HTML
+    timeline_html = ""
     for step in steps:
         if step['status'] == 'done':
             dot_class = "green"
@@ -13914,12 +13958,19 @@ def render_timeline_widget(steps: list):
             dot_class = "gray"
             text_class = "pending"
 
-        st.markdown(f"""
-        <div class="timeline-item">
-            <div class="timeline-dot {dot_class}"></div>
-            <span class="timeline-text {text_class}">{step['text']}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        timeline_html += f'''
+            <div class="timeline-item">
+                <div class="timeline-dot {dot_class}"></div>
+                <span class="timeline-text {text_class}">{step['text']}</span>
+            </div>
+        '''
+
+    st.markdown(f"""
+    <div class="widget-card">
+        <div class="widget-title">Timeline (Auszug)</div>
+        {timeline_html if timeline_html else '<div class="empty-state">Keine Timeline-Einträge</div>'}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_dokumente_widget(dokumente: list):
@@ -13929,8 +13980,8 @@ def render_dokumente_widget(dokumente: list):
     Args:
         dokumente: Liste von Dicts mit 'name', 'status' (vorliegend, fehlt, optional)
     """
-    st.markdown("**Dokumente (relevant)**")
-
+    # Dokumente als HTML
+    dokumente_html = ""
     for dok in dokumente[:5]:
         status = dok.get('status', 'optional')
         if status == 'vorliegend':
@@ -13943,12 +13994,19 @@ def render_dokumente_widget(dokumente: list):
             status_class = "dokument-optional"
             status_text = "optional"
 
-        st.markdown(f"""
-        <div class="dokument-item">
-            <span class="dokument-name">{dok['name']}</span>
-            <span class="dokument-status {status_class}">{status_text}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        dokumente_html += f'''
+            <div class="dokument-item">
+                <span class="dokument-name">{dok['name']}</span>
+                <span class="dokument-status {status_class}">{status_text}</span>
+            </div>
+        '''
+
+    st.markdown(f"""
+    <div class="widget-card">
+        <div class="widget-title">Dokumente (relevant)</div>
+        {dokumente_html if dokumente_html else '<div class="empty-state">Keine Dokumente</div>'}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # Standard-Menüpunkte für alle Dashboards
@@ -14678,49 +14736,26 @@ def _render_makler_dashboard_home(user_id: str):
             ]
         })
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         # Aufgaben-Widget
         aufgaben = _get_makler_aufgaben(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_aufgaben_widget(aufgaben, "makler")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_aufgaben_widget(aufgaben, "makler")
 
         # Nachrichten-Widget
         nachrichten = _get_makler_nachrichten(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_nachrichten_widget(nachrichten)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_nachrichten_widget(nachrichten)
 
     with col2:
         # Vorgänge-Widget
         vorgaenge = _get_makler_vorgaenge(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_vorgaenge_widget(vorgaenge)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_vorgaenge_widget(vorgaenge)
 
         # Timeline-Widget
         timeline_steps = _get_makler_timeline_steps(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_timeline_widget(timeline_steps)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_timeline_widget(timeline_steps)
 
         # Dokumente-Widget
         dokumente = _get_makler_dokumente(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_dokumente_widget(dokumente)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_dokumente_widget(dokumente)
 
 
 def _get_makler_aufgaben(user_id: str, projekte: list) -> list:
@@ -16133,49 +16168,26 @@ def _render_kaeufer_dashboard_home(user_id: str):
             ]
         })
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         # Aufgaben-Widget
         aufgaben = _get_kaeufer_aufgaben(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_aufgaben_widget(aufgaben, "kaeufer")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_aufgaben_widget(aufgaben, "kaeufer")
 
         # Nachrichten-Widget
         nachrichten = _get_kaeufer_nachrichten(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_nachrichten_widget(nachrichten)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_nachrichten_widget(nachrichten)
 
     with col2:
         # Vorgänge-Widget
         vorgaenge = _get_kaeufer_vorgaenge(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_vorgaenge_widget(vorgaenge)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_vorgaenge_widget(vorgaenge)
 
         # Timeline-Widget
         timeline_steps = _get_kaeufer_timeline_steps(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_timeline_widget(timeline_steps)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_timeline_widget(timeline_steps)
 
         # Dokumente-Widget
         dokumente = _get_kaeufer_dokumente(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_dokumente_widget(dokumente)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_dokumente_widget(dokumente)
 
 
 def _get_kaeufer_aufgaben(user_id: str, projekte: list) -> list:
@@ -19930,49 +19942,26 @@ def _render_verkaeufer_dashboard_home(user_id: str):
             ]
         })
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         # Aufgaben-Widget
         aufgaben = _get_verkaeufer_aufgaben(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_aufgaben_widget(aufgaben, "verkaeufer")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_aufgaben_widget(aufgaben, "verkaeufer")
 
         # Nachrichten-Widget
         nachrichten = _get_verkaeufer_nachrichten(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_nachrichten_widget(nachrichten)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_nachrichten_widget(nachrichten)
 
     with col2:
         # Vorgänge-Widget
         vorgaenge = _get_verkaeufer_vorgaenge(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_vorgaenge_widget(vorgaenge)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_vorgaenge_widget(vorgaenge)
 
         # Timeline-Widget
         timeline_steps = _get_verkaeufer_timeline_steps(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_timeline_widget(timeline_steps)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_timeline_widget(timeline_steps)
 
         # Dokumente-Widget
         dokumente = _get_verkaeufer_dokumente(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_dokumente_widget(dokumente)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_dokumente_widget(dokumente)
 
 
 def _get_verkaeufer_aufgaben(user_id: str, projekte: list) -> list:
@@ -21547,49 +21536,26 @@ def _render_finanzierer_dashboard_home(user_id: str):
             ]
         })
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         # Aufgaben-Widget
         aufgaben = _get_finanzierer_aufgaben(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_aufgaben_widget(aufgaben, "finanzierer")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_aufgaben_widget(aufgaben, "finanzierer")
 
         # Nachrichten-Widget
         nachrichten = _get_finanzierer_nachrichten(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_nachrichten_widget(nachrichten)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_nachrichten_widget(nachrichten)
 
     with col2:
         # Vorgänge-Widget
         vorgaenge = _get_finanzierer_vorgaenge(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_vorgaenge_widget(vorgaenge)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_vorgaenge_widget(vorgaenge)
 
         # Timeline-Widget
         timeline_steps = _get_finanzierer_timeline_steps(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_timeline_widget(timeline_steps)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_timeline_widget(timeline_steps)
 
         # Dokumente-Widget
         dokumente = _get_finanzierer_dokumente(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_dokumente_widget(dokumente)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_dokumente_widget(dokumente)
 
 
 def _get_finanzierer_aufgaben(user_id: str, projekte: list) -> list:
@@ -23549,49 +23515,26 @@ def _render_notar_dashboard_home(user_id: str):
             ]
         })
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
         # Aufgaben-Widget
         aufgaben = _get_notar_aufgaben(user_id, projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_aufgaben_widget(aufgaben, "notar")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_aufgaben_widget(aufgaben, "notar")
 
         # Nachrichten-Widget
         nachrichten = _get_notar_nachrichten(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_nachrichten_widget(nachrichten)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_nachrichten_widget(nachrichten)
 
     with col2:
         # Vorgänge-Widget
         vorgaenge = _get_notar_vorgaenge(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_vorgaenge_widget(vorgaenge)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_vorgaenge_widget(vorgaenge)
 
         # Timeline-Widget
         timeline_steps = _get_notar_timeline_steps(projekte)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_timeline_widget(timeline_steps)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
+        render_timeline_widget(timeline_steps)
 
         # Dokumente-Widget
         dokumente = _get_notar_dokumente(user_id)
-        with st.container():
-            st.markdown('<div class="widget-card">', unsafe_allow_html=True)
-            render_dokumente_widget(dokumente)
-            st.markdown('</div>', unsafe_allow_html=True)
+        render_dokumente_widget(dokumente)
 
     # Button um zum erweiterten Notar-Menü zu wechseln
     st.markdown("---")
