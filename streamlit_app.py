@@ -23442,22 +23442,74 @@ def _render_notar_sidebar_menu_new(user_id: str):
 
 
 def _render_notar_dashboard_home(user_id: str):
-    """Rendert die Notar-Dashboard Startseite mit Widgets"""
+    """Rendert die Notar-Dashboard Startseite mit 4-Quadranten-Layout"""
     from datetime import datetime, date
 
-    # Statistiken sammeln
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
-    offene_projekte = len([p for p in projekte if p.status != "Abgeschlossen"])
+    # Prüfe ob eine Akte geöffnet werden soll
+    if st.session_state.get('notar_open_akte_id'):
+        _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
+        return
 
-    # Akten zählen
-    akten_count = 0
-    if hasattr(st.session_state, 'akten'):
-        akten_count = len([a for a in st.session_state.akten.values()
-                          if getattr(a, 'notar_id', None) == user_id])
-
-    # Termine heute
     heute = date.today()
-    termine_heute = 0
+
+    # Daten sammeln
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    akten = _get_notar_akten(user_id)
+    termine_heute = _get_notar_termine_heute(user_id, heute)
+    posteingang = _get_notar_posteingang(user_id)
+    entwurf_akten = _get_notar_entwurf_akten(user_id, projekte)
+    beurkundete_vertraege = _get_notar_beurkundete_vertraege(user_id, projekte)
+
+    # === TIMELINE AM OBEREN RAND ===
+    _render_notar_dashboard_timeline(user_id, projekte)
+
+    st.markdown("---")
+
+    # === 4-QUADRANTEN-LAYOUT ===
+    col_left, col_right = st.columns(2)
+
+    # === LINKS OBEN: TERMINE DES TAGES ===
+    with col_left:
+        _render_notar_termine_widget(termine_heute, heute)
+
+    # === RECHTS OBEN: POSTEINGANG ===
+    with col_right:
+        _render_notar_posteingang_widget(posteingang, user_id)
+
+    st.markdown("")  # Abstand
+
+    col_left2, col_right2 = st.columns(2)
+
+    # === LINKS UNTEN: URKUNDSENTWURF-AKTEN ===
+    with col_left2:
+        _render_notar_entwurf_widget(entwurf_akten, user_id)
+
+    # === RECHTS UNTEN: BEURKUNDETE VERTRÄGE NACH 3 STADIEN ===
+    with col_right2:
+        _render_notar_beurkundete_widget(beurkundete_vertraege, user_id)
+
+    # Button um zum erweiterten Notar-Menü zu wechseln
+    st.markdown("---")
+    if st.button("📋 Erweitertes Notar-Menü öffnen", use_container_width=True, key="notar_erw_menu"):
+        st.session_state['notar_menu_selection'] = 'projekte'
+        st.rerun()
+
+
+def _get_notar_akten(user_id: str) -> list:
+    """Holt alle Akten des Notars"""
+    akten = []
+    if hasattr(st.session_state, 'akten'):
+        for a in st.session_state.akten.values():
+            if getattr(a, 'notar_id', None) == user_id:
+                akten.append(a)
+    return akten
+
+
+def _get_notar_termine_heute(user_id: str, heute) -> list:
+    """Holt die Termine des heutigen Tages für den Notar"""
+    from datetime import datetime
+    termine = []
+
     if hasattr(st.session_state, 'termine'):
         for t in st.session_state.termine.values():
             try:
@@ -23467,51 +23519,818 @@ def _render_notar_dashboard_home(user_id: str):
                         termin_datum = datetime.fromisoformat(termin_datum).date()
                     elif isinstance(termin_datum, datetime):
                         termin_datum = termin_datum.date()
+
                     if termin_datum == heute:
-                        termine_heute += 1
+                        # Projektinfo holen
+                        projekt_id = getattr(t, 'projekt_id', None)
+                        projekt = st.session_state.projekte.get(projekt_id) if projekt_id else None
+
+                        # Aktenzeichen/Kurzbezeichnung ermitteln
+                        aktenzeichen = ""
+                        kurzbezeichnung = ""
+                        akte_id = None
+
+                        if projekt:
+                            kurzbezeichnung = projekt.name or projekt.adresse or ""
+                            aktenzeichen = projekt.projekt_id[:8].upper()
+                            # Versuche zugehörige Akte zu finden
+                            if hasattr(st.session_state, 'akten'):
+                                for a in st.session_state.akten.values():
+                                    if getattr(a, 'projekt_id', None) == projekt_id:
+                                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
+                                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
+                                        akte_id = a.akte_id
+                                        break
+
+                        termine.append({
+                            'termin_id': t.termin_id,
+                            'uhrzeit': getattr(t, 'uhrzeit_start', '09:00'),
+                            'typ': getattr(t, 'termin_typ', 'Termin'),
+                            'aktenzeichen': aktenzeichen,
+                            'kurzbezeichnung': kurzbezeichnung,
+                            'projekt_id': projekt_id,
+                            'akte_id': akte_id,
+                            'beschreibung': getattr(t, 'beschreibung', ''),
+                        })
             except:
                 pass
 
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
+    # Nach Uhrzeit sortieren
+    termine.sort(key=lambda x: x['uhrzeit'])
+    return termine
 
+
+def _get_notar_posteingang(user_id: str) -> list:
+    """Holt den Posteingang (neue Dokumente von Parteien)"""
+    from datetime import datetime, timedelta
+    posteingang = []
+
+    if hasattr(st.session_state, 'dokumente'):
+        for dok_id, dok in st.session_state.dokumente.items():
+            # Nur Dokumente der letzten 7 Tage
+            erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
+            if erstellt_am:
+                if isinstance(erstellt_am, str):
+                    try:
+                        erstellt_am = datetime.fromisoformat(erstellt_am)
+                    except:
+                        continue
+
+                if datetime.now() - erstellt_am > timedelta(days=7):
+                    continue
+
+            # Projekt/Akte ermitteln
+            projekt_id = getattr(dok, 'projekt_id', None)
+            if not projekt_id:
+                continue
+
+            projekt = st.session_state.projekte.get(projekt_id)
+            if not projekt or projekt.notar_id != user_id:
+                continue
+
+            # Aktenzeichen ermitteln
+            aktenzeichen = projekt.projekt_id[:8].upper()
+            kurzbezeichnung = projekt.name or projekt.adresse or ""
+            akte_id = None
+
+            if hasattr(st.session_state, 'akten'):
+                for a in st.session_state.akten.values():
+                    if getattr(a, 'projekt_id', None) == projekt_id:
+                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
+                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
+                        akte_id = a.akte_id
+                        break
+
+            # Absender ermitteln
+            sender_id = getattr(dok, 'hochgeladen_von', None) or getattr(dok, 'erstellt_von', None)
+            sender_name = "Unbekannt"
+            sender_rolle = ""
+            if sender_id and sender_id in st.session_state.users:
+                user = st.session_state.users[sender_id]
+                sender_name = user.name
+                sender_rolle = user.rolle
+
+            # Status ermitteln
+            status = getattr(dok, 'status', 'offen')
+            ist_dringend = getattr(dok, 'ist_dringend', False) or getattr(dok, 'dringend', False)
+            frist = getattr(dok, 'frist', None)
+
+            posteingang.append({
+                'dok_id': dok_id,
+                'datum': erstellt_am.strftime('%d.%m.%Y') if erstellt_am else '',
+                'aktenzeichen': aktenzeichen,
+                'kurzbezeichnung': kurzbezeichnung,
+                'dokument_name': getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument')),
+                'sender_name': sender_name,
+                'sender_rolle': sender_rolle,
+                'status': status,
+                'ist_dringend': ist_dringend,
+                'frist': frist.strftime('%d.%m.%Y') if frist else None,
+                'projekt_id': projekt_id,
+                'akte_id': akte_id,
+            })
+
+    # Nach Datum sortieren (neueste zuerst)
+    posteingang.sort(key=lambda x: x['datum'], reverse=True)
+    return posteingang[:10]  # Max 10 Einträge
+
+
+def _get_notar_entwurf_akten(user_id: str, projekte: list) -> list:
+    """Holt Akten, die einen Urkundsentwurf benötigen"""
+    entwurf_akten = []
+
+    # Projekte die bereit für Urkundsentwurf sind
+    for projekt in projekte:
+        status = projekt.status
+
+        # Prüfe ob alle Daten für Urkundsentwurf vorhanden
+        bereit_fuer_entwurf = False
+        braucht_neuen_entwurf = False
+        braucht_finale_urkunde = False
+
+        if status in ['Dokumente vollständig', 'Wirtschaftsdaten hochgeladen',
+                      'Finanzierung gesichert', 'Notartermin vereinbart']:
+            bereit_fuer_entwurf = True
+
+        if status == 'Notartermin vereinbart':
+            braucht_finale_urkunde = True
+
+        if bereit_fuer_entwurf or braucht_neuen_entwurf or braucht_finale_urkunde:
+            aktenzeichen = projekt.projekt_id[:8].upper()
+            kurzbezeichnung = projekt.name or projekt.adresse or ""
+            akte_id = None
+
+            if hasattr(st.session_state, 'akten'):
+                for a in st.session_state.akten.values():
+                    if getattr(a, 'projekt_id', None) == projekt.projekt_id:
+                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
+                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
+                        akte_id = a.akte_id
+                        break
+
+            entwurf_akten.append({
+                'projekt_id': projekt.projekt_id,
+                'akte_id': akte_id,
+                'aktenzeichen': aktenzeichen,
+                'kurzbezeichnung': kurzbezeichnung,
+                'status': status,
+                'braucht_finale_urkunde': braucht_finale_urkunde,
+                'typ': 'Kaufvertrag',  # Standard
+            })
+
+    return entwurf_akten
+
+
+def _get_notar_beurkundete_vertraege(user_id: str, projekte: list) -> dict:
+    """Holt beurkundete Verträge nach den 3 Stadien"""
+    stadien = {
+        'stadium_1': [],  # Kaufpreisfälligkeit raus?
+        'stadium_2': [],  # Kaufpreis Eingang bestätigt
+        'stadium_3': [],  # Auflassung/Grundschuld eingetragen
+    }
+
+    for projekt in projekte:
+        status = projekt.status
+
+        # Nur beurkundete Projekte
+        if status not in ['Kaufvertrag unterzeichnet', 'Auflassungsvormerkung eingetragen',
+                         'Vorkaufsrecht erteilt', 'Löschungsbewilligung vorhanden',
+                         'Kaufpreisfälligkeit', 'Unbedenklichkeitsbescheinigung',
+                         'Kaufpreiseingang bestätigt', 'Schlüsselübergabe',
+                         'Auflassung eingetragen', 'Abgeschlossen']:
+            continue
+
+        aktenzeichen = projekt.projekt_id[:8].upper()
+        kurzbezeichnung = projekt.name or projekt.adresse or ""
+        akte_id = None
+        bank_name = ""
+
+        if hasattr(st.session_state, 'akten'):
+            for a in st.session_state.akten.values():
+                if getattr(a, 'projekt_id', None) == projekt.projekt_id:
+                    aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
+                    kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
+                    akte_id = a.akte_id
+                    break
+
+        # Bank ermitteln
+        if projekt.finanzierer_id and projekt.finanzierer_id in st.session_state.users:
+            bank_name = st.session_state.users[projekt.finanzierer_id].name
+
+        eintrag = {
+            'projekt_id': projekt.projekt_id,
+            'akte_id': akte_id,
+            'aktenzeichen': aktenzeichen,
+            'kurzbezeichnung': kurzbezeichnung,
+            'typ': 'Kaufvertrag',
+            'bank': bank_name,
+            'status': status,
+        }
+
+        # In richtiges Stadium einordnen
+        if status in ['Auflassung eingetragen', 'Abgeschlossen']:
+            stadien['stadium_3'].append(eintrag)
+        elif status in ['Kaufpreiseingang bestätigt', 'Schlüsselübergabe']:
+            stadien['stadium_2'].append(eintrag)
+        else:
+            stadien['stadium_1'].append(eintrag)
+
+    return stadien
+
+
+def _render_notar_dashboard_timeline(user_id: str, projekte: list):
+    """Rendert die Timeline am oberen Rand des Dashboards"""
+    st.markdown("""
+    <style>
+    .notar-timeline-bar {
+        display: flex;
+        gap: 8px;
+        padding: 10px 15px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 10px;
+        overflow-x: auto;
+        margin-bottom: 10px;
+    }
+    .timeline-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        white-space: nowrap;
+        color: white;
+    }
+    .timeline-chip.vorbereitung { background: #3498db; }
+    .timeline-chip.finanzierung { background: #9b59b6; }
+    .timeline-chip.beurkundung { background: #e74c3c; }
+    .timeline-chip.nachkauf { background: #f39c12; }
+    .timeline-chip.abgeschlossen { background: #27ae60; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Zähle Projekte nach Status-Kategorie
+    vorbereitung = 0
+    finanzierung = 0
+    beurkundung = 0
+    nachkauf = 0
+    abgeschlossen = 0
+
+    for p in projekte:
+        s = p.status
+        if s in ['Vorbereitung', 'Expose erstellt', 'Teilnehmer eingeladen',
+                 'Onboarding läuft', 'Dokumente vollständig', 'Wirtschaftsdaten hochgeladen']:
+            vorbereitung += 1
+        elif s in ['Finanzierung angefragt', 'Finanzierung gesichert']:
+            finanzierung += 1
+        elif s in ['Notartermin vereinbart', 'Kaufvertrag unterzeichnet']:
+            beurkundung += 1
+        elif s in ['Auflassungsvormerkung eingetragen', 'Vorkaufsrecht erteilt',
+                   'Löschungsbewilligung vorhanden', 'Kaufpreisfälligkeit',
+                   'Unbedenklichkeitsbescheinigung', 'Kaufpreiseingang bestätigt',
+                   'Schlüsselübergabe', 'Auflassung eingetragen']:
+            nachkauf += 1
+        elif s == 'Abgeschlossen':
+            abgeschlossen += 1
+
+    chips_html = f"""
+    <div class="notar-timeline-bar">
+        <span class="timeline-chip vorbereitung">📋 Vorbereitung: {vorbereitung}</span>
+        <span class="timeline-chip finanzierung">💰 Finanzierung: {finanzierung}</span>
+        <span class="timeline-chip beurkundung">⚖️ Beurkundung: {beurkundung}</span>
+        <span class="timeline-chip nachkauf">📝 Nach Kaufvertrag: {nachkauf}</span>
+        <span class="timeline-chip abgeschlossen">✅ Abgeschlossen: {abgeschlossen}</span>
+    </div>
+    """
+    st.markdown(chips_html, unsafe_allow_html=True)
+
+
+def _render_notar_termine_widget(termine: list, heute):
+    """Rendert das Widget für Termine des Tages (LINKS OBEN)"""
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                padding: 15px; border-radius: 12px; border: 1px solid #e0e0e0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+            {heute.strftime('%A, %d. %B %Y')}
+        </div>
+        <div style="font-weight: 600; font-size: 16px; color: #1a1a2e; margin-bottom: 15px;">
+            📅 Termine des Tages
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Container für klickbare Termine
+    if not termine:
+        st.info("Keine Termine für heute")
+    else:
+        for i, termin in enumerate(termine[:6]):
+            col_time, col_info = st.columns([1, 3])
+
+            with col_time:
+                st.markdown(f"**{termin['uhrzeit']}**")
+
+            with col_info:
+                # Klickbarer Button für Akte
+                btn_label = f"{termin['aktenzeichen']} - {termin['kurzbezeichnung'][:25]}"
+                if termin.get('akte_id') or termin.get('projekt_id'):
+                    if st.button(f"📁 {btn_label}", key=f"termin_akte_{i}", use_container_width=True):
+                        if termin.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = termin['akte_id']
+                            st.session_state['notar_highlight_doc'] = None
+                        elif termin.get('projekt_id'):
+                            st.session_state['notar_open_projekt_id'] = termin['projekt_id']
+                        st.rerun()
+                else:
+                    st.markdown(f"📁 {btn_label}")
+
+
+def _render_notar_posteingang_widget(posteingang: list, user_id: str):
+    """Rendert das Posteingang-Widget (RECHTS OBEN)"""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                padding: 15px; border-radius: 12px; border: 1px solid #e0e0e0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
+        <div style="font-weight: 600; font-size: 16px; color: #1a1a2e; margin-bottom: 15px;">
+            📬 Posteingang
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not posteingang:
+        st.info("Keine neuen Eingänge")
+    else:
+        for i, eintrag in enumerate(posteingang[:5]):
+            # Status-Farbe
+            if eintrag.get('ist_dringend'):
+                status_icon = "🔴"
+            elif eintrag.get('status') == 'erledigt':
+                status_icon = "✅"
+            else:
+                status_icon = "🟡"
+
+            col1, col2 = st.columns([1, 2])
+
+            with col1:
+                st.markdown(f"**{eintrag['datum']}**")
+                st.caption(f"{eintrag['sender_name']}")
+
+            with col2:
+                # Klickbares Aktenzeichen
+                if st.button(f"📁 {eintrag['aktenzeichen']}", key=f"post_akte_{i}", use_container_width=True):
+                    if eintrag.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = eintrag['akte_id']
+                        st.session_state['notar_highlight_doc'] = eintrag['dok_id']
+                    elif eintrag.get('projekt_id'):
+                        st.session_state['notar_open_projekt_id'] = eintrag['projekt_id']
+                    st.rerun()
+
+                # Klickbares Dokument
+                if st.button(f"📄 {eintrag['dokument_name'][:20]}... {status_icon}",
+                            key=f"post_dok_{i}", use_container_width=True):
+                    if eintrag.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = eintrag['akte_id']
+                        st.session_state['notar_highlight_doc'] = eintrag['dok_id']
+                    st.rerun()
+
+            if eintrag.get('frist'):
+                st.caption(f"⏰ Frist: {eintrag['frist']}")
+
+            st.markdown("---")
+
+
+def _render_notar_entwurf_widget(entwurf_akten: list, user_id: str):
+    """Rendert das Widget für Akten die Urkundsentwurf benötigen (LINKS UNTEN)"""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+                padding: 15px; border-radius: 12px; border: 1px solid #ffc107;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
+        <div style="font-weight: 600; font-size: 16px; color: #856404; margin-bottom: 15px;">
+            📝 Urkundsentwurf erforderlich
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not entwurf_akten:
+        st.success("Alle Entwürfe aktuell")
+    else:
+        for i, akte in enumerate(entwurf_akten[:5]):
+            st.markdown(f"**{akte['aktenzeichen']}** - {akte['kurzbezeichnung'][:30]}")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Zur Akte navigieren (manueller Assistent)
+                if st.button("📋 Urkundenassistent", key=f"entwurf_manuell_{i}", use_container_width=True):
+                    if akte.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_show_assistent'] = True
+                    elif akte.get('projekt_id'):
+                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                        st.session_state['notar_show_assistent'] = True
+                    st.rerun()
+
+            with col2:
+                # KI-Entwurf
+                if st.button("🤖 Urkunde-KI", key=f"entwurf_ki_{i}", use_container_width=True):
+                    if akte.get('akte_id'):
+                        st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_show_ki'] = True
+                    elif akte.get('projekt_id'):
+                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                        st.session_state['notar_show_ki'] = True
+                    st.rerun()
+
+            if akte.get('braucht_finale_urkunde'):
+                st.caption("⚡ Finale Urkunde erforderlich")
+
+            st.markdown("---")
+
+
+def _render_notar_beurkundete_widget(stadien: dict, user_id: str):
+    """Rendert das Widget für beurkundete Verträge nach 3 Stadien (RECHTS UNTEN)"""
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+                padding: 15px; border-radius: 12px; border: 1px solid #4caf50;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
+        <div style="font-weight: 600; font-size: 16px; color: #2e7d32; margin-bottom: 15px;">
+            ✅ Beurkundete Verträge
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Tabs für die 3 Stadien
+    tab1, tab2, tab3 = st.tabs([
+        f"1️⃣ Fälligkeit ({len(stadien['stadium_1'])})",
+        f"2️⃣ Kaufpreis ({len(stadien['stadium_2'])})",
+        f"3️⃣ Eingetragen ({len(stadien['stadium_3'])})"
+    ])
+
+    with tab1:
+        st.caption("Kaufpreisfälligkeit raus?")
+        if not stadien['stadium_1']:
+            st.info("Keine Vorgänge")
+        for i, v in enumerate(stadien['stadium_1'][:3]):
+            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
+                        key=f"stadium1_{i}", use_container_width=True):
+                if v.get('akte_id'):
+                    st.session_state['notar_open_akte_id'] = v['akte_id']
+                elif v.get('projekt_id'):
+                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                st.rerun()
+            if v.get('bank'):
+                st.caption(f"🏦 {v['bank']}")
+
+    with tab2:
+        st.caption("Kaufpreis & Darlehen bestätigt")
+        if not stadien['stadium_2']:
+            st.info("Keine Vorgänge")
+        for i, v in enumerate(stadien['stadium_2'][:3]):
+            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
+                        key=f"stadium2_{i}", use_container_width=True):
+                if v.get('akte_id'):
+                    st.session_state['notar_open_akte_id'] = v['akte_id']
+                elif v.get('projekt_id'):
+                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                st.rerun()
+            if v.get('bank'):
+                st.caption(f"🏦 {v['bank']}")
+
+    with tab3:
+        st.caption("Auflassung/Grundschuld eingetragen")
+        if not stadien['stadium_3']:
+            st.info("Keine Vorgänge")
+        for i, v in enumerate(stadien['stadium_3'][:3]):
+            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
+                        key=f"stadium3_{i}", use_container_width=True):
+                if v.get('akte_id'):
+                    st.session_state['notar_open_akte_id'] = v['akte_id']
+                elif v.get('projekt_id'):
+                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                st.rerun()
+
+
+def _render_notar_akte_detail(user_id: str, akte_id: str):
+    """Rendert die Akten-Detailansicht mit Ordnerstruktur"""
+    from datetime import datetime
+
+    # Akte laden
+    akte = None
+    if hasattr(st.session_state, 'akten') and akte_id in st.session_state.akten:
+        akte = st.session_state.akten[akte_id]
+
+    # Zurück-Button
+    col_back, col_title = st.columns([1, 4])
+    with col_back:
+        if st.button("⬅️ Zurück zum Dashboard", key="back_to_dashboard"):
+            st.session_state['notar_open_akte_id'] = None
+            st.session_state['notar_highlight_doc'] = None
+            st.session_state['notar_show_assistent'] = False
+            st.session_state['notar_show_ki'] = False
+            st.rerun()
+
+    with col_title:
+        if akte:
+            st.markdown(f"### 📁 {getattr(akte, 'aktenzeichen', akte_id)}")
+            st.caption(getattr(akte, 'kurzbezeichnung', ''))
+        else:
+            st.markdown(f"### 📁 Akte {akte_id[:8]}")
+
+    # Timeline der Akte am oberen Rand
+    _render_akte_timeline(akte)
+
+    st.markdown("---")
+
+    # Entscheidungen/Aktionen für das Dokument
+    highlight_doc = st.session_state.get('notar_highlight_doc')
+    if highlight_doc:
+        _render_dokument_aktionen(highlight_doc, user_id)
+        st.markdown("---")
+
+    # Ordnerstruktur
+    col_folders, col_content = st.columns([1, 2])
+
+    with col_folders:
+        st.markdown("#### 📂 Ordner")
+
+        # Standard-Ordner für Notar
+        ordner = [
+            {"key": "entwuerfe", "name": "📝 Entwürfe", "icon": "📝"},
+            {"key": "urkunden", "name": "📜 Urkunden", "icon": "📜"},
+            {"key": "grundbuch", "name": "📋 Grundbuch", "icon": "📋"},
+            {"key": "parteien", "name": "👥 Parteien", "icon": "👥"},
+            {"key": "korrespondenz", "name": "💬 Korrespondenz", "icon": "💬"},
+            {"key": "sonstiges", "name": "📎 Sonstiges", "icon": "📎"},
+        ]
+
+        current_folder = st.session_state.get('notar_akte_folder', 'entwuerfe')
+
+        for o in ordner:
+            is_active = o['key'] == current_folder
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(o['name'], key=f"folder_{o['key']}", use_container_width=True, type=btn_type):
+                st.session_state['notar_akte_folder'] = o['key']
+                st.rerun()
+
+    with col_content:
+        st.markdown(f"#### Dokumente im Ordner")
+        _render_ordner_dokumente(akte_id, current_folder, highlight_doc)
+
+    # Urkundenassistent oder KI anzeigen
+    if st.session_state.get('notar_show_assistent'):
+        st.markdown("---")
+        _render_urkunden_assistent(akte, user_id)
+
+    if st.session_state.get('notar_show_ki'):
+        st.markdown("---")
+        _render_urkunden_ki(akte, user_id)
+
+
+def _render_akte_timeline(akte):
+    """Rendert die Timeline einer spezifischen Akte"""
+    if not akte:
+        return
+
+    status = getattr(akte, 'status', 'Neu')
+
+    # Timeline-Schritte für Notar-Akte
+    schritte = [
+        ('Neu', 'Angelegt'),
+        ('In Bearbeitung', 'Bearbeitung'),
+        ('Entwurf erstellt', 'Entwurf'),
+        ('Beurkundet', 'Beurkundung'),
+        ('Vollzug', 'Vollzug'),
+        ('Abgeschlossen', 'Abschluss'),
+    ]
+
+    # Aktuellen Schritt finden
+    current_idx = 0
+    for i, (s, _) in enumerate(schritte):
+        if status == s:
+            current_idx = i
+            break
+
+    # Timeline HTML
+    timeline_html = '<div style="display: flex; gap: 5px; margin: 10px 0;">'
+    for i, (_, label) in enumerate(schritte):
+        if i < current_idx:
+            color = "#27ae60"
+            icon = "✓"
+        elif i == current_idx:
+            color = "#f39c12"
+            icon = "●"
+        else:
+            color = "#bdc3c7"
+            icon = "○"
+
+        timeline_html += f'''
+        <div style="flex: 1; text-align: center; padding: 5px;
+                    background: {color}22; border-radius: 5px; border: 1px solid {color};">
+            <div style="color: {color}; font-size: 14px;">{icon}</div>
+            <div style="font-size: 10px; color: #666;">{label}</div>
+        </div>
+        '''
+    timeline_html += '</div>'
+
+    st.markdown(timeline_html, unsafe_allow_html=True)
+
+
+def _render_dokument_aktionen(dok_id: str, user_id: str):
+    """Rendert Aktionen für ein spezifisches Dokument"""
+    st.markdown("#### 📄 Dokumentaktionen")
+
+    # Dokument laden
+    dok = None
+    if hasattr(st.session_state, 'dokumente') and dok_id in st.session_state.dokumente:
+        dok = st.session_state.dokumente[dok_id]
+
+    if dok:
+        dok_name = getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument'))
+        st.info(f"Ausgewähltes Dokument: **{dok_name}**")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("✅ Als erledigt markieren", key="dok_erledigt"):
+                if hasattr(dok, 'status'):
+                    dok.status = 'erledigt'
+                st.success("Dokument als erledigt markiert")
+                st.rerun()
+
+        with col2:
+            if st.button("📤 An Partei senden", key="dok_senden"):
+                st.session_state['show_send_dialog'] = True
+
+        with col3:
+            if st.button("📝 In Entwurf übernehmen", key="dok_entwurf"):
+                st.session_state['notar_show_assistent'] = True
+                st.rerun()
+    else:
+        st.warning("Dokument nicht gefunden")
+
+    # Highlight entfernen
+    if st.button("❌ Auswahl aufheben", key="clear_highlight"):
+        st.session_state['notar_highlight_doc'] = None
+        st.rerun()
+
+
+def _render_ordner_dokumente(akte_id: str, folder: str, highlight_doc: str = None):
+    """Rendert die Dokumente eines Ordners"""
+    dokumente = []
+
+    # Dokumente aus Session State laden
+    if hasattr(st.session_state, 'dokumente'):
+        for dok_id, dok in st.session_state.dokumente.items():
+            # Prüfe ob Dokument zur Akte gehört
+            dok_akte_id = getattr(dok, 'akte_id', None)
+            if dok_akte_id != akte_id:
+                continue
+
+            # Ordner-Zuordnung (vereinfacht)
+            dok_typ = getattr(dok, 'typ', getattr(dok, 'dokument_typ', 'sonstiges'))
+            dok_folder = 'sonstiges'
+
+            if 'entwurf' in dok_typ.lower() or 'vertrag' in dok_typ.lower():
+                dok_folder = 'entwuerfe'
+            elif 'urkunde' in dok_typ.lower() or 'beurkund' in dok_typ.lower():
+                dok_folder = 'urkunden'
+            elif 'grundbuch' in dok_typ.lower():
+                dok_folder = 'grundbuch'
+            elif 'ausweis' in dok_typ.lower() or 'vollmacht' in dok_typ.lower():
+                dok_folder = 'parteien'
+            elif 'nachricht' in dok_typ.lower() or 'mail' in dok_typ.lower():
+                dok_folder = 'korrespondenz'
+
+            if dok_folder == folder:
+                dokumente.append({
+                    'dok_id': dok_id,
+                    'name': getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument')),
+                    'erstellt_am': getattr(dok, 'erstellt_am', None),
+                    'is_highlighted': dok_id == highlight_doc,
+                })
+
+    if not dokumente:
+        st.info("Keine Dokumente in diesem Ordner")
+    else:
+        for dok in dokumente:
+            # Hervorhebung wenn highlighted
+            if dok['is_highlighted']:
+                st.markdown(f"""
+                <div style="background: #fff3cd; padding: 10px; border-radius: 8px;
+                            border: 2px solid #ffc107; margin: 5px 0;">
+                    📄 <strong>{dok['name']}</strong> ⬅️ Aktuell ausgewählt
+                </div>
+                """, unsafe_allow_html=True)
+
+            if st.button(f"📄 {dok['name']}", key=f"dok_{dok['dok_id']}", use_container_width=True):
+                st.session_state['notar_highlight_doc'] = dok['dok_id']
+                st.rerun()
+
+
+def _render_urkunden_assistent(akte, user_id: str):
+    """Rendert den Urkundenassistenten (Step-by-Step)"""
+    st.markdown("### 📋 Urkundenassistent")
+    st.info("Erstellen Sie Ihre Urkunde Schritt für Schritt mit Textbausteinen")
+
+    # Schließen-Button
+    if st.button("❌ Assistent schließen", key="close_assistent"):
+        st.session_state['notar_show_assistent'] = False
+        st.rerun()
+
+    # Schritte des Assistenten
+    current_step = st.session_state.get('assistent_step', 1)
+
+    st.progress(current_step / 6)
+
+    steps = [
+        "1. Vertragsparteien",
+        "2. Kaufgegenstand",
+        "3. Kaufpreis & Zahlungsmodalitäten",
+        "4. Auflassung & Besitzübergang",
+        "5. Haftung & Gewährleistung",
+        "6. Schlussbestimmungen"
+    ]
+
+    st.markdown(f"**Aktueller Schritt:** {steps[current_step - 1]}")
+
+    # Textbaustein-Vorschläge (basierend auf Akteninhalt)
+    st.markdown("#### Vorgeschlagene Textbausteine:")
+
+    with st.expander("📝 Standardtext verwenden", expanded=True):
+        st.text_area("Text bearbeiten:", value="[Textbaustein wird basierend auf Akteninhalt vorgeschlagen]",
+                    height=150, key=f"baustein_{current_step}")
+
+    col1, col2 = st.columns(2)
     with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Beurkundungen',
-            'badges': [
-                {'text': f'{offene_projekte} aktiv', 'color': 'orange'},
-                {'text': f'{akten_count} Akten', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Aufgaben-Widget
-        aufgaben = _get_notar_aufgaben(user_id, projekte)
-        render_aufgaben_widget(aufgaben, "notar")
-
-        # Nachrichten-Widget
-        nachrichten = _get_notar_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
+        if current_step > 1:
+            if st.button("⬅️ Zurück", key="step_back"):
+                st.session_state['assistent_step'] = current_step - 1
+                st.rerun()
 
     with col2:
-        # Vorgänge-Widget
-        vorgaenge = _get_notar_vorgaenge(projekte)
-        render_vorgaenge_widget(vorgaenge)
+        if current_step < 6:
+            if st.button("Weiter ➡️", key="step_next", type="primary"):
+                st.session_state['assistent_step'] = current_step + 1
+                st.rerun()
+        else:
+            if st.button("✅ Urkunde fertigstellen", key="step_finish", type="primary"):
+                st.success("Urkunde wurde erstellt!")
+                st.session_state['notar_show_assistent'] = False
+                st.rerun()
 
-        # Timeline-Widget
-        timeline_steps = _get_notar_timeline_steps(projekte)
-        render_timeline_widget(timeline_steps)
 
-        # Dokumente-Widget
-        dokumente = _get_notar_dokumente(user_id)
-        render_dokumente_widget(dokumente)
+def _render_urkunden_ki(akte, user_id: str):
+    """Rendert die KI-gestützte Urkundenerstellung"""
+    st.markdown("### 🤖 Urkunde-KI")
+    st.info("Lassen Sie die KI einen ersten Entwurf basierend auf den Aktendokumenten erstellen")
 
-    # Button um zum erweiterten Notar-Menü zu wechseln
-    st.markdown("---")
-    if st.button("📋 Erweitertes Notar-Menü öffnen", use_container_width=True):
-        st.session_state['notar_menu_selection'] = 'projekte'
+    # Schließen-Button
+    if st.button("❌ KI-Modus schließen", key="close_ki"):
+        st.session_state['notar_show_ki'] = False
         st.rerun()
+
+    # KI-Optionen
+    vertragstyp = st.selectbox("Vertragstyp:",
+                               ["Kaufvertrag", "Grundschuldbestellung", "Überlassungsvertrag", "Erbvertrag"],
+                               key="ki_vertragstyp")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.checkbox("Alle Parteien-Daten verwenden", value=True, key="ki_parteien")
+        st.checkbox("Grundbuchdaten übernehmen", value=True, key="ki_grundbuch")
+
+    with col2:
+        st.checkbox("Finanzierungsdaten einbeziehen", value=True, key="ki_finanz")
+        st.checkbox("Standard-Klauseln verwenden", value=True, key="ki_klauseln")
+
+    if st.button("🚀 KI-Entwurf generieren", key="generate_ki", type="primary", use_container_width=True):
+        with st.spinner("KI erstellt Entwurf..."):
+            import time
+            time.sleep(2)  # Simulierte Verarbeitung
+
+        st.success("Entwurf wurde erstellt!")
+        st.markdown("#### Generierter Entwurf:")
+        st.text_area("", value=f"""
+KAUFVERTRAG
+
+Urkundennummer: [wird vergeben]
+Verhandelt am: [Datum]
+
+Vor mir, dem unterzeichnenden Notar, erschienen heute:
+
+1. [Verkäufer-Daten aus Akte]
+   - nachstehend "Verkäufer" genannt -
+
+2. [Käufer-Daten aus Akte]
+   - nachstehend "Käufer" genannt -
+
+§ 1 Kaufgegenstand
+[Immobiliendaten aus Grundbuch]
+
+§ 2 Kaufpreis
+[Kaufpreis aus Akte]
+
+[Weitere Paragraphen...]
+        """, height=400, key="ki_result")
 
 
 def _get_notar_aufgaben(user_id: str, projekte: list) -> list:
