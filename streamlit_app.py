@@ -13868,23 +13868,20 @@ def render_aufgaben_widget(aufgaben: list, key_prefix: str):
         key_prefix: Prefix für Checkbox-Keys
     """
     # Aufgaben als HTML-Checkliste
-    aufgaben_html = ""
+    aufgaben_items = []
     for aufgabe in aufgaben[:6]:  # Max 6 Aufgaben
         checked = "checked" if aufgabe.get('completed', False) else ""
         completed_class = "completed" if aufgabe.get('completed', False) else ""
-        aufgaben_html += f'''
-            <div class="checklist-item {completed_class}">
-                <input type="checkbox" {checked} disabled>
-                <span>{aufgabe['text']}</span>
-            </div>
-        '''
+        aufgaben_items.append(
+            f'<div class="checklist-item {completed_class}"><input type="checkbox" {checked} disabled><span>{aufgabe["text"]}</span></div>'
+        )
 
-    st.markdown(f"""
-    <div class="widget-card">
-        <div class="widget-title">Meine Aufgaben / Checkliste</div>
-        {aufgaben_html if aufgaben_html else '<div class="empty-state">Keine Aufgaben</div>'}
-    </div>
-    """, unsafe_allow_html=True)
+    aufgaben_html = "".join(aufgaben_items) if aufgaben_items else '<div class="empty-state">Keine Aufgaben</div>'
+
+    st.markdown(
+        f'<div class="widget-card"><div class="widget-title">Meine Aufgaben / Checkliste</div>{aufgaben_html}</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_nachrichten_widget(nachrichten: list):
@@ -13895,21 +13892,18 @@ def render_nachrichten_widget(nachrichten: list):
         nachrichten: Liste von Dicts mit 'sender', 'text'
     """
     # Nachrichten als HTML
-    nachrichten_html = ""
+    nachrichten_items = []
     for msg in nachrichten[:5]:  # Max 5 Nachrichten
-        nachrichten_html += f'''
-            <div class="message-item">
-                <div class="message-sender">{msg['sender']}:</div>
-                <div class="message-text">{msg['text']}</div>
-            </div>
-        '''
+        nachrichten_items.append(
+            f'<div class="message-item"><div class="message-sender">{msg["sender"]}:</div><div class="message-text">{msg["text"]}</div></div>'
+        )
 
-    st.markdown(f"""
-    <div class="widget-card">
-        <div class="widget-title">Nachrichten (zuletzt)</div>
-        {nachrichten_html if nachrichten_html else '<div class="empty-state">Keine Nachrichten</div>'}
-    </div>
-    """, unsafe_allow_html=True)
+    nachrichten_html = "".join(nachrichten_items) if nachrichten_items else '<div class="empty-state">Keine Nachrichten</div>'
+
+    st.markdown(
+        f'<div class="widget-card"><div class="widget-title">Nachrichten (zuletzt)</div>{nachrichten_html}</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_vorgaenge_widget(vorgaenge: list):
@@ -13920,22 +13914,19 @@ def render_vorgaenge_widget(vorgaenge: list):
         vorgaenge: Liste von Dicts mit 'id', 'address', 'status'
     """
     # Vorgänge als HTML
-    vorgaenge_html = ""
+    vorgaenge_items = []
     for v in vorgaenge[:5]:
         status_class = "status-offen" if v.get('status') == 'offen' else "status-ok"
-        vorgaenge_html += f'''
-            <div class="vorgang-item">
-                <span><span class="vorgang-id">{v['id']}</span> • <span class="vorgang-address">{v['address']}</span></span>
-                <span class="vorgang-status {status_class}">{v.get('status_text', '')}</span>
-            </div>
-        '''
+        vorgaenge_items.append(
+            f'<div class="vorgang-item"><span><span class="vorgang-id">{v["id"]}</span> • <span class="vorgang-address">{v["address"]}</span></span><span class="vorgang-status {status_class}">{v.get("status_text", "")}</span></div>'
+        )
 
-    st.markdown(f"""
-    <div class="widget-card">
-        <div class="widget-title">Meine Vorgänge</div>
-        {vorgaenge_html if vorgaenge_html else '<div class="empty-state">Keine Vorgänge</div>'}
-    </div>
-    """, unsafe_allow_html=True)
+    vorgaenge_html = "".join(vorgaenge_items) if vorgaenge_items else '<div class="empty-state">Keine Vorgänge</div>'
+
+    st.markdown(
+        f'<div class="widget-card"><div class="widget-title">Meine Vorgänge</div>{vorgaenge_html}</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_timeline_widget(steps: list):
@@ -13946,7 +13937,7 @@ def render_timeline_widget(steps: list):
         steps: Liste von Dicts mit 'text', 'status' (done, pending, active)
     """
     # Timeline als HTML
-    timeline_html = ""
+    timeline_items = []
     for step in steps:
         if step['status'] == 'done':
             dot_class = "green"
@@ -13958,19 +13949,16 @@ def render_timeline_widget(steps: list):
             dot_class = "gray"
             text_class = "pending"
 
-        timeline_html += f'''
-            <div class="timeline-item">
-                <div class="timeline-dot {dot_class}"></div>
-                <span class="timeline-text {text_class}">{step['text']}</span>
-            </div>
-        '''
+        timeline_items.append(
+            f'<div class="timeline-item"><div class="timeline-dot {dot_class}"></div><span class="timeline-text {text_class}">{step["text"]}</span></div>'
+        )
 
-    st.markdown(f"""
-    <div class="widget-card">
-        <div class="widget-title">Timeline (Auszug)</div>
-        {timeline_html if timeline_html else '<div class="empty-state">Keine Timeline-Einträge</div>'}
-    </div>
-    """, unsafe_allow_html=True)
+    timeline_html = "".join(timeline_items) if timeline_items else '<div class="empty-state">Keine Timeline-Einträge</div>'
+
+    st.markdown(
+        f'<div class="widget-card"><div class="widget-title">Timeline (Auszug)</div>{timeline_html}</div>',
+        unsafe_allow_html=True
+    )
 
 
 def render_dokumente_widget(dokumente: list):
@@ -13981,7 +13969,7 @@ def render_dokumente_widget(dokumente: list):
         dokumente: Liste von Dicts mit 'name', 'status' (vorliegend, fehlt, optional)
     """
     # Dokumente als HTML
-    dokumente_html = ""
+    dokumente_items = []
     for dok in dokumente[:5]:
         status = dok.get('status', 'optional')
         if status == 'vorliegend':
@@ -13994,19 +13982,16 @@ def render_dokumente_widget(dokumente: list):
             status_class = "dokument-optional"
             status_text = "optional"
 
-        dokumente_html += f'''
-            <div class="dokument-item">
-                <span class="dokument-name">{dok['name']}</span>
-                <span class="dokument-status {status_class}">{status_text}</span>
-            </div>
-        '''
+        dokumente_items.append(
+            f'<div class="dokument-item"><span class="dokument-name">{dok["name"]}</span><span class="dokument-status {status_class}">{status_text}</span></div>'
+        )
 
-    st.markdown(f"""
-    <div class="widget-card">
-        <div class="widget-title">Dokumente (relevant)</div>
-        {dokumente_html if dokumente_html else '<div class="empty-state">Keine Dokumente</div>'}
-    </div>
-    """, unsafe_allow_html=True)
+    dokumente_html = "".join(dokumente_items) if dokumente_items else '<div class="empty-state">Keine Dokumente</div>'
+
+    st.markdown(
+        f'<div class="widget-card"><div class="widget-title">Dokumente (relevant)</div>{dokumente_html}</div>',
+        unsafe_allow_html=True
+    )
 
 
 # Standard-Menüpunkte für alle Dashboards
