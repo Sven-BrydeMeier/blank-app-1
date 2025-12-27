@@ -13807,11 +13807,15 @@ def render_dashboard_header(title: str, role: str):
 
 def render_sidebar_menu(role: str, menu_items: list, current_selection: str) -> str:
     """
-    Rendert das Sidebar-Menü im neuen Design.
+    Rendert das Sidebar-Menü.
+
+    Unterstützt:
+    - flache Menüs (Liste von Dicts mit 'key', 'label', 'icon')
+    - gruppierte Menüs (zusätzliches Feld 'group' in den Items)
 
     Args:
         role: Die Benutzerrolle (makler, kaeufer, etc.)
-        menu_items: Liste von Dicts mit 'key', 'label', 'icon'
+        menu_items: Liste von Dicts mit 'key', 'label', 'icon' (optional: 'group')
         current_selection: Aktuell ausgewählter Menüpunkt
 
     Returns:
@@ -13821,24 +13825,306 @@ def render_sidebar_menu(role: str, menu_items: list, current_selection: str) -> 
         st.markdown("#### Menü")
 
         selection = current_selection
+        has_groups = any("group" in item and item.get("group") for item in menu_items)
 
-        for item in menu_items:
-            # Prüfen ob aktiv
-            is_active = item['key'] == current_selection
+        if not has_groups:
+            for item in menu_items:
+                is_active = item["key"] == current_selection
+                if st.button(
+                    f"{item.get('icon', '')} {item['label']}",
+                    key=f"menu_{role}_{item['key']}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary"
+                ):
+                    selection = item["key"]
+                    st.session_state[f"{role}_menu_selection"] = selection
+                    st.rerun()
+        else:
+            grouped: dict[str, list] = {}
+            for item in menu_items:
+                group_name = item.get("group") or "Weitere"
+                grouped.setdefault(group_name, []).append(item)
 
-            if st.button(
-                f"{item.get('icon', '')} {item['label']}",
-                key=f"menu_{role}_{item['key']}",
-                use_container_width=True,
-                type="primary" if is_active else "secondary"
-            ):
-                selection = item['key']
-                st.session_state[f'{role}_menu_selection'] = selection
-                st.rerun()
+            for group_name, items in grouped.items():
+                expanded = any(i["key"] == current_selection for i in items)
+                with st.expander(group_name, expanded=expanded):
+                    for item in items:
+                        is_active = item["key"] == current_selection
+                        if st.button(
+                            f"{item.get('icon', '')} {item['label']}",
+                            key=f"menu_{role}_{item['key']}",
+                            use_container_width=True,
+                            type="primary" if is_active else "secondary"
+                        ):
+                            selection = item["key"]
+                            st.session_state[f"{role}_menu_selection"] = selection
+                            st.rerun()
 
         st.markdown("---")
 
     return selection
+
+
+def _get_accessible_akten_for_notar(notar_id: str) -> list:
+    """Gibt alle Projekte/Akten zurück, die dem Notar zugeordnet sind."""
+    if not hasattr(st.session_state, 'projekte'):
+        return []
+    return [p for p in st.session_state.projekte.values() if getattr(p, 'notar_id', '') == notar_id]
+
+
+def ensure_context_akte_id(notar_id: str) -> Optional[str]:
+    """Sorgt dafür, dass eine Akte als Kontext ausgewählt ist."""
+    akten = _get_accessible_akten_for_notar(notar_id)
+    if not akten:
+        st.session_state["context_akte_id"] = None
+        return None
+
+    current = st.session_state.get("notar_open_akte_id") or st.session_state.get("context_akte_id")
+    allowed = {getattr(a, 'projekt_id', getattr(a, 'akte_id', '')) for a in akten}
+    if current not in allowed:
+        current = getattr(akten[0], 'projekt_id', getattr(akten[0], 'akte_id', ''))
+    st.session_state["context_akte_id"] = current
+    return current
+
+
+def _akte_progress_fallback(status: str) -> int:
+    """Fallback-Fortschritt für Akten, wenn kein Projekt/Workflow verfügbar ist."""
+    mapping = {
+        "Neu": 5,
+        "Unterlagen": 20,
+        "Entwurf": 35,
+        "Review": 50,
+        "Freigabe": 65,
+        "Beurkundung": 75,
+        "Vollzug": 90,
+        "Abgeschlossen": 100,
+    }
+    return mapping.get(status or "", 15)
+
+
+def _get_actor_id(actor) -> str:
+    return getattr(actor, "user_id", "") or getattr(actor, "id", "") or "anon"
+
+
+def _is_notar_user_actor(actor) -> bool:
+    return getattr(actor, "rolle", "") == UserRole.NOTAR.value or getattr(actor, "role", "") == UserRole.NOTAR.value
+
+
+def _get_accessible_projekte_for_actor(actor) -> list:
+    uid = _get_actor_id(actor)
+    rolle = getattr(actor, "rolle", None) or getattr(actor, "role", None) or ""
+    return _get_user_projekte(uid, rolle) if uid and rolle else []
+
+
+def ensure_context_projekt_id_actor(actor) -> Optional[str]:
+    projekte = _get_accessible_projekte_for_actor(actor)
+    if not projekte:
+        st.session_state["context_projekt_id"] = None
+        return None
+
+    current = st.session_state.get("context_projekt_id")
+    allowed = {p.projekt_id for p in projekte}
+    if current not in allowed:
+        current = projekte[0].projekt_id
+    st.session_state["context_projekt_id"] = current
+    return current
+
+
+def render_sidebar_case_context(actor):
+    """Sidebar-Kopf: Kontextauswahl (Notar: Akte, sonst: Projekt) + Mini-Status/Next-Step."""
+    try:
+        if _is_notar_user_actor(actor):
+            notar_id = getattr(actor, "user_id", "")
+            akten = _get_accessible_akten_for_notar(notar_id)
+            if not akten:
+                return
+
+            current_id = st.session_state.get("notar_open_akte_id") or ensure_context_akte_id(notar_id)
+            label_map = {}
+            for a in akten:
+                akte_id = getattr(a, 'projekt_id', getattr(a, 'akte_id', ''))
+                label = getattr(a, 'aktenzeichen', '') or getattr(a, 'kurzbezeichnung', '') or getattr(a, 'name', '') or akte_id[:8]
+                label_map[label] = akte_id
+
+            with st.sidebar:
+                st.markdown("#### Akte")
+                if len(akten) > 1:
+                    labels = list(label_map.keys())
+                    values = list(label_map.values())
+                    idx = values.index(current_id) if current_id in values else 0
+                    selected_label = st.selectbox(
+                        "Aktiv",
+                        options=labels,
+                        index=idx,
+                        key=f"context_akte_select_{notar_id}",
+                        label_visibility="collapsed"
+                    )
+                    st.session_state["context_akte_id"] = label_map[selected_label]
+                    current_id = st.session_state["context_akte_id"]
+                else:
+                    akte_id = getattr(akten[0], 'projekt_id', getattr(akten[0], 'akte_id', ''))
+                    st.session_state["context_akte_id"] = akte_id
+                    current_id = akte_id
+
+                akte = st.session_state.projekte.get(current_id)
+                if not akte:
+                    st.markdown("---")
+                    return
+
+                status = getattr(akte, "status", "")
+                pct = _akte_progress_fallback(status)
+                st.caption(f"Status: **{status}**")
+                st.progress(pct / 100.0)
+                st.caption(f"Fortschritt: **{pct}%**")
+                st.markdown("---")
+            return
+
+        projekte = _get_accessible_projekte_for_actor(actor)
+        if not projekte:
+            return
+        current_id = ensure_context_projekt_id_actor(actor)
+        label_map = {f"{p.name} – {getattr(p, 'adresse', '')}".strip(" –"): p.projekt_id for p in projekte}
+
+        with st.sidebar:
+            st.markdown("#### Projekt")
+            if len(projekte) > 1:
+                selected_label = st.selectbox(
+                    "Aktiv",
+                    options=list(label_map.keys()),
+                    index=list(label_map.values()).index(current_id) if current_id in label_map.values() else 0,
+                    key=f"context_projekt_select_{_get_actor_id(actor)}",
+                    label_visibility="collapsed"
+                )
+                st.session_state["context_projekt_id"] = label_map[selected_label]
+                current_id = st.session_state["context_projekt_id"]
+            else:
+                st.session_state["context_projekt_id"] = projekte[0].projekt_id
+                current_id = projekte[0].projekt_id
+
+            projekt = st.session_state.projekte.get(current_id)
+            if not projekt:
+                st.markdown("---")
+                return
+
+            progress = calculate_workflow_progress(
+                getattr(projekt, "workflow_completed_steps", []) or [],
+                financing_required=bool(getattr(projekt, "financing_required", False))
+            )
+            pct = int(round(progress.get("total_progress", 0)))
+            st.caption(f"Status: **{getattr(projekt, 'status', '')}**")
+            st.progress(pct / 100.0)
+            st.caption(f"Fortschritt: **{pct}%**")
+            st.markdown("---")
+    except Exception:
+        return
+
+
+def render_case_context_header(actor):
+    """Sticky Kopfzeile im Hauptbereich: zeigt den aktiven Kontext + Fortschritt."""
+    try:
+        css = """
+        <style>
+          .case-context-bar {
+            position: sticky;
+            top: 3.25rem;
+            z-index: 999;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 14px;
+            padding: 0.75rem 1rem;
+            margin: 0.25rem 0 1rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+          }
+          .case-context-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            align-items: baseline;
+            font-weight: 700;
+          }
+          .case-context-sub {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: #555;
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+          }
+          .case-progress {
+            margin-top: 0.5rem;
+            background: rgba(0,0,0,0.06);
+            height: 8px;
+            border-radius: 999px;
+            overflow: hidden;
+          }
+          .case-progress > div {
+            height: 8px;
+            background: rgba(0,0,0,0.65);
+          }
+        </style>
+        """
+        st.markdown(css, unsafe_allow_html=True)
+
+        if _is_notar_user_actor(actor):
+            notar_id = getattr(actor, "user_id", "")
+            akte_id = st.session_state.get("notar_open_akte_id") or ensure_context_akte_id(notar_id)
+            if not akte_id:
+                return
+            akte = st.session_state.projekte.get(akte_id)
+            if not akte:
+                return
+            status = getattr(akte, "status", "")
+            pct = _akte_progress_fallback(status)
+            az = getattr(akte, "aktenzeichen", "") or getattr(akte, "kurzbezeichnung", "") or getattr(akte, "name", "") or akte_id[:8]
+            st.markdown(
+                f"""
+                <div class="case-context-bar">
+                  <div class="case-context-title">
+                    <div>📁 {az}</div>
+                    <div>{pct}%</div>
+                  </div>
+                  <div class="case-context-sub">
+                    <div></div>
+                    <div>{status}</div>
+                  </div>
+                  <div class="case-progress"><div style="width:{pct}%"></div></div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            return
+
+        current_id = ensure_context_projekt_id_actor(actor)
+        if not current_id:
+            return
+        projekt = st.session_state.projekte.get(current_id)
+        if not projekt:
+            return
+        progress = calculate_workflow_progress(
+            getattr(projekt, "workflow_completed_steps", []) or [],
+            financing_required=bool(getattr(projekt, "financing_required", False))
+        )
+        pct = int(round(progress.get("total_progress", 0)))
+        name = getattr(projekt, "name", "Projekt")
+        adresse = getattr(projekt, "adresse", "")
+        status_txt = getattr(projekt, "status", "")
+        st.markdown(
+            f"""
+            <div class="case-context-bar">
+              <div class="case-context-title">
+                <div>📁 {name}</div>
+                <div>{pct}%</div>
+              </div>
+              <div class="case-context-sub">
+                <div>{adresse}</div>
+                <div>{status_txt}</div>
+              </div>
+              <div class="case-progress"><div style="width:{pct}%"></div></div>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    except Exception:
+        return
 
 
 def render_heute_widget(stats: dict):
@@ -14598,15 +14884,15 @@ def render_topbar_actions():
 
 # Makler-spezifische Menüpunkte
 MAKLER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Projekte", "icon": "📁"},
-    {"key": "timeline", "label": "Timeline", "icon": "📋"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥"},
-    {"key": "bankenmappe", "label": "Bankenmappe", "icon": "💼"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
+    {"key": "projekte", "label": "Projekte", "icon": "🏘️", "group": "Vorgänge"},
+    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
+    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
+    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥", "group": "Organisation"},
+    {"key": "bankenmappe", "label": "Bankenmappe", "icon": "💼", "group": "Dokumente"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
 ]
 
 
@@ -14624,6 +14910,9 @@ def makler_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
 
+    # Kontext-Auswahl in Sidebar (Projekt/Akte)
+    render_sidebar_case_context(st.session_state.current_user)
+
     # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("makler", MAKLER_MENU_ITEMS, current_selection)
 
@@ -14636,6 +14925,9 @@ def makler_dashboard():
     # Dialoge (werden benötigt)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
 
     # === INHALT JE NACH MENÜ-AUSWAHL ===
     if selection == "dashboard":
@@ -16028,14 +16320,14 @@ def onboarding_flow():
 
 # Käufer-spezifische Menüpunkte
 KAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Projekte", "icon": "📋"},
-    {"key": "timeline", "label": "Timeline", "icon": "📊"},
-    {"key": "finanzierung", "label": "Finanzierung", "icon": "💰"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
+    {"key": "projekte", "label": "Meine Projekte", "icon": "🏘️", "group": "Vorgänge"},
+    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
+    {"key": "finanzierung", "label": "Finanzierung", "icon": "💰", "group": "Dokumente"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
+    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
 ]
 
 
@@ -16061,6 +16353,9 @@ def kaeufer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
 
+    # Kontext-Auswahl in Sidebar (Projekt/Akte)
+    render_sidebar_case_context(st.session_state.current_user)
+
     # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("kaeufer", KAEUFER_MENU_ITEMS, current_selection)
 
@@ -16073,6 +16368,9 @@ def kaeufer_dashboard():
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
 
     # === INHALT JE NACH MENÜ-AUSWAHL ===
     if selection == "dashboard":
@@ -19802,14 +20100,14 @@ def kaeufer_dokumente_view():
 
 # Verkäufer-spezifische Menüpunkte
 VERKAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Projekte", "icon": "📋"},
-    {"key": "timeline", "label": "Timeline", "icon": "📊"},
-    {"key": "preisfindung", "label": "Preisfindung", "icon": "📈"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
+    {"key": "projekte", "label": "Meine Verkäufe", "icon": "🏘️", "group": "Vorgänge"},
+    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
+    {"key": "preisfindung", "label": "Preisfindung", "icon": "💲", "group": "Vorgänge"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
+    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
 ]
 
 
@@ -19835,6 +20133,9 @@ def verkaeufer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
 
+    # Kontext-Auswahl in Sidebar (Projekt/Akte)
+    render_sidebar_case_context(st.session_state.current_user)
+
     # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("verkaeufer", VERKAEUFER_MENU_ITEMS, current_selection)
 
@@ -19847,6 +20148,9 @@ def verkaeufer_dashboard():
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
 
     # === INHALT JE NACH MENÜ-AUSWAHL ===
     if selection == "dashboard":
@@ -21412,12 +21716,12 @@ def verkaeufer_nachrichten():
 
 # Finanzierer-spezifische Menüpunkte
 FINANZIERER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Projekte", "icon": "📋"},
-    {"key": "wirtschaftsdaten", "label": "Wirtschaftsdaten", "icon": "📊"},
-    {"key": "angebote", "label": "Angebote", "icon": "💰"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
+    {"key": "projekte", "label": "Finanzierungsprojekte", "icon": "🏦", "group": "Vorgänge"},
+    {"key": "wirtschaftsdaten", "label": "Wirtschaftsdaten", "icon": "📊", "group": "Dokumente"},
+    {"key": "angebote", "label": "Angebote", "icon": "📋", "group": "Dokumente"},
+    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
 ]
 
 
@@ -21434,6 +21738,9 @@ def finanzierer_dashboard():
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
 
+    # Kontext-Auswahl in Sidebar (Projekt/Akte)
+    render_sidebar_case_context(st.session_state.current_user)
+
     # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
     selection = render_sidebar_menu("finanzierer", FINANZIERER_MENU_ITEMS, current_selection)
 
@@ -21446,6 +21753,9 @@ def finanzierer_dashboard():
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
 
     # === INHALT JE NACH MENÜ-AUSWAHL ===
     if selection == "dashboard":
@@ -23352,6 +23662,12 @@ def notar_dashboard():
     # Dialoge
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # Kontext-Auswahl in Sidebar (Akte für Notar)
+    render_sidebar_case_context(st.session_state.current_user)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
 
     # === HAUPTINHALT JE NACH ANSICHT ===
     if current_view == 'dashboard':
