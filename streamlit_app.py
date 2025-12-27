@@ -23337,65 +23337,156 @@ def notar_dashboard():
     # Fixierte Topbar mit Rolle links und User rechts
     render_fixed_topbar("⚖️", "Notar-Dashboard")
 
-    # Menü-Auswahl prüfen
-    current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
+    # Aktuelle Ansicht ermitteln
+    current_view = st.session_state.get('notar_current_view', 'dashboard')
 
-    # Wenn "dashboard" gewählt, zeige neues Dashboard-Home
-    if current_selection == 'dashboard':
-        # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-        _render_notar_sidebar_menu_new(user_id)
+    # WICHTIG: Immer das NEUE Sidebar-Menü rendern (ganz oben)
+    _render_notar_sidebar_menu_new(user_id)
 
-        # Schnellaktionen in der Sidebar (nach dem Menü)
-        render_topbar_actions()
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
 
-        # Aktentasche in der Sidebar
-        render_aktentasche_sidebar(user_id)
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
 
-        # Dialoge
-        render_aktentasche_teilen_dialog(user_id)
-        render_aktentasche_download(user_id)
+    # Dialoge
+    render_aktentasche_teilen_dialog(user_id)
+    render_aktentasche_download(user_id)
 
-        # Dashboard-Home anzeigen
+    # === HAUPTINHALT JE NACH ANSICHT ===
+    if current_view == 'dashboard':
+        # Dashboard-Home anzeigen (4-Quadranten oder Akte-Detail)
         _render_notar_dashboard_home(user_id)
+
+    elif current_view == 'akten':
+        # Akten-Übersicht (oder Akte-Detail wenn geöffnet)
+        if st.session_state.get('notar_open_akte_id'):
+            _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
+        else:
+            _render_notar_akten_uebersicht(user_id)
+
+    elif current_view == 'vorgaenge':
+        # Vorgänge-Ansicht
+        _render_notar_vorgaenge_view(user_id)
+
+    elif current_view == 'nachrichten':
+        # Nachrichten-Ansicht
+        _render_notar_nachrichten_view(user_id)
+
+    elif current_view == 'dokumente':
+        # Dokumente-Ansicht
+        _render_notar_dokumente_view(user_id)
+
+    elif current_view == 'termine':
+        # Termine-Ansicht
+        _render_notar_termine_view(user_id)
+
+    elif current_view == 'einstellungen':
+        # Einstellungen-Ansicht
+        _render_notar_einstellungen_view(user_id)
+
     else:
-        # Vorhandenes Notar-System für andere Menüpunkte
-        # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-        selection = render_notar_sidebar_menu(user_id)
+        # Fallback: Dashboard
+        _render_notar_dashboard_home(user_id)
 
-        # Schnellaktionen in der Sidebar (nach dem Menü)
-        render_topbar_actions()
 
-        # Aktentasche in der Sidebar
-        render_aktentasche_sidebar(user_id)
+def _render_notar_vorgaenge_view(user_id: str):
+    """Rendert die Vorgänge/Projekte-Ansicht"""
+    st.markdown("## 📋 Vorgänge")
 
-        # Dialoge
-        render_aktentasche_teilen_dialog(user_id)
-        render_aktentasche_download(user_id)
+    # Nutze die bestehende Projekte-View, aber nenne es "Akten" für Notar
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
 
-        # Titel mit aktuellem Bereich ermitteln
-        aktueller_bereich = ""
-        aktueller_bereich_icon = ""
-        aktive_gruppe = ""
+    if not projekte:
+        st.info("Keine Vorgänge vorhanden")
+        return
 
-        # Suche in Hauptmenü und Untermenüs
-        for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-            for item in gruppe_data['items']:
-                if item['key'] == selection:
-                    aktueller_bereich = item['name']
-                    aktueller_bereich_icon = item['icon']
-                    aktive_gruppe = gruppe_name
-                    break
-                # Prüfe auch Untermenüs
-                if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
-                    for sub_item in NOTAR_UNTERMENUS[item['key']]:
-                        if sub_item['key'] == selection:
-                            aktueller_bereich = sub_item['name']
-                            aktueller_bereich_icon = sub_item['icon']
-                            aktive_gruppe = gruppe_name
-                            break
+    # Tabs für verschiedene Ansichten
+    tab1, tab2 = st.tabs(["📋 Übersicht", "📊 Timeline"])
 
-        # Inhalt rendern
-        render_notar_content(selection, user_id)
+    with tab1:
+        st.markdown(f"**{len(projekte)} Vorgang/Vorgänge**")
+
+        for i, projekt in enumerate(projekte):
+            with st.expander(f"📁 {projekt.name or projekt.adresse} - {projekt.status}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Status:** {projekt.status}")
+                    st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
+                with col2:
+                    if projekt.kaufpreis:
+                        st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.0f} €")
+
+                if st.button("📂 Zur Akte", key=f"vorg_akte_{i}"):
+                    # Suche zugehörige Akte
+                    akte_id = None
+                    if hasattr(st.session_state, 'akten'):
+                        for a in st.session_state.akten.values():
+                            if getattr(a, 'projekt_id', None) == projekt.projekt_id:
+                                akte_id = a.akte_id
+                                break
+                    if akte_id:
+                        st.session_state['notar_open_akte_id'] = akte_id
+                    else:
+                        st.session_state['notar_open_projekt_id'] = projekt.projekt_id
+                    st.session_state['notar_current_view'] = 'akten'
+                    st.rerun()
+
+    with tab2:
+        render_notar_timeline_kompakt(user_id)
+
+
+def _render_notar_nachrichten_view(user_id: str):
+    """Rendert die Nachrichten-Ansicht"""
+    st.markdown("## 💬 Nachrichten")
+
+    # Nutze die bestehende Kommunikationszentrale
+    render_kommunikationszentrale(user_id)
+
+
+def _render_notar_dokumente_view(user_id: str):
+    """Rendert die Dokumente-Ansicht"""
+    st.markdown("## 📄 Dokumente")
+
+    # Tabs für verschiedene Dokumenten-Bereiche
+    tab1, tab2, tab3 = st.tabs(["📁 Aktenverwaltung", "📥 Dokumentenanforderungen", "✅ Freigaben"])
+
+    with tab1:
+        notar_aktenmanagement_view()
+
+    with tab2:
+        render_document_requests_view(user_id, UserRole.NOTAR.value)
+
+    with tab3:
+        notar_dokumenten_freigaben()
+
+
+def _render_notar_termine_view(user_id: str):
+    """Rendert die Termine-Ansicht"""
+    st.markdown("## 📅 Termine")
+
+    # Nutze die bestehende Termine-Funktion
+    notar_termine()
+
+
+def _render_notar_einstellungen_view(user_id: str):
+    """Rendert die Einstellungen-Ansicht"""
+    st.markdown("## ⚙️ Einstellungen")
+
+    # Tabs für verschiedene Einstellungsbereiche
+    tab1, tab2, tab3, tab4 = st.tabs(["👤 Profil", "👥 Mitarbeiter", "📜 DSGVO", "🗑️ Papierkorb"])
+
+    with tab1:
+        notar_einstellungen_view()
+
+    with tab2:
+        notar_mitarbeiter_view()
+
+    with tab3:
+        render_dsgvo_tab_notar(user_id)
+
+    with tab4:
+        render_papierkorb_tab(user_id, ist_notar=True)
 
 
 def _render_notar_sidebar_menu_new(user_id: str):

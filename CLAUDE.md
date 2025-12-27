@@ -112,8 +112,14 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 - Klick auf 📬 → Direkt zum Posteingang der Akte
 
 **Notar-spezifische Funktionen:**
+- `notar_dashboard()` - Hauptfunktion, rendert immer das neue Sidebar-Menü
 - `_render_notar_dashboard_home()` - Haupt-Dashboard mit 4-Quadranten
 - `_render_notar_akten_uebersicht()` - Akten-Übersicht mit Sortierung/Suche
+- `_render_notar_vorgaenge_view()` - Vorgänge mit Timeline
+- `_render_notar_nachrichten_view()` - Nachrichten/Kommunikationszentrale
+- `_render_notar_dokumente_view()` - Dokumente (Aktenverwaltung, Anforderungen, Freigaben)
+- `_render_notar_termine_view()` - Termine-Kalender
+- `_render_notar_einstellungen_view()` - Einstellungen (Profil, Mitarbeiter, DSGVO, Papierkorb)
 - `_render_notar_termine_widget()` - Termine des Tages (klickbar)
 - `_render_notar_posteingang_widget()` - Posteingang (klickbar)
 - `_render_notar_entwurf_widget()` - Urkundsentwurf-Akten (klickbar)
