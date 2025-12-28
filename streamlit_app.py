@@ -14835,6 +14835,197 @@ def _handle_topbar_actions():
         st.rerun()
 
 
+def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str):
+    """
+    Rendert eine fixierte Topbar mit FUNKTIONALEN Streamlit-Buttons.
+    Die Buttons werden direkt unter der CSS-Topbar als echte Streamlit-Elemente gerendert.
+
+    Args:
+        role_icon: Icon für die Rolle (z.B. "⚖️")
+        role_name: Name des Dashboards (z.B. "Notar-Dashboard")
+        role_key: Eindeutiger Key für die Rolle (z.B. "notar")
+    """
+    user = st.session_state.current_user
+    user_name = getattr(user, 'name', 'Benutzer')
+    user_role = getattr(user, 'rolle', '')
+    user_id = getattr(user, 'user_id', '')
+
+    # Rollen-Anzeige formatieren
+    role_display = {
+        'makler': 'Makler',
+        'kaeufer': 'Käufer',
+        'verkaeufer': 'Verkäufer',
+        'notar': 'Notar',
+        'finanzierer': 'Finanzierer'
+    }.get(user_role, user_role)
+
+    # User Initialen für Avatar
+    initials = ""
+    if user_name:
+        parts = user_name.split()
+        if len(parts) >= 2:
+            initials = parts[0][0].upper() + parts[-1][0].upper()
+        elif len(parts) == 1:
+            initials = parts[0][:2].upper()
+
+    # Benachrichtigungen zählen
+    notif_count = 0
+    if user_id and 'benachrichtigungen' in st.session_state:
+        user_notifs = [n for n in st.session_state.benachrichtigungen
+                       if n.empfaenger_id == user_id and not n.gelesen]
+        notif_count = len(user_notifs)
+
+    # CSS für die Topbar (nur visuell - Header)
+    st.markdown(f"""
+    <style>
+    /* Fixierte Topbar Header */
+    .immoflow-topbar-header {{
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
+        padding: 0.5rem 1.5rem !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        border-bottom: 3px solid #c9a227 !important;
+        height: 50px !important;
+    }}
+    .topbar-left {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }}
+    .topbar-icon {{
+        font-size: 1.5rem !important;
+        color: #ffffff !important;
+    }}
+    .topbar-title {{
+        color: #ffffff !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+    }}
+    .topbar-right {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }}
+    .topbar-user-box {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        padding: 0.3rem 0.7rem !important;
+        border-radius: 20px !important;
+    }}
+    .topbar-avatar {{
+        width: 30px !important;
+        height: 30px !important;
+        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: 700 !important;
+        color: #1e3a5f !important;
+        font-size: 0.8rem !important;
+    }}
+    .topbar-username {{
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+    }}
+    .topbar-userrole {{
+        color: #c9a227 !important;
+        font-size: 0.65rem !important;
+    }}
+    /* Content nach unten verschieben */
+    .main .block-container {{
+        padding-top: 110px !important;
+    }}
+    [data-testid="stSidebar"] > div:first-child {{
+        padding-top: 65px !important;
+    }}
+    /* Funktionale Topbar-Buttons */
+    .topbar-actions-row {{
+        position: fixed !important;
+        top: 53px !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999998 !important;
+        background: #f8f9fa !important;
+        padding: 0.4rem 1rem !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }}
+    </style>
+
+    <div class="immoflow-topbar-header">
+        <div class="topbar-left">
+            <span class="topbar-icon">{role_icon}</span>
+            <h1 class="topbar-title">{role_name}</h1>
+        </div>
+        <div class="topbar-right">
+            <div class="topbar-user-box">
+                <div class="topbar-avatar">{initials}</div>
+                <div style="display: flex; flex-direction: column;">
+                    <span class="topbar-username">{user_name}</span>
+                    <span class="topbar-userrole">{role_display}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # === FUNKTIONALE BUTTONS UNTER DER TOPBAR ===
+    # Diese sind echte Streamlit-Buttons und funktionieren zuverlässig
+    action_cols = st.columns([1, 1, 1, 1, 1, 4, 1])
+
+    with action_cols[0]:
+        if st.button("🏠 Home", key=f"topbar_home_{role_key}", use_container_width=True):
+            # Zurück zum Dashboard
+            st.session_state[f'{role_key}_menu_selection'] = 'dashboard'
+            # Notar-spezifische States zurücksetzen
+            if role_key == 'notar':
+                st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_open_projekt_id'] = None
+            st.rerun()
+
+    with action_cols[1]:
+        notif_label = f"🔔 ({notif_count})" if notif_count > 0 else "🔔"
+        if st.button(notif_label, key=f"topbar_notif_{role_key}", use_container_width=True):
+            st.session_state['show_notifications_panel'] = True
+            st.rerun()
+
+    with action_cols[2]:
+        if st.button("➕ Neu", key=f"topbar_new_{role_key}", use_container_width=True):
+            st.session_state['show_new_project_dialog'] = True
+            st.rerun()
+
+    with action_cols[3]:
+        current_design = st.session_state.get('design_mode', 'navy-gold')
+        design_btn = "☀️" if current_design == "navy-gold" else "🌙"
+        if st.button(design_btn, key=f"topbar_design_{role_key}", use_container_width=True):
+            if current_design == "navy-gold":
+                st.session_state['design_mode'] = 'light'
+            else:
+                st.session_state['design_mode'] = 'navy-gold'
+            st.rerun()
+
+    with action_cols[4]:
+        if st.button("⚙️", key=f"topbar_settings_{role_key}", use_container_width=True):
+            st.session_state[f'{role_key}_menu_selection'] = 'einstellungen'
+            st.rerun()
+
+    with action_cols[6]:
+        if st.button("🚪 Abmelden", key=f"topbar_logout_{role_key}", use_container_width=True):
+            logout()
+
+
 def render_topbar_actions():
     """
     Rendert funktionale Topbar-Aktionen in der Sidebar.
@@ -23618,6 +23809,55 @@ def render_notar_content(selection: str, user_id: str):
         st.warning(f"Unbekannter Menüpunkt: {selection}")
 
 
+# Notar-Menü-Items (wie bei Käufer - cleane st.radio Struktur)
+NOTAR_MENU_ITEMS = [
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "akten", "label": "Akten", "icon": "📁"},
+    {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+]
+
+
+def _render_notar_sidebar_suche(user_id: str):
+    """Rendert die Notar-Suche in der Sidebar"""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("#### 🔍 Akten-Suche")
+        suchbegriff = st.text_input(
+            "Suchen",
+            key="notar_suche_input",
+            placeholder="Aktenzeichen, Name...",
+            label_visibility="collapsed"
+        )
+
+        if suchbegriff and len(suchbegriff) >= 2:
+            suchergebnisse = _suche_notar_akten(user_id, suchbegriff)
+            if suchergebnisse:
+                st.markdown(f"**{len(suchergebnisse)} Ergebnis(se):**")
+                for i, ergebnis in enumerate(suchergebnisse[:5]):
+                    # Posteingang-Badge
+                    badge = " 📬" if ergebnis.get('hat_posteingang') else ""
+                    if st.button(
+                        f"📁 {ergebnis['aktenzeichen']}{badge}",
+                        key=f"suche_result_{i}",
+                        help=ergebnis.get('kurzbezeichnung', ''),
+                        use_container_width=True
+                    ):
+                        if ergebnis.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
+                            st.session_state['notar_open_projekt_id'] = None
+                        elif ergebnis.get('projekt_id'):
+                            st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
+                            st.session_state['notar_open_akte_id'] = None
+                        st.session_state['notar_menu_selection'] = 'akten'
+                        st.rerun()
+            else:
+                st.caption("Keine Ergebnisse gefunden")
+
+
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Neues Design"""
     user_id = st.session_state.current_user.user_id
@@ -23628,17 +23868,23 @@ def notar_dashboard():
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("⚖️", "Notar-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts + funktionale Buttons
+    render_fixed_topbar_functional("⚖️", "Notar-Dashboard", "notar")
 
-    # Aktuelle Ansicht ermitteln
-    current_view = st.session_state.get('notar_current_view', 'dashboard')
+    # Aktuelle Menü-Auswahl aus Session State
+    current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
 
-    # WICHTIG: Immer das NEUE Sidebar-Menü rendern (ganz oben)
-    _render_notar_sidebar_menu_new(user_id)
+    # Kontext-Auswahl in Sidebar (Akte für Notar)
+    render_sidebar_case_context(st.session_state.current_user)
+
+    # WICHTIG: Sidebar-Menü mit st.radio (wie Käufer - clean)
+    selection = render_sidebar_menu("notar", NOTAR_MENU_ITEMS, current_selection)
 
     # Schnellaktionen in der Sidebar (nach dem Menü)
     render_topbar_actions()
+
+    # Notar-spezifische Suche in der Sidebar
+    _render_notar_sidebar_suche(user_id)
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -23647,18 +23893,15 @@ def notar_dashboard():
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Kontext-Auswahl in Sidebar (Akte für Notar)
-    render_sidebar_case_context(st.session_state.current_user)
-
     # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
     render_case_context_header(st.session_state.current_user)
 
-    # === HAUPTINHALT JE NACH ANSICHT ===
-    if current_view == 'dashboard':
+    # === HAUPTINHALT JE NACH MENÜ-AUSWAHL ===
+    if selection == 'dashboard':
         # Dashboard-Home anzeigen (4-Quadranten oder Akte-Detail)
         _render_notar_dashboard_home(user_id)
 
-    elif current_view == 'akten':
+    elif selection == 'akten':
         # Akten-Übersicht (oder Akte-Detail wenn geöffnet)
         if st.session_state.get('notar_open_akte_id'):
             _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
@@ -23667,23 +23910,23 @@ def notar_dashboard():
         else:
             _render_notar_akten_uebersicht(user_id)
 
-    elif current_view == 'vorgaenge':
+    elif selection == 'vorgaenge':
         # Vorgänge-Ansicht
         _render_notar_vorgaenge_view(user_id)
 
-    elif current_view == 'nachrichten':
+    elif selection == 'nachrichten':
         # Nachrichten-Ansicht
         _render_notar_nachrichten_view(user_id)
 
-    elif current_view == 'dokumente':
+    elif selection == 'dokumente':
         # Dokumente-Ansicht
         _render_notar_dokumente_view(user_id)
 
-    elif current_view == 'termine':
+    elif selection == 'termine':
         # Termine-Ansicht
         _render_notar_termine_view(user_id)
 
-    elif current_view == 'einstellungen':
+    elif selection == 'einstellungen':
         # Einstellungen-Ansicht
         _render_notar_einstellungen_view(user_id)
 
