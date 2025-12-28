@@ -466,8 +466,26 @@ class DeviceType(Enum):
 
 def inject_responsive_css():
     """Injiziert modernes responsives CSS für alle Gerätetypen"""
+    # Viewport Meta-Tag für korrektes Mobile-Rendering
+    st.markdown("""
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    """, unsafe_allow_html=True)
+
     st.markdown("""
     <style>
+    /* Basis-Reset für konsistentes Verhalten */
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
+    html {
+        -webkit-text-size-adjust: 100%;
+        -moz-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
     /* ============================================
        MODERNE APP-DESIGN BASIS
        ============================================ */
@@ -13775,6 +13793,297 @@ def inject_new_dashboard_css():
         padding-top: 1rem !important;
         max-width: 100% !important;
     }
+
+    /* ===== RESPONSIVE DESIGN ===== */
+
+    /* === MOBILE FIRST: Basis-Styles (< 576px) === */
+    @media screen and (max-width: 575px) {
+        /* Sidebar ausblenden auf kleinen Mobilgeräten */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        /* Hauptinhalt volle Breite */
+        .main .block-container {
+            padding: 0.5rem !important;
+            padding-top: 70px !important;
+            max-width: 100% !important;
+        }
+
+        /* Dashboard Header anpassen */
+        .dashboard-header {
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem 0;
+        }
+
+        .dashboard-title {
+            font-size: 1.1rem !important;
+        }
+
+        .dashboard-search {
+            max-width: 100%;
+            margin: 0;
+        }
+
+        /* Widget-Karten kompakter */
+        .widget-card, .heute-section {
+            padding: 0.75rem !important;
+            margin-bottom: 0.75rem !important;
+            border-radius: 8px !important;
+        }
+
+        .widget-title {
+            font-size: 0.9rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        .heute-title {
+            font-size: 0.95rem !important;
+        }
+
+        .heute-subtitle {
+            font-size: 0.75rem !important;
+        }
+
+        .heute-badges {
+            gap: 0.3rem;
+        }
+
+        .badge-orange, .badge-yellow, .badge-green, .badge-gray {
+            padding: 0.25rem 0.5rem !important;
+            font-size: 0.7rem !important;
+        }
+
+        /* Checkliste kompakter */
+        .checklist-item {
+            padding: 0.4rem 0 !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* Vorgänge kompakter */
+        .vorgang-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+            padding: 0.5rem !important;
+        }
+
+        .vorgang-id, .vorgang-address {
+            font-size: 0.8rem !important;
+        }
+
+        /* Nachrichten kompakter */
+        .message-item {
+            padding: 0.5rem !important;
+        }
+
+        .message-sender, .message-text {
+            font-size: 0.75rem !important;
+        }
+
+        /* Dokumente kompakter */
+        .dokument-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+            padding: 0.4rem 0 !important;
+        }
+
+        .dokument-name {
+            font-size: 0.8rem !important;
+        }
+
+        /* Streamlit Columns auf Mobile stapeln */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        /* Buttons kompakter */
+        .stButton > button {
+            padding: 0.4rem 0.75rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* Tabs kompakter */
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.5rem 0.75rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        /* Timeline kompakter */
+        .timeline-item {
+            font-size: 0.75rem !important;
+        }
+
+        .timeline-dot {
+            width: 8px !important;
+            height: 8px !important;
+        }
+    }
+
+    /* === KLEINE MOBILGERÄTE (576px - 767px) === */
+    @media screen and (min-width: 576px) and (max-width: 767px) {
+        [data-testid="stSidebar"] {
+            width: 200px !important;
+            min-width: 200px !important;
+        }
+
+        .main .block-container {
+            padding: 0.75rem !important;
+            padding-top: 70px !important;
+        }
+
+        .dashboard-title {
+            font-size: 1.2rem !important;
+        }
+
+        .widget-card, .heute-section {
+            padding: 1rem !important;
+        }
+
+        /* Columns können 2er-Grid sein */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+        }
+
+        [data-testid="column"] {
+            min-width: 45% !important;
+        }
+    }
+
+    /* === TABLET (768px - 1023px) === */
+    @media screen and (min-width: 768px) and (max-width: 1023px) {
+        [data-testid="stSidebar"] {
+            width: 220px !important;
+            min-width: 220px !important;
+        }
+
+        [data-testid="stSidebar"] > div:first-child {
+            padding: 0.75rem !important;
+        }
+
+        .main .block-container {
+            padding: 1rem !important;
+            padding-top: 70px !important;
+        }
+
+        .dashboard-search {
+            max-width: 300px;
+            margin: 0 1rem;
+        }
+
+        .sidebar-menu-item {
+            padding: 0.5rem !important;
+            font-size: 0.85rem !important;
+        }
+
+        .widget-card, .heute-section {
+            padding: 1rem !important;
+        }
+
+        .widget-title {
+            font-size: 0.95rem !important;
+        }
+    }
+
+    /* === DESKTOP (1024px - 1279px) === */
+    @media screen and (min-width: 1024px) and (max-width: 1279px) {
+        [data-testid="stSidebar"] {
+            width: 260px !important;
+        }
+
+        .main .block-container {
+            padding: 1.5rem !important;
+            padding-top: 70px !important;
+        }
+    }
+
+    /* === GROSSER DESKTOP (>= 1280px) === */
+    @media screen and (min-width: 1280px) {
+        [data-testid="stSidebar"] {
+            width: 280px !important;
+        }
+
+        .main .block-container {
+            padding: 2rem !important;
+            padding-top: 70px !important;
+            max-width: 1600px !important;
+            margin: 0 auto !important;
+        }
+    }
+
+    /* === TOUCH-GERÄTE OPTIMIERUNG === */
+    @media (hover: none) and (pointer: coarse) {
+        /* Größere Touch-Targets */
+        .sidebar-menu-item {
+            padding: 0.75rem !important;
+            min-height: 44px !important;
+        }
+
+        .stButton > button {
+            min-height: 44px !important;
+            padding: 0.6rem 1rem !important;
+        }
+
+        .checklist-item input[type="checkbox"] {
+            width: 20px !important;
+            height: 20px !important;
+        }
+
+        /* Hover-Effekte deaktivieren */
+        .sidebar-menu-item:hover {
+            background-color: transparent;
+        }
+
+        .sidebar-menu-item:active {
+            background-color: #f1f3f4 !important;
+        }
+
+        /* Bessere Scroll-Unterstützung */
+        .widget-card {
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+
+    /* === LANDSCAPE MODUS AUF MOBIL === */
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+        .main .block-container {
+            padding-top: 55px !important;
+        }
+
+        .widget-card, .heute-section {
+            padding: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        .widget-title, .heute-title {
+            font-size: 0.85rem !important;
+            margin-bottom: 0.25rem !important;
+        }
+    }
+
+    /* === PRINT STYLES === */
+    @media print {
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        .immoflow-topbar {
+            display: none !important;
+        }
+
+        .main .block-container {
+            padding: 0 !important;
+        }
+
+        .widget-card {
+            break-inside: avoid;
+            box-shadow: none !important;
+            border: 1px solid #dee2e6 !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -14721,24 +15030,207 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         padding-top: 65px !important;
     }}
 
-    /* Mobile */
-    @media (max-width: 768px) {{
-        .topbar-user-details, .topbar-search {{
-            display: none;
+    /* === RESPONSIVE TOPBAR === */
+
+    /* Sehr kleine Mobilgeräte (< 400px) */
+    @media (max-width: 399px) {{
+        .immoflow-topbar {{
+            padding: 0.3rem 0.5rem !important;
+            flex-wrap: wrap;
+        }}
+        .topbar-left {{
+            flex: 0 0 auto;
+        }}
+        .topbar-icon {{
+            font-size: 1.1rem !important;
         }}
         .topbar-title {{
-            font-size: 0.9rem;
-        }}
-        .immoflow-topbar {{
-            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem !important;
+            max-width: 80px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
         .topbar-center {{
-            gap: 0.3rem;
+            order: 3;
+            flex: 1 1 100%;
+            justify-content: center;
+            margin-top: 0.3rem;
+            gap: 0.2rem !important;
+        }}
+        .topbar-search {{
+            display: none !important;
         }}
         .topbar-action {{
-            width: 32px;
-            height: 32px;
-            font-size: 1rem;
+            width: 28px !important;
+            height: 28px !important;
+            font-size: 0.85rem !important;
+        }}
+        .topbar-right {{
+            flex: 0 0 auto;
+        }}
+        .topbar-user-box {{
+            padding: 0.2rem 0.4rem !important;
+        }}
+        .topbar-avatar {{
+            width: 24px !important;
+            height: 24px !important;
+            font-size: 0.65rem !important;
+        }}
+        .topbar-user-details {{
+            display: none !important;
+        }}
+        .topbar-logout {{
+            font-size: 0.6rem !important;
+            padding: 0.15rem 0.3rem !important;
+        }}
+        .topbar-badge {{
+            font-size: 0.55rem !important;
+            padding: 1px 3px !important;
+            top: -3px !important;
+            right: -3px !important;
+        }}
+        .main .block-container {{
+            padding-top: 90px !important;
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 90px !important;
+        }}
+    }}
+
+    /* Kleine Mobilgeräte (400px - 575px) */
+    @media (min-width: 400px) and (max-width: 575px) {{
+        .immoflow-topbar {{
+            padding: 0.35rem 0.6rem !important;
+        }}
+        .topbar-icon {{
+            font-size: 1.2rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.8rem !important;
+        }}
+        .topbar-search {{
+            display: none !important;
+        }}
+        .topbar-center {{
+            gap: 0.25rem !important;
+        }}
+        .topbar-action {{
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 0.9rem !important;
+        }}
+        .topbar-user-details {{
+            display: none !important;
+        }}
+        .topbar-avatar {{
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 0.7rem !important;
+        }}
+        .topbar-logout {{
+            font-size: 0.65rem !important;
+            padding: 0.15rem 0.35rem !important;
+        }}
+        .main .block-container {{
+            padding-top: 60px !important;
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 60px !important;
+        }}
+    }}
+
+    /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
+    @media (min-width: 576px) and (max-width: 767px) {{
+        .immoflow-topbar {{
+            padding: 0.4rem 0.8rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.9rem !important;
+        }}
+        .topbar-search {{
+            display: none !important;
+        }}
+        .topbar-action {{
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 1rem !important;
+        }}
+        .topbar-user-details {{
+            display: none !important;
+        }}
+        .main .block-container {{
+            padding-top: 60px !important;
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 60px !important;
+        }}
+    }}
+
+    /* Tablets (768px - 1023px) */
+    @media (min-width: 768px) and (max-width: 1023px) {{
+        .immoflow-topbar {{
+            padding: 0.45rem 1rem !important;
+        }}
+        .topbar-title {{
+            font-size: 1rem !important;
+        }}
+        .topbar-search input {{
+            width: 120px !important;
+        }}
+        .topbar-action {{
+            width: 34px !important;
+            height: 34px !important;
+        }}
+        .topbar-username {{
+            font-size: 0.75rem !important;
+        }}
+        .topbar-userrole {{
+            font-size: 0.6rem !important;
+        }}
+    }}
+
+    /* Desktop (>= 1024px) - Standard-Styles gelten */
+
+    /* Touch-Geräte */
+    @media (hover: none) and (pointer: coarse) {{
+        .topbar-action {{
+            min-width: 40px !important;
+            min-height: 40px !important;
+        }}
+        .topbar-action:active {{
+            background: rgba(201, 162, 39, 0.4) !important;
+            transform: scale(0.95) !important;
+        }}
+        .topbar-logout:active {{
+            background: rgba(255, 107, 107, 0.5) !important;
+        }}
+    }}
+
+    /* Landscape auf Mobilgeräten */
+    @media (max-height: 450px) and (orientation: landscape) {{
+        .immoflow-topbar {{
+            padding: 0.25rem 0.8rem !important;
+        }}
+        .topbar-icon {{
+            font-size: 1rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.8rem !important;
+        }}
+        .topbar-action {{
+            width: 28px !important;
+            height: 28px !important;
+        }}
+        .topbar-avatar {{
+            width: 24px !important;
+            height: 24px !important;
+        }}
+        .main .block-container {{
+            padding-top: 50px !important;
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 50px !important;
         }}
     }}
     </style>
@@ -14835,6 +15327,313 @@ def _handle_topbar_actions():
         st.rerun()
 
 
+def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str):
+    """
+    Rendert eine fixierte Topbar mit FUNKTIONALEN Streamlit-Buttons.
+    Die Buttons werden direkt unter der CSS-Topbar als echte Streamlit-Elemente gerendert.
+
+    Args:
+        role_icon: Icon für die Rolle (z.B. "⚖️")
+        role_name: Name des Dashboards (z.B. "Notar-Dashboard")
+        role_key: Eindeutiger Key für die Rolle (z.B. "notar")
+    """
+    user = st.session_state.current_user
+    user_name = getattr(user, 'name', 'Benutzer')
+    user_role = getattr(user, 'rolle', '')
+    user_id = getattr(user, 'user_id', '')
+
+    # Rollen-Anzeige formatieren
+    role_display = {
+        'makler': 'Makler',
+        'kaeufer': 'Käufer',
+        'verkaeufer': 'Verkäufer',
+        'notar': 'Notar',
+        'finanzierer': 'Finanzierer'
+    }.get(user_role, user_role)
+
+    # User Initialen für Avatar
+    initials = ""
+    if user_name:
+        parts = user_name.split()
+        if len(parts) >= 2:
+            initials = parts[0][0].upper() + parts[-1][0].upper()
+        elif len(parts) == 1:
+            initials = parts[0][:2].upper()
+
+    # Benachrichtigungen zählen
+    notif_count = 0
+    if user_id and 'benachrichtigungen' in st.session_state:
+        user_notifs = [n for n in st.session_state.benachrichtigungen
+                       if n.empfaenger_id == user_id and not n.gelesen]
+        notif_count = len(user_notifs)
+
+    # CSS für die Topbar (nur visuell - Header)
+    st.markdown(f"""
+    <style>
+    /* Fixierte Topbar Header */
+    .immoflow-topbar-header {{
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
+        padding: 0.5rem 1.5rem !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        border-bottom: 3px solid #c9a227 !important;
+        height: 50px !important;
+    }}
+    .topbar-left {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }}
+    .topbar-icon {{
+        font-size: 1.5rem !important;
+        color: #ffffff !important;
+    }}
+    .topbar-title {{
+        color: #ffffff !important;
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+    }}
+    .topbar-right {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }}
+    .topbar-user-box {{
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        padding: 0.3rem 0.7rem !important;
+        border-radius: 20px !important;
+    }}
+    .topbar-avatar {{
+        width: 30px !important;
+        height: 30px !important;
+        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: 700 !important;
+        color: #1e3a5f !important;
+        font-size: 0.8rem !important;
+    }}
+    .topbar-username {{
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+    }}
+    .topbar-userrole {{
+        color: #c9a227 !important;
+        font-size: 0.65rem !important;
+    }}
+    /* Content nach unten verschieben */
+    .main .block-container {{
+        padding-top: 110px !important;
+    }}
+    [data-testid="stSidebar"] > div:first-child {{
+        padding-top: 65px !important;
+    }}
+    /* Funktionale Topbar-Buttons */
+    .topbar-actions-row {{
+        position: fixed !important;
+        top: 53px !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999998 !important;
+        background: #f8f9fa !important;
+        padding: 0.4rem 1rem !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }}
+
+    /* === RESPONSIVE TOPBAR HEADER === */
+
+    /* Sehr kleine Mobilgeräte (< 400px) */
+    @media (max-width: 399px) {{
+        .immoflow-topbar-header {{
+            padding: 0.3rem 0.5rem !important;
+            height: 40px !important;
+        }}
+        .topbar-icon {{
+            font-size: 1rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.7rem !important;
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+        .topbar-user-box {{
+            padding: 0.2rem 0.4rem !important;
+        }}
+        .topbar-avatar {{
+            width: 22px !important;
+            height: 22px !important;
+            font-size: 0.6rem !important;
+        }}
+        .topbar-username {{
+            display: none !important;
+        }}
+        .topbar-userrole {{
+            display: none !important;
+        }}
+        .main .block-container {{
+            padding-top: 95px !important;
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 50px !important;
+        }}
+    }}
+
+    /* Kleine Mobilgeräte (400px - 575px) */
+    @media (min-width: 400px) and (max-width: 575px) {{
+        .immoflow-topbar-header {{
+            padding: 0.35rem 0.6rem !important;
+            height: 42px !important;
+        }}
+        .topbar-icon {{
+            font-size: 1.1rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.8rem !important;
+        }}
+        .topbar-username {{
+            font-size: 0.7rem !important;
+        }}
+        .topbar-userrole {{
+            display: none !important;
+        }}
+        .main .block-container {{
+            padding-top: 100px !important;
+        }}
+    }}
+
+    /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
+    @media (min-width: 576px) and (max-width: 767px) {{
+        .immoflow-topbar-header {{
+            padding: 0.4rem 0.8rem !important;
+            height: 45px !important;
+        }}
+        .topbar-title {{
+            font-size: 0.9rem !important;
+        }}
+        .main .block-container {{
+            padding-top: 105px !important;
+        }}
+    }}
+
+    /* Tablets (768px - 1023px) */
+    @media (min-width: 768px) and (max-width: 1023px) {{
+        .immoflow-topbar-header {{
+            padding: 0.4rem 1rem !important;
+            height: 48px !important;
+        }}
+        .topbar-title {{
+            font-size: 1rem !important;
+        }}
+    }}
+
+    /* Touch-Geräte */
+    @media (hover: none) and (pointer: coarse) {{
+        .topbar-user-box {{
+            min-height: 36px !important;
+        }}
+    }}
+
+    /* Landscape auf Mobilgeräten */
+    @media (max-height: 450px) and (orientation: landscape) {{
+        .immoflow-topbar-header {{
+            height: 35px !important;
+            padding: 0.2rem 0.6rem !important;
+        }}
+        .topbar-icon {{
+            font-size: 0.9rem !important;
+        }}
+        .topbar-title {{
+            font-size: 0.75rem !important;
+        }}
+        .topbar-avatar {{
+            width: 22px !important;
+            height: 22px !important;
+        }}
+        .main .block-container {{
+            padding-top: 85px !important;
+        }}
+    }}
+    </style>
+
+    <div class="immoflow-topbar-header">
+        <div class="topbar-left">
+            <span class="topbar-icon">{role_icon}</span>
+            <h1 class="topbar-title">{role_name}</h1>
+        </div>
+        <div class="topbar-right">
+            <div class="topbar-user-box">
+                <div class="topbar-avatar">{initials}</div>
+                <div style="display: flex; flex-direction: column;">
+                    <span class="topbar-username">{user_name}</span>
+                    <span class="topbar-userrole">{role_display}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # === FUNKTIONALE BUTTONS UNTER DER TOPBAR ===
+    # Diese sind echte Streamlit-Buttons und funktionieren zuverlässig
+    action_cols = st.columns([1, 1, 1, 1, 1, 4, 1])
+
+    with action_cols[0]:
+        if st.button("🏠 Home", key=f"topbar_home_{role_key}", use_container_width=True):
+            # Zurück zum Dashboard
+            st.session_state[f'{role_key}_menu_selection'] = 'dashboard'
+            # Notar-spezifische States zurücksetzen
+            if role_key == 'notar':
+                st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_open_projekt_id'] = None
+            st.rerun()
+
+    with action_cols[1]:
+        notif_label = f"🔔 ({notif_count})" if notif_count > 0 else "🔔"
+        if st.button(notif_label, key=f"topbar_notif_{role_key}", use_container_width=True):
+            st.session_state['show_notifications_panel'] = True
+            st.rerun()
+
+    with action_cols[2]:
+        if st.button("➕ Neu", key=f"topbar_new_{role_key}", use_container_width=True):
+            st.session_state['show_new_project_dialog'] = True
+            st.rerun()
+
+    with action_cols[3]:
+        current_design = st.session_state.get('design_mode', 'navy-gold')
+        design_btn = "☀️" if current_design == "navy-gold" else "🌙"
+        if st.button(design_btn, key=f"topbar_design_{role_key}", use_container_width=True):
+            if current_design == "navy-gold":
+                st.session_state['design_mode'] = 'light'
+            else:
+                st.session_state['design_mode'] = 'navy-gold'
+            st.rerun()
+
+    with action_cols[4]:
+        if st.button("⚙️", key=f"topbar_settings_{role_key}", use_container_width=True):
+            st.session_state[f'{role_key}_menu_selection'] = 'einstellungen'
+            st.rerun()
+
+    with action_cols[6]:
+        if st.button("🚪 Abmelden", key=f"topbar_logout_{role_key}", use_container_width=True):
+            logout()
+
+
 def render_topbar_actions():
     """
     Rendert funktionale Topbar-Aktionen in der Sidebar.
@@ -14888,8 +15687,8 @@ def makler_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("📊", "Makler-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("📊", "Makler-Dashboard", "makler")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
@@ -16331,8 +17130,8 @@ def kaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("🏠", "Käufer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("🏠", "Käufer-Dashboard", "kaeufer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
@@ -20111,8 +20910,8 @@ def verkaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("🏡", "Verkäufer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("🏡", "Verkäufer-Dashboard", "verkaeufer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
@@ -21716,8 +22515,8 @@ def finanzierer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("💼", "Finanzierer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("💼", "Finanzierer-Dashboard", "finanzierer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
@@ -23240,6 +24039,97 @@ def render_notar_menu_styles():
         color: white;
         border-color: #495057;
     }
+
+    /* ==================== NOTAR WIDGET RESPONSIVE STYLES ==================== */
+
+    /* Notar-Widget Container (für 4-Quadranten) */
+    .notar-widget {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        min-height: 200px;
+    }
+
+    /* Responsive 4-Quadranten-Layout */
+    @media screen and (max-width: 767px) {
+        /* Columns stapeln auf Mobile */
+        [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            max-width: 100% !important;
+        }
+
+        /* Widget-Container kompakter */
+        .notar-widget {
+            padding: 10px;
+            border-radius: 8px;
+            min-height: 150px;
+            margin-bottom: 10px;
+        }
+
+        /* Widget-Titel kleiner */
+        .notar-widget h4,
+        .notar-widget [style*="font-size: 16px"],
+        .notar-widget [style*="font-weight: 600"] {
+            font-size: 14px !important;
+        }
+
+        /* Weniger min-height für Widgets */
+        div[style*="min-height: 280px"] {
+            min-height: 180px !important;
+        }
+
+        div[style*="min-height: 320px"] {
+            min-height: 200px !important;
+        }
+    }
+
+    /* Tablet Anpassungen */
+    @media screen and (min-width: 768px) and (max-width: 1023px) {
+        .notar-widget {
+            padding: 12px;
+            min-height: 220px;
+        }
+
+        /* 2x2 Grid beibehalten, aber kompakter */
+        [data-testid="stHorizontalBlock"] [data-testid="column"] {
+            padding: 0 0.25rem !important;
+        }
+    }
+
+    /* Touch-Optimierung für Notar-Widgets */
+    @media (hover: none) and (pointer: coarse) {
+        /* Größere klickbare Bereiche in Widgets */
+        .notar-widget button {
+            min-height: 44px !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+
+        /* Termine/Posteingang Items besser tippbar */
+        .notar-widget [data-testid="stButton"] {
+            margin-bottom: 8px !important;
+        }
+    }
+
+    /* Landscape auf Mobilgeräten */
+    @media screen and (max-height: 500px) and (orientation: landscape) {
+        /* Widgets sehr kompakt */
+        .notar-widget {
+            padding: 8px !important;
+            min-height: 120px !important;
+        }
+
+        div[style*="min-height: 280px"],
+        div[style*="min-height: 320px"] {
+            min-height: 120px !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -23618,6 +24508,55 @@ def render_notar_content(selection: str, user_id: str):
         st.warning(f"Unbekannter Menüpunkt: {selection}")
 
 
+# Notar-Menü-Items (wie bei Käufer - cleane st.radio Struktur)
+NOTAR_MENU_ITEMS = [
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "akten", "label": "Akten", "icon": "📁"},
+    {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+]
+
+
+def _render_notar_sidebar_suche(user_id: str):
+    """Rendert die Notar-Suche in der Sidebar"""
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("#### 🔍 Akten-Suche")
+        suchbegriff = st.text_input(
+            "Suchen",
+            key="notar_suche_input",
+            placeholder="Aktenzeichen, Name...",
+            label_visibility="collapsed"
+        )
+
+        if suchbegriff and len(suchbegriff) >= 2:
+            suchergebnisse = _suche_notar_akten(user_id, suchbegriff)
+            if suchergebnisse:
+                st.markdown(f"**{len(suchergebnisse)} Ergebnis(se):**")
+                for i, ergebnis in enumerate(suchergebnisse[:5]):
+                    # Posteingang-Badge
+                    badge = " 📬" if ergebnis.get('hat_posteingang') else ""
+                    if st.button(
+                        f"📁 {ergebnis['aktenzeichen']}{badge}",
+                        key=f"suche_result_{i}",
+                        help=ergebnis.get('kurzbezeichnung', ''),
+                        use_container_width=True
+                    ):
+                        if ergebnis.get('akte_id'):
+                            st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
+                            st.session_state['notar_open_projekt_id'] = None
+                        elif ergebnis.get('projekt_id'):
+                            st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
+                            st.session_state['notar_open_akte_id'] = None
+                        st.session_state['notar_menu_selection'] = 'akten'
+                        st.rerun()
+            else:
+                st.caption("Keine Ergebnisse gefunden")
+
+
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Neues Design"""
     user_id = st.session_state.current_user.user_id
@@ -23628,17 +24567,23 @@ def notar_dashboard():
     # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
     render_notar_menu_styles()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("⚖️", "Notar-Dashboard")
+    # Fixierte Topbar mit Rolle links und User rechts + funktionale Buttons
+    render_fixed_topbar_functional("⚖️", "Notar-Dashboard", "notar")
 
-    # Aktuelle Ansicht ermitteln
-    current_view = st.session_state.get('notar_current_view', 'dashboard')
+    # Aktuelle Menü-Auswahl aus Session State
+    current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
 
-    # WICHTIG: Immer das NEUE Sidebar-Menü rendern (ganz oben)
-    _render_notar_sidebar_menu_new(user_id)
+    # Kontext-Auswahl in Sidebar (Akte für Notar)
+    render_sidebar_case_context(st.session_state.current_user)
+
+    # WICHTIG: Sidebar-Menü mit st.radio (wie Käufer - clean)
+    selection = render_sidebar_menu("notar", NOTAR_MENU_ITEMS, current_selection)
 
     # Schnellaktionen in der Sidebar (nach dem Menü)
     render_topbar_actions()
+
+    # Notar-spezifische Suche in der Sidebar
+    _render_notar_sidebar_suche(user_id)
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
@@ -23647,18 +24592,15 @@ def notar_dashboard():
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Kontext-Auswahl in Sidebar (Akte für Notar)
-    render_sidebar_case_context(st.session_state.current_user)
-
     # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
     render_case_context_header(st.session_state.current_user)
 
-    # === HAUPTINHALT JE NACH ANSICHT ===
-    if current_view == 'dashboard':
+    # === HAUPTINHALT JE NACH MENÜ-AUSWAHL ===
+    if selection == 'dashboard':
         # Dashboard-Home anzeigen (4-Quadranten oder Akte-Detail)
         _render_notar_dashboard_home(user_id)
 
-    elif current_view == 'akten':
+    elif selection == 'akten':
         # Akten-Übersicht (oder Akte-Detail wenn geöffnet)
         if st.session_state.get('notar_open_akte_id'):
             _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
@@ -23667,23 +24609,23 @@ def notar_dashboard():
         else:
             _render_notar_akten_uebersicht(user_id)
 
-    elif current_view == 'vorgaenge':
+    elif selection == 'vorgaenge':
         # Vorgänge-Ansicht
         _render_notar_vorgaenge_view(user_id)
 
-    elif current_view == 'nachrichten':
+    elif selection == 'nachrichten':
         # Nachrichten-Ansicht
         _render_notar_nachrichten_view(user_id)
 
-    elif current_view == 'dokumente':
+    elif selection == 'dokumente':
         # Dokumente-Ansicht
         _render_notar_dokumente_view(user_id)
 
-    elif current_view == 'termine':
+    elif selection == 'termine':
         # Termine-Ansicht
         _render_notar_termine_view(user_id)
 
-    elif current_view == 'einstellungen':
+    elif selection == 'einstellungen':
         # Einstellungen-Ansicht
         _render_notar_einstellungen_view(user_id)
 
@@ -24838,6 +25780,8 @@ def _render_notar_dashboard_timeline(user_id: str, projekte: list):
         border-radius: 10px;
         overflow-x: auto;
         margin-bottom: 10px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
     }
     .timeline-chip {
         display: inline-flex;
@@ -24847,12 +25791,45 @@ def _render_notar_dashboard_timeline(user_id: str, projekte: list):
         font-size: 12px;
         white-space: nowrap;
         color: white;
+        flex-shrink: 0;
     }
     .timeline-chip.vorbereitung { background: #3498db; }
     .timeline-chip.finanzierung { background: #9b59b6; }
     .timeline-chip.beurkundung { background: #e74c3c; }
     .timeline-chip.nachkauf { background: #f39c12; }
     .timeline-chip.abgeschlossen { background: #27ae60; }
+
+    /* Responsive Notar-Timeline */
+    @media screen and (max-width: 575px) {
+        .notar-timeline-bar {
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 10px;
+        }
+        .timeline-chip {
+            padding: 4px 8px;
+            font-size: 10px;
+            flex: 0 0 auto;
+        }
+    }
+
+    @media screen and (min-width: 576px) and (max-width: 767px) {
+        .notar-timeline-bar {
+            gap: 6px;
+            padding: 8px 12px;
+        }
+        .timeline-chip {
+            padding: 5px 10px;
+            font-size: 11px;
+        }
+    }
+
+    @media screen and (min-width: 768px) and (max-width: 1023px) {
+        .timeline-chip {
+            padding: 5px 10px;
+            font-size: 11px;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
