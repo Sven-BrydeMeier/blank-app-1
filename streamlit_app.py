@@ -15030,6 +15030,14 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         padding-top: 65px !important;
     }}
 
+    /* Sidebar Toggle Button über Topbar legen */
+    [data-testid="collapsedControl"],
+    button[data-testid="baseButton-headerNoPadding"],
+    [data-testid="stSidebarCollapsedControl"] {{
+        z-index: 9999999 !important;
+        position: relative !important;
+    }}
+
     /* === RESPONSIVE TOPBAR === */
 
     /* Sehr kleine Mobilgeräte (< 400px) */
@@ -15441,6 +15449,13 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     }}
     [data-testid="stSidebar"] > div:first-child {{
         padding-top: 65px !important;
+    }}
+    /* Sidebar Toggle Button über Topbar legen */
+    [data-testid="collapsedControl"],
+    button[data-testid="baseButton-headerNoPadding"],
+    [data-testid="stSidebarCollapsedControl"] {{
+        z-index: 9999999 !important;
+        position: relative !important;
     }}
     /* Funktionale Topbar-Buttons */
     .topbar-actions-row {{
