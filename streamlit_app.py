@@ -14848,7 +14848,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         right: 0 !important;
         z-index: 999999 !important;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
         display: flex !important;
         justify-content: space-between !important;
         align-items: center !important;
@@ -15030,12 +15030,28 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         padding-top: 65px !important;
     }}
 
-    /* Sidebar Toggle Button über Topbar legen */
+    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
     [data-testid="collapsedControl"],
     button[data-testid="baseButton-headerNoPadding"],
     [data-testid="stSidebarCollapsedControl"] {{
         z-index: 9999999 !important;
-        position: relative !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background-color: rgba(30, 58, 95, 0.95) !important;
+        border-radius: 6px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(201, 162, 39, 0.5) !important;
+    }}
+
+    /* SVG-Icon im Toggle-Button weiß machen */
+    [data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg {{
+        fill: white !important;
+        stroke: white !important;
+        color: white !important;
     }}
 
     /* === RESPONSIVE TOPBAR === */
@@ -15043,7 +15059,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Sehr kleine Mobilgeräte (< 400px) */
     @media (max-width: 399px) {{
         .immoflow-topbar {{
-            padding: 0.3rem 0.5rem !important;
+            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
             flex-wrap: wrap;
         }}
         .topbar-left {{
@@ -15109,7 +15125,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Kleine Mobilgeräte (400px - 575px) */
     @media (min-width: 400px) and (max-width: 575px) {{
         .immoflow-topbar {{
-            padding: 0.35rem 0.6rem !important;
+            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 1.2rem !important;
@@ -15151,7 +15167,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
     @media (min-width: 576px) and (max-width: 767px) {{
         .immoflow-topbar {{
-            padding: 0.4rem 0.8rem !important;
+            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
         }}
         .topbar-title {{
             font-size: 0.9rem !important;
@@ -15178,7 +15194,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Tablets (768px - 1023px) */
     @media (min-width: 768px) and (max-width: 1023px) {{
         .immoflow-topbar {{
-            padding: 0.45rem 1rem !important;
+            padding: 0.45rem 1rem 0.45rem 55px !important;  /* Links Platz für Toggle */
         }}
         .topbar-title {{
             font-size: 1rem !important;
@@ -15218,7 +15234,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Landscape auf Mobilgeräten */
     @media (max-height: 450px) and (orientation: landscape) {{
         .immoflow-topbar {{
-            padding: 0.25rem 0.8rem !important;
+            padding: 0.25rem 0.8rem 0.25rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 1rem !important;
@@ -15386,7 +15402,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
         right: 0 !important;
         z-index: 999999 !important;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
         display: flex !important;
         justify-content: space-between !important;
         align-items: center !important;
@@ -15450,12 +15466,27 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     [data-testid="stSidebar"] > div:first-child {{
         padding-top: 65px !important;
     }}
-    /* Sidebar Toggle Button über Topbar legen */
+    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
     [data-testid="collapsedControl"],
     button[data-testid="baseButton-headerNoPadding"],
     [data-testid="stSidebarCollapsedControl"] {{
         z-index: 9999999 !important;
-        position: relative !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background-color: rgba(30, 58, 95, 0.95) !important;
+        border-radius: 6px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(201, 162, 39, 0.5) !important;
+    }}
+    /* SVG-Icon im Toggle-Button weiß machen */
+    [data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg {{
+        fill: white !important;
+        stroke: white !important;
+        color: white !important;
     }}
     /* Funktionale Topbar-Buttons */
     .topbar-actions-row {{
@@ -15475,7 +15506,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Sehr kleine Mobilgeräte (< 400px) */
     @media (max-width: 399px) {{
         .immoflow-topbar-header {{
-            padding: 0.3rem 0.5rem !important;
+            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
             height: 40px !important;
         }}
         .topbar-icon {{
@@ -15513,7 +15544,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Kleine Mobilgeräte (400px - 575px) */
     @media (min-width: 400px) and (max-width: 575px) {{
         .immoflow-topbar-header {{
-            padding: 0.35rem 0.6rem !important;
+            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
             height: 42px !important;
         }}
         .topbar-icon {{
@@ -15536,7 +15567,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
     @media (min-width: 576px) and (max-width: 767px) {{
         .immoflow-topbar-header {{
-            padding: 0.4rem 0.8rem !important;
+            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
             height: 45px !important;
         }}
         .topbar-title {{
@@ -15550,7 +15581,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Tablets (768px - 1023px) */
     @media (min-width: 768px) and (max-width: 1023px) {{
         .immoflow-topbar-header {{
-            padding: 0.4rem 1rem !important;
+            padding: 0.4rem 1rem 0.4rem 55px !important;  /* Links Platz für Toggle */
             height: 48px !important;
         }}
         .topbar-title {{
@@ -15569,7 +15600,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     @media (max-height: 450px) and (orientation: landscape) {{
         .immoflow-topbar-header {{
             height: 35px !important;
-            padding: 0.2rem 0.6rem !important;
+            padding: 0.2rem 0.6rem 0.2rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 0.9rem !important;
