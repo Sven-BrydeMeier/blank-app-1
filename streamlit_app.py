@@ -4028,6 +4028,7 @@ class Projekt:
     expose_pdf: Optional[bytes] = None
     makler_id: str = ""
     kaeufer_ids: List[str] = field(default_factory=list)
+    interessenten_ids: List[str] = field(default_factory=list)  # Potenzielle Käufer
     verkaeufer_ids: List[str] = field(default_factory=list)
     finanzierer_ids: List[str] = field(default_factory=list)
     notar_id: str = ""
@@ -14848,7 +14849,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         right: 0 !important;
         z-index: 999999 !important;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
         display: flex !important;
         justify-content: space-between !important;
         align-items: center !important;
@@ -15030,12 +15031,28 @@ def render_fixed_topbar(role_icon: str, role_name: str):
         padding-top: 65px !important;
     }}
 
-    /* Sidebar Toggle Button über Topbar legen */
+    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
     [data-testid="collapsedControl"],
     button[data-testid="baseButton-headerNoPadding"],
     [data-testid="stSidebarCollapsedControl"] {{
         z-index: 9999999 !important;
-        position: relative !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background-color: rgba(30, 58, 95, 0.95) !important;
+        border-radius: 6px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(201, 162, 39, 0.5) !important;
+    }}
+
+    /* SVG-Icon im Toggle-Button weiß machen */
+    [data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg {{
+        fill: white !important;
+        stroke: white !important;
+        color: white !important;
     }}
 
     /* === RESPONSIVE TOPBAR === */
@@ -15043,7 +15060,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Sehr kleine Mobilgeräte (< 400px) */
     @media (max-width: 399px) {{
         .immoflow-topbar {{
-            padding: 0.3rem 0.5rem !important;
+            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
             flex-wrap: wrap;
         }}
         .topbar-left {{
@@ -15109,7 +15126,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Kleine Mobilgeräte (400px - 575px) */
     @media (min-width: 400px) and (max-width: 575px) {{
         .immoflow-topbar {{
-            padding: 0.35rem 0.6rem !important;
+            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 1.2rem !important;
@@ -15151,7 +15168,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
     @media (min-width: 576px) and (max-width: 767px) {{
         .immoflow-topbar {{
-            padding: 0.4rem 0.8rem !important;
+            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
         }}
         .topbar-title {{
             font-size: 0.9rem !important;
@@ -15178,7 +15195,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Tablets (768px - 1023px) */
     @media (min-width: 768px) and (max-width: 1023px) {{
         .immoflow-topbar {{
-            padding: 0.45rem 1rem !important;
+            padding: 0.45rem 1rem 0.45rem 55px !important;  /* Links Platz für Toggle */
         }}
         .topbar-title {{
             font-size: 1rem !important;
@@ -15218,7 +15235,7 @@ def render_fixed_topbar(role_icon: str, role_name: str):
     /* Landscape auf Mobilgeräten */
     @media (max-height: 450px) and (orientation: landscape) {{
         .immoflow-topbar {{
-            padding: 0.25rem 0.8rem !important;
+            padding: 0.25rem 0.8rem 0.25rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 1rem !important;
@@ -15386,7 +15403,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
         right: 0 !important;
         z-index: 999999 !important;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem !important;
+        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
         display: flex !important;
         justify-content: space-between !important;
         align-items: center !important;
@@ -15450,12 +15467,27 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     [data-testid="stSidebar"] > div:first-child {{
         padding-top: 65px !important;
     }}
-    /* Sidebar Toggle Button über Topbar legen */
+    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
     [data-testid="collapsedControl"],
     button[data-testid="baseButton-headerNoPadding"],
     [data-testid="stSidebarCollapsedControl"] {{
         z-index: 9999999 !important;
-        position: relative !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background-color: rgba(30, 58, 95, 0.95) !important;
+        border-radius: 6px !important;
+        padding: 6px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+        border: 1px solid rgba(201, 162, 39, 0.5) !important;
+    }}
+    /* SVG-Icon im Toggle-Button weiß machen */
+    [data-testid="collapsedControl"] svg,
+    button[data-testid="baseButton-headerNoPadding"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg {{
+        fill: white !important;
+        stroke: white !important;
+        color: white !important;
     }}
     /* Funktionale Topbar-Buttons */
     .topbar-actions-row {{
@@ -15475,7 +15507,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Sehr kleine Mobilgeräte (< 400px) */
     @media (max-width: 399px) {{
         .immoflow-topbar-header {{
-            padding: 0.3rem 0.5rem !important;
+            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
             height: 40px !important;
         }}
         .topbar-icon {{
@@ -15513,7 +15545,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Kleine Mobilgeräte (400px - 575px) */
     @media (min-width: 400px) and (max-width: 575px) {{
         .immoflow-topbar-header {{
-            padding: 0.35rem 0.6rem !important;
+            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
             height: 42px !important;
         }}
         .topbar-icon {{
@@ -15536,7 +15568,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
     @media (min-width: 576px) and (max-width: 767px) {{
         .immoflow-topbar-header {{
-            padding: 0.4rem 0.8rem !important;
+            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
             height: 45px !important;
         }}
         .topbar-title {{
@@ -15550,7 +15582,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     /* Tablets (768px - 1023px) */
     @media (min-width: 768px) and (max-width: 1023px) {{
         .immoflow-topbar-header {{
-            padding: 0.4rem 1rem !important;
+            padding: 0.4rem 1rem 0.4rem 55px !important;  /* Links Platz für Toggle */
             height: 48px !important;
         }}
         .topbar-title {{
@@ -15569,7 +15601,7 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
     @media (max-height: 450px) and (orientation: landscape) {{
         .immoflow-topbar-header {{
             height: 35px !important;
-            padding: 0.2rem 0.6rem !important;
+            padding: 0.2rem 0.6rem 0.2rem 50px !important;  /* Links Platz für Toggle */
         }}
         .topbar-icon {{
             font-size: 0.9rem !important;
@@ -15684,6 +15716,7 @@ def render_topbar_actions():
 MAKLER_MENU_ITEMS = [
     {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
     {"key": "projekte", "label": "Projekte", "icon": "📁"},
+    {"key": "interessenten", "label": "Interessenten", "icon": "🎯"},
     {"key": "timeline", "label": "Timeline", "icon": "📋"},
     {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
     {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
@@ -15732,6 +15765,8 @@ def makler_dashboard():
         _render_makler_dashboard_home(user_id)
     elif selection == "projekte":
         makler_projekte_view()
+    elif selection == "interessenten":
+        _render_makler_interessenten_view(user_id)
     elif selection == "timeline":
         makler_timeline_view()
     elif selection == "nachrichten":
@@ -16027,6 +16062,28 @@ def _render_makler_einstellungen_view(user_id: str):
 
     with settings_tabs[4]:
         render_dsgvo_tab_makler(user_id)
+
+
+def _render_makler_interessenten_view(user_id: str):
+    """Interessenten-Verwaltung für Makler"""
+    st.subheader("🎯 Interessenten-Verwaltung")
+
+    # Projekte des Maklers laden
+    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+
+    if not projekte:
+        st.info("Sie haben noch keine Projekte. Legen Sie zuerst ein Projekt an.")
+        return
+
+    # Tabs für Übersicht und Neuer Interessent
+    tabs = st.tabs(["📋 Übersicht", "➕ Interessent hinzufügen"])
+
+    with tabs[0]:
+        _render_interessenten_uebersicht(user_id, projekte, kann_hochstufen=True)
+
+    with tabs[1]:
+        _render_interessent_hinzufuegen(user_id, projekte)
+
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -20900,6 +20957,7 @@ def kaeufer_dokumente_view():
 VERKAEUFER_MENU_ITEMS = [
     {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
     {"key": "projekte", "label": "Meine Verkäufe", "icon": "📁"},
+    {"key": "interessenten", "label": "Interessenten", "icon": "👥"},
     {"key": "timeline", "label": "Timeline", "icon": "📋"},
     {"key": "preisfindung", "label": "Preisfindung", "icon": "💲"},
     {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
@@ -20955,6 +21013,8 @@ def verkaeufer_dashboard():
         _render_verkaeufer_dashboard_home(user_id)
     elif selection == "projekte":
         verkaeufer_projekte_view()
+    elif selection == "interessenten":
+        _render_verkaeufer_interessenten_view(user_id)
     elif selection == "timeline":
         verkaeufer_timeline_view()
     elif selection == "preisfindung":
@@ -21230,6 +21290,351 @@ def _render_verkaeufer_einstellungen_view(user_id: str):
         Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
         """
         render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
+
+
+def _render_verkaeufer_interessenten_view(user_id: str):
+    """Interessenten-Verwaltung für Verkäufer"""
+    st.subheader("👥 Interessenten-Verwaltung")
+
+    # Projekte des Verkäufers laden
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if not projekte:
+        st.info("Sie haben noch keine Verkaufsobjekte. Legen Sie zuerst ein Projekt an.")
+        return
+
+    # Tabs für Übersicht und Neuer Interessent
+    tabs = st.tabs(["📋 Übersicht", "➕ Interessent hinzufügen"])
+
+    with tabs[0]:
+        _render_interessenten_uebersicht(user_id, projekte, kann_hochstufen=True)
+
+    with tabs[1]:
+        _render_interessent_hinzufuegen(user_id, projekte)
+
+
+def _render_interessenten_uebersicht(user_id: str, projekte: list, kann_hochstufen: bool = True):
+    """Zeigt alle Interessenten der Projekte an"""
+
+    # Projekt auswählen
+    projekt_optionen = {"alle": "📁 Alle Projekte"}
+    for p in projekte:
+        projekt_optionen[p.projekt_id] = f"🏠 {p.name}"
+
+    selected_projekt = st.selectbox(
+        "Projekt filtern",
+        list(projekt_optionen.keys()),
+        format_func=lambda x: projekt_optionen[x],
+        key="interessenten_filter_projekt"
+    )
+
+    # Interessenten sammeln
+    alle_interessenten = []
+    for projekt in projekte:
+        if selected_projekt != "alle" and projekt.projekt_id != selected_projekt:
+            continue
+
+        interessenten_ids = getattr(projekt, 'interessenten_ids', [])
+        for int_id in interessenten_ids:
+            interessent = st.session_state.users.get(int_id)
+            if interessent:
+                alle_interessenten.append({
+                    'user': interessent,
+                    'projekt': projekt
+                })
+
+    if not alle_interessenten:
+        st.info("Noch keine Interessenten vorhanden.")
+        st.markdown("💡 **Tipp:** Fügen Sie neue Interessenten über den Tab '➕ Interessent hinzufügen' hinzu.")
+        return
+
+    # Interessenten-Karten anzeigen
+    st.markdown(f"**{len(alle_interessenten)} Interessent(en) gefunden**")
+
+    for idx, item in enumerate(alle_interessenten):
+        interessent = item['user']
+        projekt = item['projekt']
+
+        with st.container():
+            col1, col2, col3 = st.columns([3, 2, 2])
+
+            with col1:
+                st.markdown(f"""
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
+                    <strong>👤 {interessent.name}</strong><br>
+                    <small>📧 {interessent.email}</small><br>
+                    <small>📍 Projekt: {projekt.name}</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                # Status anzeigen
+                ist_kaeufer = interessent.user_id in projekt.kaeufer_ids
+                if ist_kaeufer:
+                    st.success("✅ Bereits Käufer")
+                else:
+                    st.info("👁️ Interessent")
+
+            with col3:
+                if kann_hochstufen and not ist_kaeufer:
+                    if st.button(
+                        "🎯 Zum Käufer machen",
+                        key=f"hochstufen_{interessent.user_id}_{projekt.projekt_id}_{idx}",
+                        type="primary"
+                    ):
+                        _interessent_zum_kaeufer_hochstufen(interessent.user_id, projekt.projekt_id)
+                        st.rerun()
+
+                # Entfernen-Button
+                if st.button(
+                    "🗑️ Entfernen",
+                    key=f"entfernen_{interessent.user_id}_{projekt.projekt_id}_{idx}"
+                ):
+                    _interessent_entfernen(interessent.user_id, projekt.projekt_id)
+                    st.rerun()
+
+            st.markdown("---")
+
+
+def _render_interessent_hinzufuegen(user_id: str, projekte: list):
+    """Formular zum Hinzufügen eines neuen Interessenten"""
+
+    st.markdown("### Neuen Interessenten hinzufügen")
+
+    # Projekt auswählen
+    projekt_optionen = {p.projekt_id: p.name for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        list(projekt_optionen.keys()),
+        format_func=lambda x: projekt_optionen[x],
+        key="interessent_hinzufuegen_projekt"
+    )
+
+    st.markdown("---")
+
+    # Methode auswählen
+    methode = st.radio(
+        "Interessent hinzufügen via",
+        ["📝 Manuell eingeben", "🔍 Bestehenden User suchen"],
+        horizontal=True
+    )
+
+    if methode == "📝 Manuell eingeben":
+        with st.form("neuer_interessent_form"):
+            st.markdown("**Daten des Interessenten:**")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                name = st.text_input("Name *")
+                email = st.text_input("E-Mail *")
+            with col2:
+                telefon = st.text_input("Telefon")
+                notizen = st.text_area("Notizen", height=68)
+
+            submitted = st.form_submit_button("💾 Interessent anlegen", type="primary")
+
+            if submitted:
+                if not name or not email:
+                    st.error("Name und E-Mail sind Pflichtfelder!")
+                else:
+                    # Prüfen ob E-Mail bereits existiert
+                    bestehender_user = None
+                    for u in st.session_state.users.values():
+                        if u.email.lower() == email.lower():
+                            bestehender_user = u
+                            break
+
+                    if bestehender_user:
+                        # User existiert - als Interessent hinzufügen
+                        erfolg = _interessent_zu_projekt_hinzufuegen(
+                            bestehender_user.user_id,
+                            selected_projekt_id
+                        )
+                        if erfolg:
+                            st.success(f"✅ {name} wurde als Interessent hinzugefügt!")
+                            st.rerun()
+                    else:
+                        # Neuen User anlegen
+                        neuer_interessent = _neuen_interessenten_anlegen(
+                            name, email, telefon, notizen, selected_projekt_id
+                        )
+                        if neuer_interessent:
+                            st.success(f"✅ Neuer Interessent '{name}' wurde angelegt und dem Projekt zugeordnet!")
+                            st.rerun()
+
+    else:  # Bestehenden User suchen
+        st.markdown("**Bestehenden User suchen:**")
+
+        suche = st.text_input("Suche nach Name oder E-Mail", key="interessent_suche")
+
+        if suche:
+            gefundene_user = []
+            for u in st.session_state.users.values():
+                if suche.lower() in u.name.lower() or suche.lower() in u.email.lower():
+                    gefundene_user.append(u)
+
+            if gefundene_user:
+                st.markdown(f"**{len(gefundene_user)} Treffer:**")
+
+                for user in gefundene_user[:10]:  # Max 10 Ergebnisse
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"👤 **{user.name}** ({user.email})")
+                    with col2:
+                        # Prüfen ob bereits Interessent oder Käufer
+                        projekt = st.session_state.projekte.get(selected_projekt_id)
+                        if projekt:
+                            ist_interessent = user.user_id in getattr(projekt, 'interessenten_ids', [])
+                            ist_kaeufer = user.user_id in projekt.kaeufer_ids
+
+                            if ist_kaeufer:
+                                st.info("Bereits Käufer")
+                            elif ist_interessent:
+                                st.info("Bereits Interessent")
+                            else:
+                                if st.button(
+                                    "➕ Hinzufügen",
+                                    key=f"add_interessent_{user.user_id}"
+                                ):
+                                    erfolg = _interessent_zu_projekt_hinzufuegen(
+                                        user.user_id,
+                                        selected_projekt_id
+                                    )
+                                    if erfolg:
+                                        st.success(f"✅ {user.name} wurde als Interessent hinzugefügt!")
+                                        st.rerun()
+            else:
+                st.warning("Keine User gefunden. Erstellen Sie den Interessenten manuell.")
+
+
+def _neuen_interessenten_anlegen(name: str, email: str, telefon: str, notizen: str, projekt_id: str) -> Optional[object]:
+    """Legt einen neuen Interessenten als User an und fügt ihn zum Projekt hinzu"""
+    import uuid
+
+    # Neuen User erstellen mit Rolle "Käufer" (noch nicht aktiv als Käufer, aber passende Rolle)
+    neuer_user_id = str(uuid.uuid4())
+
+    neuer_user = User(
+        user_id=neuer_user_id,
+        email=email,
+        password_hash="",  # Kein Login möglich ohne Passwort
+        name=name,
+        rolle=UserRole.KAEUFER.value,  # Käufer-Rolle für später
+        onboarding_complete=False,
+        telefon=telefon
+    )
+
+    # In Session State speichern
+    if 'users' not in st.session_state:
+        st.session_state.users = {}
+    st.session_state.users[neuer_user_id] = neuer_user
+
+    # Als Interessent zum Projekt hinzufügen
+    _interessent_zu_projekt_hinzufuegen(neuer_user_id, projekt_id)
+
+    # Notiz speichern falls vorhanden
+    if notizen:
+        if 'interessenten_notizen' not in st.session_state:
+            st.session_state.interessenten_notizen = {}
+        st.session_state.interessenten_notizen[f"{neuer_user_id}_{projekt_id}"] = notizen
+
+    return neuer_user
+
+
+def _interessent_zu_projekt_hinzufuegen(user_id: str, projekt_id: str) -> bool:
+    """Fügt einen User als Interessent zu einem Projekt hinzu"""
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        st.error("Projekt nicht gefunden!")
+        return False
+
+    # Sicherstellen dass interessenten_ids existiert
+    if not hasattr(projekt, 'interessenten_ids'):
+        projekt.interessenten_ids = []
+
+    # Prüfen ob bereits Interessent
+    if user_id in projekt.interessenten_ids:
+        st.warning("Diese Person ist bereits als Interessent eingetragen.")
+        return False
+
+    # Prüfen ob bereits Käufer
+    if user_id in projekt.kaeufer_ids:
+        st.warning("Diese Person ist bereits als Käufer eingetragen.")
+        return False
+
+    # Als Interessent hinzufügen
+    projekt.interessenten_ids.append(user_id)
+
+    # Timeline-Event hinzufügen
+    user = st.session_state.users.get(user_id)
+    if user:
+        projekt.timeline_events.append(
+            f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Neuer Interessent: {user.name}"
+        )
+
+    return True
+
+
+def _interessent_entfernen(user_id: str, projekt_id: str) -> bool:
+    """Entfernt einen Interessenten aus einem Projekt"""
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return False
+
+    interessenten_ids = getattr(projekt, 'interessenten_ids', [])
+    if user_id in interessenten_ids:
+        interessenten_ids.remove(user_id)
+        projekt.interessenten_ids = interessenten_ids
+
+        # Timeline-Event hinzufügen
+        user = st.session_state.users.get(user_id)
+        if user:
+            projekt.timeline_events.append(
+                f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Interessent entfernt: {user.name}"
+            )
+
+        st.success("Interessent wurde entfernt.")
+        return True
+
+    return False
+
+
+def _interessent_zum_kaeufer_hochstufen(user_id: str, projekt_id: str) -> bool:
+    """Stuft einen Interessenten zum Käufer hoch"""
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        st.error("Projekt nicht gefunden!")
+        return False
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("User nicht gefunden!")
+        return False
+
+    # Aus Interessenten entfernen
+    interessenten_ids = getattr(projekt, 'interessenten_ids', [])
+    if user_id in interessenten_ids:
+        interessenten_ids.remove(user_id)
+        projekt.interessenten_ids = interessenten_ids
+
+    # Zu Käufern hinzufügen
+    if user_id not in projekt.kaeufer_ids:
+        projekt.kaeufer_ids.append(user_id)
+
+        # User-Rolle aktualisieren falls nötig
+        if user.rolle != UserRole.KAEUFER.value:
+            user.rolle = UserRole.KAEUFER.value
+
+        # Timeline-Event hinzufügen
+        projekt.timeline_events.append(
+            f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Interessent zum Käufer hochgestuft: {user.name}"
+        )
+
+        st.success(f"✅ {user.name} wurde zum Käufer hochgestuft!")
+        return True
+
+    st.warning("Diese Person ist bereits Käufer.")
+    return False
 
 
 def verkaeufer_preisfindung_view():
