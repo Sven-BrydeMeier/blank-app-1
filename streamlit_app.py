@@ -23678,6 +23678,8 @@ def notar_dashboard():
         # Akten-Übersicht (oder Akte-Detail wenn geöffnet)
         if st.session_state.get('notar_open_akte_id'):
             _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
+        elif st.session_state.get('notar_open_projekt_id'):
+            _render_notar_projekt_detail(user_id, st.session_state['notar_open_projekt_id'])
         else:
             _render_notar_akten_uebersicht(user_id)
 
@@ -23743,8 +23745,10 @@ def _render_notar_vorgaenge_view(user_id: str):
                                 break
                     if akte_id:
                         st.session_state['notar_open_akte_id'] = akte_id
+                        st.session_state['notar_open_projekt_id'] = None
                     else:
                         st.session_state['notar_open_projekt_id'] = projekt.projekt_id
+                        st.session_state['notar_open_akte_id'] = None
                     st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
@@ -23945,10 +23949,12 @@ def _render_notar_sidebar_menu_new(user_id: str):
                                 use_container_width=True):
                         if ergebnis.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
-                            st.session_state['notar_current_view'] = 'dashboard'
-                            st.session_state['notar_menu_selection'] = 'dashboard'
+                            st.session_state['notar_open_projekt_id'] = None
                         elif ergebnis.get('projekt_id'):
                             st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
+                            st.session_state['notar_open_akte_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
+                        st.session_state['notar_menu_selection'] = 'akten'
                         st.rerun()
             else:
                 st.caption("Keine Ergebnisse gefunden")
@@ -24327,9 +24333,11 @@ def _render_notar_akten_uebersicht(user_id: str):
                     if st.button("📂", key=f"open_akte_{i}", help="Akte öffnen"):
                         if akte.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = akte['akte_id']
-                            st.session_state['notar_current_view'] = 'dashboard'
+                            st.session_state['notar_open_projekt_id'] = None
                         elif akte.get('projekt_id'):
                             st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                            st.session_state['notar_open_akte_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
                         st.rerun()
 
                 with btn_col2:
@@ -24337,8 +24345,12 @@ def _render_notar_akten_uebersicht(user_id: str):
                         if st.button("📬", key=f"post_akte_{i}", help="Zum Posteingang"):
                             if akte.get('akte_id'):
                                 st.session_state['notar_open_akte_id'] = akte['akte_id']
+                                st.session_state['notar_open_projekt_id'] = None
                                 st.session_state['notar_akte_folder'] = 'sonstiges'  # Posteingang zeigen
-                            st.session_state['notar_current_view'] = 'dashboard'
+                            elif akte.get('projekt_id'):
+                                st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                                st.session_state['notar_open_akte_id'] = None
+                            st.session_state['notar_current_view'] = 'akten'
                             st.rerun()
 
 
@@ -24472,9 +24484,11 @@ def _render_akten_posteingang_liste(user_id: str):
                 if st.button("📂 Öffnen", key=f"post_open_{i}", use_container_width=True):
                     if akte.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                     elif akte.get('projekt_id'):
                         st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                    st.session_state['notar_current_view'] = 'dashboard'
+                        st.session_state['notar_open_akte_id'] = None
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
 
@@ -24510,8 +24524,9 @@ def _render_akten_entwuerfe_liste(user_id: str):
                 if st.button("📋 Assistent", key=f"entw_ass_{i}", use_container_width=True):
                     if akte.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                         st.session_state['notar_show_assistent'] = True
-                    st.session_state['notar_current_view'] = 'dashboard'
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
 
@@ -24548,7 +24563,8 @@ def _render_akten_beurkundungen_liste(user_id: str):
                     if st.button("📂", key=f"beur1_{i}"):
                         if v.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = v['akte_id']
-                        st.session_state['notar_current_view'] = 'dashboard'
+                            st.session_state['notar_open_projekt_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
                         st.rerun()
 
     with tab2:
@@ -24568,7 +24584,8 @@ def _render_akten_beurkundungen_liste(user_id: str):
                     if st.button("📂", key=f"beur2_{i}"):
                         if v.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = v['akte_id']
-                        st.session_state['notar_current_view'] = 'dashboard'
+                            st.session_state['notar_open_projekt_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
                         st.rerun()
 
     with tab3:
@@ -24587,7 +24604,8 @@ def _render_akten_beurkundungen_liste(user_id: str):
                     if st.button("📂", key=f"beur3_{i}"):
                         if v.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = v['akte_id']
-                        st.session_state['notar_current_view'] = 'dashboard'
+                            st.session_state['notar_open_projekt_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
                         st.rerun()
 
 
@@ -24922,9 +24940,12 @@ def _render_notar_termine_widget(termine: list, heute):
                     if st.button(f"📁 {btn_label}", key=f"termin_akte_{i}", use_container_width=True):
                         if termin.get('akte_id'):
                             st.session_state['notar_open_akte_id'] = termin['akte_id']
+                            st.session_state['notar_open_projekt_id'] = None
                             st.session_state['notar_highlight_doc'] = None
                         elif termin.get('projekt_id'):
                             st.session_state['notar_open_projekt_id'] = termin['projekt_id']
+                            st.session_state['notar_open_akte_id'] = None
+                        st.session_state['notar_current_view'] = 'akten'
                         st.rerun()
                 else:
                     st.markdown(f"📁 {btn_label}")
@@ -24965,9 +24986,12 @@ def _render_notar_posteingang_widget(posteingang: list, user_id: str):
                 if st.button(f"📁 {eintrag['aktenzeichen']}", key=f"post_akte_{i}", use_container_width=True):
                     if eintrag.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = eintrag['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                         st.session_state['notar_highlight_doc'] = eintrag['dok_id']
                     elif eintrag.get('projekt_id'):
                         st.session_state['notar_open_projekt_id'] = eintrag['projekt_id']
+                        st.session_state['notar_open_akte_id'] = None
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
                 # Klickbares Dokument
@@ -24975,7 +24999,9 @@ def _render_notar_posteingang_widget(posteingang: list, user_id: str):
                             key=f"post_dok_{i}", use_container_width=True):
                     if eintrag.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = eintrag['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                         st.session_state['notar_highlight_doc'] = eintrag['dok_id']
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
             if eintrag.get('frist'):
@@ -25009,10 +25035,13 @@ def _render_notar_entwurf_widget(entwurf_akten: list, user_id: str):
                 if st.button("📋 Urkundenassistent", key=f"entwurf_manuell_{i}", use_container_width=True):
                     if akte.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                         st.session_state['notar_show_assistent'] = True
                     elif akte.get('projekt_id'):
                         st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                        st.session_state['notar_open_akte_id'] = None
                         st.session_state['notar_show_assistent'] = True
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
             with col2:
@@ -25020,10 +25049,13 @@ def _render_notar_entwurf_widget(entwurf_akten: list, user_id: str):
                 if st.button("🤖 Urkunde-KI", key=f"entwurf_ki_{i}", use_container_width=True):
                     if akte.get('akte_id'):
                         st.session_state['notar_open_akte_id'] = akte['akte_id']
+                        st.session_state['notar_open_projekt_id'] = None
                         st.session_state['notar_show_ki'] = True
                     elif akte.get('projekt_id'):
                         st.session_state['notar_open_projekt_id'] = akte['projekt_id']
+                        st.session_state['notar_open_akte_id'] = None
                         st.session_state['notar_show_ki'] = True
+                    st.session_state['notar_current_view'] = 'akten'
                     st.rerun()
 
             if akte.get('braucht_finale_urkunde'):
@@ -25060,8 +25092,11 @@ def _render_notar_beurkundete_widget(stadien: dict, user_id: str):
                         key=f"stadium1_{i}", use_container_width=True):
                 if v.get('akte_id'):
                     st.session_state['notar_open_akte_id'] = v['akte_id']
+                    st.session_state['notar_open_projekt_id'] = None
                 elif v.get('projekt_id'):
                     st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                    st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_current_view'] = 'akten'
                 st.rerun()
             if v.get('bank'):
                 st.caption(f"🏦 {v['bank']}")
@@ -25075,8 +25110,11 @@ def _render_notar_beurkundete_widget(stadien: dict, user_id: str):
                         key=f"stadium2_{i}", use_container_width=True):
                 if v.get('akte_id'):
                     st.session_state['notar_open_akte_id'] = v['akte_id']
+                    st.session_state['notar_open_projekt_id'] = None
                 elif v.get('projekt_id'):
                     st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                    st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_current_view'] = 'akten'
                 st.rerun()
             if v.get('bank'):
                 st.caption(f"🏦 {v['bank']}")
@@ -25090,8 +25128,11 @@ def _render_notar_beurkundete_widget(stadien: dict, user_id: str):
                         key=f"stadium3_{i}", use_container_width=True):
                 if v.get('akte_id'):
                     st.session_state['notar_open_akte_id'] = v['akte_id']
+                    st.session_state['notar_open_projekt_id'] = None
                 elif v.get('projekt_id'):
                     st.session_state['notar_open_projekt_id'] = v['projekt_id']
+                    st.session_state['notar_open_akte_id'] = None
+                st.session_state['notar_current_view'] = 'akten'
                 st.rerun()
 
 
@@ -25169,6 +25210,176 @@ def _render_notar_akte_detail(user_id: str, akte_id: str):
     if st.session_state.get('notar_show_ki'):
         st.markdown("---")
         _render_urkunden_ki(akte, user_id)
+
+
+def _render_notar_projekt_detail(user_id: str, projekt_id: str):
+    """Rendert die Projekt-Detailansicht (für Projekte ohne formelle Akte)"""
+    from datetime import datetime
+
+    # Projekt laden
+    projekt = st.session_state.projekte.get(projekt_id)
+
+    # Zurück-Button
+    col_back, col_title = st.columns([1, 4])
+    with col_back:
+        if st.button("⬅️ Zurück zur Übersicht", key="back_to_akten_list"):
+            st.session_state['notar_open_projekt_id'] = None
+            st.session_state['notar_open_akte_id'] = None
+            st.rerun()
+
+    with col_title:
+        if projekt:
+            st.markdown(f"### 📁 {projekt.name or projekt.adresse or projekt_id[:8].upper()}")
+            st.caption(f"Status: {projekt.status}")
+        else:
+            st.markdown(f"### 📁 Projekt {projekt_id[:8]}")
+
+    if not projekt:
+        st.warning("Projekt nicht gefunden")
+        return
+
+    # Projekt-Status Timeline
+    _render_projekt_status_timeline(projekt)
+
+    st.markdown("---")
+
+    # Projekt-Details in zwei Spalten
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        st.markdown("#### 📋 Projektdaten")
+        st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
+        if projekt.kaufpreis:
+            st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.0f} €")
+        st.markdown(f"**Status:** {projekt.status}")
+
+        # Parteien
+        st.markdown("#### 👥 Beteiligte")
+        if projekt.kaeufer_id:
+            kaeufer = st.session_state.users.get(projekt.kaeufer_id)
+            if kaeufer:
+                st.markdown(f"**Käufer:** {kaeufer.vorname} {kaeufer.nachname}")
+        if projekt.verkaeufer_id:
+            verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+            if verkaeufer:
+                st.markdown(f"**Verkäufer:** {verkaeufer.vorname} {verkaeufer.nachname}")
+        if projekt.makler_id:
+            makler = st.session_state.users.get(projekt.makler_id)
+            if makler:
+                st.markdown(f"**Makler:** {makler.vorname} {makler.nachname}")
+
+    with col_right:
+        st.markdown("#### 📄 Dokumente")
+        # Dokumente des Projekts anzeigen
+        projekt_docs = []
+        if hasattr(st.session_state, 'dokumente'):
+            for dok in st.session_state.dokumente.values():
+                if getattr(dok, 'projekt_id', None) == projekt_id:
+                    projekt_docs.append(dok)
+
+        if projekt_docs:
+            for dok in projekt_docs[:10]:  # Max 10 anzeigen
+                dok_name = getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument'))
+                dok_status = getattr(dok, 'status', 'hochgeladen')
+                st.markdown(f"- 📄 {dok_name} ({dok_status})")
+            if len(projekt_docs) > 10:
+                st.caption(f"... und {len(projekt_docs) - 10} weitere")
+        else:
+            st.info("Keine Dokumente vorhanden")
+
+    st.markdown("---")
+
+    # Aktionen
+    st.markdown("#### ⚡ Aktionen")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("📝 Akte anlegen", key="create_akte_from_projekt", use_container_width=True):
+            # Formelle Akte für das Projekt erstellen
+            from uuid import uuid4
+            akte_id = str(uuid4())
+
+            # Neue Akte erstellen
+            if not hasattr(st.session_state, 'akten'):
+                st.session_state.akten = {}
+
+            # Einfaches Akten-Objekt erstellen
+            class Akte:
+                pass
+
+            neue_akte = Akte()
+            neue_akte.akte_id = akte_id
+            neue_akte.projekt_id = projekt_id
+            neue_akte.notar_id = user_id
+            neue_akte.aktenzeichen = f"UR-{datetime.now().strftime('%Y%m%d')}-{len(st.session_state.akten) + 1:03d}"
+            neue_akte.kurzbezeichnung = projekt.name or projekt.adresse or ''
+            neue_akte.status = 'Neu'
+            neue_akte.erstellt_am = datetime.now()
+
+            st.session_state.akten[akte_id] = neue_akte
+
+            # Zur neuen Akte wechseln
+            st.session_state['notar_open_akte_id'] = akte_id
+            st.session_state['notar_open_projekt_id'] = None
+            st.success("Akte angelegt!")
+            st.rerun()
+
+    with col2:
+        if st.button("💬 Nachricht senden", key="send_msg_projekt", use_container_width=True):
+            st.session_state['notar_current_view'] = 'nachrichten'
+            st.session_state['selected_projekt_id'] = projekt_id
+            st.rerun()
+
+    with col3:
+        if st.button("📅 Termin planen", key="plan_termin_projekt", use_container_width=True):
+            st.session_state['notar_current_view'] = 'termine'
+            st.session_state['selected_projekt_id'] = projekt_id
+            st.rerun()
+
+
+def _render_projekt_status_timeline(projekt):
+    """Rendert die Status-Timeline eines Projekts"""
+    status = projekt.status if projekt else 'Vorbereitung'
+
+    # Standard-Status-Schritte
+    schritte = [
+        ('Vorbereitung', 'Vorbereitung'),
+        ('Finanzierung', 'Finanzierung'),
+        ('Beurkundung', 'Beurkundung'),
+        ('Nach Kaufvertrag', 'Vollzug'),
+        ('Abgeschlossen', 'Abschluss'),
+    ]
+
+    # Aktuellen Schritt finden
+    current_idx = 0
+    for i, (s, _) in enumerate(schritte):
+        if status == s:
+            current_idx = i
+            break
+
+    # Timeline HTML
+    timeline_html = '<div style="display: flex; gap: 5px; margin: 10px 0;">'
+    for i, (_, label) in enumerate(schritte):
+        if i < current_idx:
+            color = "#27ae60"
+            icon = "✓"
+        elif i == current_idx:
+            color = "#f39c12"
+            icon = "●"
+        else:
+            color = "#bdc3c7"
+            icon = "○"
+
+        timeline_html += f'''
+        <div style="flex: 1; text-align: center; padding: 5px;
+                    background: {color}22; border-radius: 5px; border: 1px solid {color};">
+            <div style="color: {color}; font-size: 14px;">{icon}</div>
+            <div style="font-size: 10px; color: #666;">{label}</div>
+        </div>
+        '''
+    timeline_html += '</div>'
+
+    st.markdown(timeline_html, unsafe_allow_html=True)
 
 
 def _render_akte_timeline(akte):
