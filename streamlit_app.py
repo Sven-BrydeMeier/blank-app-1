@@ -15079,8 +15079,8 @@ def makler_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("📊", "Makler-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("📊", "Makler-Dashboard", "makler")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
@@ -16522,8 +16522,8 @@ def kaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("🏠", "Käufer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("🏠", "Käufer-Dashboard", "kaeufer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
@@ -20302,8 +20302,8 @@ def verkaeufer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("🏡", "Verkäufer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("🏡", "Verkäufer-Dashboard", "verkaeufer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
@@ -21907,8 +21907,8 @@ def finanzierer_dashboard():
     # Neues Dashboard CSS injizieren
     inject_new_dashboard_css()
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("💼", "Finanzierer-Dashboard")
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("💼", "Finanzierer-Dashboard", "finanzierer")
 
     # Aktuelle Menü-Auswahl aus Session State
     current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
