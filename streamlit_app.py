@@ -24984,9 +24984,6 @@ def notar_dashboard():
     # Neues Dashboard CSS injizieren (für konsistentes Design)
     inject_new_dashboard_css()
 
-    # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
-    render_notar_menu_styles()
-
     # Fixierte Topbar mit Rolle links und User rechts + funktionale Buttons
     render_fixed_topbar_functional("⚖️", "Notar-Dashboard", "notar")
 
