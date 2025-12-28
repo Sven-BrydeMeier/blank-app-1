@@ -15641,61 +15641,34 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # === FUNKTIONALE BUTTONS UNTER DER TOPBAR ===
-    # Diese sind echte Streamlit-Buttons und funktionieren zuverlässig
-    action_cols = st.columns([1, 1, 1, 1, 1, 4, 1])
-
-    with action_cols[0]:
-        if st.button("🏠 Home", key=f"topbar_home_{role_key}", use_container_width=True):
-            # Zurück zum Dashboard
-            st.session_state[f'{role_key}_menu_selection'] = 'dashboard'
-            # Notar-spezifische States zurücksetzen
-            if role_key == 'notar':
-                st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_open_projekt_id'] = None
-            st.rerun()
-
-    with action_cols[1]:
-        notif_label = f"🔔 ({notif_count})" if notif_count > 0 else "🔔"
-        if st.button(notif_label, key=f"topbar_notif_{role_key}", use_container_width=True):
-            st.session_state['show_notifications_panel'] = True
-            st.rerun()
-
-    with action_cols[2]:
-        if st.button("➕ Neu", key=f"topbar_new_{role_key}", use_container_width=True):
-            st.session_state['show_new_project_dialog'] = True
-            st.rerun()
-
-    with action_cols[3]:
-        current_design = st.session_state.get('design_mode', 'navy-gold')
-        design_btn = "☀️" if current_design == "navy-gold" else "🌙"
-        if st.button(design_btn, key=f"topbar_design_{role_key}", use_container_width=True):
-            if current_design == "navy-gold":
-                st.session_state['design_mode'] = 'light'
-            else:
-                st.session_state['design_mode'] = 'navy-gold'
-            st.rerun()
-
-    with action_cols[4]:
-        if st.button("⚙️", key=f"topbar_settings_{role_key}", use_container_width=True):
-            st.session_state[f'{role_key}_menu_selection'] = 'einstellungen'
-            st.rerun()
-
-    with action_cols[6]:
-        if st.button("🚪 Abmelden", key=f"topbar_logout_{role_key}", use_container_width=True):
-            logout()
+    # Alle Aktions-Buttons sind jetzt in der Sidebar (render_topbar_actions)
 
 
 def render_topbar_actions():
     """
-    Rendert funktionale Topbar-Aktionen in der Sidebar.
-    Enthält Design-Wechsel und Neu-Button.
+    Rendert funktionale Aktionen in der Sidebar.
+    Enthält Benachrichtigungen, Neu-Button, Design-Wechsel und Abmelden.
     """
+    user_id = getattr(st.session_state.current_user, 'user_id', '')
+
+    # Benachrichtigungen zählen
+    notif_count = 0
+    if user_id and 'benachrichtigungen' in st.session_state:
+        user_notifs = [n for n in st.session_state.benachrichtigungen
+                       if n.empfaenger_id == user_id and not n.gelesen]
+        notif_count = len(user_notifs)
+
     with st.sidebar:
         # === SCHNELLAKTIONEN ===
         st.markdown("### ⚡ Aktionen")
 
+        # Benachrichtigungen
+        notif_label = f"🔔 Benachrichtigungen ({notif_count})" if notif_count > 0 else "🔔 Benachrichtigungen"
+        if st.button(notif_label, key="sidebar_notif", use_container_width=True):
+            st.session_state['show_notifications_panel'] = True
+            st.rerun()
+
+        # Neu-Button
         if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
             st.session_state['show_new_project_dialog'] = True
             st.rerun()
@@ -15710,6 +15683,12 @@ def render_topbar_actions():
             else:
                 st.session_state['design_mode'] = 'navy-gold'
             st.rerun()
+
+        st.markdown("---")
+
+        # Abmelden-Button
+        if st.button("🚪 Abmelden", key="sidebar_logout", use_container_width=True):
+            logout()
 
         st.markdown("---")
 
