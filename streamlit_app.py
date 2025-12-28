@@ -13807,58 +13807,42 @@ def render_dashboard_header(title: str, role: str):
 
 def render_sidebar_menu(role: str, menu_items: list, current_selection: str) -> str:
     """
-    Rendert das Sidebar-Menü.
-
-    Unterstützt:
-    - flache Menüs (Liste von Dicts mit 'key', 'label', 'icon')
-    - gruppierte Menüs (zusätzliches Feld 'group' in den Items)
+    Rendert das Sidebar-Menü mit st.radio für kompakte, zuverlässige Navigation.
 
     Args:
         role: Die Benutzerrolle (makler, kaeufer, etc.)
-        menu_items: Liste von Dicts mit 'key', 'label', 'icon' (optional: 'group')
+        menu_items: Liste von Dicts mit 'key', 'label', 'icon'
         current_selection: Aktuell ausgewählter Menüpunkt
 
     Returns:
         Der ausgewählte Menüpunkt-Key
     """
     with st.sidebar:
-        st.markdown("#### Menü")
+        # Optionen für Radio erstellen
+        options = [f"{item.get('icon', '')} {item['label']}" for item in menu_items]
+        key_map = {f"{item.get('icon', '')} {item['label']}": item['key'] for item in menu_items}
+        reverse_map = {item['key']: f"{item.get('icon', '')} {item['label']}" for item in menu_items}
 
-        selection = current_selection
-        has_groups = any("group" in item and item.get("group") for item in menu_items)
+        # Aktuellen Index finden
+        current_label = reverse_map.get(current_selection, options[0] if options else None)
+        current_index = options.index(current_label) if current_label in options else 0
 
-        if not has_groups:
-            for item in menu_items:
-                is_active = item["key"] == current_selection
-                if st.button(
-                    f"{item.get('icon', '')} {item['label']}",
-                    key=f"menu_{role}_{item['key']}",
-                    use_container_width=True,
-                    type="primary" if is_active else "secondary"
-                ):
-                    selection = item["key"]
-                    st.session_state[f"{role}_menu_selection"] = selection
-                    st.rerun()
-        else:
-            grouped: dict[str, list] = {}
-            for item in menu_items:
-                group_name = item.get("group") or "Weitere"
-                grouped.setdefault(group_name, []).append(item)
+        # Radio-Menü rendern
+        selected_label = st.radio(
+            "Navigation",
+            options=options,
+            index=current_index,
+            key=f"nav_radio_{role}",
+            label_visibility="collapsed"
+        )
 
-            for group_name, items in grouped.items():
-                expanded = any(i["key"] == current_selection for i in items)
-                with st.expander(group_name, expanded=expanded):
-                    for item in items:
-                        is_active = item["key"] == current_selection
-                        if st.button(
-                            f"{item.get('icon', '')} {item['label']}",
-                            key=f"menu_{role}_{item['key']}",
-                            use_container_width=True,
-                            type="primary" if is_active else "secondary"
-                        ):
-                            selection = item["key"]
-                            st.session_state[f"{role}_menu_selection"] = selection
-                            st.rerun()
+        # Auswahl in Key umwandeln
+        selection = key_map.get(selected_label, current_selection)
+
+        # Session State aktualisieren wenn geändert
+        if selection != current_selection:
+            st.session_state[f"{role}_menu_selection"] = selection
+            st.rerun()
 
         st.markdown("---")
 
@@ -14884,15 +14868,15 @@ def render_topbar_actions():
 
 # Makler-spezifische Menüpunkte
 MAKLER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
-    {"key": "projekte", "label": "Projekte", "icon": "🏘️", "group": "Vorgänge"},
-    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
-    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
-    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥", "group": "Organisation"},
-    {"key": "bankenmappe", "label": "Bankenmappe", "icon": "💼", "group": "Dokumente"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "projekte", "label": "Projekte", "icon": "📁"},
+    {"key": "timeline", "label": "Timeline", "icon": "📋"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥"},
+    {"key": "bankenmappe", "label": "Bankenmappe", "icon": "💼"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
 ]
 
 
@@ -16320,14 +16304,14 @@ def onboarding_flow():
 
 # Käufer-spezifische Menüpunkte
 KAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
-    {"key": "projekte", "label": "Meine Projekte", "icon": "🏘️", "group": "Vorgänge"},
-    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
-    {"key": "finanzierung", "label": "Finanzierung", "icon": "💰", "group": "Dokumente"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
-    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "projekte", "label": "Meine Projekte", "icon": "📁"},
+    {"key": "timeline", "label": "Timeline", "icon": "📋"},
+    {"key": "finanzierung", "label": "Finanzierung", "icon": "💰"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
 ]
 
 
@@ -20100,14 +20084,14 @@ def kaeufer_dokumente_view():
 
 # Verkäufer-spezifische Menüpunkte
 VERKAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
-    {"key": "projekte", "label": "Meine Verkäufe", "icon": "🏘️", "group": "Vorgänge"},
-    {"key": "timeline", "label": "Timeline", "icon": "📅", "group": "Vorgänge"},
-    {"key": "preisfindung", "label": "Preisfindung", "icon": "💲", "group": "Vorgänge"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬", "group": "Kommunikation"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄", "group": "Dokumente"},
-    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "projekte", "label": "Meine Verkäufe", "icon": "📁"},
+    {"key": "timeline", "label": "Timeline", "icon": "📋"},
+    {"key": "preisfindung", "label": "Preisfindung", "icon": "💲"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
 ]
 
 
@@ -21716,12 +21700,12 @@ def verkaeufer_nachrichten():
 
 # Finanzierer-spezifische Menüpunkte
 FINANZIERER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Übersicht", "icon": "🏠", "group": "Übersicht"},
-    {"key": "projekte", "label": "Finanzierungsprojekte", "icon": "🏦", "group": "Vorgänge"},
-    {"key": "wirtschaftsdaten", "label": "Wirtschaftsdaten", "icon": "📊", "group": "Dokumente"},
-    {"key": "angebote", "label": "Angebote", "icon": "📋", "group": "Dokumente"},
-    {"key": "termine", "label": "Termine", "icon": "📅", "group": "Organisation"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️", "group": "System"},
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "projekte", "label": "Finanzierungsprojekte", "icon": "🏦"},
+    {"key": "wirtschaftsdaten", "label": "Wirtschaftsdaten", "icon": "📊"},
+    {"key": "angebote", "label": "Angebote", "icon": "📋"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
 ]
 
 
