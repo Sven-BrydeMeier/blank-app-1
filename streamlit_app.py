@@ -1854,7 +1854,8 @@ def render_zur_aktentasche_button(
 
 class UserRole(Enum):
     MAKLER = "Makler"
-    KAEUFER = "Käufer"
+    INTERESSENT = "Interessent"  # Neue Rolle: Wird zu Käufer wenn Kaufvertrag beauftragt
+    KAEUFER = "Käufer"  # Bestätigter Käufer (durch Makler, Verkäufer oder Notar)
     VERKAEUFER = "Verkäufer"
     FINANZIERER = "Finanzierer"
     NOTAR = "Notar"
@@ -7123,6 +7124,7 @@ def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
     demo_users = [
         User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
+        User("interessent1", "Ina Interessent", "interessent@demo.de", UserRole.INTERESSENT.value, hash_password("interessent123"), projekt_ids=["projekt1"]),
         User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
         User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
         User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
@@ -7140,7 +7142,8 @@ def create_demo_projekt():
         adresse="Leopoldstraße 123, 80802 München",
         kaufpreis=485000.00,
         makler_id="makler1",
-        kaeufer_ids=["kaeufer1"],
+        interessenten_ids=["interessent1"],  # Potenzielle Käufer
+        kaeufer_ids=["kaeufer1"],  # Bestätigte Käufer
         verkaeufer_ids=["verkaeufer1"],
         finanzierer_ids=["finanzierer1"],
         notar_id="notar1",
@@ -13335,6 +13338,8 @@ def login_page():
         st.markdown("""
         **Makler:** `makler@demo.de` | `makler123`
 
+        **Interessent:** `interessent@demo.de` | `interessent123`
+
         **Käufer:** `kaeufer@demo.de` | `kaeufer123`
 
         **Verkäufer:** `verkaeufer@demo.de` | `verkaeufer123`
@@ -13352,6 +13357,7 @@ def login_page():
     # Demo-Benutzer Konfiguration
     demo_users = {
         "🏢 Makler": "makler@demo.de",
+        "👀 Interessent": "interessent@demo.de",
         "🛒 Käufer": "kaeufer@demo.de",
         "🏠 Verkäufer": "verkaeufer@demo.de",
         "⚖️ Notar": "notar@demo.de",
@@ -15635,61 +15641,34 @@ def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # === FUNKTIONALE BUTTONS UNTER DER TOPBAR ===
-    # Diese sind echte Streamlit-Buttons und funktionieren zuverlässig
-    action_cols = st.columns([1, 1, 1, 1, 1, 4, 1])
-
-    with action_cols[0]:
-        if st.button("🏠 Home", key=f"topbar_home_{role_key}", use_container_width=True):
-            # Zurück zum Dashboard
-            st.session_state[f'{role_key}_menu_selection'] = 'dashboard'
-            # Notar-spezifische States zurücksetzen
-            if role_key == 'notar':
-                st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_open_projekt_id'] = None
-            st.rerun()
-
-    with action_cols[1]:
-        notif_label = f"🔔 ({notif_count})" if notif_count > 0 else "🔔"
-        if st.button(notif_label, key=f"topbar_notif_{role_key}", use_container_width=True):
-            st.session_state['show_notifications_panel'] = True
-            st.rerun()
-
-    with action_cols[2]:
-        if st.button("➕ Neu", key=f"topbar_new_{role_key}", use_container_width=True):
-            st.session_state['show_new_project_dialog'] = True
-            st.rerun()
-
-    with action_cols[3]:
-        current_design = st.session_state.get('design_mode', 'navy-gold')
-        design_btn = "☀️" if current_design == "navy-gold" else "🌙"
-        if st.button(design_btn, key=f"topbar_design_{role_key}", use_container_width=True):
-            if current_design == "navy-gold":
-                st.session_state['design_mode'] = 'light'
-            else:
-                st.session_state['design_mode'] = 'navy-gold'
-            st.rerun()
-
-    with action_cols[4]:
-        if st.button("⚙️", key=f"topbar_settings_{role_key}", use_container_width=True):
-            st.session_state[f'{role_key}_menu_selection'] = 'einstellungen'
-            st.rerun()
-
-    with action_cols[6]:
-        if st.button("🚪 Abmelden", key=f"topbar_logout_{role_key}", use_container_width=True):
-            logout()
+    # Alle Aktions-Buttons sind jetzt in der Sidebar (render_topbar_actions)
 
 
 def render_topbar_actions():
     """
-    Rendert funktionale Topbar-Aktionen in der Sidebar.
-    Enthält Design-Wechsel und Neu-Button.
+    Rendert funktionale Aktionen in der Sidebar.
+    Enthält Benachrichtigungen, Neu-Button, Design-Wechsel und Abmelden.
     """
+    user_id = getattr(st.session_state.current_user, 'user_id', '')
+
+    # Benachrichtigungen zählen
+    notif_count = 0
+    if user_id and 'benachrichtigungen' in st.session_state:
+        user_notifs = [n for n in st.session_state.benachrichtigungen
+                       if n.empfaenger_id == user_id and not n.gelesen]
+        notif_count = len(user_notifs)
+
     with st.sidebar:
         # === SCHNELLAKTIONEN ===
         st.markdown("### ⚡ Aktionen")
 
+        # Benachrichtigungen
+        notif_label = f"🔔 Benachrichtigungen ({notif_count})" if notif_count > 0 else "🔔 Benachrichtigungen"
+        if st.button(notif_label, key="sidebar_notif", use_container_width=True):
+            st.session_state['show_notifications_panel'] = True
+            st.rerun()
+
+        # Neu-Button
         if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
             st.session_state['show_new_project_dialog'] = True
             st.rerun()
@@ -15704,6 +15683,12 @@ def render_topbar_actions():
             else:
                 st.session_state['design_mode'] = 'navy-gold'
             st.rerun()
+
+        st.markdown("---")
+
+        # Abmelden-Button
+        if st.button("🚪 Abmelden", key="sidebar_logout", use_container_width=True):
+            logout()
 
         st.markdown("---")
 
@@ -17168,6 +17153,386 @@ def onboarding_flow():
             st.rerun()
     else:
         st.info("⏳ Bitte akzeptieren Sie alle Dokumente, um fortzufahren.")
+
+# ============================================================================
+# INTERESSENT-BEREICH (potenzielle Käufer, noch nicht bestätigt)
+# ============================================================================
+
+# Interessent-spezifische Menüpunkte (ohne Finanzierung - erst nach Bestätigung als Käufer)
+INTERESSENT_MENU_ITEMS = [
+    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
+    {"key": "immobilien", "label": "Immobilien", "icon": "🏘️"},
+    {"key": "projekte", "label": "Meine Anfragen", "icon": "📁"},
+    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
+    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
+    {"key": "termine", "label": "Termine", "icon": "📅"},
+    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
+]
+
+
+def interessent_dashboard():
+    """Dashboard für Interessenten - Potenzielle Käufer vor Kaufvertragsauftrag"""
+    # Onboarding prüfen
+    if not st.session_state.current_user.onboarding_complete:
+        onboarding_flow()
+        return
+
+    user_id = st.session_state.current_user.user_id
+
+    # Neues Dashboard CSS injizieren
+    inject_new_dashboard_css()
+
+    # Fixierte Topbar mit funktionalen Buttons
+    render_fixed_topbar_functional("👀", "Interessent-Dashboard", "interessent")
+
+    # Aktuelle Menü-Auswahl aus Session State
+    current_selection = st.session_state.get('interessent_menu_selection', 'dashboard')
+
+    # Kontext-Auswahl in Sidebar (Projekt/Akte)
+    render_sidebar_case_context(st.session_state.current_user)
+
+    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
+    selection = render_sidebar_menu("interessent", INTERESSENT_MENU_ITEMS, current_selection)
+
+    # Schnellaktionen in der Sidebar (nach dem Menü)
+    render_topbar_actions()
+
+    # Aktentasche in der Sidebar
+    render_aktentasche_sidebar(user_id)
+
+    # Dialoge
+    render_aktentasche_teilen_dialog(user_id)
+    render_aktentasche_download(user_id)
+
+    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
+    render_case_context_header(st.session_state.current_user)
+
+    # === INHALT JE NACH MENÜ-AUSWAHL ===
+    if selection == "dashboard":
+        _render_interessent_dashboard_home(user_id)
+    elif selection == "immobilien":
+        _render_interessent_immobilien_view(user_id)
+    elif selection == "projekte":
+        _render_interessent_projekte_view(user_id)
+    elif selection == "nachrichten":
+        # Nachrichten-Ansicht (gleich wie Käufer)
+        kaeufer_nachrichten()
+    elif selection == "dokumente":
+        _render_interessent_dokumente_view(user_id)
+    elif selection == "termine":
+        _render_interessent_termine_view(user_id)
+    elif selection == "einstellungen":
+        _render_interessent_einstellungen_view(user_id)
+
+
+def _render_interessent_dashboard_home(user_id: str):
+    """Rendert die Interessent-Dashboard Startseite mit Widgets"""
+    from datetime import datetime, date
+
+    # Projekte wo Interessent dabei ist
+    projekte = [p for p in st.session_state.projekte.values()
+                if user_id in getattr(p, 'interessenten_ids', [])]
+
+    # Nachrichten zählen
+    ungelesene_nachrichten = 0
+    if hasattr(st.session_state, 'nachrichten'):
+        for n in st.session_state.nachrichten.values():
+            if getattr(n, 'empfaenger_id', None) == user_id and not getattr(n, 'gelesen', True):
+                ungelesene_nachrichten += 1
+
+    # Termine heute
+    heute = date.today()
+    termine_heute = 0
+    if hasattr(st.session_state, 'termine'):
+        for t in st.session_state.termine.values():
+            try:
+                termin_datum = getattr(t, 'datum', None)
+                if termin_datum:
+                    if isinstance(termin_datum, str):
+                        termin_datum = datetime.fromisoformat(termin_datum).date()
+                    elif isinstance(termin_datum, datetime):
+                        termin_datum = termin_datum.date()
+                    if termin_datum == heute:
+                        termine_heute += 1
+            except:
+                pass
+
+    # === LAYOUT: 2 Spalten ===
+    col1, col2 = st.columns([1.2, 1])
+
+    with col1:
+        # Heute-Widget
+        render_heute_widget({
+            'subtitle': f'{len(projekte)} Immobilien im Blick',
+            'badges': [
+                {'text': f'{len(projekte)} Anfragen', 'color': 'orange'},
+                {'text': f'{ungelesene_nachrichten} Nachrichten', 'color': 'yellow'},
+                {'text': f'{termine_heute} Termine', 'color': 'green'},
+            ]
+        })
+
+        # Info-Box: Status als Interessent
+        st.info("""
+        👀 **Sie sind als Interessent registriert**
+
+        Sobald Sie sich für eine Immobilie entschieden haben und der Kaufvertrag
+        beauftragt wird, werden Sie vom Makler, Verkäufer oder Notar als
+        **Käufer bestätigt**. Dann erhalten Sie Zugang zu weiteren Funktionen
+        wie der Finanzierungsübersicht.
+        """)
+
+        # Aufgaben-Widget
+        aufgaben = [
+            {'text': 'Immobilien durchsuchen', 'completed': len(projekte) > 0},
+            {'text': 'Besichtigungstermin vereinbaren', 'completed': False},
+            {'text': 'Profil vervollständigen', 'completed': st.session_state.current_user.onboarding_complete},
+        ]
+        render_aufgaben_widget(aufgaben, "interessent")
+
+    with col2:
+        # Vorgänge-Widget (Anfragen)
+        vorgaenge = []
+        for p in projekte[:5]:
+            vorgaenge.append({
+                'name': p.name or p.adresse or 'Unbekannt',
+                'status': 'Interesse bekundet',
+                'datum': getattr(p, 'created_at', datetime.now()).strftime("%d.%m.%Y") if hasattr(p, 'created_at') else ''
+            })
+        render_vorgaenge_widget(vorgaenge)
+
+        # Nachrichten-Widget
+        nachrichten = _get_kaeufer_nachrichten(user_id)
+        render_nachrichten_widget(nachrichten)
+
+
+def _render_interessent_immobilien_view(user_id: str):
+    """Zeigt verfügbare Immobilien für Interessenten"""
+    st.markdown("## 🏘️ Verfügbare Immobilien")
+
+    # Alle Projekte anzeigen, bei denen der Interessent dabei ist oder die öffentlich sind
+    projekte = [p for p in st.session_state.projekte.values()
+                if user_id in getattr(p, 'interessenten_ids', []) or
+                user_id in getattr(p, 'kaeufer_ids', [])]
+
+    if not projekte:
+        st.info("Sie haben noch keine Immobilien in Ihrer Merkliste. Wenden Sie sich an einen Makler, um passende Objekte zu finden.")
+        return
+
+    for i, projekt in enumerate(projekte):
+        with st.expander(f"🏠 {projekt.name or projekt.adresse or 'Unbekannt'}", expanded=i==0):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
+                if projekt.kaufpreis:
+                    st.markdown(f"**Preis:** {projekt.kaufpreis:,.0f} €")
+                st.markdown(f"**Status:** Interesse bekundet")
+
+            with col2:
+                st.markdown(f"**Beschreibung:**")
+                st.caption(projekt.beschreibung or "Keine Beschreibung verfügbar")
+
+            # Makler kontaktieren Button
+            if projekt.makler_id:
+                makler = st.session_state.users.get(projekt.makler_id)
+                if makler:
+                    st.markdown(f"**Makler:** {makler.name}")
+                    if st.button("💬 Makler kontaktieren", key=f"contact_makler_{i}"):
+                        st.session_state['interessent_menu_selection'] = 'nachrichten'
+                        st.rerun()
+
+
+def _render_interessent_projekte_view(user_id: str):
+    """Zeigt die Anfragen/Projekte des Interessenten"""
+    st.markdown("## 📁 Meine Anfragen")
+
+    projekte = [p for p in st.session_state.projekte.values()
+                if user_id in getattr(p, 'interessenten_ids', [])]
+
+    if not projekte:
+        st.info("Sie haben noch keine aktiven Anfragen.")
+        return
+
+    for i, projekt in enumerate(projekte):
+        with st.expander(f"📋 {projekt.name or projekt.adresse}", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"**Status:** Interesse bekundet")
+                st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
+            with col2:
+                if projekt.kaufpreis:
+                    st.markdown(f"**Preis:** {projekt.kaufpreis:,.0f} €")
+
+
+def _render_interessent_dokumente_view(user_id: str):
+    """Dokumenten-Ansicht für Interessenten"""
+    st.markdown("## 📄 Dokumente")
+
+    # Nur eigene Dokumente anzeigen
+    docs = []
+    if hasattr(st.session_state, 'dokumente'):
+        for d in st.session_state.dokumente.values():
+            if getattr(d, 'uploader_id', None) == user_id:
+                docs.append(d)
+
+    if not docs:
+        st.info("Sie haben noch keine Dokumente hochgeladen.")
+    else:
+        for d in docs:
+            st.markdown(f"- 📄 {getattr(d, 'name', 'Dokument')}")
+
+
+def _render_interessent_termine_view(user_id: str):
+    """Termine-Ansicht für Interessenten"""
+    st.markdown("## 📅 Termine")
+    render_termin_kalender(user_id, UserRole.INTERESSENT.value)
+
+
+def _render_interessent_einstellungen_view(user_id: str):
+    """Einstellungen für Interessenten"""
+    st.markdown("## ⚙️ Einstellungen")
+
+    # Tabs für verschiedene Einstellungsbereiche
+    tab1, tab2 = st.tabs(["👤 Profil", "🔔 Benachrichtigungen"])
+
+    with tab1:
+        st.markdown("### Profil bearbeiten")
+        user = st.session_state.current_user
+
+        with st.form("interessent_profil_form"):
+            name = st.text_input("Name", value=user.name)
+            email = st.text_input("E-Mail", value=user.email, disabled=True)
+            telefon = st.text_input("Telefon", value=getattr(user, 'telefon', ''))
+
+            if st.form_submit_button("💾 Speichern"):
+                user.name = name
+                if telefon:
+                    user.telefon = telefon
+                st.success("✅ Profil gespeichert!")
+                st.rerun()
+
+    with tab2:
+        st.markdown("### Benachrichtigungseinstellungen")
+        st.checkbox("E-Mail bei neuen Nachrichten", value=True)
+        st.checkbox("E-Mail bei neuen Immobilien", value=True)
+        st.checkbox("Push-Benachrichtigungen", value=False)
+
+
+def befoerdere_interessent_zu_kaeufer(interessent_id: str, projekt_id: str, bestaetigt_von_id: str) -> bool:
+    """
+    Befördert einen Interessenten zum Käufer für ein bestimmtes Projekt.
+
+    Args:
+        interessent_id: User-ID des Interessenten
+        projekt_id: Projekt-ID des betroffenen Projekts
+        bestaetigt_von_id: User-ID desjenigen, der die Beförderung bestätigt (Makler/Verkäufer/Notar)
+
+    Returns:
+        True bei Erfolg, False bei Fehler
+    """
+    # Interessent finden
+    interessent = st.session_state.users.get(interessent_id)
+    if not interessent:
+        return False
+
+    # Projekt finden
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return False
+
+    # Bestätiger finden und Rolle prüfen
+    bestaetiger = st.session_state.users.get(bestaetigt_von_id)
+    if not bestaetiger:
+        return False
+
+    # Nur Makler, Verkäufer oder Notar dürfen bestätigen
+    erlaubte_rollen = [UserRole.MAKLER.value, UserRole.VERKAEUFER.value, UserRole.NOTAR.value]
+    if bestaetiger.rolle not in erlaubte_rollen:
+        return False
+
+    # Zusätzliche Prüfung: Ist der Bestätiger am Projekt beteiligt?
+    if bestaetiger.rolle == UserRole.MAKLER.value and projekt.makler_id != bestaetigt_von_id:
+        return False
+    if bestaetiger.rolle == UserRole.VERKAEUFER.value and bestaetigt_von_id not in projekt.verkaeufer_ids:
+        return False
+    if bestaetiger.rolle == UserRole.NOTAR.value and projekt.notar_id != bestaetigt_von_id:
+        return False
+
+    # 1. Rolle des Interessenten zu Käufer ändern
+    interessent.rolle = UserRole.KAEUFER.value
+
+    # 2. Interessent aus interessenten_ids entfernen und zu kaeufer_ids hinzufügen
+    if interessent_id in projekt.interessenten_ids:
+        projekt.interessenten_ids.remove(interessent_id)
+    if interessent_id not in projekt.kaeufer_ids:
+        projekt.kaeufer_ids.append(interessent_id)
+
+    # 3. Benachrichtigung an den neuen Käufer senden
+    create_notification(
+        interessent_id,
+        f"🎉 Sie wurden als Käufer bestätigt! Das Projekt '{projekt.name or projekt.adresse}' wurde Ihnen zugewiesen.",
+        "success"
+    )
+
+    # 4. Timeline-Event erstellen
+    from datetime import datetime
+    event = TimelineEvent(
+        event_id=f"evt_kaeufer_{interessent_id}_{projekt_id}",
+        projekt_id=projekt_id,
+        titel="Käufer bestätigt",
+        beschreibung=f"{interessent.name} wurde als Käufer bestätigt durch {bestaetiger.name} ({bestaetiger.rolle})",
+        status=projekt.status,
+        erledigt=True,
+        datum=datetime.now(),
+        position=99,
+        erledigt_von=bestaetigt_von_id
+    )
+    if hasattr(st.session_state, 'timeline_events'):
+        st.session_state.timeline_events[event.event_id] = event
+
+    return True
+
+
+def render_interessenten_zu_kaeufer_dialog(projekt_id: str, bestaetiger_id: str):
+    """
+    Rendert einen Dialog zum Bestätigen von Interessenten als Käufer.
+    Wird im Makler-, Verkäufer- und Notar-Dashboard verwendet.
+    """
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return
+
+    interessenten = []
+    for uid in getattr(projekt, 'interessenten_ids', []):
+        user = st.session_state.users.get(uid)
+        if user and user.rolle == UserRole.INTERESSENT.value:
+            interessenten.append(user)
+
+    if not interessenten:
+        st.info("Keine Interessenten für dieses Projekt vorhanden.")
+        return
+
+    st.markdown("### 👥 Interessenten zu Käufern bestätigen")
+    st.caption("Wählen Sie einen Interessenten aus, um ihn als Käufer zu bestätigen. Dies erfolgt typischerweise nach Beauftragung des Kaufvertrags.")
+
+    for i, interessent in enumerate(interessenten):
+        col1, col2, col3 = st.columns([2, 1, 1])
+
+        with col1:
+            st.markdown(f"**{interessent.name}**")
+            st.caption(interessent.email)
+
+        with col2:
+            st.markdown("👀 Interessent")
+
+        with col3:
+            if st.button("✅ Zum Käufer", key=f"confirm_buyer_{interessent.user_id}_{i}"):
+                if befoerdere_interessent_zu_kaeufer(interessent.user_id, projekt_id, bestaetiger_id):
+                    st.success(f"✅ {interessent.name} wurde als Käufer bestätigt!")
+                    st.rerun()
+                else:
+                    st.error("❌ Fehler bei der Bestätigung")
+
 
 # ============================================================================
 # KÄUFER-BEREICH
@@ -21600,40 +21965,33 @@ def _interessent_entfernen(user_id: str, projekt_id: str) -> bool:
 
 
 def _interessent_zum_kaeufer_hochstufen(user_id: str, projekt_id: str) -> bool:
-    """Stuft einen Interessenten zum Käufer hoch"""
-    projekt = st.session_state.projekte.get(projekt_id)
-    if not projekt:
-        st.error("Projekt nicht gefunden!")
-        return False
+    """Stuft einen Interessenten zum Käufer hoch.
+    Verwendet den aktuell eingeloggten Benutzer als Bestätiger.
+    """
+    # Aktuell eingeloggten Benutzer als Bestätiger verwenden
+    bestaetiger_id = st.session_state.current_user.user_id
 
-    user = st.session_state.users.get(user_id)
-    if not user:
-        st.error("User nicht gefunden!")
-        return False
+    # Zentrale Funktion aufrufen
+    erfolg = befoerdere_interessent_zu_kaeufer(user_id, projekt_id, bestaetiger_id)
 
-    # Aus Interessenten entfernen
-    interessenten_ids = getattr(projekt, 'interessenten_ids', [])
-    if user_id in interessenten_ids:
-        interessenten_ids.remove(user_id)
-        projekt.interessenten_ids = interessenten_ids
-
-    # Zu Käufern hinzufügen
-    if user_id not in projekt.kaeufer_ids:
-        projekt.kaeufer_ids.append(user_id)
-
-        # User-Rolle aktualisieren falls nötig
-        if user.rolle != UserRole.KAEUFER.value:
-            user.rolle = UserRole.KAEUFER.value
-
-        # Timeline-Event hinzufügen
-        projekt.timeline_events.append(
-            f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Interessent zum Käufer hochgestuft: {user.name}"
-        )
-
-        st.success(f"✅ {user.name} wurde zum Käufer hochgestuft!")
+    if erfolg:
+        user = st.session_state.users.get(user_id)
+        st.success(f"✅ {user.name if user else 'Interessent'} wurde zum Käufer hochgestuft!")
         return True
 
-    st.warning("Diese Person ist bereits Käufer.")
+    # Falls Fehler: Prüfe spezifischen Grund
+    user = st.session_state.users.get(user_id)
+    projekt = st.session_state.projekte.get(projekt_id)
+
+    if not user:
+        st.error("User nicht gefunden!")
+    elif not projekt:
+        st.error("Projekt nicht gefunden!")
+    elif user_id in getattr(projekt, 'kaeufer_ids', []):
+        st.warning("Diese Person ist bereits Käufer.")
+    else:
+        st.error("Fehler beim Hochstufen. Haben Sie die Berechtigung?")
+
     return False
 
 
@@ -24929,10 +25287,10 @@ def render_notar_content(selection: str, user_id: str):
 
 
 # Notar-Menü-Items (wie bei Käufer - cleane st.radio Struktur)
+# Vorgänge entfernt - redundant zu Akten (beides zeigt Projekte/Akten)
 NOTAR_MENU_ITEMS = [
     {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
     {"key": "akten", "label": "Akten", "icon": "📁"},
-    {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
     {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
     {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
     {"key": "termine", "label": "Termine", "icon": "📅"},
@@ -25025,10 +25383,6 @@ def notar_dashboard():
             _render_notar_projekt_detail(user_id, st.session_state['notar_open_projekt_id'])
         else:
             _render_notar_akten_uebersicht(user_id)
-
-    elif selection == 'vorgaenge':
-        # Vorgänge-Ansicht
-        _render_notar_vorgaenge_view(user_id)
 
     elif selection == 'nachrichten':
         # Nachrichten-Ansicht
@@ -42533,6 +42887,8 @@ def main():
 
         if role == UserRole.MAKLER.value:
             makler_dashboard()
+        elif role == UserRole.INTERESSENT.value:
+            interessent_dashboard()
         elif role == UserRole.KAEUFER.value:
             kaeufer_dashboard()
         elif role == UserRole.VERKAEUFER.value:
