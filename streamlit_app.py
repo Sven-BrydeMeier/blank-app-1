@@ -1157,6 +1157,575 @@ def inject_responsive_css():
     """, unsafe_allow_html=True)
 
 
+def inject_unified_dashboard_styles():
+    """
+    Injiziert einheitliche Dashboard-Styles für alle Benutzerrollen.
+    Modernes, übersichtliches Design mit Karten, KPIs und Schnellaktionen.
+    """
+    st.markdown("""
+    <style>
+    /* ============================================
+       EINHEITLICHES DASHBOARD DESIGN SYSTEM
+       ============================================ */
+
+    /* Dashboard Header */
+    .dashboard-header {
+        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 20px rgba(52, 58, 64, 0.25);
+        color: white;
+    }
+
+    .dashboard-header h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .dashboard-header .subtitle {
+        font-size: 1rem;
+        opacity: 0.85;
+        margin: 0;
+    }
+
+    .dashboard-header .welcome-text {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        margin-top: 0.5rem;
+    }
+
+    /* KPI Cards Container */
+    .kpi-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Einzelne KPI Karte */
+    .kpi-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #495057 0%, #343a40 100%);
+    }
+
+    .kpi-card.success::before {
+        background: linear-gradient(180deg, #28a745 0%, #20c997 100%);
+    }
+
+    .kpi-card.warning::before {
+        background: linear-gradient(180deg, #ffc107 0%, #fd7e14 100%);
+    }
+
+    .kpi-card.info::before {
+        background: linear-gradient(180deg, #17a2b8 0%, #6f42c1 100%);
+    }
+
+    .kpi-icon {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #343a40;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        display: inline-block;
+    }
+
+    .kpi-trend.up {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .kpi-trend.down {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Schnellaktionen Grid */
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .quick-action-card {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.25rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+
+    .quick-action-card:hover {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-color: #495057;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .quick-action-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .quick-action-text {
+        font-size: 0.85rem;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    /* Inhalts-Karte */
+    .content-section {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .content-section h3 {
+        color: #343a40;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    /* Aktivitäts-Feed */
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f3f4;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-title {
+        font-weight: 500;
+        color: #343a40;
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-time {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+
+    /* Projekt-Karten */
+    .project-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .project-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+    }
+
+    .project-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .project-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #343a40;
+        margin: 0;
+    }
+
+    .project-card-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .project-card-status.active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .project-card-status.pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .project-card-status.completed {
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .project-card-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .project-card-progress {
+        height: 6px;
+        background: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.75rem;
+    }
+
+    .project-card-progress-bar {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #495057 0%, #343a40 100%);
+        transition: width 0.3s ease;
+    }
+
+    /* Tab-Gruppierung */
+    .tab-group {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .tab-group-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    /* Benachrichtigungs-Indikator */
+    .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #dc3545;
+        color: white;
+        font-size: 0.7rem;
+        font-weight: 700;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+    }
+
+    /* Responsive Anpassungen */
+    @media (max-width: 767px) {
+        .dashboard-header {
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+        }
+
+        .dashboard-header h1 {
+            font-size: 1.35rem;
+        }
+
+        .kpi-value {
+            font-size: 1.5rem;
+        }
+
+        .kpi-card {
+            padding: 1rem;
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .quick-action-card {
+            padding: 1rem 0.75rem;
+        }
+
+        .quick-action-icon {
+            font-size: 1.5rem;
+        }
+    }
+
+    @media (min-width: 768px) and (max-width: 1024px) {
+        .kpi-container {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    @media (min-width: 1025px) {
+        .kpi-container {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(6, 1fr);
+        }
+    }
+
+    /* Streamlit Tab Styling Override für gruppierte Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        padding: 0.5rem;
+        gap: 0.25rem;
+        border: 1px solid #e9ecef;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        font-weight: 500;
+        color: #6c757d;
+        background: transparent;
+        border: none;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
+    }
+
+    .stTabs [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
+        background: #ffffff;
+        color: #343a40;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
+    """
+    Rendert einen einheitlichen Dashboard-Header für alle Rollen.
+
+    Args:
+        rolle: Benutzerrolle (z.B. 'Makler', 'Käufer')
+        user_name: Name des Benutzers
+        unread_count: Anzahl ungelesener Benachrichtigungen
+    """
+    rolle_config = {
+        'Makler': {'icon': '📊', 'color': '#495057', 'subtitle': 'Immobilienvermittlung'},
+        'Käufer': {'icon': '🏠', 'color': '#28a745', 'subtitle': 'Immobilienkauf'},
+        'Verkäufer': {'icon': '🏡', 'color': '#17a2b8', 'subtitle': 'Immobilienverkauf'},
+        'Finanzierer': {'icon': '💼', 'color': '#6f42c1', 'subtitle': 'Finanzierung'},
+        'Notar': {'icon': '⚖️', 'color': '#343a40', 'subtitle': 'Beurkundung'},
+    }
+
+    config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057', 'subtitle': ''})
+
+    # Tageszeit-basierte Begrüßung
+    stunde = datetime.now().hour
+    if stunde < 12:
+        gruss = "Guten Morgen"
+    elif stunde < 17:
+        gruss = "Guten Tag"
+    else:
+        gruss = "Guten Abend"
+
+    notification_html = ""
+    if unread_count > 0:
+        notification_html = f'<span style="background: #dc3545; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem;">{unread_count} neu</span>'
+
+    st.markdown(f"""
+    <div class="dashboard-header">
+        <h1>{config['icon']} {rolle}-Dashboard {notification_html}</h1>
+        <p class="subtitle">{config['subtitle']}</p>
+        <p class="welcome-text">{gruss}, {user_name}!</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_kpi_cards(kpis: list):
+    """
+    Rendert KPI-Karten in einem Grid.
+
+    Args:
+        kpis: Liste von Dictionaries mit 'icon', 'value', 'label', optional 'type' (success/warning/info)
+    """
+    cols = st.columns(len(kpis) if len(kpis) <= 4 else 4)
+
+    for i, kpi in enumerate(kpis[:4]):
+        with cols[i % 4]:
+            kpi_type = kpi.get('type', '')
+            trend_html = ""
+            if 'trend' in kpi:
+                trend_class = 'up' if kpi['trend'] >= 0 else 'down'
+                trend_icon = '+' if kpi['trend'] >= 0 else ''
+                trend_html = f'<div class="kpi-trend {trend_class}">{trend_icon}{kpi["trend"]}%</div>'
+
+            st.markdown(f"""
+            <div class="kpi-card {kpi_type}">
+                <div class="kpi-icon">{kpi.get('icon', '📊')}</div>
+                <div class="kpi-value">{kpi.get('value', '0')}</div>
+                <div class="kpi-label">{kpi.get('label', '')}</div>
+                {trend_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def render_quick_action_grid(actions: list):
+    """
+    Rendert ein Grid von Schnellaktionen.
+
+    Args:
+        actions: Liste von Dictionaries mit 'icon', 'label', 'key'
+    """
+    html = '<div class="quick-actions-grid">'
+    for action in actions:
+        html += f'''
+        <div class="quick-action-card" onclick="document.querySelector('[data-testid=stSidebar] button[kind=secondary]:contains({action.get("label", "")})').click()">
+            <span class="quick-action-icon">{action.get('icon', '📌')}</span>
+            <span class="quick-action-text">{action.get('label', '')}</span>
+        </div>
+        '''
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_project_card(projekt, fortschritt: int = 0, show_details: bool = True):
+    """
+    Rendert eine Projekt-Karte.
+
+    Args:
+        projekt: Projekt-Objekt
+        fortschritt: Fortschritt in Prozent (0-100)
+        show_details: Ob Details angezeigt werden sollen
+    """
+    # Status-Klasse ermitteln
+    status_class = "active"
+    if fortschritt >= 100:
+        status_class = "completed"
+    elif fortschritt < 25:
+        status_class = "pending"
+
+    status_text = projekt.status if hasattr(projekt, 'status') else "Aktiv"
+
+    details_html = ""
+    if show_details and hasattr(projekt, 'adresse') and projekt.adresse:
+        details_html = f'<div class="project-card-info">📍 {projekt.adresse}</div>'
+
+    if hasattr(projekt, 'kaufpreis') and projekt.kaufpreis > 0:
+        details_html += f'<div class="project-card-info">💰 {format_euro(projekt.kaufpreis)} €</div>'
+
+    st.markdown(f"""
+    <div class="project-card">
+        <div class="project-card-header">
+            <h4 class="project-card-title">🏘️ {projekt.name}</h4>
+            <span class="project-card-status {status_class}">{status_text}</span>
+        </div>
+        {details_html}
+        <div class="project-card-progress">
+            <div class="project-card-progress-bar" style="width: {fortschritt}%"></div>
+        </div>
+        <div style="font-size: 0.75rem; color: #6c757d; margin-top: 0.5rem;">{fortschritt}% abgeschlossen</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_activity_feed(activities: list, max_items: int = 5):
+    """
+    Rendert einen Aktivitäts-Feed.
+
+    Args:
+        activities: Liste von Dictionaries mit 'icon', 'title', 'time'
+        max_items: Maximale Anzahl anzuzeigender Einträge
+    """
+    st.markdown('<div class="content-section"><h3>📋 Letzte Aktivitäten</h3>', unsafe_allow_html=True)
+
+    if not activities:
+        st.markdown('<p style="color: #6c757d; text-align: center; padding: 1rem;">Keine aktuellen Aktivitäten</p>', unsafe_allow_html=True)
+    else:
+        for activity in activities[:max_items]:
+            st.markdown(f"""
+            <div class="activity-item">
+                <div class="activity-icon">{activity.get('icon', '📌')}</div>
+                <div class="activity-content">
+                    <div class="activity-title">{activity.get('title', '')}</div>
+                    <div class="activity-time">{activity.get('time', '')}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def get_device_type() -> str:
     """
     Ermittelt den Gerätetyp basierend auf Session State.
@@ -13334,11 +13903,14 @@ def logout():
 # ============================================================================
 
 def makler_dashboard():
-    """Dashboard für Makler"""
-    st.title("📊 Makler-Dashboard")
+    """Dashboard für Makler - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
 
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
     render_aktentasche_sidebar(user_id)
 
     # Benachrichtigungs-Badge in der Sidebar
@@ -13350,74 +13922,115 @@ def makler_dashboard():
     # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Dashboard Header
+    render_dashboard_header("Makler", user_name, unread_count)
+
+    # KPIs berechnen
+    makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+    aktive_projekte = len([p for p in makler_projekte if p.status not in [ProjektStatus.ABGESCHLOSSEN.value, ProjektStatus.STORNIERT.value]])
+    abgeschlossene = len([p for p in makler_projekte if p.status == ProjektStatus.ABGESCHLOSSEN.value])
+    offene_termine = len([t for t in st.session_state.get('termine', {}).values()
+                         if hasattr(t, 'teilnehmer_ids') and user_id in t.teilnehmer_ids
+                         and hasattr(t, 'datum') and t.datum >= datetime.now()])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📁', 'value': str(aktive_projekte), 'label': 'Aktive Projekte', 'type': 'success'},
+        {'icon': '✅', 'value': str(abgeschlossene), 'label': 'Abgeschlossen', 'type': ''},
+        {'icon': '📅', 'value': str(offene_termine), 'label': 'Anstehende Termine', 'type': 'info'},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
+
     # Suchleiste
     search_term = render_dashboard_search("makler")
     if search_term:
         st.session_state['makler_search'] = search_term
 
+    # Gruppierte Tabs für bessere Übersichtlichkeit
+    st.markdown("### Bereiche")
+
     tabs = st.tabs([
-        "📋 Timeline",
+        "🏠 Übersicht",
         "📁 Projekte",
-        "📊 Marktanalyse",
-        "👤 Profil",
-        "💼 Bankenmappe",
-        "⚖️ Rechtliche Dokumente",
-        "👥 Teilnehmer-Status",
-        "✉️ Einladungen",
-        "💬 Kommentare",
-        "🪪 Ausweisdaten erfassen",
+        "📊 Analyse",
+        "👥 Kontakte",
+        "📄 Dokumente",
         "📅 Termine",
-        "👥 Mitarbeiter",
-        "📨 Nachrichten",
-        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
-        "⏰ Fristen",  # NEU: Fristenmanagement
-        "📈 Reporting",  # NEU: KPIs und Berichte
-        "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen",  # NEU: TTS-Einstellungen
-        "🔒 DSGVO"  # NEU: DSGVO-Datenverwaltung
+        "⚙️ Einstellungen"
     ])
 
+    # Tab 0: Übersicht - Dashboard-Startseite mit Timeline und Schnellübersicht
     with tabs[0]:
-        makler_timeline_view()
+        makler_uebersicht_view(user_id, makler_projekte)
 
+    # Tab 1: Projekte - Alle projektbezogenen Funktionen
     with tabs[1]:
-        makler_projekte_view()
+        projekt_subtabs = st.tabs(["📋 Übersicht", "➕ Neues Projekt", "👥 Teilnehmer", "✉️ Einladungen"])
+        with projekt_subtabs[0]:
+            makler_projekte_view()
+        with projekt_subtabs[1]:
+            makler_timeline_view()
+        with projekt_subtabs[2]:
+            makler_teilnehmer_status()
+        with projekt_subtabs[3]:
+            makler_einladungen()
 
+    # Tab 2: Analyse - Marktanalyse, Reporting, Vertragsvergleich
     with tabs[2]:
-        makler_marktanalyse_view()
+        analyse_subtabs = st.tabs(["📊 Marktanalyse", "📈 Reporting", "🔄 Vertragsvergleich", "⏰ Fristen"])
+        with analyse_subtabs[0]:
+            makler_marktanalyse_view()
+        with analyse_subtabs[1]:
+            render_reporting_dashboard(user_id)
+        with analyse_subtabs[2]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if makler_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen",
+                    list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x],
+                    key="makler_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+        with analyse_subtabs[3]:
+            render_fristenmanagement(user_id)
 
+    # Tab 3: Kontakte - Mitarbeiter, Kommunikation, Kommentare
     with tabs[3]:
-        makler_profil_view()
+        kontakt_subtabs = st.tabs(["👥 Mitarbeiter", "💬 Nachrichten", "📝 Kommentare", "🪪 Ausweisdaten"])
+        with kontakt_subtabs[0]:
+            render_makler_mitarbeiter_verwaltung(user_id)
+        with kontakt_subtabs[1]:
+            render_kommunikationszentrale(user_id)
+        with kontakt_subtabs[2]:
+            makler_kommentare()
+        with kontakt_subtabs[3]:
+            makler_ausweis_erfassung()
 
+    # Tab 4: Dokumente - Bankenmappe, rechtliche Dokumente
     with tabs[4]:
-        render_bank_folder_view()
+        dok_subtabs = st.tabs(["💼 Bankenmappe", "⚖️ Rechtliche Dokumente", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            render_bank_folder_view()
+        with dok_subtabs[1]:
+            makler_rechtliche_dokumente()
+        with dok_subtabs[2]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
+    # Tab 5: Termine - Kalender und Terminverwaltung
     with tabs[5]:
-        makler_rechtliche_dokumente()
-
-    with tabs[6]:
-        makler_teilnehmer_status()
-
-    with tabs[7]:
-        makler_einladungen()
-
-    with tabs[8]:
-        makler_kommentare()
-
-    with tabs[9]:
-        makler_ausweis_erfassung()
-
-    with tabs[10]:
-        # Termin-Übersicht für Makler mit Kalender
         st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
         with termin_ansicht[0]:
             render_termin_kalender(user_id, UserRole.MAKLER.value)
-
         with termin_ansicht[1]:
             projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
             if projekte:
@@ -13427,62 +14040,109 @@ def makler_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    with tabs[11]:
-        # Mitarbeiter-Verwaltung
-        render_makler_mitarbeiter_verwaltung(user_id)
+    # Tab 6: Einstellungen - Profil, TTS, DSGVO
+    with tabs[6]:
+        einst_subtabs = st.tabs(["👤 Profil", "🔊 Vorlesen", "🔒 DSGVO"])
+        with einst_subtabs[0]:
+            makler_profil_view()
+        with einst_subtabs[1]:
+            st.subheader("🔊 Text-to-Speech Einstellungen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            st.markdown("### 📄 Dokument vorlesen testen")
+            demo_text = """
+            Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+            Als Makler können Sie Vertragsdokumente vorlesen lassen.
+            """
+            render_tts_controls(demo_text, "makler_demo_tts", user_id)
+        with einst_subtabs[2]:
+            render_dsgvo_tab_makler(user_id)
 
-    with tabs[12]:
-        # Kommunikationszentrale
-        render_kommunikationszentrale(user_id)
 
-    with tabs[13]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        makler_projekte = [p for p in st.session_state.projekte.values()
-                          if p.makler_id == user_id]
+def makler_uebersicht_view(user_id: str, makler_projekte: list):
+    """Übersichts-Startseite für Makler mit Schnellzugriff und Aktivitäten"""
+    st.subheader("📊 Dashboard-Übersicht")
+
+    # Schnellaktionen
+    st.markdown("#### Schnellaktionen")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if st.button("➕ Neues Projekt", use_container_width=True, key="quick_new_project"):
+            st.session_state['show_new_project'] = True
+
+    with col2:
+        if st.button("📅 Termin planen", use_container_width=True, key="quick_new_termin"):
+            st.session_state['show_new_termin'] = True
+
+    with col3:
+        if st.button("📧 Einladung senden", use_container_width=True, key="quick_invite"):
+            st.session_state['show_invite'] = True
+
+    with col4:
+        if st.button("📊 Bericht erstellen", use_container_width=True, key="quick_report"):
+            st.session_state['show_report'] = True
+
+    st.markdown("---")
+
+    # Zwei-Spalten-Layout für Projekte und Aktivitäten
+    col_left, col_right = st.columns([2, 1])
+
+    with col_left:
+        st.markdown("#### 🏘️ Aktive Projekte")
         if makler_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="makler_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+            for projekt in makler_projekte[:5]:  # Zeige maximal 5 Projekte
+                fortschritt = berechne_projekt_fortschritt(projekt.projekt_id)
+                render_project_card(projekt, fortschritt)
+
+            if len(makler_projekte) > 5:
+                st.info(f"*... und {len(makler_projekte) - 5} weitere Projekte*")
         else:
-            st.info("Noch keine Projekte vorhanden.")
+            st.markdown("""
+            <div class="content-section" style="text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                <h4>Noch keine Projekte</h4>
+                <p style="color: #6c757d;">Erstellen Sie Ihr erstes Projekt, um loszulegen.</p>
+            </div>
+            """, unsafe_allow_html=True)
 
-    with tabs[14]:
-        # Fristenmanagement
-        render_fristenmanagement(user_id)
+    with col_right:
+        st.markdown("#### 📋 Letzte Aktivitäten")
 
-    with tabs[15]:
-        # Reporting Dashboard
-        render_reporting_dashboard(user_id)
+        # Sammle letzte Aktivitäten aus Benachrichtigungen
+        activities = []
+        user_benachrichtigungen = [n for n in st.session_state.benachrichtigungen.values()
+                                   if n.user_id == user_id]
+        user_benachrichtigungen.sort(key=lambda x: x.erstellt_am, reverse=True)
 
-    with tabs[16]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
+        for n in user_benachrichtigungen[:5]:
+            zeit_diff = datetime.now() - n.erstellt_am
+            if zeit_diff.days > 0:
+                zeit_str = f"vor {zeit_diff.days} Tag(en)"
+            elif zeit_diff.seconds >= 3600:
+                zeit_str = f"vor {zeit_diff.seconds // 3600} Std."
+            else:
+                zeit_str = f"vor {zeit_diff.seconds // 60} Min."
 
-    with tabs[17]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Text-to-Speech Einstellungen")
-        render_tts_einstellungen(user_id)
+            activities.append({
+                'icon': '🔔' if not n.gelesen else '📌',
+                'title': n.titel,
+                'time': zeit_str
+            })
 
-        st.markdown("---")
-        st.markdown("### 📄 Dokument vorlesen testen")
-
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Makler können Sie Vertragsdokumente vorlesen lassen.
-        Die Geschwindigkeit kann angepasst werden.
-        """
-        render_tts_controls(demo_text, "makler_demo_tts", user_id)
-
-    with tabs[18]:
-        # DSGVO-Datenverwaltung für Makler
-        render_dsgvo_tab_makler(user_id)
+        if activities:
+            for activity in activities:
+                st.markdown(f"""
+                <div class="activity-item">
+                    <div class="activity-icon">{activity['icon']}</div>
+                    <div class="activity-content">
+                        <div class="activity-title">{activity['title']}</div>
+                        <div class="activity-time">{activity['time']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Keine aktuellen Aktivitäten")
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -14573,8 +15233,10 @@ def onboarding_flow():
 # ============================================================================
 
 def kaeufer_dashboard():
-    """Dashboard für Käufer"""
-    st.title("🏠 Käufer-Dashboard")
+    """Dashboard für Käufer - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -14582,21 +15244,42 @@ def kaeufer_dashboard():
 
     # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
-        # User muss erst Dokumente akzeptieren
         return
 
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
     render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
+
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Dashboard Header
+    render_dashboard_header("Käufer", user_name, unread_count)
+
+    # KPIs berechnen
+    kaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    aktive_projekte = len(kaeufer_projekte)
+    offene_aufgaben = sum(1 for p in kaeufer_projekte
+                         for e in p.timeline_events
+                         if e in st.session_state.timeline_events
+                         and not st.session_state.timeline_events[e].completed)
+    finanzierungsangebote = len([o for o in st.session_state.financing_offers.values()
+                                if any(user_id in p.kaeufer_ids for p in st.session_state.projekte.values()
+                                      if p.projekt_id == o.projekt_id)])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '🏠', 'value': str(aktive_projekte), 'label': 'Meine Projekte', 'type': 'success'},
+        {'icon': '📝', 'value': str(offene_aufgaben), 'label': 'Offene Aufgaben', 'type': 'warning' if offene_aufgaben > 0 else ''},
+        {'icon': '💰', 'value': str(finanzierungsangebote), 'label': 'Finanzierungsangebote', 'type': 'info'},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
     # Suchleiste
     search_term = render_dashboard_search("kaeufer")
@@ -14605,84 +15288,73 @@ def kaeufer_dashboard():
     else:
         st.session_state['kaeufer_search'] = ''
 
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
     tabs = st.tabs([
-        "🏠 Mein Portal",  # NEU: Mandanten-Portal Übersicht
-        "📊 Timeline",
-        "📋 Projekte",
-        "📝 Aufgaben",
+        "🏠 Übersicht",
+        "📋 Mein Kauf",
         "💰 Finanzierung",
-        "🔧 Handwerker",
-        "🪪 Ausweis",
-        "💬 Nachrichten",
         "📄 Dokumente",
-        "🔄 Vertragsvergleich",  # NEU: Side-by-Side Diff
         "📅 Termine",
-        "🗑️ Papierkorb",  # NEU: Papierkorb-System
-        "🔊 Vorlesen"  # NEU: TTS-Einstellungen
+        "⚙️ Einstellungen"
     ])
 
+    # Tab 0: Übersicht
     with tabs[0]:
-        # Mandanten-Portal Übersicht
         render_mandanten_portal(user_id, UserRole.KAEUFER.value)
 
+    # Tab 1: Mein Kauf - Projekte, Timeline, Aufgaben
     with tabs[1]:
-        kaeufer_timeline_view()
+        kauf_subtabs = st.tabs(["📊 Timeline", "📋 Projekte", "📝 Aufgaben", "🔄 Vertragsvergleich"])
+        with kauf_subtabs[0]:
+            kaeufer_timeline_view()
+        with kauf_subtabs[1]:
+            kaeufer_projekte_view()
+        with kauf_subtabs[2]:
+            kaeufer_aufgaben_view()
+        with kauf_subtabs[3]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if kaeufer_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen",
+                    list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x],
+                    key="kaeufer_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
+            else:
+                st.info("Sie sind noch keinem Projekt zugewiesen.")
 
+    # Tab 2: Finanzierung
     with tabs[2]:
-        kaeufer_projekte_view()
+        fin_subtabs = st.tabs(["💰 Finanzierung", "🔧 Handwerker"])
+        with fin_subtabs[0]:
+            kaeufer_finanzierung_view()
+        with fin_subtabs[1]:
+            kaeufer_handwerker_empfehlungen()
 
+    # Tab 3: Dokumente
     with tabs[3]:
-        kaeufer_aufgaben_view()
+        dok_subtabs = st.tabs(["📄 Dokumente", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            kaeufer_dokumente_view()
+        with dok_subtabs[1]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.KAEUFER.value)
+        with dok_subtabs[2]:
+            kaeufer_nachrichten()
+        with dok_subtabs[3]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
+    # Tab 4: Termine
     with tabs[4]:
-        kaeufer_finanzierung_view()
-
-    with tabs[5]:
-        kaeufer_handwerker_empfehlungen()
-
-    with tabs[6]:
-        # Personalausweis-Upload mit OCR
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.KAEUFER.value)
-
-    with tabs[7]:
-        kaeufer_nachrichten()
-
-    with tabs[8]:
-        kaeufer_dokumente_view()
-
-    with tabs[9]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        kaeufer_projekte = [p for p in st.session_state.projekte.values()
-                           if user_id in p.kaeufer_ids]
-        if kaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="kaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with tabs[10]:
-        # Termin-Übersicht für Käufer mit Kalender
         st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
         with termin_ansicht[0]:
-            # Vollständiger Kalender mit allen Terminen
             render_termin_kalender(user_id, UserRole.KAEUFER.value)
-
         with termin_ansicht[1]:
-            # Projekt-basierte Ansicht
             projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
             if projekte:
                 for projekt in projekte:
@@ -14691,26 +15363,17 @@ def kaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    with tabs[11]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[12]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-
-        st.markdown("---")
-        st.markdown("### 📄 Kaufvertrag vorlesen")
-        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
-
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
-        So können Sie den Inhalt besser verstehen und prüfen.
-        """
-        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
+    # Tab 5: Einstellungen
+    with tabs[5]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            st.markdown("### 📄 Kaufvertrag vorlesen")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+            Als Käufer können Sie alle Vertragsdokumente vorlesen lassen."""
+            render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -18161,30 +18824,48 @@ def kaeufer_dokumente_view():
 # ============================================================================
 
 def verkaeufer_dashboard():
-    """Dashboard für Verkäufer"""
-    st.title("🏡 Verkäufer-Dashboard")
+    """Dashboard für Verkäufer - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
 
-    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.VERKAEUFER.value):
-        # User muss erst Dokumente akzeptieren
         return
 
-    # Aktentasche in der Sidebar
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
     render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
+
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Dashboard Header
+    render_dashboard_header("Verkäufer", user_name, unread_count)
+
+    # KPIs berechnen
+    verkaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    aktive_projekte = len(verkaeufer_projekte)
+    preisangebote = len([a for a in st.session_state.get('preisangebote', {}).values()
+                        if any(user_id in p.verkaeufer_ids for p in st.session_state.projekte.values()
+                              if p.projekt_id == a.projekt_id)])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '🏡', 'value': str(aktive_projekte), 'label': 'Meine Immobilien', 'type': 'success'},
+        {'icon': '💰', 'value': str(preisangebote), 'label': 'Preisangebote', 'type': 'info'},
+        {'icon': '📄', 'value': '0', 'label': 'Dokumente', 'type': ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
     # Suchleiste
     search_term = render_dashboard_search("verkaeufer")
@@ -18193,70 +18874,72 @@ def verkaeufer_dashboard():
     else:
         st.session_state['verkaeufer_search'] = ''
 
-    tabs = st.tabs(["🏠 Mein Portal", "📊 Timeline", "📋 Projekte", "📈 Preisfindung", "🔍 Makler finden", "🪪 Ausweis", "📄 Dokumente hochladen", "📋 Dokumentenanforderungen", "💬 Nachrichten", "💶 Eigene Kosten", "🔄 Vertragsvergleich", "📅 Termine", "🗑️ Papierkorb", "🔊 Vorlesen"])
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "📋 Mein Verkauf",
+        "📈 Preisfindung",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
 
+    # Tab 0: Übersicht
     with tabs[0]:
-        # Mandanten-Portal Übersicht
         render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
 
+    # Tab 1: Mein Verkauf - Projekte, Timeline, Makler
     with tabs[1]:
-        verkaeufer_timeline_view()
+        verkauf_subtabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🔄 Vertragsvergleich"])
+        with verkauf_subtabs[0]:
+            verkaeufer_timeline_view()
+        with verkauf_subtabs[1]:
+            verkaeufer_projekte_view()
+        with verkauf_subtabs[2]:
+            verkaeufer_makler_finden()
+        with verkauf_subtabs[3]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if verkaeufer_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen", list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x], key="verkaeufer_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
+            else:
+                st.info("Sie sind noch keinem Projekt zugewiesen.")
 
+    # Tab 2: Preisfindung
     with tabs[2]:
-        verkaeufer_projekte_view()
+        preis_subtabs = st.tabs(["📈 Marktanalyse", "💶 Eigene Kosten"])
+        with preis_subtabs[0]:
+            verkaeufer_preisfindung_view()
+        with preis_subtabs[1]:
+            verkaeufer_eigene_kosten_view()
 
+    # Tab 3: Dokumente
     with tabs[3]:
-        verkaeufer_preisfindung_view()
+        dok_subtabs = st.tabs(["📄 Hochladen", "📋 Anforderungen", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            verkaeufer_dokumente_view()
+        with dok_subtabs[1]:
+            render_document_requests_view(user_id, UserRole.VERKAEUFER.value)
+        with dok_subtabs[2]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
+        with dok_subtabs[3]:
+            verkaeufer_nachrichten()
+        with dok_subtabs[4]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
+    # Tab 4: Termine
     with tabs[4]:
-        verkaeufer_makler_finden()
-
-    with tabs[5]:
-        # Personalausweis-Upload mit OCR
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
-
-    with tabs[6]:
-        verkaeufer_dokumente_view()
-
-    with tabs[7]:
-        render_document_requests_view(st.session_state.current_user.user_id, UserRole.VERKAEUFER.value)
-
-    with tabs[8]:
-        verkaeufer_nachrichten()
-
-    with tabs[9]:
-        verkaeufer_eigene_kosten_view()
-
-    with tabs[10]:
-        # Vertragsvergleich - Side-by-Side Diff
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        verkaeufer_projekte = [p for p in st.session_state.projekte.values()
-                              if user_id in p.verkaeufer_ids]
-        if verkaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="verkaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with tabs[11]:
-        # Termin-Übersicht für Verkäufer mit Kalender
         st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
         with termin_ansicht[0]:
             render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
-
         with termin_ansicht[1]:
             projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
             if projekte:
@@ -18266,26 +18949,15 @@ def verkaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    with tabs[12]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[13]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-
-        st.markdown("---")
-        st.markdown("### 📄 Vertragsdokumente vorlesen")
-        st.info("Wählen Sie ein Dokument aus Ihren Projekten, um es vorlesen zu lassen.")
-
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
-        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
-        """
-        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
+    # Tab 5: Einstellungen
+    with tabs[5]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion."""
+            render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
 
 
 def verkaeufer_preisfindung_view():
@@ -19569,21 +20241,41 @@ def verkaeufer_nachrichten():
 # ============================================================================
 
 def finanzierer_dashboard():
-    """Dashboard für Finanzierer"""
-    st.title("💼 Finanzierer-Dashboard")
+    """Dashboard für Finanzierer - Modernes, übersichtliches Design"""
 
-    # Aktentasche in der Sidebar
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
+
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
     render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
+
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Dashboard Header
+    render_dashboard_header("Finanzierer", user_name, unread_count)
+
+    # KPIs berechnen
+    finanzierer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+    aktive_projekte = len(finanzierer_projekte)
+    meine_angebote = len([o for o in st.session_state.financing_offers.values() if o.finanzierer_id == user_id])
+    offene_angebote = len([o for o in st.session_state.financing_offers.values()
+                          if o.finanzierer_id == user_id and o.status == FinanzierungsStatus.GESENDET.value])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📋', 'value': str(aktive_projekte), 'label': 'Zugewiesene Projekte', 'type': 'success'},
+        {'icon': '💰', 'value': str(meine_angebote), 'label': 'Meine Angebote', 'type': 'info'},
+        {'icon': '⏳', 'value': str(offene_angebote), 'label': 'Offene Angebote', 'type': 'warning' if offene_angebote > 0 else ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
     # Suchleiste
     search_term = render_dashboard_search("finanzierer")
@@ -19592,39 +20284,37 @@ def finanzierer_dashboard():
     else:
         st.session_state['finanzierer_search'] = ''
 
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
     tabs = st.tabs([
-        "📊 Timeline",
-        "📋 Wirtschaftsdaten Käufer",
-        "💰 Finanzierungsangebote erstellen",
-        "📜 Meine Angebote",
+        "🏠 Übersicht",
+        "💰 Finanzierung",
         "📅 Termine",
-        "🗑️ Papierkorb",
-        "🔊 Vorlesen"
+        "⚙️ Einstellungen"
     ])
 
+    # Tab 0: Übersicht
     with tabs[0]:
         finanzierer_timeline_view()
 
+    # Tab 1: Finanzierung - Wirtschaftsdaten, Angebote erstellen, Liste
     with tabs[1]:
-        finanzierer_wirtschaftsdaten_view()
+        fin_subtabs = st.tabs(["📋 Wirtschaftsdaten", "➕ Angebot erstellen", "📜 Meine Angebote", "🗑️ Papierkorb"])
+        with fin_subtabs[0]:
+            finanzierer_wirtschaftsdaten_view()
+        with fin_subtabs[1]:
+            finanzierer_angebote_erstellen()
+        with fin_subtabs[2]:
+            finanzierer_angebote_liste()
+        with fin_subtabs[3]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
+    # Tab 2: Termine
     with tabs[2]:
-        finanzierer_angebote_erstellen()
-
-    with tabs[3]:
-        finanzierer_angebote_liste()
-
-    with tabs[4]:
-        # Termin-Übersicht für Finanzierer mit Kalender
         st.subheader("📅 Meine Termine")
-        user_id = st.session_state.current_user.user_id
-
-        # Kalender-Ansicht
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
         with termin_ansicht[0]:
             render_termin_kalender(user_id, UserRole.FINANZIERER.value)
-
         with termin_ansicht[1]:
             projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
             if projekte:
@@ -19634,25 +20324,15 @@ def finanzierer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    with tabs[5]:
-        # Papierkorb
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-    with tabs[6]:
-        # TTS-Einstellungen
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-
-        st.markdown("---")
-        st.markdown("### 📄 Finanzierungsdokumente vorlesen")
-
-        # Demo-Text
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
-        Die Geschwindigkeit kann in Schritten von 0,25 angepasst werden.
-        """
-        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
+    # Tab 3: Einstellungen
+    with tabs[3]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion."""
+            render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -21289,21 +21969,22 @@ def render_notar_content(selection: str, user_id: str):
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
-    # Custom CSS für Grautöne, Schatten und aufgeräumtes Design laden
+    # Beide CSS-Systeme laden
+    inject_unified_dashboard_styles()
     render_notar_menu_styles()
 
-    # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Benachrichtigungs-Badge in der Sidebar
     render_benachrichtigungs_badge(user_id)
-
-    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
-
-    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
+
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
 
     # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
     selection = render_notar_sidebar_menu(user_id)
@@ -21330,20 +22011,21 @@ def notar_dashboard():
                         aktive_gruppe = gruppe_name
                         break
 
-    # Kompakter Dashboard Header
-    st.markdown("""
-    <div style="
-        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.75rem;
-        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
-    ">
-        <h1 style="color: #ffffff; margin: 0; font-size: 1.2rem;">
-            ⚖️ Notar
-        </h1>
-    </div>
-    """, unsafe_allow_html=True)
+    # Dashboard Header mit KPIs
+    render_dashboard_header("Notar", user_name, unread_count)
+
+    # KPIs berechnen
+    notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    aktive_projekte = len([p for p in notar_projekte if p.status != ProjektStatus.ABGESCHLOSSEN.value])
+    beurkundungen = len([p for p in notar_projekte if p.status == ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📋', 'value': str(aktive_projekte), 'label': 'Aktive Akten', 'type': 'success'},
+        {'icon': '✍️', 'value': str(beurkundungen), 'label': 'Beurkundungen', 'type': 'info'},
+        {'icon': '📅', 'value': '0', 'label': 'Anstehende Termine', 'type': ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
     # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
     render_notar_timeline_kompakt(user_id)
