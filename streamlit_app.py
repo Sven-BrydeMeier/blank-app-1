@@ -17292,11 +17292,12 @@ def _render_interessent_dashboard_home(user_id: str):
     with col2:
         # Vorgänge-Widget (Anfragen)
         vorgaenge = []
-        for p in projekte[:5]:
+        for idx, p in enumerate(projekte[:5]):
             vorgaenge.append({
-                'name': p.name or p.adresse or 'Unbekannt',
-                'status': 'Interesse bekundet',
-                'datum': getattr(p, 'created_at', datetime.now()).strftime("%d.%m.%Y") if hasattr(p, 'created_at') else ''
+                'id': f'INT-{idx+1:03d}',
+                'address': p.name or p.adresse or 'Unbekannt',
+                'status': 'offen',
+                'status_text': 'Interesse bekundet'
             })
         render_vorgaenge_widget(vorgaenge)
 
