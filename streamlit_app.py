@@ -13870,18 +13870,48 @@ def login_page():
     st.markdown("### 🚀 Schneller Demo-Login")
     st.caption("Mit einem Klick als Demo-Benutzer anmelden:")
 
-    demo_logins = [
+    # Demo-Login-Buttons in 2 Zeilen für bessere Sichtbarkeit auf allen Bildschirmgrößen
+    demo_logins_row1 = [
         ("🏢 Makler", "makler@demo.de", "makler123", "Max Makler"),
         ("🏠 Käufer", "kaeufer@demo.de", "kaeufer123", "Karl Käufer"),
         ("💰 Verkäufer", "verkaeufer@demo.de", "verkaeufer123", "Vera Verkäufer"),
+    ]
+    demo_logins_row2 = [
         ("🏦 Finanzierer", "finanz@demo.de", "finanz123", "Frank Finanzierer"),
         ("⚖️ Notar", "notar@demo.de", "notar123", "Nina Notar"),
     ]
 
-    cols = st.columns(5)
-    for idx, (label, email, password, name) in enumerate(demo_logins):
-        with cols[idx]:
+    # Erste Zeile: Makler, Käufer, Verkäufer
+    cols1 = st.columns(3)
+    for idx, (label, email, password, name) in enumerate(demo_logins_row1):
+        with cols1[idx]:
             if st.button(label, key=f"demo_login_{idx}", use_container_width=True):
+                # Demo-Benutzer finden und einloggen
+                for u in st.session_state.users.values():
+                    if u.email == email:
+                        st.session_state.current_user = u
+                        st.session_state.is_notar_mitarbeiter = False
+
+                        # Login-Event tracken
+                        safe_track_interaktion(
+                            interaktions_typ='login',
+                            details={'rolle': u.rolle, 'demo_login': True},
+                            nutzer_id=u.user_id
+                        )
+
+                        create_notification(
+                            u.user_id,
+                            "Willkommen!",
+                            f"Demo-Login als {u.rolle} erfolgreich.",
+                            NotificationType.SUCCESS.value
+                        )
+                        st.rerun()
+
+    # Zweite Zeile: Finanzierer, Notar
+    cols2 = st.columns(2)
+    for idx, (label, email, password, name) in enumerate(demo_logins_row2):
+        with cols2[idx]:
+            if st.button(label, key=f"demo_login_row2_{idx}", use_container_width=True):
                 # Demo-Benutzer finden und einloggen
                 for u in st.session_state.users.values():
                     if u.email == email:
