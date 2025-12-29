@@ -3006,13 +3006,12 @@ def get_workflow_steps_for_segment(segment_id: str, include_conditional: bool = 
     for step in WORKFLOW_TEMPLATE_KV["steps"]:
         if step["segment_id"] == segment_id:
             # Prüfe Condition
-            if step.get("condition"):
-                cond = step["condition"]
-                if cond["condition_id"] == "requires_financing":
-                    if cond["value"] == True and not financing_required:
-                        if not include_conditional:
-                            continue
-                        # Step wird als SKIPPED markiert
+            cond = step.get("condition")
+            if cond and isinstance(cond, dict) and cond.get("condition_id") == "requires_financing":
+                if cond.get("value") == True and not financing_required:
+                    if not include_conditional:
+                        continue
+                    # Step wird als SKIPPED markiert
             steps.append(step)
     return sorted(steps, key=lambda x: x["order"])
 
@@ -3037,11 +3036,10 @@ def calculate_step_status(step_code: str, completed_steps: List[str], financing_
         return WorkflowStepStatus.OPEN.value
 
     # Prüfe Condition
-    if step.get("condition"):
-        cond = step["condition"]
-        if cond["condition_id"] == "requires_financing":
-            if cond["value"] == True and not financing_required:
-                return WorkflowStepStatus.SKIPPED.value
+    cond = step.get("condition")
+    if cond and isinstance(cond, dict) and cond.get("condition_id") == "requires_financing":
+        if cond.get("value") == True and not financing_required:
+            return WorkflowStepStatus.SKIPPED.value
 
     # Bereits erledigt?
     if step_code in completed_steps:
@@ -21988,89 +21986,82 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 
 # Menüstruktur für Notar-Dashboard - WORKFLOW-ORIENTIERT (nach Notarablauf)
 # Phase 1: Akte → Phase 2: Grundbuch → Phase 3: Parteien → Phase 4: Finanzierung
-# Phase 5: Kaufvertrag → Phase 6: Beurkundung → Phase 7: Vollzug → Kommunikation
+# Phase 5: Kaufvertrag → Phase 6: Beurkundung → Phase 7: Vollzug → Phase 8: Kommunikation
 NOTAR_MENU_STRUKTUR = {
     "Akte": {
         "icon": "📁",
         "items": [
-            {"name": "Übersicht", "icon": "🏠", "key": "timeline"},
-            {"name": "Akten", "icon": "📋", "key": "projekte"},
-            {"name": "Import", "icon": "📥", "key": "aktenimport"},
+            {"name": "Neue Akte", "icon": "📥", "key": "neue_akte"},
+            {"name": "Meine Akten", "icon": "📋", "key": "projekte"},
+            {"name": "Akten-Import (PDF)", "icon": "📤", "key": "aktenimport"},
         ]
     },
     "Grundbuch": {
         "icon": "📚",
         "items": [
-            {"name": "Auszug & OCR", "icon": "🔍", "key": "datenermittlung"},
-            {"name": "Belastungen", "icon": "⚠️", "key": "_grundbuch_belastungen"},
-            {"name": "Löschungs-ToDos", "icon": "✅", "key": "_loeschungs_todos"},
+            {"name": "Grundbuchauszug anfordern", "icon": "🔍", "key": "datenermittlung"},
+            {"name": "Abteilungen prüfen", "icon": "📖", "key": "grundbuch_abteilungen"},
+            {"name": "Löschungsanforderungen (ToDos)", "icon": "⚠️", "key": "loeschungs_todos"},
+            {"name": "Käufer-Abfrage (Übernehmen/Löschen)", "icon": "❓", "key": "kaeufer_abfrage"},
+        ]
+    },
+    "Parteien": {
+        "icon": "👥",
+        "items": [
+            {"name": "Käufer/Verkäufer", "icon": "📝", "key": "parteien_uebersicht"},
+            {"name": "Ausweisdaten (OCR)", "icon": "🪪", "key": "ausweisdaten"},
+            {"name": "Steuer-IDs", "icon": "🆔", "key": "steuer_ids"},
         ]
     },
     "Finanzierung": {
         "icon": "💰",
         "items": [
-            {"name": "Nachweise", "icon": "📄", "key": "finanzierungsnachweise"},
-            {"name": "Bank-Grundschuld", "icon": "🏦", "key": "bank_grundschuld"},
-            {"name": "Preiseinigungen", "icon": "🤝", "key": "preiseinigungen"},
+            {"name": "Bank-Auswahl (Grundschuld)", "icon": "🏦", "key": "bank_grundschuld"},
+            {"name": "Finanzierungsbestätigung", "icon": "✅", "key": "finanzierungsnachweise"},
+            {"name": "Auszahlungsbedingungen", "icon": "💵", "key": "auszahlungsbedingungen"},
         ]
     },
     "Kaufvertrag": {
         "icon": "📜",
         "items": [
-            {"name": "Erstellen", "icon": "✍️", "key": "kaufvertrag"},
-            {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
-            {"name": "Vergleich", "icon": "🔄", "key": "vertragsvergleich"},
+            {"name": "Vertragsdaten", "icon": "⚙️", "key": "vertragsdaten"},
+            {"name": "Grundbuchstand einfügen", "icon": "🏠", "key": "grundbuchstand_einfuegen"},
+            {"name": "KI-Entwurf erstellen", "icon": "🤖", "key": "ki_entwurf"},
+            {"name": "Entwurf bearbeiten", "icon": "✍️", "key": "kaufvertrag"},
+            {"name": "An Parteien versenden", "icon": "📤", "key": "vertrag_versenden"},
         ]
     },
-    "Mehr": {
-        "icon": "☰",
+    "Beurkundung": {
+        "icon": "📅",
         "items": [
-            {"name": "Termine", "icon": "📅", "key": "_termine"},
-            {"name": "Vollzug", "icon": "⚡", "key": "_vollzug"},
-            {"name": "Kontakte", "icon": "👥", "key": "_kontakte"},
+            {"name": "Termin planen", "icon": "📆", "key": "termine"},
+            {"name": "Checkliste", "icon": "📋", "key": "checklisten"},
+            {"name": "Vorlesen-Modus", "icon": "🔊", "key": "vorlesen"},
+            {"name": "Beurkundung durchführen", "icon": "✅", "key": "beurkundung"},
+        ]
+    },
+    "Vollzug": {
+        "icon": "⚡",
+        "items": [
+            {"name": "Status-Übersicht", "icon": "📊", "key": "vollzug_status"},
+            {"name": "Grunderwerbsteuer-Anzeige", "icon": "🏛️", "key": "grunderwerbsteuer"},
+            {"name": "Auflassungsvormerkung", "icon": "📜", "key": "auflassung"},
+            {"name": "Kaufpreisfälligkeit", "icon": "💸", "key": "kaufpreisfaelligkeit"},
+            {"name": "Eigentumsumschreibung", "icon": "📖", "key": "eigentumsumschreibung"},
+        ]
+    },
+    "Kommunikation": {
+        "icon": "📬",
+        "items": [
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
-            {"name": "System", "icon": "⚙️", "key": "_system"},
+            {"name": "Benachrichtigungen", "icon": "🔔", "key": "benachrichtigungen"},
+            {"name": "Dokumentenfreigaben", "icon": "📋", "key": "dokumentenfreigaben"},
         ]
     },
 }
 
-# Untermenüs für erweiterte Bereiche
-NOTAR_UNTERMENUS = {
-    "_grundbuch_belastungen": [
-        {"name": "Abt. II (Lasten)", "icon": "📋", "key": "belastungen_abt2"},
-        {"name": "Abt. III (Grundschulden)", "icon": "💸", "key": "belastungen_abt3"},
-        {"name": "Käufer-Abfrage", "icon": "❓", "key": "kaeufer_abfrage"},
-    ],
-    "_loeschungs_todos": [
-        {"name": "Offene ToDos", "icon": "🔴", "key": "loeschung_offen"},
-        {"name": "In Bearbeitung", "icon": "🟡", "key": "loeschung_bearbeitung"},
-        {"name": "Erledigt", "icon": "🟢", "key": "loeschung_erledigt"},
-    ],
-    "_termine": [
-        {"name": "Kalender", "icon": "📆", "key": "termine"},
-        {"name": "Fristen", "icon": "⏰", "key": "fristen"},
-        {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
-        {"name": "Beurkundung", "icon": "✒️", "key": "beurkundung"},
-    ],
-    "_vollzug": [
-        {"name": "Status", "icon": "📊", "key": "vollzug_status"},
-        {"name": "Grunderwerbsteuer", "icon": "🏛️", "key": "grunderwerbsteuer"},
-        {"name": "Auflassung", "icon": "📜", "key": "auflassung"},
-        {"name": "Eigentumsumschreibung", "icon": "📖", "key": "eigentumsumschreibung"},
-    ],
-    "_kontakte": [
-        {"name": "Parteien", "icon": "👥", "key": "ausweisdaten"},
-        {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
-        {"name": "Makler", "icon": "🤝", "key": "maklerempfehlung"},
-        {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
-    ],
-    "_system": [
-        {"name": "Einstellungen", "icon": "🔧", "key": "einstellungen"},
-        {"name": "DSGVO", "icon": "🔒", "key": "dsgvo"},
-        {"name": "Papierkorb", "icon": "🗑️", "key": "papierkorb"},
-        {"name": "Vorlesen", "icon": "🔊", "key": "vorlesen"},
-    ],
-}
+# Keine Untermenüs mehr benötigt - alle Menüpunkte sind direkt zugänglich
+NOTAR_UNTERMENUS = {}
 
 
 def render_notar_menu_styles():
@@ -23294,6 +23285,329 @@ def render_notar_content(selection: str, user_id: str):
             notar_timeline_view()
         else:
             st.info("Noch keine Projekte zugewiesen.")
+
+    # === NEUE MENÜPUNKTE (workflow-orientierte Struktur) ===
+
+    elif selection == "neue_akte":
+        st.subheader("📥 Neue Akte anlegen")
+        # Formular für neue Akte
+        with st.form("neue_akte_form"):
+            aktenzeichen = st.text_input("Aktenzeichen", placeholder="z.B. 2025/0001")
+            kurzbezeichnung = st.text_input("Kurzbezeichnung", placeholder="z.B. Mustermann/Musterfrau - Musterstraße 1")
+            col1, col2 = st.columns(2)
+            with col1:
+                verkaeufer_name = st.text_input("Verkäufer", placeholder="Name des Verkäufers")
+            with col2:
+                kaeufer_name = st.text_input("Käufer", placeholder="Name des Käufers")
+            objekt_adresse = st.text_input("Objekt-Adresse", placeholder="Straße, PLZ Ort")
+            kaufpreis = st.number_input("Kaufpreis (EUR)", min_value=0.0, step=1000.0, format="%.2f")
+
+            if st.form_submit_button("Akte anlegen", type="primary"):
+                if aktenzeichen and kurzbezeichnung:
+                    # Neue Akte als Projekt anlegen
+                    from datetime import datetime
+                    projekt_id = f"akte_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    neues_projekt = Projekt(
+                        projekt_id=projekt_id,
+                        name=kurzbezeichnung,
+                        immobilie=Immobilie(
+                            immobilien_id=f"immo_{projekt_id}",
+                            adresse=objekt_adresse,
+                            kaufpreis=kaufpreis,
+                            objekt_typ="Immobilie"
+                        ),
+                        notar_id=user_id,
+                        aktenzeichen=aktenzeichen,
+                        erstellt_am=datetime.now()
+                    )
+                    st.session_state.projekte[projekt_id] = neues_projekt
+                    st.success(f"Akte {aktenzeichen} wurde erfolgreich angelegt!")
+                    st.rerun()
+                else:
+                    st.error("Bitte Aktenzeichen und Kurzbezeichnung eingeben.")
+
+    elif selection == "grundbuch_abteilungen":
+        st.subheader("📖 Abteilungen prüfen (II/III)")
+        notar_datenermittlung_view()
+
+    elif selection == "loeschungs_todos":
+        st.subheader("⚠️ Löschungsanforderungen (ToDos)")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="loeschungs_todos_projekt"
+            )
+            if selected_projekt_id:
+                projekt = st.session_state.projekte[selected_projekt_id]
+                _render_loeschungs_todos(projekt, user_id)
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "kaeufer_abfrage":
+        st.subheader("❓ Käufer-Abfrage (Übernehmen/Löschen)")
+        st.info("Hier können Sie Käufer zur Entscheidung über Grundbuch-Belastungen auffordern.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="kaeufer_abfrage_projekt"
+            )
+            if selected_projekt_id:
+                projekt = st.session_state.projekte[selected_projekt_id]
+                _render_grundbuch_belastungen(projekt, user_id)
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "parteien_uebersicht":
+        st.subheader("📝 Käufer/Verkäufer")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            for projekt in notar_projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**Käufer:**")
+                        if projekt.kaeufer_ids:
+                            for k_id in projekt.kaeufer_ids:
+                                kaeufer = st.session_state.benutzer.get(k_id)
+                                if kaeufer:
+                                    st.write(f"👤 {kaeufer.name}")
+                        else:
+                            st.write("Noch nicht zugewiesen")
+                    with col2:
+                        st.markdown("**Verkäufer:**")
+                        if projekt.verkaeufer_ids:
+                            for v_id in projekt.verkaeufer_ids:
+                                verkaeufer = st.session_state.benutzer.get(v_id)
+                                if verkaeufer:
+                                    st.write(f"👤 {verkaeufer.name}")
+                        else:
+                            st.write("Noch nicht zugewiesen")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "steuer_ids":
+        st.subheader("🆔 Steuer-IDs")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            st.info("Steuer-Identifikationsnummern der Parteien für die Grunderwerbsteuer-Anzeige")
+            for projekt in notar_projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=False):
+                    # Käufer Steuer-IDs
+                    st.markdown("**Käufer Steuer-IDs:**")
+                    for k_id in projekt.kaeufer_ids:
+                        kaeufer = st.session_state.benutzer.get(k_id)
+                        if kaeufer:
+                            steuer_id_key = f"steuer_id_{k_id}"
+                            current_steuer_id = st.session_state.get(steuer_id_key, "")
+                            new_steuer_id = st.text_input(f"Steuer-ID für {kaeufer.name}", value=current_steuer_id, key=f"input_{steuer_id_key}")
+                            if new_steuer_id != current_steuer_id:
+                                st.session_state[steuer_id_key] = new_steuer_id
+                    # Verkäufer Steuer-IDs
+                    st.markdown("**Verkäufer Steuer-IDs:**")
+                    for v_id in projekt.verkaeufer_ids:
+                        verkaeufer = st.session_state.benutzer.get(v_id)
+                        if verkaeufer:
+                            steuer_id_key = f"steuer_id_{v_id}"
+                            current_steuer_id = st.session_state.get(steuer_id_key, "")
+                            new_steuer_id = st.text_input(f"Steuer-ID für {verkaeufer.name}", value=current_steuer_id, key=f"input_{steuer_id_key}")
+                            if new_steuer_id != current_steuer_id:
+                                st.session_state[steuer_id_key] = new_steuer_id
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "auszahlungsbedingungen":
+        st.subheader("💵 Auszahlungsbedingungen")
+        st.info("Hier werden die Auszahlungsbedingungen für die Finanzierung festgelegt.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="auszahlungsbedingungen_projekt"
+            )
+            if selected_projekt_id:
+                projekt = st.session_state.projekte[selected_projekt_id]
+                auszahlungs_key = f"auszahlungsbedingungen_{selected_projekt_id}"
+                current_text = st.session_state.get(auszahlungs_key, "")
+                new_text = st.text_area(
+                    "Auszahlungsbedingungen eingeben",
+                    value=current_text,
+                    height=200,
+                    placeholder="z.B. Auszahlung nach Eintragung der Auflassungsvormerkung und Vorlage der Finanzierungszusage...",
+                    key=f"input_{auszahlungs_key}"
+                )
+                if new_text != current_text:
+                    st.session_state[auszahlungs_key] = new_text
+                    st.success("Gespeichert!")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "vertragsdaten":
+        st.subheader("⚙️ Vertragsdaten")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vertragsdaten_projekt"
+            )
+            if selected_projekt_id:
+                projekt = st.session_state.projekte[selected_projekt_id]
+                st.markdown("**Vertragsdaten bearbeiten:**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Objekt:** {projekt.immobilie.adresse if projekt.immobilie else 'N/A'}")
+                    st.write(f"**Kaufpreis:** {projekt.immobilie.kaufpreis:,.2f} EUR" if projekt.immobilie else "N/A")
+                with col2:
+                    st.write(f"**Aktenzeichen:** {getattr(projekt, 'aktenzeichen', 'N/A')}")
+                    st.write(f"**Status:** {projekt.status.value if hasattr(projekt.status, 'value') else projekt.status}")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "grundbuchstand_einfuegen":
+        st.subheader("🏠 Grundbuchstand einfügen")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="grundbuchstand_projekt"
+            )
+            if selected_projekt_id:
+                grundbuchstand_text = generiere_grundbuchstand_text(selected_projekt_id)
+                st.markdown("**Generierter Grundbuchstand-Abschnitt:**")
+                st.code(grundbuchstand_text, language=None)
+                if st.button("📋 In Zwischenablage kopieren", key="copy_grundbuchstand"):
+                    st.info("Text wurde generiert - bitte manuell kopieren.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "ki_entwurf":
+        st.subheader("🤖 KI-Entwurf erstellen")
+        st.info("Erstellen Sie einen Kaufvertragsentwurf mit Hilfe künstlicher Intelligenz.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="ki_entwurf_projekt"
+            )
+            if selected_projekt_id:
+                if st.button("🤖 KI-Entwurf generieren", type="primary"):
+                    st.info("Die KI-Funktion wird in einer zukünftigen Version verfügbar sein.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "vertrag_versenden":
+        st.subheader("📤 Vertrag an Parteien versenden")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vertrag_versenden_projekt"
+            )
+            if selected_projekt_id:
+                projekt = st.session_state.projekte[selected_projekt_id]
+                st.markdown("**Empfänger auswählen:**")
+                empfaenger = []
+                for k_id in projekt.kaeufer_ids:
+                    kaeufer = st.session_state.benutzer.get(k_id)
+                    if kaeufer:
+                        if st.checkbox(f"Käufer: {kaeufer.name}", value=True, key=f"send_to_{k_id}"):
+                            empfaenger.append(k_id)
+                for v_id in projekt.verkaeufer_ids:
+                    verkaeufer = st.session_state.benutzer.get(v_id)
+                    if verkaeufer:
+                        if st.checkbox(f"Verkäufer: {verkaeufer.name}", value=True, key=f"send_to_{v_id}"):
+                            empfaenger.append(v_id)
+                if st.button("📤 Vertragsentwurf versenden", type="primary"):
+                    if empfaenger:
+                        sende_workflow_benachrichtigung(
+                            projekt_id=selected_projekt_id,
+                            workflow_schritt="Vertragsentwurf",
+                            betreff=f"Kaufvertragsentwurf für {projekt.name}",
+                            nachricht="Der Kaufvertragsentwurf liegt zur Prüfung bereit. Bitte prüfen Sie die Unterlagen sorgfältig.",
+                            empfaenger_ids=empfaenger
+                        )
+                        st.success(f"Vertragsentwurf an {len(empfaenger)} Empfänger versendet!")
+                    else:
+                        st.warning("Bitte mindestens einen Empfänger auswählen.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "kaufpreisfaelligkeit":
+        st.subheader("💸 Kaufpreisfälligkeit")
+        st.info("Hier wird die Kaufpreisfälligkeitsmitteilung verwaltet.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            for projekt in notar_projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=False):
+                    vollzug_status = st.session_state.get(f"vollzug_{projekt.projekt_id}", {})
+                    kpf_erledigt = vollzug_status.get("kpf_mitteilung", False)
+                    st.write(f"**Status:** {'✅ Mitteilung versandt' if kpf_erledigt else '⏳ Ausstehend'}")
+                    if not kpf_erledigt:
+                        if st.button("📤 Fälligkeitsmitteilung versenden", key=f"kpf_{projekt.projekt_id}"):
+                            vollzug_status["kpf_mitteilung"] = True
+                            st.session_state[f"vollzug_{projekt.projekt_id}"] = vollzug_status
+                            # Benachrichtigung senden
+                            sende_workflow_benachrichtigung(
+                                projekt_id=projekt.projekt_id,
+                                workflow_schritt="Kaufpreisfälligkeit",
+                                betreff=f"Kaufpreisfälligkeitsmitteilung - {projekt.name}",
+                                nachricht="Die Voraussetzungen für die Kaufpreisfälligkeit sind erfüllt. Der Kaufpreis ist nun fällig.",
+                                empfaenger_typ="Alle"
+                            )
+                            st.success("Fälligkeitsmitteilung versandt!")
+                            st.rerun()
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "benachrichtigungen":
+        st.subheader("🔔 Benachrichtigungen")
+        # Workflow-Benachrichtigungen anzeigen
+        workflow_benachrichtigungen = [b for b in st.session_state.get("workflow_benachrichtigungen", {}).values()
+                                       if user_id in b.empfaenger_ids or any(
+                                           st.session_state.projekte.get(b.projekt_id) and
+                                           st.session_state.projekte[b.projekt_id].notar_id == user_id
+                                           for _ in [1])]
+        if workflow_benachrichtigungen:
+            for benachrichtigung in sorted(workflow_benachrichtigungen, key=lambda x: x.erstellt_am, reverse=True):
+                with st.expander(f"📬 {benachrichtigung.betreff}", expanded=False):
+                    st.write(f"**Workflow-Schritt:** {benachrichtigung.workflow_schritt}")
+                    st.write(f"**Nachricht:** {benachrichtigung.nachricht}")
+                    st.write(f"**Datum:** {benachrichtigung.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+        else:
+            st.info("Keine Workflow-Benachrichtigungen vorhanden.")
+
+        # Auch normale Benachrichtigungen anzeigen
+        st.markdown("---")
+        st.markdown("### 📩 System-Benachrichtigungen")
+        user_benachrichtigungen = [n for n in st.session_state.benachrichtigungen.values() if n.user_id == user_id]
+        if user_benachrichtigungen:
+            for n in sorted(user_benachrichtigungen, key=lambda x: x.erstellt_am, reverse=True)[:10]:
+                icon = "🔴" if not n.gelesen else "⚪"
+                st.write(f"{icon} **{n.titel}** - {n.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+        else:
+            st.info("Keine System-Benachrichtigungen vorhanden.")
 
     else:
         st.warning(f"Unbekannter Menüpunkt: {selection}")
