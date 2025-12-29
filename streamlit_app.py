@@ -23627,18 +23627,18 @@ def notar_dashboard():
     user_id = st.session_state.current_user.user_id
     user_name = st.session_state.current_user.name
 
-    # Sidebar-Elemente
-    render_aktentasche_sidebar(user_id)
-    render_benachrichtigungs_badge(user_id)
-    render_aktentasche_teilen_dialog(user_id)
-    render_aktentasche_download(user_id)
-
     # Ungelesene Benachrichtigungen zählen
     unread_count = len([n for n in st.session_state.benachrichtigungen.values()
                         if n.user_id == user_id and not n.gelesen])
 
-    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
+    # Sidebar-Menü zuerst rendern (oben in der Sidebar)
     selection = render_notar_sidebar_menu(user_id)
+
+    # Weitere Sidebar-Elemente (unterhalb des Menüs)
+    render_aktentasche_sidebar(user_id)
+    render_benachrichtigungs_badge(user_id)
+    render_aktentasche_teilen_dialog(user_id)
+    render_aktentasche_download(user_id)
 
     # Titel mit aktuellem Bereich ermitteln
     aktueller_bereich = ""
