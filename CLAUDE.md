@@ -251,11 +251,51 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 
 ### Neue Notar-Menüstruktur (Workflow-orientiert)
 ```
-📁 Akte        → Übersicht, Akten, Import
-📚 Grundbuch   → Auszug & OCR, Belastungen, Löschungs-ToDos
-💰 Finanzierung → Nachweise, Bank-Grundschuld, Preiseinigungen
-📜 Kaufvertrag → Erstellen, Vorlagen, Vergleich
-☰ Mehr        → Termine, Vollzug, Kontakte, Nachrichten, System
+📁 AKTE
+├── 📥 Neue Akte
+├── 📋 Meine Akten
+└── 📤 Akten-Import (PDF)
+
+📚 GRUNDBUCH
+├── 🔍 Grundbuchauszug anfordern
+├── 📖 Abteilungen prüfen
+├── ⚠️ Löschungsanforderungen (ToDos)
+└── ❓ Käufer-Abfrage (Übernehmen/Löschen)
+
+👥 PARTEIEN
+├── 📝 Käufer/Verkäufer
+├── 🪪 Ausweisdaten (OCR)
+└── 🆔 Steuer-IDs
+
+💰 FINANZIERUNG
+├── 🏦 Bank-Auswahl (Grundschuld)
+├── ✅ Finanzierungsbestätigung
+└── 💵 Auszahlungsbedingungen
+
+📜 KAUFVERTRAG
+├── ⚙️ Vertragsdaten
+├── 🏠 Grundbuchstand einfügen
+├── 🤖 KI-Entwurf erstellen
+├── ✍️ Entwurf bearbeiten
+└── 📤 An Parteien versenden
+
+📅 BEURKUNDUNG
+├── 📆 Termin planen
+├── 📋 Checkliste
+├── 🔊 Vorlesen-Modus
+└── ✅ Beurkundung durchführen
+
+⚡ VOLLZUG
+├── 📊 Status-Übersicht
+├── 🏛️ Grunderwerbsteuer-Anzeige
+├── 📜 Auflassungsvormerkung
+├── 💸 Kaufpreisfälligkeit
+└── 📖 Eigentumsumschreibung
+
+📬 KOMMUNIKATION
+├── ✉️ Nachrichten
+├── 🔔 Benachrichtigungen
+└── 📋 Dokumentenfreigaben
 ```
 
 ### Neue Dataclasses
