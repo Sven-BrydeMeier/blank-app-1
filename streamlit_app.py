@@ -7457,6 +7457,7 @@ def init_session_state():
         st.session_state.preisangebote = {}  # Preisverhandlung zwischen Käufer/Verkäufer
         st.session_state.wirtschaftsdaten = {}
         st.session_state.notifications = {}
+        st.session_state.benachrichtigungen = {}  # Deutsche Benachrichtigungen
         st.session_state.comments = {}
         st.session_state.invitations = {}
         st.session_state.timeline_events = {}
@@ -13946,6 +13947,10 @@ def makler_dashboard():
     # Einheitliche Dashboard-Styles injizieren
     inject_unified_dashboard_styles()
 
+    # Sicherstellen, dass benachrichtigungen existiert (für bestehende Sessions)
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
+
     # Aktentasche in der Sidebar
     user_id = st.session_state.current_user.user_id
     user_name = st.session_state.current_user.name
@@ -15275,6 +15280,10 @@ def kaeufer_dashboard():
 
     # Einheitliche Dashboard-Styles injizieren
     inject_unified_dashboard_styles()
+
+    # Sicherstellen, dass benachrichtigungen existiert (für bestehende Sessions)
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
 
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
@@ -18867,6 +18876,10 @@ def verkaeufer_dashboard():
     # Einheitliche Dashboard-Styles injizieren
     inject_unified_dashboard_styles()
 
+    # Sicherstellen, dass benachrichtigungen existiert (für bestehende Sessions)
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
+
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
@@ -20283,6 +20296,10 @@ def finanzierer_dashboard():
 
     # Einheitliche Dashboard-Styles injizieren
     inject_unified_dashboard_styles()
+
+    # Sicherstellen, dass benachrichtigungen existiert (für bestehende Sessions)
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
 
     user_id = st.session_state.current_user.user_id
     user_name = st.session_state.current_user.name
@@ -22010,6 +22027,10 @@ def notar_dashboard():
     # Beide CSS-Systeme laden
     inject_unified_dashboard_styles()
     render_notar_menu_styles()
+
+    # Sicherstellen, dass benachrichtigungen existiert (für bestehende Sessions)
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
 
     user_id = st.session_state.current_user.user_id
     user_name = st.session_state.current_user.name
