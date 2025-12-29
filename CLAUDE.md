@@ -16,6 +16,7 @@
 | Rolle | Email | Passwort |
 |-------|-------|----------|
 | Makler | makler@demo.de | makler123 |
+| Interessent | interessent@demo.de | interessent123 |
 | Käufer | kaeufer@demo.de | kaeufer123 |
 | Verkäufer | verkaeufer@demo.de | verkaeufer123 |
 | Finanzierer | finanz@demo.de | finanz123 |
@@ -48,12 +49,19 @@
 
 **Makler:**
 - Dashboard, Projekte, Timeline, Nachrichten, Dokumente, Termine, Beteiligte, Bankenmappe, Einstellungen
+- **Interessenten-Verwaltung:** Kann Interessenten als Käufer markieren (einzeln oder als Gruppe/Paar)
+
+**Interessent (Vorstufe zum Käufer):**
+- Dashboard, Objekte, Timeline, Dokumente, Termine, Einstellungen
+- Hat das gleiche Dashboard wie Käufer, aber ohne Finanzierungs- und Kaufvertragsfunktionen
+- Wird zum Käufer befördert, wenn vom Makler/Verkäufer als solcher markiert
 
 **Käufer:**
 - Dashboard, Projekte, Timeline, Finanzierung, Nachrichten, Dokumente, Termine, Einstellungen
 
 **Verkäufer:**
 - Dashboard, Projekte, Timeline, Preisfindung, Nachrichten, Dokumente, Termine, Einstellungen
+- Kann Interessenten als Käufer markieren
 
 **Finanzierer:**
 - Dashboard, Projekte, Wirtschaftsdaten, Angebote, Termine, Einstellungen
@@ -61,6 +69,14 @@
 **Notar:**
 - Dashboard + erweitertes Notar-Menü (Akten, Vorgänge, Dokumente, Termine, etc.)
 - **WICHTIG:** Beim Notar heißen "Projekte" immer "Akten"
+
+### Interessent → Käufer Workflow
+
+1. **Mehrere Interessenten** können sich für ein Projekt interessieren
+2. **Makler oder Verkäufer** markiert einen oder mehrere Interessenten als Käufer
+3. **Käufer-Paar/Gruppe:** Mehrere Interessenten können gemeinsam als Käufer markiert werden (z.B. Ehepaar, Lebenspartner, GbR)
+4. **Rollenänderung:** Bei der Beförderung wird die Rolle automatisch von "Interessent" auf "Käufer" geändert
+5. **Benachrichtigung:** Der neue Käufer erhält eine Benachrichtigung über seine Statusänderung
 
 ### Notar-Dashboard (4-Quadranten-Layout)
 
