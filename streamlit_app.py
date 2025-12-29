@@ -1789,6 +1789,13 @@ def render_mobile_nav(active_tab: str, role: str):
     """Rendert die Bottom Navigation für Mobile"""
 
     nav_items = {
+        UserRole.INTERESSENT.value: [
+            {"icon": "🏠", "label": "Home", "key": "home"},
+            {"icon": "📋", "label": "Objekte", "key": "objekte"},
+            {"icon": "📄", "label": "Dokumente", "key": "dokumente"},
+            {"icon": "📅", "label": "Termine", "key": "termine"},
+            {"icon": "👤", "label": "Profil", "key": "profil"},
+        ],
         UserRole.KAEUFER.value: [
             {"icon": "🏠", "label": "Home", "key": "home"},
             {"icon": "📝", "label": "Aufgaben", "key": "aufgaben"},
@@ -2405,6 +2412,7 @@ def render_zur_aktentasche_button(
 
 class UserRole(Enum):
     MAKLER = "Makler"
+    INTERESSENT = "Interessent"  # Vorstufe zum Käufer
     KAEUFER = "Käufer"
     VERKAEUFER = "Verkäufer"
     FINANZIERER = "Finanzierer"
@@ -3595,6 +3603,12 @@ class DokumentTyp(Enum):
 
 # Standard-Ordnerstruktur pro Rolle
 STANDARD_ORDNER = {
+    UserRole.INTERESSENT.value: [
+        {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
+        {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG, DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
+        {"name": "Objektdokumente", "typen": [DokumentTyp.ENERGIEAUSWEIS, DokumentTyp.FLURKARTE, DokumentTyp.EXPOSE]},
+        {"name": "Sonstiges", "typen": [DokumentTyp.SONSTIGES]}
+    ],
     UserRole.KAEUFER.value: [
         {"name": "Persönliche Dokumente", "typen": [DokumentTyp.PERSONALAUSWEIS, DokumentTyp.REISEPASS]},
         {"name": "Finanzierung", "typen": [DokumentTyp.FINANZIERUNGSBESTAETIGUNG, DokumentTyp.GEHALTSNACHWEIS, DokumentTyp.STEUERBESCHEID, DokumentTyp.KONTOAUSZUG]},
@@ -4561,6 +4575,7 @@ class Projekt:
     kaufpreis: float = 0.0
     expose_pdf: Optional[bytes] = None
     makler_id: str = ""
+    interessent_ids: List[str] = field(default_factory=list)  # Interessenten (Vorstufe zu Käufern)
     kaeufer_ids: List[str] = field(default_factory=list)
     verkaeufer_ids: List[str] = field(default_factory=list)
     finanzierer_ids: List[str] = field(default_factory=list)
@@ -7657,6 +7672,7 @@ def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
     demo_users = [
         User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
+        User("interessent1", "Ingo Interessent", "interessent@demo.de", UserRole.INTERESSENT.value, hash_password("interessent123"), projekt_ids=["projekt1"]),
         User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
         User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
         User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
@@ -7674,6 +7690,7 @@ def create_demo_projekt():
         adresse="Leopoldstraße 123, 80802 München",
         kaufpreis=485000.00,
         makler_id="makler1",
+        interessent_ids=["interessent1"],  # Interessenten für dieses Projekt
         kaeufer_ids=["kaeufer1"],
         verkaeufer_ids=["verkaeufer1"],
         finanzierer_ids=["finanzierer1"],
@@ -13873,6 +13890,7 @@ def login_page():
     # Demo-Login-Buttons in 2 Zeilen für bessere Sichtbarkeit auf allen Bildschirmgrößen
     demo_logins_row1 = [
         ("🏢 Makler", "makler@demo.de", "makler123", "Max Makler"),
+        ("👀 Interessent", "interessent@demo.de", "interessent123", "Ingo Interessent"),
         ("🏠 Käufer", "kaeufer@demo.de", "kaeufer123", "Karl Käufer"),
         ("💰 Verkäufer", "verkaeufer@demo.de", "verkaeufer123", "Vera Verkäufer"),
     ]
@@ -13881,8 +13899,8 @@ def login_page():
         ("⚖️ Notar", "notar@demo.de", "notar123", "Nina Notar"),
     ]
 
-    # Erste Zeile: Makler, Käufer, Verkäufer
-    cols1 = st.columns(3)
+    # Erste Zeile: Makler, Interessent, Käufer, Verkäufer
+    cols1 = st.columns(4)
     for idx, (label, email, password, name) in enumerate(demo_logins_row1):
         with cols1[idx]:
             if st.button(label, key=f"demo_login_{idx}", use_container_width=True):
@@ -13936,6 +13954,8 @@ def login_page():
     with st.expander("📋 Demo-Zugangsdaten (manuell)"):
         st.markdown("""
         **Makler:** `makler@demo.de` | `makler123`
+
+        **Interessent:** `interessent@demo.de` | `interessent123`
 
         **Käufer:** `kaeufer@demo.de` | `kaeufer123`
 
@@ -14564,10 +14584,18 @@ def makler_projekte_view():
 
             with col2:
                 st.markdown("**Teilnehmer:**")
+                interessent_count = len(getattr(projekt, 'interessent_ids', []))
+                if interessent_count > 0:
+                    st.write(f"👀 Interessenten: {interessent_count}")
                 st.write(f"👥 Käufer: {len(projekt.kaeufer_ids)}")
                 st.write(f"👥 Verkäufer: {len(projekt.verkaeufer_ids)}")
                 st.write(f"💼 Finanzierer: {len(projekt.finanzierer_ids)}")
                 st.write(f"⚖️ Notar: {'Ja' if projekt.notar_id else 'Nein'}")
+
+            # Interessenten-Verwaltung (Als Käufer markieren)
+            if hasattr(projekt, 'interessent_ids') and projekt.interessent_ids:
+                with st.expander("👀 Interessenten verwalten", expanded=False):
+                    render_interessenten_verwaltung(projekt)
 
             # Projekt-Einstellungen
             with st.expander("⚙️ Projekt-Einstellungen", expanded=False):
@@ -15300,6 +15328,354 @@ def onboarding_flow():
             st.rerun()
     else:
         st.info("⏳ Bitte akzeptieren Sie alle Dokumente, um fortzufahren.")
+
+# ============================================================================
+# INTERESSENT-BEREICH (Vorstufe zum Käufer)
+# ============================================================================
+
+def interessent_dashboard():
+    """Dashboard für Interessenten - identisch zum Käufer-Dashboard, nur anders benannt.
+
+    Interessenten werden zu Käufern, wenn:
+    - Der Makler/Verkäufer sie als Käufer markiert
+    - Der Notar sie als Käufer benennt
+    - Ein Urkundsauftrag erteilt wird
+    """
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
+
+    # Sicherstellen, dass benachrichtigungen existiert
+    if 'benachrichtigungen' not in st.session_state:
+        st.session_state.benachrichtigungen = {}
+
+    if not st.session_state.current_user.onboarding_complete:
+        onboarding_flow()
+        return
+
+    user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
+    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
+    if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.INTERESSENT.value):
+        return
+
+    # Sidebar-Elemente
+    render_aktentasche_sidebar(user_id)
+    render_benachrichtigungs_badge(user_id)
+    render_aktentasche_teilen_dialog(user_id)
+    render_aktentasche_download(user_id)
+
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Dashboard Header
+    render_dashboard_header("Interessent", user_name, unread_count)
+
+    # Info-Banner für Interessenten
+    st.info("👀 **Sie sind als Interessent registriert.** Sobald Sie vom Verkäufer oder Makler als Käufer ausgewählt werden, erhalten Sie Zugang zu allen Käufer-Funktionen.")
+
+    # KPIs berechnen - Interessenten sehen Projekte, an denen sie interessiert sind
+    interessent_projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+    aktive_projekte = len(interessent_projekte)
+    offene_aufgaben = sum(1 for p in interessent_projekte
+                         for e in p.timeline_events
+                         if e in st.session_state.timeline_events
+                         and not st.session_state.timeline_events[e].completed)
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '🏠', 'value': str(aktive_projekte), 'label': 'Interessante Objekte', 'type': 'success'},
+        {'icon': '📝', 'value': str(offene_aufgaben), 'label': 'Offene Aufgaben', 'type': 'warning' if offene_aufgaben > 0 else ''},
+        {'icon': '👀', 'value': 'Interessent', 'label': 'Status', 'type': 'info'},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
+
+    # Suchleiste
+    search_term = render_dashboard_search("interessent")
+    if search_term:
+        st.session_state['interessent_search'] = search_term
+    else:
+        st.session_state['interessent_search'] = ''
+
+    # Gruppierte Tabs - ähnlich wie Käufer, aber ohne einige erweiterte Funktionen
+    st.markdown("### Bereiche")
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "📋 Objekte",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
+
+    # Tab 0: Übersicht
+    with tabs[0]:
+        render_mandanten_portal(user_id, UserRole.INTERESSENT.value)
+
+    # Tab 1: Objekte - Projekte und Timeline
+    with tabs[1]:
+        objekte_subtabs = st.tabs(["📊 Timeline", "📋 Objekte", "📝 Aufgaben"])
+        with objekte_subtabs[0]:
+            interessent_timeline_view()
+        with objekte_subtabs[1]:
+            interessent_projekte_view()
+        with objekte_subtabs[2]:
+            interessent_aufgaben_view()
+
+    # Tab 2: Dokumente
+    with tabs[2]:
+        dok_subtabs = st.tabs(["📄 Dokumente", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            interessent_dokumente_view()
+        with dok_subtabs[1]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.INTERESSENT.value)
+        with dok_subtabs[2]:
+            interessent_nachrichten()
+        with dok_subtabs[3]:
+            render_papierkorb_tab(user_id, ist_notar=False)
+
+    # Tab 3: Termine
+    with tabs[3]:
+        st.subheader("📅 Meine Termine")
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Objekt"])
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.INTERESSENT.value)
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.INTERESSENT.value)
+            else:
+                st.info("Noch keine Objekte vorhanden.")
+
+    # Tab 4: Einstellungen
+    with tabs[4]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion."""
+            render_tts_controls(demo_text, "interessent_demo_tts", user_id)
+
+
+def interessent_timeline_view():
+    """Timeline für Interessenten"""
+    st.subheader("📊 Objekt-Fortschritt")
+
+    user_id = st.session_state.current_user.user_id
+    search_term = st.session_state.get('interessent_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
+
+    if not projekte:
+        st.info("Keine Objekte gefunden." if search_term else "Noch keine Objekte vorhanden.")
+        return
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+            render_timeline(projekt.projekt_id, UserRole.INTERESSENT.value)
+
+
+def interessent_projekte_view():
+    """Objekt-Ansicht für Interessenten"""
+    st.subheader("📋 Interessante Objekte")
+
+    user_id = st.session_state.current_user.user_id
+    search_term = st.session_state.get('interessent_search', '')
+
+    alle_projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+    projekte = filter_projekte_by_search(alle_projekte, search_term)
+
+    display_search_results_info(len(alle_projekte), len(projekte), search_term)
+
+    if not projekte:
+        st.info("Keine Objekte gefunden." if search_term else "Noch keine Objekte vorhanden.")
+        return
+
+    for projekt in projekte:
+        with st.expander(f"🏘️ {projekt.name}", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Adresse:** {projekt.adresse}")
+                st.write(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+            with col2:
+                st.write(f"**Status:** {projekt.status}")
+                if projekt.makler_id:
+                    makler = st.session_state.users.get(projekt.makler_id)
+                    if makler:
+                        st.write(f"**Makler:** {makler.name}")
+
+
+def interessent_aufgaben_view():
+    """Aufgaben für Interessenten"""
+    st.subheader("📝 Meine Aufgaben")
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+
+    if not projekte:
+        st.info("Noch keine Objekte vorhanden.")
+        return
+
+    for projekt in projekte:
+        aufgaben = [st.session_state.timeline_events[e] for e in projekt.timeline_events
+                   if e in st.session_state.timeline_events
+                   and not st.session_state.timeline_events[e].completed]
+        if aufgaben:
+            st.markdown(f"#### 🏘️ {projekt.name}")
+            for aufgabe in aufgaben:
+                st.checkbox(aufgabe.title, value=False, key=f"int_aufgabe_{aufgabe.event_id}")
+
+
+def interessent_dokumente_view():
+    """Dokumenten-Ansicht für Interessenten"""
+    st.subheader("📄 Meine Dokumente")
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+
+    if not projekte:
+        st.info("Noch keine Objekte vorhanden.")
+        return
+
+    # Dokumente hochladen
+    render_dokument_upload(user_id, UserRole.INTERESSENT.value)
+
+    # Dokumente anzeigen
+    user_docs = [d for d in st.session_state.dokumente.values() if d.owner_id == user_id]
+    if user_docs:
+        for dok in user_docs:
+            with st.expander(f"📄 {dok.name}"):
+                st.write(f"**Typ:** {dok.document_type}")
+                st.write(f"**Hochgeladen:** {dok.upload_date.strftime('%d.%m.%Y')}")
+
+
+def interessent_nachrichten():
+    """Nachrichten für Interessenten"""
+    st.subheader("💬 Nachrichten")
+
+    user_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if user_id in p.interessent_ids]
+
+    if not projekte:
+        st.info("Noch keine Objekte vorhanden.")
+        return
+
+    # Nachrichten anzeigen
+    nachrichten = [n for n in st.session_state.nachrichten.values()
+                   if n.empfaenger_id == user_id or n.sender_id == user_id]
+
+    if nachrichten:
+        for nachricht in sorted(nachrichten, key=lambda x: x.timestamp, reverse=True):
+            sender = st.session_state.users.get(nachricht.sender_id)
+            sender_name = sender.name if sender else "Unbekannt"
+
+            with st.expander(f"📨 Von: {sender_name} - {nachricht.timestamp.strftime('%d.%m.%Y %H:%M')}"):
+                st.write(nachricht.inhalt)
+    else:
+        st.info("Noch keine Nachrichten vorhanden.")
+
+
+def interessent_zu_kaeufer_befoerdern(interessent_ids: List[str], projekt_id: str) -> bool:
+    """
+    Befördert einen oder mehrere Interessenten zu Käufern für ein Projekt.
+
+    Bei mehreren Interessenten werden diese als Käufer-Paar/Gruppe behandelt
+    (z.B. Ehepaar, Lebenspartner, GbR, etc.)
+
+    Args:
+        interessent_ids: Liste der Interessent-User-IDs (können mehrere sein für Paare/Gruppen)
+        projekt_id: Das Projekt, für das die Interessenten zu Käufern werden
+
+    Returns:
+        True bei Erfolg, False bei Fehler
+    """
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return False
+
+    for interessent_id in interessent_ids:
+        user = st.session_state.users.get(interessent_id)
+        if not user:
+            continue
+
+        # Rolle von INTERESSENT auf KAEUFER ändern
+        if user.rolle == UserRole.INTERESSENT.value:
+            user.rolle = UserRole.KAEUFER.value
+
+        # Aus interessent_ids entfernen
+        if interessent_id in projekt.interessent_ids:
+            projekt.interessent_ids.remove(interessent_id)
+
+        # Zu kaeufer_ids hinzufügen (falls nicht schon vorhanden)
+        if interessent_id not in projekt.kaeufer_ids:
+            projekt.kaeufer_ids.append(interessent_id)
+
+        # Benachrichtigung an den neuen Käufer
+        create_notification(
+            interessent_id,
+            "🎉 Sie wurden als Käufer ausgewählt!",
+            f"Sie wurden für das Projekt '{projekt.name}' als Käufer bestätigt. Sie haben nun Zugang zu allen Käufer-Funktionen.",
+            NotificationType.SUCCESS.value
+        )
+
+    return True
+
+
+def render_interessenten_verwaltung(projekt: 'Projekt'):
+    """
+    Zeigt die Interessenten-Verwaltung für ein Projekt.
+    Ermöglicht dem Makler/Verkäufer, Interessenten als Käufer zu markieren.
+    """
+    st.markdown("##### 👀 Interessenten")
+
+    if not projekt.interessent_ids:
+        st.info("Noch keine Interessenten für dieses Projekt.")
+        return
+
+    # Interessenten anzeigen
+    for int_id in projekt.interessent_ids:
+        interessent = st.session_state.users.get(int_id)
+        if interessent:
+            col1, col2, col3 = st.columns([3, 2, 2])
+            with col1:
+                st.write(f"👀 **{interessent.name}**")
+                st.caption(f"📧 {interessent.email}")
+            with col2:
+                st.caption("Status: Interessent")
+            with col3:
+                if st.button("✅ Als Käufer markieren", key=f"promote_{int_id}_{projekt.projekt_id}"):
+                    if interessent_zu_kaeufer_befoerdern([int_id], projekt.projekt_id):
+                        st.success(f"✅ {interessent.name} wurde als Käufer markiert!")
+                        st.rerun()
+
+    st.markdown("---")
+
+    # Option für Käufer-Paar/Gruppe
+    if len(projekt.interessent_ids) > 1:
+        st.markdown("**👥 Käufer-Paar/Gruppe erstellen:**")
+        st.caption("Wählen Sie mehrere Interessenten aus, die gemeinsam als Käufer auftreten (z.B. Ehepaar, GbR)")
+
+        selected_interessenten = []
+        for int_id in projekt.interessent_ids:
+            interessent = st.session_state.users.get(int_id)
+            if interessent:
+                if st.checkbox(interessent.name, key=f"group_select_{int_id}_{projekt.projekt_id}"):
+                    selected_interessenten.append(int_id)
+
+        if len(selected_interessenten) > 1:
+            if st.button("👥 Als Käufer-Gruppe markieren", key=f"promote_group_{projekt.projekt_id}"):
+                if interessent_zu_kaeufer_befoerdern(selected_interessenten, projekt.projekt_id):
+                    st.success(f"✅ {len(selected_interessenten)} Interessenten wurden als Käufer-Gruppe markiert!")
+                    st.rerun()
+
 
 # ============================================================================
 # KÄUFER-BEREICH
@@ -37388,6 +37764,8 @@ def main():
 
         if role == UserRole.MAKLER.value:
             makler_dashboard()
+        elif role == UserRole.INTERESSENT.value:
+            interessent_dashboard()
         elif role == UserRole.KAEUFER.value:
             kaeufer_dashboard()
         elif role == UserRole.VERKAEUFER.value:
