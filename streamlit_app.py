@@ -466,26 +466,8 @@ class DeviceType(Enum):
 
 def inject_responsive_css():
     """Injiziert modernes responsives CSS für alle Gerätetypen"""
-    # Viewport Meta-Tag für korrektes Mobile-Rendering
-    st.markdown("""
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    """, unsafe_allow_html=True)
-
     st.markdown("""
     <style>
-    /* Basis-Reset für konsistentes Verhalten */
-    *, *::before, *::after {
-        box-sizing: border-box;
-    }
-
-    html {
-        -webkit-text-size-adjust: 100%;
-        -moz-text-size-adjust: 100%;
-        text-size-adjust: 100%;
-    }
     /* ============================================
        MODERNE APP-DESIGN BASIS
        ============================================ */
@@ -1175,6 +1157,575 @@ def inject_responsive_css():
     """, unsafe_allow_html=True)
 
 
+def inject_unified_dashboard_styles():
+    """
+    Injiziert einheitliche Dashboard-Styles für alle Benutzerrollen.
+    Modernes, übersichtliches Design mit Karten, KPIs und Schnellaktionen.
+    """
+    st.markdown("""
+    <style>
+    /* ============================================
+       EINHEITLICHES DASHBOARD DESIGN SYSTEM
+       ============================================ */
+
+    /* Dashboard Header */
+    .dashboard-header {
+        background: linear-gradient(135deg, #343a40 0%, #495057 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 20px rgba(52, 58, 64, 0.25);
+        color: white;
+    }
+
+    .dashboard-header h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .dashboard-header .subtitle {
+        font-size: 1rem;
+        opacity: 0.85;
+        margin: 0;
+    }
+
+    .dashboard-header .welcome-text {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        margin-top: 0.5rem;
+    }
+
+    /* KPI Cards Container */
+    .kpi-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Einzelne KPI Karte */
+    .kpi-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #495057 0%, #343a40 100%);
+    }
+
+    .kpi-card.success::before {
+        background: linear-gradient(180deg, #28a745 0%, #20c997 100%);
+    }
+
+    .kpi-card.warning::before {
+        background: linear-gradient(180deg, #ffc107 0%, #fd7e14 100%);
+    }
+
+    .kpi-card.info::before {
+        background: linear-gradient(180deg, #17a2b8 0%, #6f42c1 100%);
+    }
+
+    .kpi-icon {
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #343a40;
+        line-height: 1.1;
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        display: inline-block;
+    }
+
+    .kpi-trend.up {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .kpi-trend.down {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    /* Schnellaktionen Grid */
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .quick-action-card {
+        background: #ffffff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.25rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+
+    .quick-action-card:hover {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-color: #495057;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .quick-action-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .quick-action-text {
+        font-size: 0.85rem;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    /* Inhalts-Karte */
+    .content-section {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .content-section h3 {
+        color: #343a40;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 0 0 1rem 0;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    /* Aktivitäts-Feed */
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f1f3f4;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #e9ecef;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-title {
+        font-weight: 500;
+        color: #343a40;
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-time {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+
+    /* Projekt-Karten */
+    .project-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .project-card:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+    }
+
+    .project-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .project-card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #343a40;
+        margin: 0;
+    }
+
+    .project-card-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .project-card-status.active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .project-card-status.pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .project-card-status.completed {
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .project-card-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .project-card-progress {
+        height: 6px;
+        background: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.75rem;
+    }
+
+    .project-card-progress-bar {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #495057 0%, #343a40 100%);
+        transition: width 0.3s ease;
+    }
+
+    /* Tab-Gruppierung */
+    .tab-group {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .tab-group-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    /* Benachrichtigungs-Indikator */
+    .notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #dc3545;
+        color: white;
+        font-size: 0.7rem;
+        font-weight: 700;
+        min-width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 4px;
+    }
+
+    /* Responsive Anpassungen */
+    @media (max-width: 767px) {
+        .dashboard-header {
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+        }
+
+        .dashboard-header h1 {
+            font-size: 1.35rem;
+        }
+
+        .kpi-value {
+            font-size: 1.5rem;
+        }
+
+        .kpi-card {
+            padding: 1rem;
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .quick-action-card {
+            padding: 1rem 0.75rem;
+        }
+
+        .quick-action-icon {
+            font-size: 1.5rem;
+        }
+    }
+
+    @media (min-width: 768px) and (max-width: 1024px) {
+        .kpi-container {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    @media (min-width: 1025px) {
+        .kpi-container {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .quick-actions-grid {
+            grid-template-columns: repeat(6, 1fr);
+        }
+    }
+
+    /* Streamlit Tab Styling Override für gruppierte Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        padding: 0.5rem;
+        gap: 0.25rem;
+        border: 1px solid #e9ecef;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        font-weight: 500;
+        color: #6c757d;
+        background: transparent;
+        border: none;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #495057 0%, #343a40 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(52, 58, 64, 0.3);
+    }
+
+    .stTabs [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
+        background: #ffffff;
+        color: #343a40;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
+    """
+    Rendert einen einheitlichen Dashboard-Header für alle Rollen.
+
+    Args:
+        rolle: Benutzerrolle (z.B. 'Makler', 'Käufer')
+        user_name: Name des Benutzers
+        unread_count: Anzahl ungelesener Benachrichtigungen
+    """
+    rolle_config = {
+        'Makler': {'icon': '📊', 'color': '#495057', 'subtitle': 'Immobilienvermittlung'},
+        'Käufer': {'icon': '🏠', 'color': '#28a745', 'subtitle': 'Immobilienkauf'},
+        'Verkäufer': {'icon': '🏡', 'color': '#17a2b8', 'subtitle': 'Immobilienverkauf'},
+        'Finanzierer': {'icon': '💼', 'color': '#6f42c1', 'subtitle': 'Finanzierung'},
+        'Notar': {'icon': '⚖️', 'color': '#343a40', 'subtitle': 'Beurkundung'},
+    }
+
+    config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057', 'subtitle': ''})
+
+    # Tageszeit-basierte Begrüßung
+    stunde = datetime.now().hour
+    if stunde < 12:
+        gruss = "Guten Morgen"
+    elif stunde < 17:
+        gruss = "Guten Tag"
+    else:
+        gruss = "Guten Abend"
+
+    notification_html = ""
+    if unread_count > 0:
+        notification_html = f'<span style="background: #dc3545; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem;">{unread_count} neu</span>'
+
+    st.markdown(f"""
+    <div class="dashboard-header">
+        <h1>{config['icon']} {rolle}-Dashboard {notification_html}</h1>
+        <p class="subtitle">{config['subtitle']}</p>
+        <p class="welcome-text">{gruss}, {user_name}!</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_kpi_cards(kpis: list):
+    """
+    Rendert KPI-Karten in einem Grid.
+
+    Args:
+        kpis: Liste von Dictionaries mit 'icon', 'value', 'label', optional 'type' (success/warning/info)
+    """
+    cols = st.columns(len(kpis) if len(kpis) <= 4 else 4)
+
+    for i, kpi in enumerate(kpis[:4]):
+        with cols[i % 4]:
+            kpi_type = kpi.get('type', '')
+            trend_html = ""
+            if 'trend' in kpi:
+                trend_class = 'up' if kpi['trend'] >= 0 else 'down'
+                trend_icon = '+' if kpi['trend'] >= 0 else ''
+                trend_html = f'<div class="kpi-trend {trend_class}">{trend_icon}{kpi["trend"]}%</div>'
+
+            st.markdown(f"""
+            <div class="kpi-card {kpi_type}">
+                <div class="kpi-icon">{kpi.get('icon', '📊')}</div>
+                <div class="kpi-value">{kpi.get('value', '0')}</div>
+                <div class="kpi-label">{kpi.get('label', '')}</div>
+                {trend_html}
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def render_quick_action_grid(actions: list):
+    """
+    Rendert ein Grid von Schnellaktionen.
+
+    Args:
+        actions: Liste von Dictionaries mit 'icon', 'label', 'key'
+    """
+    html = '<div class="quick-actions-grid">'
+    for action in actions:
+        html += f'''
+        <div class="quick-action-card" onclick="document.querySelector('[data-testid=stSidebar] button[kind=secondary]:contains({action.get("label", "")})').click()">
+            <span class="quick-action-icon">{action.get('icon', '📌')}</span>
+            <span class="quick-action-text">{action.get('label', '')}</span>
+        </div>
+        '''
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_project_card(projekt, fortschritt: int = 0, show_details: bool = True):
+    """
+    Rendert eine Projekt-Karte.
+
+    Args:
+        projekt: Projekt-Objekt
+        fortschritt: Fortschritt in Prozent (0-100)
+        show_details: Ob Details angezeigt werden sollen
+    """
+    # Status-Klasse ermitteln
+    status_class = "active"
+    if fortschritt >= 100:
+        status_class = "completed"
+    elif fortschritt < 25:
+        status_class = "pending"
+
+    status_text = projekt.status if hasattr(projekt, 'status') else "Aktiv"
+
+    details_html = ""
+    if show_details and hasattr(projekt, 'adresse') and projekt.adresse:
+        details_html = f'<div class="project-card-info">📍 {projekt.adresse}</div>'
+
+    if hasattr(projekt, 'kaufpreis') and projekt.kaufpreis > 0:
+        details_html += f'<div class="project-card-info">💰 {format_euro(projekt.kaufpreis)} €</div>'
+
+    st.markdown(f"""
+    <div class="project-card">
+        <div class="project-card-header">
+            <h4 class="project-card-title">🏘️ {projekt.name}</h4>
+            <span class="project-card-status {status_class}">{status_text}</span>
+        </div>
+        {details_html}
+        <div class="project-card-progress">
+            <div class="project-card-progress-bar" style="width: {fortschritt}%"></div>
+        </div>
+        <div style="font-size: 0.75rem; color: #6c757d; margin-top: 0.5rem;">{fortschritt}% abgeschlossen</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_activity_feed(activities: list, max_items: int = 5):
+    """
+    Rendert einen Aktivitäts-Feed.
+
+    Args:
+        activities: Liste von Dictionaries mit 'icon', 'title', 'time'
+        max_items: Maximale Anzahl anzuzeigender Einträge
+    """
+    st.markdown('<div class="content-section"><h3>📋 Letzte Aktivitäten</h3>', unsafe_allow_html=True)
+
+    if not activities:
+        st.markdown('<p style="color: #6c757d; text-align: center; padding: 1rem;">Keine aktuellen Aktivitäten</p>', unsafe_allow_html=True)
+    else:
+        for activity in activities[:max_items]:
+            st.markdown(f"""
+            <div class="activity-item">
+                <div class="activity-icon">{activity.get('icon', '📌')}</div>
+                <div class="activity-content">
+                    <div class="activity-title">{activity.get('title', '')}</div>
+                    <div class="activity-time">{activity.get('time', '')}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def get_device_type() -> str:
     """
     Ermittelt den Gerätetyp basierend auf Session State.
@@ -1854,8 +2405,7 @@ def render_zur_aktentasche_button(
 
 class UserRole(Enum):
     MAKLER = "Makler"
-    INTERESSENT = "Interessent"  # Neue Rolle: Wird zu Käufer wenn Kaufvertrag beauftragt
-    KAEUFER = "Käufer"  # Bestätigter Käufer (durch Makler, Verkäufer oder Notar)
+    KAEUFER = "Käufer"
     VERKAEUFER = "Verkäufer"
     FINANZIERER = "Finanzierer"
     NOTAR = "Notar"
@@ -2447,21 +2997,14 @@ def get_workflow_steps_for_segment(segment_id: str, include_conditional: bool = 
     steps = []
     for step in WORKFLOW_TEMPLATE_KV["steps"]:
         if step["segment_id"] == segment_id:
-            # Prüfe Condition (kann String oder Dict sein)
-            cond = step.get("condition")
-            if cond:
-                # Condition ist ein String (z.B. "requires_financing")
-                if isinstance(cond, str):
-                    if cond == "requires_financing" and not financing_required:
+            # Prüfe Condition
+            if step.get("condition"):
+                cond = step["condition"]
+                if cond["condition_id"] == "requires_financing":
+                    if cond["value"] == True and not financing_required:
                         if not include_conditional:
                             continue
                         # Step wird als SKIPPED markiert
-                # Condition ist ein Dict mit condition_id und value
-                elif isinstance(cond, dict):
-                    if cond.get("condition_id") == "requires_financing":
-                        if cond.get("value") == True and not financing_required:
-                            if not include_conditional:
-                                continue
             steps.append(step)
     return sorted(steps, key=lambda x: x["order"])
 
@@ -2485,16 +3028,12 @@ def calculate_step_status(step_code: str, completed_steps: List[str], financing_
     if not step:
         return WorkflowStepStatus.OPEN.value
 
-    # Prüfe Condition (kann String oder Dict sein)
-    cond = step.get("condition")
-    if cond:
-        if isinstance(cond, str):
-            if cond == "requires_financing" and not financing_required:
+    # Prüfe Condition
+    if step.get("condition"):
+        cond = step["condition"]
+        if cond["condition_id"] == "requires_financing":
+            if cond["value"] == True and not financing_required:
                 return WorkflowStepStatus.SKIPPED.value
-        elif isinstance(cond, dict):
-            if cond.get("condition_id") == "requires_financing":
-                if cond.get("value") == True and not financing_required:
-                    return WorkflowStepStatus.SKIPPED.value
 
     # Bereits erledigt?
     if step_code in completed_steps:
@@ -2513,15 +3052,9 @@ def calculate_step_status(step_code: str, completed_steps: List[str], financing_
 
         if dep_step and dep_step.get("condition"):
             cond = dep_step["condition"]
-            # Condition kann String oder Dict sein
-            if isinstance(cond, str):
-                if cond == "requires_financing" and not financing_required:
-                    # Dependency ist übersprungen, also kein Blocker
-                    continue
-            elif isinstance(cond, dict):
-                if cond.get("condition_id") == "requires_financing" and cond.get("value") == True and not financing_required:
-                    # Dependency ist übersprungen, also kein Blocker
-                    continue
+            if cond["condition_id"] == "requires_financing" and cond["value"] == True and not financing_required:
+                # Dependency ist übersprungen, also kein Blocker
+                continue
 
         if dep not in completed_steps:
             blocked_by.append(dep)
@@ -4029,7 +4562,6 @@ class Projekt:
     expose_pdf: Optional[bytes] = None
     makler_id: str = ""
     kaeufer_ids: List[str] = field(default_factory=list)
-    interessenten_ids: List[str] = field(default_factory=list)  # Potenzielle Käufer
     verkaeufer_ids: List[str] = field(default_factory=list)
     finanzierer_ids: List[str] = field(default_factory=list)
     notar_id: str = ""
@@ -7124,7 +7656,6 @@ def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
     demo_users = [
         User("makler1", "Max Makler", "makler@demo.de", UserRole.MAKLER.value, hash_password("makler123")),
-        User("interessent1", "Ina Interessent", "interessent@demo.de", UserRole.INTERESSENT.value, hash_password("interessent123"), projekt_ids=["projekt1"]),
         User("kaeufer1", "Karl Käufer", "kaeufer@demo.de", UserRole.KAEUFER.value, hash_password("kaeufer123"), projekt_ids=["projekt1"]),
         User("verkaeufer1", "Vera Verkäufer", "verkaeufer@demo.de", UserRole.VERKAEUFER.value, hash_password("verkaeufer123"), projekt_ids=["projekt1"]),
         User("finanzierer1", "Frank Finanzierer", "finanz@demo.de", UserRole.FINANZIERER.value, hash_password("finanz123"), projekt_ids=["projekt1"]),
@@ -7142,8 +7673,7 @@ def create_demo_projekt():
         adresse="Leopoldstraße 123, 80802 München",
         kaufpreis=485000.00,
         makler_id="makler1",
-        interessenten_ids=["interessent1"],  # Potenzielle Käufer
-        kaeufer_ids=["kaeufer1"],  # Bestätigte Käufer
+        kaeufer_ids=["kaeufer1"],
         verkaeufer_ids=["verkaeufer1"],
         finanzierer_ids=["finanzierer1"],
         notar_id="notar1",
@@ -13338,8 +13868,6 @@ def login_page():
         st.markdown("""
         **Makler:** `makler@demo.de` | `makler123`
 
-        **Interessent:** `interessent@demo.de` | `interessent123`
-
         **Käufer:** `kaeufer@demo.de` | `kaeufer123`
 
         **Verkäufer:** `verkaeufer@demo.de` | `verkaeufer123`
@@ -13348,50 +13876,6 @@ def login_page():
 
         **Notar:** `notar@demo.de` | `notar123`
         """)
-
-    # === DEMO-SCHNELLZUGANG (für Testphase) ===
-    st.markdown("---")
-    st.markdown("### 🧪 Demo-Schnellzugang")
-    st.caption("Klicken Sie auf eine Rolle, um sich direkt als Demo-Benutzer anzumelden:")
-
-    # Demo-Benutzer Konfiguration
-    demo_users = {
-        "🏢 Makler": "makler@demo.de",
-        "👀 Interessent": "interessent@demo.de",
-        "🛒 Käufer": "kaeufer@demo.de",
-        "🏠 Verkäufer": "verkaeufer@demo.de",
-        "⚖️ Notar": "notar@demo.de",
-        "🏦 Finanzierer": "finanz@demo.de",
-    }
-
-    # Buttons in einer Reihe
-    cols = st.columns(len(demo_users))
-
-    for idx, (role_label, email) in enumerate(demo_users.items()):
-        with cols[idx]:
-            if st.button(role_label, key=f"demo_login_{email}", use_container_width=True):
-                # Demo-Benutzer finden und einloggen
-                for user in st.session_state.users.values():
-                    if user.email == email:
-                        st.session_state.current_user = user
-                        st.session_state.is_notar_mitarbeiter = False
-
-                        # Login-Event tracken
-                        safe_track_interaktion(
-                            interaktions_typ='demo_login',
-                            details={'rolle': user.rolle, 'demo': True},
-                            nutzer_id=user.user_id
-                        )
-
-                        create_notification(
-                            user.user_id,
-                            "Demo-Zugang aktiv",
-                            f"Sie sind als Demo-{user.rolle} angemeldet.",
-                            NotificationType.INFO.value
-                        )
-                        st.rerun()
-
-    st.caption("⚠️ *Diese Demo-Buttons werden nach der Testphase entfernt.*")
 
 def logout():
     """Benutzer abmelden und Session aus Browser löschen"""
@@ -13415,2660 +13899,250 @@ def logout():
     st.rerun()
 
 # ============================================================================
-# NEUES DASHBOARD-DESIGN (basierend auf Design-Schema)
-# ============================================================================
-
-def inject_new_dashboard_css():
-    """Injiziert das CSS für das neue Dashboard-Design."""
-    st.markdown("""
-    <style>
-    /* ===== NEUES DASHBOARD DESIGN ===== */
-
-    /* Basis-Reset */
-    .stApp {
-        background-color: #f8f9fa !important;
-    }
-
-    /* Sidebar-Styling */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #e9ecef !important;
-    }
-
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 1rem !important;
-    }
-
-    /* Dashboard Header */
-    .dashboard-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 1rem 0;
-        margin-bottom: 1.5rem;
-        border-bottom: 1px solid #e9ecef;
-    }
-
-    .dashboard-title {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: #212529;
-        margin: 0;
-    }
-
-    .dashboard-search {
-        flex: 1;
-        max-width: 400px;
-        margin: 0 2rem;
-    }
-
-    .dashboard-search input {
-        width: 100%;
-        padding: 0.5rem 1rem;
-        border: 1px solid #dee2e6;
-        border-radius: 6px;
-        font-size: 0.9rem;
-        background: #ffffff;
-    }
-
-    .dashboard-search input:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-
-    .profile-btn {
-        background: #3b82f6;
-        color: white;
-        padding: 0.5rem 1.25rem;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        border: none;
-        cursor: pointer;
-    }
-
-    /* Sidebar Menü */
-    .sidebar-menu-title {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #6c757d;
-        margin-bottom: 0.75rem;
-        padding-left: 0.5rem;
-    }
-
-    .sidebar-menu-item {
-        display: flex;
-        align-items: center;
-        padding: 0.6rem 0.75rem;
-        margin: 0.15rem 0;
-        border-radius: 6px;
-        color: #495057;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        border-left: 3px solid transparent;
-    }
-
-    .sidebar-menu-item:hover {
-        background-color: #f1f3f4;
-    }
-
-    .sidebar-menu-item.active {
-        background-color: #e7f1ff;
-        color: #3b82f6;
-        border-left-color: #3b82f6;
-        font-weight: 600;
-    }
-
-    /* Heute-Bereich */
-    .heute-section {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 1.25rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-
-    .heute-title {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: #212529;
-        margin-bottom: 0.25rem;
-    }
-
-    .heute-subtitle {
-        font-size: 0.85rem;
-        color: #6c757d;
-        margin-bottom: 0.75rem;
-    }
-
-    .heute-badges {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-
-    .badge-orange {
-        background: #fff3e0;
-        color: #e65100;
-        padding: 0.35rem 0.75rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-
-    .badge-yellow {
-        background: #fffde7;
-        color: #f9a825;
-        padding: 0.35rem 0.75rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-
-    .badge-green {
-        background: #e8f5e9;
-        color: #2e7d32;
-        padding: 0.35rem 0.75rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-
-    .badge-gray {
-        background: #f5f5f5;
-        color: #616161;
-        padding: 0.35rem 0.75rem;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 500;
-    }
-
-    /* Widget-Karten */
-    .widget-card {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 1.25rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-
-    .widget-title {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #212529;
-        margin-bottom: 1rem;
-    }
-
-    /* Checkliste */
-    .checklist-item {
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #f1f3f4;
-        font-size: 0.9rem;
-        color: #495057;
-        gap: 0.5rem;
-    }
-
-    .checklist-item input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        accent-color: #3b82f6;
-        cursor: default;
-    }
-
-    .checklist-item:last-child {
-        border-bottom: none;
-    }
-
-    .checklist-item.completed {
-        color: #9e9e9e;
-    }
-
-    .checklist-item.completed span {
-        text-decoration: line-through;
-    }
-
-    /* Empty State */
-    .empty-state {
-        color: #9e9e9e;
-        font-size: 0.85rem;
-        padding: 1rem 0;
-        text-align: center;
-        font-style: italic;
-    }
-
-    /* Nachrichten */
-    .message-item {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.5rem;
-        border-left: 3px solid #dee2e6;
-    }
-
-    .message-sender {
-        font-weight: 600;
-        color: #495057;
-        font-size: 0.85rem;
-    }
-
-    .message-text {
-        color: #6c757d;
-        font-size: 0.85rem;
-        margin-top: 0.25rem;
-    }
-
-    /* Vorgänge-Liste */
-    .vorgang-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.6rem 0.75rem;
-        margin-bottom: 0.5rem;
-        background: #f8f9fa;
-        border-radius: 8px;
-        font-size: 0.85rem;
-    }
-
-    .vorgang-id {
-        font-weight: 600;
-        color: #212529;
-    }
-
-    .vorgang-address {
-        color: #6c757d;
-    }
-
-    .vorgang-status {
-        font-size: 0.75rem;
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
-    }
-
-    .status-offen {
-        background: #fff3e0;
-        color: #e65100;
-    }
-
-    .status-ok {
-        background: #e8f5e9;
-        color: #2e7d32;
-    }
-
-    /* Timeline */
-    .timeline-item {
-        display: flex;
-        align-items: center;
-        padding: 0.4rem 0;
-        font-size: 0.85rem;
-    }
-
-    .timeline-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 2px;
-        margin-right: 0.75rem;
-    }
-
-    .timeline-dot.green { background: #4caf50; }
-    .timeline-dot.orange { background: #ff9800; }
-    .timeline-dot.gray { background: #9e9e9e; }
-
-    .timeline-text {
-        color: #495057;
-    }
-
-    .timeline-text.pending {
-        color: #9e9e9e;
-    }
-
-    /* Dokumente */
-    .dokument-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.6rem 0;
-        border-bottom: 1px solid #f1f3f4;
-    }
-
-    .dokument-name {
-        color: #495057;
-        font-size: 0.85rem;
-    }
-
-    .dokument-status {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.6rem;
-        border-radius: 12px;
-        font-weight: 500;
-    }
-
-    .dokument-vorliegend {
-        background: #4caf50;
-        color: white;
-    }
-
-    .dokument-fehlt {
-        background: #ff9800;
-        color: white;
-    }
-
-    .dokument-optional {
-        background: #e0e0e0;
-        color: #616161;
-    }
-
-    /* Streamlit Button Override für neues Design */
-    .stButton > button {
-        background-color: #3b82f6 !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px !important;
-        font-weight: 500 !important;
-        padding: 0.5rem 1rem !important;
-    }
-
-    .stButton > button:hover {
-        background-color: #2563eb !important;
-    }
-
-    /* Tabs Override */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0 !important;
-        background-color: transparent !important;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        background-color: transparent !important;
-        border-radius: 0 !important;
-        color: #6c757d !important;
-        border-bottom: 2px solid transparent !important;
-        padding: 0.75rem 1rem !important;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background-color: transparent !important;
-        color: #3b82f6 !important;
-        border-bottom: 2px solid #3b82f6 !important;
-    }
-
-    /* Haupt-Content Padding für Topbar */
-    .main .block-container {
-        padding-top: 1rem !important;
-        max-width: 100% !important;
-    }
-
-    /* ===== RESPONSIVE DESIGN ===== */
-
-    /* === MOBILE FIRST: Basis-Styles (< 576px) === */
-    @media screen and (max-width: 575px) {
-        /* Sidebar ausblenden auf kleinen Mobilgeräten */
-        [data-testid="stSidebar"] {
-            display: none !important;
-        }
-
-        /* Hauptinhalt volle Breite */
-        .main .block-container {
-            padding: 0.5rem !important;
-            padding-top: 70px !important;
-            max-width: 100% !important;
-        }
-
-        /* Dashboard Header anpassen */
-        .dashboard-header {
-            flex-direction: column;
-            gap: 0.5rem;
-            padding: 0.5rem 0;
-        }
-
-        .dashboard-title {
-            font-size: 1.1rem !important;
-        }
-
-        .dashboard-search {
-            max-width: 100%;
-            margin: 0;
-        }
-
-        /* Widget-Karten kompakter */
-        .widget-card, .heute-section {
-            padding: 0.75rem !important;
-            margin-bottom: 0.75rem !important;
-            border-radius: 8px !important;
-        }
-
-        .widget-title {
-            font-size: 0.9rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-
-        .heute-title {
-            font-size: 0.95rem !important;
-        }
-
-        .heute-subtitle {
-            font-size: 0.75rem !important;
-        }
-
-        .heute-badges {
-            gap: 0.3rem;
-        }
-
-        .badge-orange, .badge-yellow, .badge-green, .badge-gray {
-            padding: 0.25rem 0.5rem !important;
-            font-size: 0.7rem !important;
-        }
-
-        /* Checkliste kompakter */
-        .checklist-item {
-            padding: 0.4rem 0 !important;
-            font-size: 0.8rem !important;
-        }
-
-        /* Vorgänge kompakter */
-        .vorgang-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.25rem;
-            padding: 0.5rem !important;
-        }
-
-        .vorgang-id, .vorgang-address {
-            font-size: 0.8rem !important;
-        }
-
-        /* Nachrichten kompakter */
-        .message-item {
-            padding: 0.5rem !important;
-        }
-
-        .message-sender, .message-text {
-            font-size: 0.75rem !important;
-        }
-
-        /* Dokumente kompakter */
-        .dokument-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.25rem;
-            padding: 0.4rem 0 !important;
-        }
-
-        .dokument-name {
-            font-size: 0.8rem !important;
-        }
-
-        /* Streamlit Columns auf Mobile stapeln */
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 100% !important;
-        }
-
-        /* Buttons kompakter */
-        .stButton > button {
-            padding: 0.4rem 0.75rem !important;
-            font-size: 0.8rem !important;
-        }
-
-        /* Tabs kompakter */
-        .stTabs [data-baseweb="tab"] {
-            padding: 0.5rem 0.75rem !important;
-            font-size: 0.8rem !important;
-        }
-
-        /* Timeline kompakter */
-        .timeline-item {
-            font-size: 0.75rem !important;
-        }
-
-        .timeline-dot {
-            width: 8px !important;
-            height: 8px !important;
-        }
-    }
-
-    /* === KLEINE MOBILGERÄTE (576px - 767px) === */
-    @media screen and (min-width: 576px) and (max-width: 767px) {
-        [data-testid="stSidebar"] {
-            width: 200px !important;
-            min-width: 200px !important;
-        }
-
-        .main .block-container {
-            padding: 0.75rem !important;
-            padding-top: 70px !important;
-        }
-
-        .dashboard-title {
-            font-size: 1.2rem !important;
-        }
-
-        .widget-card, .heute-section {
-            padding: 1rem !important;
-        }
-
-        /* Columns können 2er-Grid sein */
-        [data-testid="stHorizontalBlock"] {
-            flex-wrap: wrap !important;
-        }
-
-        [data-testid="column"] {
-            min-width: 45% !important;
-        }
-    }
-
-    /* === TABLET (768px - 1023px) === */
-    @media screen and (min-width: 768px) and (max-width: 1023px) {
-        [data-testid="stSidebar"] {
-            width: 220px !important;
-            min-width: 220px !important;
-        }
-
-        [data-testid="stSidebar"] > div:first-child {
-            padding: 0.75rem !important;
-        }
-
-        .main .block-container {
-            padding: 1rem !important;
-            padding-top: 70px !important;
-        }
-
-        .dashboard-search {
-            max-width: 300px;
-            margin: 0 1rem;
-        }
-
-        .sidebar-menu-item {
-            padding: 0.5rem !important;
-            font-size: 0.85rem !important;
-        }
-
-        .widget-card, .heute-section {
-            padding: 1rem !important;
-        }
-
-        .widget-title {
-            font-size: 0.95rem !important;
-        }
-    }
-
-    /* === DESKTOP (1024px - 1279px) === */
-    @media screen and (min-width: 1024px) and (max-width: 1279px) {
-        [data-testid="stSidebar"] {
-            width: 260px !important;
-        }
-
-        .main .block-container {
-            padding: 1.5rem !important;
-            padding-top: 70px !important;
-        }
-    }
-
-    /* === GROSSER DESKTOP (>= 1280px) === */
-    @media screen and (min-width: 1280px) {
-        [data-testid="stSidebar"] {
-            width: 280px !important;
-        }
-
-        .main .block-container {
-            padding: 2rem !important;
-            padding-top: 70px !important;
-            max-width: 1600px !important;
-            margin: 0 auto !important;
-        }
-    }
-
-    /* === TOUCH-GERÄTE OPTIMIERUNG === */
-    @media (hover: none) and (pointer: coarse) {
-        /* Größere Touch-Targets */
-        .sidebar-menu-item {
-            padding: 0.75rem !important;
-            min-height: 44px !important;
-        }
-
-        .stButton > button {
-            min-height: 44px !important;
-            padding: 0.6rem 1rem !important;
-        }
-
-        .checklist-item input[type="checkbox"] {
-            width: 20px !important;
-            height: 20px !important;
-        }
-
-        /* Hover-Effekte deaktivieren */
-        .sidebar-menu-item:hover {
-            background-color: transparent;
-        }
-
-        .sidebar-menu-item:active {
-            background-color: #f1f3f4 !important;
-        }
-
-        /* Bessere Scroll-Unterstützung */
-        .widget-card {
-            -webkit-overflow-scrolling: touch;
-        }
-    }
-
-    /* === LANDSCAPE MODUS AUF MOBIL === */
-    @media screen and (max-height: 500px) and (orientation: landscape) {
-        .main .block-container {
-            padding-top: 55px !important;
-        }
-
-        .widget-card, .heute-section {
-            padding: 0.5rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-
-        .widget-title, .heute-title {
-            font-size: 0.85rem !important;
-            margin-bottom: 0.25rem !important;
-        }
-    }
-
-    /* === PRINT STYLES === */
-    @media print {
-        [data-testid="stSidebar"] {
-            display: none !important;
-        }
-
-        .immoflow-topbar {
-            display: none !important;
-        }
-
-        .main .block-container {
-            padding: 0 !important;
-        }
-
-        .widget-card {
-            break-inside: avoid;
-            box-shadow: none !important;
-            border: 1px solid #dee2e6 !important;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-
-def render_dashboard_header(title: str, role: str):
-    """Rendert den Dashboard-Header mit Titel, Suche und Profil."""
-    user = st.session_state.current_user
-    user_name = getattr(user, 'name', 'Benutzer')
-
-    col1, col2, col3 = st.columns([2, 3, 1])
-
-    with col1:
-        st.markdown(f"### {title}")
-
-    with col2:
-        search = st.text_input(
-            "Suche",
-            placeholder="Suche: Vorgang, Person, Dokument ...",
-            key=f"search_{role}",
-            label_visibility="collapsed"
-        )
-        if search:
-            st.session_state['global_search_query'] = search
-
-    with col3:
-        if st.button("Profil", key=f"profil_btn_{role}", use_container_width=True):
-            st.session_state[f'{role}_menu_selection'] = 'profil'
-            st.rerun()
-
-
-def render_sidebar_menu(role: str, menu_items: list, current_selection: str) -> str:
-    """
-    Rendert das Sidebar-Menü mit st.radio für kompakte, zuverlässige Navigation.
-
-    Args:
-        role: Die Benutzerrolle (makler, kaeufer, etc.)
-        menu_items: Liste von Dicts mit 'key', 'label', 'icon'
-        current_selection: Aktuell ausgewählter Menüpunkt
-
-    Returns:
-        Der ausgewählte Menüpunkt-Key
-    """
-    with st.sidebar:
-        # Optionen für Radio erstellen
-        options = [f"{item.get('icon', '')} {item['label']}" for item in menu_items]
-        key_map = {f"{item.get('icon', '')} {item['label']}": item['key'] for item in menu_items}
-        reverse_map = {item['key']: f"{item.get('icon', '')} {item['label']}" for item in menu_items}
-
-        # Aktuellen Index finden
-        current_label = reverse_map.get(current_selection, options[0] if options else None)
-        current_index = options.index(current_label) if current_label in options else 0
-
-        # Radio-Menü rendern
-        selected_label = st.radio(
-            "Navigation",
-            options=options,
-            index=current_index,
-            key=f"nav_radio_{role}",
-            label_visibility="collapsed"
-        )
-
-        # Auswahl in Key umwandeln
-        selection = key_map.get(selected_label, current_selection)
-
-        # Session State aktualisieren wenn geändert
-        if selection != current_selection:
-            st.session_state[f"{role}_menu_selection"] = selection
-            st.rerun()
-
-        st.markdown("---")
-
-    return selection
-
-
-def _get_accessible_akten_for_notar(notar_id: str) -> list:
-    """Gibt alle Projekte/Akten zurück, die dem Notar zugeordnet sind."""
-    if not hasattr(st.session_state, 'projekte'):
-        return []
-    return [p for p in st.session_state.projekte.values() if getattr(p, 'notar_id', '') == notar_id]
-
-
-def ensure_context_akte_id(notar_id: str) -> Optional[str]:
-    """Sorgt dafür, dass eine Akte als Kontext ausgewählt ist."""
-    akten = _get_accessible_akten_for_notar(notar_id)
-    if not akten:
-        st.session_state["context_akte_id"] = None
-        return None
-
-    current = st.session_state.get("notar_open_akte_id") or st.session_state.get("context_akte_id")
-    allowed = {getattr(a, 'projekt_id', getattr(a, 'akte_id', '')) for a in akten}
-    if current not in allowed:
-        current = getattr(akten[0], 'projekt_id', getattr(akten[0], 'akte_id', ''))
-    st.session_state["context_akte_id"] = current
-    return current
-
-
-def _akte_progress_fallback(status: str) -> int:
-    """Fallback-Fortschritt für Akten, wenn kein Projekt/Workflow verfügbar ist."""
-    mapping = {
-        "Neu": 5,
-        "Unterlagen": 20,
-        "Entwurf": 35,
-        "Review": 50,
-        "Freigabe": 65,
-        "Beurkundung": 75,
-        "Vollzug": 90,
-        "Abgeschlossen": 100,
-    }
-    return mapping.get(status or "", 15)
-
-
-def _get_actor_id(actor) -> str:
-    return getattr(actor, "user_id", "") or getattr(actor, "id", "") or "anon"
-
-
-def _is_notar_user_actor(actor) -> bool:
-    return getattr(actor, "rolle", "") == UserRole.NOTAR.value or getattr(actor, "role", "") == UserRole.NOTAR.value
-
-
-def _get_accessible_projekte_for_actor(actor) -> list:
-    uid = _get_actor_id(actor)
-    rolle = getattr(actor, "rolle", None) or getattr(actor, "role", None) or ""
-    return _get_user_projekte(uid, rolle) if uid and rolle else []
-
-
-def ensure_context_projekt_id_actor(actor) -> Optional[str]:
-    projekte = _get_accessible_projekte_for_actor(actor)
-    if not projekte:
-        st.session_state["context_projekt_id"] = None
-        return None
-
-    current = st.session_state.get("context_projekt_id")
-    allowed = {p.projekt_id for p in projekte}
-    if current not in allowed:
-        current = projekte[0].projekt_id
-    st.session_state["context_projekt_id"] = current
-    return current
-
-
-def render_sidebar_case_context(actor):
-    """Sidebar-Kopf: Kontextauswahl (Notar: Akte, sonst: Projekt) + Mini-Status/Next-Step."""
-    try:
-        if _is_notar_user_actor(actor):
-            notar_id = getattr(actor, "user_id", "")
-            akten = _get_accessible_akten_for_notar(notar_id)
-            if not akten:
-                return
-
-            current_id = st.session_state.get("notar_open_akte_id") or ensure_context_akte_id(notar_id)
-            label_map = {}
-            for a in akten:
-                akte_id = getattr(a, 'projekt_id', getattr(a, 'akte_id', ''))
-                label = getattr(a, 'aktenzeichen', '') or getattr(a, 'kurzbezeichnung', '') or getattr(a, 'name', '') or akte_id[:8]
-                label_map[label] = akte_id
-
-            with st.sidebar:
-                st.markdown("#### Akte")
-                if len(akten) > 1:
-                    labels = list(label_map.keys())
-                    values = list(label_map.values())
-                    idx = values.index(current_id) if current_id in values else 0
-                    selected_label = st.selectbox(
-                        "Aktiv",
-                        options=labels,
-                        index=idx,
-                        key=f"context_akte_select_{notar_id}",
-                        label_visibility="collapsed"
-                    )
-                    st.session_state["context_akte_id"] = label_map[selected_label]
-                    current_id = st.session_state["context_akte_id"]
-                else:
-                    akte_id = getattr(akten[0], 'projekt_id', getattr(akten[0], 'akte_id', ''))
-                    st.session_state["context_akte_id"] = akte_id
-                    current_id = akte_id
-
-                akte = st.session_state.projekte.get(current_id)
-                if not akte:
-                    st.markdown("---")
-                    return
-
-                status = getattr(akte, "status", "")
-                pct = _akte_progress_fallback(status)
-                st.caption(f"Status: **{status}**")
-                st.progress(pct / 100.0)
-                st.caption(f"Fortschritt: **{pct}%**")
-                st.markdown("---")
-            return
-
-        projekte = _get_accessible_projekte_for_actor(actor)
-        if not projekte:
-            return
-        current_id = ensure_context_projekt_id_actor(actor)
-        label_map = {f"{p.name} – {getattr(p, 'adresse', '')}".strip(" –"): p.projekt_id for p in projekte}
-
-        with st.sidebar:
-            st.markdown("#### Projekt")
-            if len(projekte) > 1:
-                selected_label = st.selectbox(
-                    "Aktiv",
-                    options=list(label_map.keys()),
-                    index=list(label_map.values()).index(current_id) if current_id in label_map.values() else 0,
-                    key=f"context_projekt_select_{_get_actor_id(actor)}",
-                    label_visibility="collapsed"
-                )
-                st.session_state["context_projekt_id"] = label_map[selected_label]
-                current_id = st.session_state["context_projekt_id"]
-            else:
-                st.session_state["context_projekt_id"] = projekte[0].projekt_id
-                current_id = projekte[0].projekt_id
-
-            projekt = st.session_state.projekte.get(current_id)
-            if not projekt:
-                st.markdown("---")
-                return
-
-            progress = calculate_workflow_progress(
-                getattr(projekt, "workflow_completed_steps", []) or [],
-                financing_required=bool(getattr(projekt, "financing_required", False))
-            )
-            pct = int(round(progress.get("total_progress", 0)))
-            st.caption(f"Status: **{getattr(projekt, 'status', '')}**")
-            st.progress(pct / 100.0)
-            st.caption(f"Fortschritt: **{pct}%**")
-            st.markdown("---")
-    except Exception:
-        return
-
-
-def render_case_context_header(actor):
-    """Sticky Kopfzeile im Hauptbereich: zeigt den aktiven Kontext + Fortschritt."""
-    try:
-        css = """
-        <style>
-          .case-context-bar {
-            position: sticky;
-            top: 3.25rem;
-            z-index: 999;
-            background: rgba(255,255,255,0.92);
-            backdrop-filter: blur(6px);
-            border: 1px solid rgba(0,0,0,0.06);
-            border-radius: 14px;
-            padding: 0.75rem 1rem;
-            margin: 0.25rem 0 1rem 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-          }
-          .case-context-title {
-            display: flex;
-            justify-content: space-between;
-            gap: 0.75rem;
-            align-items: baseline;
-            font-weight: 700;
-          }
-          .case-context-sub {
-            display: flex;
-            justify-content: space-between;
-            gap: 0.75rem;
-            color: #555;
-            font-size: 0.9rem;
-            margin-top: 0.25rem;
-          }
-          .case-progress {
-            margin-top: 0.5rem;
-            background: rgba(0,0,0,0.06);
-            height: 8px;
-            border-radius: 999px;
-            overflow: hidden;
-          }
-          .case-progress > div {
-            height: 8px;
-            background: rgba(0,0,0,0.65);
-          }
-        </style>
-        """
-        st.markdown(css, unsafe_allow_html=True)
-
-        if _is_notar_user_actor(actor):
-            notar_id = getattr(actor, "user_id", "")
-            akte_id = st.session_state.get("notar_open_akte_id") or ensure_context_akte_id(notar_id)
-            if not akte_id:
-                return
-            akte = st.session_state.projekte.get(akte_id)
-            if not akte:
-                return
-            status = getattr(akte, "status", "")
-            pct = _akte_progress_fallback(status)
-            az = getattr(akte, "aktenzeichen", "") or getattr(akte, "kurzbezeichnung", "") or getattr(akte, "name", "") or akte_id[:8]
-            st.markdown(
-                f"""
-                <div class="case-context-bar">
-                  <div class="case-context-title">
-                    <div>📁 {az}</div>
-                    <div>{pct}%</div>
-                  </div>
-                  <div class="case-context-sub">
-                    <div></div>
-                    <div>{status}</div>
-                  </div>
-                  <div class="case-progress"><div style="width:{pct}%"></div></div>
-                </div>
-                """, unsafe_allow_html=True
-            )
-            return
-
-        current_id = ensure_context_projekt_id_actor(actor)
-        if not current_id:
-            return
-        projekt = st.session_state.projekte.get(current_id)
-        if not projekt:
-            return
-        progress = calculate_workflow_progress(
-            getattr(projekt, "workflow_completed_steps", []) or [],
-            financing_required=bool(getattr(projekt, "financing_required", False))
-        )
-        pct = int(round(progress.get("total_progress", 0)))
-        name = getattr(projekt, "name", "Projekt")
-        adresse = getattr(projekt, "adresse", "")
-        status_txt = getattr(projekt, "status", "")
-        st.markdown(
-            f"""
-            <div class="case-context-bar">
-              <div class="case-context-title">
-                <div>📁 {name}</div>
-                <div>{pct}%</div>
-              </div>
-              <div class="case-context-sub">
-                <div>{adresse}</div>
-                <div>{status_txt}</div>
-              </div>
-              <div class="case-progress"><div style="width:{pct}%"></div></div>
-            </div>
-            """, unsafe_allow_html=True
-        )
-    except Exception:
-        return
-
-
-def render_heute_widget(stats: dict):
-    """
-    Rendert das 'Heute' Widget.
-
-    Args:
-        stats: Dict mit Statistiken z.B. {'title': '4 Vorgänge', 'badges': [...]}
-    """
-    st.markdown(f"""
-    <div class="heute-section">
-        <div class="heute-title">Heute</div>
-        <div class="heute-subtitle">{stats.get('subtitle', '')}</div>
-        <div class="heute-badges">
-            {' '.join([f'<span class="badge-{b["color"]}">{b["text"]}</span>' for b in stats.get('badges', [])])}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_aufgaben_widget(aufgaben: list, key_prefix: str):
-    """
-    Rendert das Aufgaben/Checklisten Widget.
-
-    Args:
-        aufgaben: Liste von Dicts mit 'text', 'completed'
-        key_prefix: Prefix für Checkbox-Keys
-    """
-    # Aufgaben als HTML-Checkliste
-    aufgaben_items = []
-    for aufgabe in aufgaben[:6]:  # Max 6 Aufgaben
-        checked = "checked" if aufgabe.get('completed', False) else ""
-        completed_class = "completed" if aufgabe.get('completed', False) else ""
-        aufgaben_items.append(
-            f'<div class="checklist-item {completed_class}"><input type="checkbox" {checked} disabled><span>{aufgabe["text"]}</span></div>'
-        )
-
-    aufgaben_html = "".join(aufgaben_items) if aufgaben_items else '<div class="empty-state">Keine Aufgaben</div>'
-
-    st.markdown(
-        f'<div class="widget-card"><div class="widget-title">Meine Aufgaben / Checkliste</div>{aufgaben_html}</div>',
-        unsafe_allow_html=True
-    )
-
-
-def render_nachrichten_widget(nachrichten: list):
-    """
-    Rendert das Nachrichten Widget.
-
-    Args:
-        nachrichten: Liste von Dicts mit 'sender', 'text'
-    """
-    # Nachrichten als HTML
-    nachrichten_items = []
-    for msg in nachrichten[:5]:  # Max 5 Nachrichten
-        nachrichten_items.append(
-            f'<div class="message-item"><div class="message-sender">{msg["sender"]}:</div><div class="message-text">{msg["text"]}</div></div>'
-        )
-
-    nachrichten_html = "".join(nachrichten_items) if nachrichten_items else '<div class="empty-state">Keine Nachrichten</div>'
-
-    st.markdown(
-        f'<div class="widget-card"><div class="widget-title">Nachrichten (zuletzt)</div>{nachrichten_html}</div>',
-        unsafe_allow_html=True
-    )
-
-
-def render_vorgaenge_widget(vorgaenge: list):
-    """
-    Rendert das 'Meine Vorgänge' Widget.
-
-    Args:
-        vorgaenge: Liste von Dicts mit 'id', 'address', 'status'
-    """
-    # Vorgänge als HTML
-    vorgaenge_items = []
-    for v in vorgaenge[:5]:
-        status_class = "status-offen" if v.get('status') == 'offen' else "status-ok"
-        vorgaenge_items.append(
-            f'<div class="vorgang-item"><span><span class="vorgang-id">{v["id"]}</span> • <span class="vorgang-address">{v["address"]}</span></span><span class="vorgang-status {status_class}">{v.get("status_text", "")}</span></div>'
-        )
-
-    vorgaenge_html = "".join(vorgaenge_items) if vorgaenge_items else '<div class="empty-state">Keine Vorgänge</div>'
-
-    st.markdown(
-        f'<div class="widget-card"><div class="widget-title">Meine Vorgänge</div>{vorgaenge_html}</div>',
-        unsafe_allow_html=True
-    )
-
-
-def render_timeline_widget(steps: list):
-    """
-    Rendert das Timeline Widget.
-
-    Args:
-        steps: Liste von Dicts mit 'text', 'status' (done, pending, active)
-    """
-    # Timeline als HTML
-    timeline_items = []
-    for step in steps:
-        if step['status'] == 'done':
-            dot_class = "green"
-            text_class = ""
-        elif step['status'] == 'active':
-            dot_class = "orange"
-            text_class = ""
-        else:
-            dot_class = "gray"
-            text_class = "pending"
-
-        timeline_items.append(
-            f'<div class="timeline-item"><div class="timeline-dot {dot_class}"></div><span class="timeline-text {text_class}">{step["text"]}</span></div>'
-        )
-
-    timeline_html = "".join(timeline_items) if timeline_items else '<div class="empty-state">Keine Timeline-Einträge</div>'
-
-    st.markdown(
-        f'<div class="widget-card"><div class="widget-title">Timeline (Auszug)</div>{timeline_html}</div>',
-        unsafe_allow_html=True
-    )
-
-
-def render_dokumente_widget(dokumente: list):
-    """
-    Rendert das Dokumente Widget.
-
-    Args:
-        dokumente: Liste von Dicts mit 'name', 'status' (vorliegend, fehlt, optional)
-    """
-    # Dokumente als HTML
-    dokumente_items = []
-    for dok in dokumente[:5]:
-        status = dok.get('status', 'optional')
-        if status == 'vorliegend':
-            status_class = "dokument-vorliegend"
-            status_text = "vorliegend"
-        elif status == 'fehlt':
-            status_class = "dokument-fehlt"
-            status_text = "fehlt"
-        else:
-            status_class = "dokument-optional"
-            status_text = "optional"
-
-        dokumente_items.append(
-            f'<div class="dokument-item"><span class="dokument-name">{dok["name"]}</span><span class="dokument-status {status_class}">{status_text}</span></div>'
-        )
-
-    dokumente_html = "".join(dokumente_items) if dokumente_items else '<div class="empty-state">Keine Dokumente</div>'
-
-    st.markdown(
-        f'<div class="widget-card"><div class="widget-title">Dokumente (relevant)</div>{dokumente_html}</div>',
-        unsafe_allow_html=True
-    )
-
-
-# Standard-Menüpunkte für alle Dashboards
-STANDARD_MENU_ITEMS = [
-    {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "checklisten", "label": "Checklisten", "icon": "✅"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥"},
-    {"key": "historie", "label": "Historie/Audit", "icon": "📜"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
-# ============================================================================
-# DESIGN-MODUS (Hell/Dunkel)
-# ============================================================================
-
-def apply_design_mode():
-    """
-    Wendet das aktuelle Design (hell/dunkel) an.
-    Muss am Anfang jedes Dashboards aufgerufen werden.
-    """
-    design_mode = st.session_state.get('design_mode', 'navy-gold')
-
-    if design_mode == 'light':
-        # Helles Design
-        st.markdown("""
-        <style>
-        /* Helles Design - Streamlit Overrides */
-        .stApp {
-            background-color: #f5f5f5 !important;
-        }
-
-        [data-testid="stSidebar"] {
-            background-color: #ffffff !important;
-        }
-
-        [data-testid="stSidebar"] * {
-            color: #333333 !important;
-        }
-
-        .stMarkdown, .stText, p, span, label, h1, h2, h3, h4, h5, h6 {
-            color: #333333 !important;
-        }
-
-        /* Topbar bleibt dunkel auch im hellen Modus für Kontrast */
-        .immoflow-topbar {
-            background: linear-gradient(135deg, #2c5282 0%, #3d6aa6 100%) !important;
-        }
-
-        /* Buttons im hellen Modus */
-        .stButton > button {
-            background-color: #2c5282 !important;
-            color: white !important;
-        }
-
-        /* Sidebar Buttons */
-        [data-testid="stSidebar"] .stButton > button {
-            background-color: #e2e8f0 !important;
-            color: #2c5282 !important;
-            border: 1px solid #cbd5e0 !important;
-        }
-
-        [data-testid="stSidebar"] .stButton > button:hover {
-            background-color: #cbd5e0 !important;
-        }
-
-        /* Tabs */
-        .stTabs [data-baseweb="tab"] {
-            background-color: #e2e8f0 !important;
-            color: #333333 !important;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background-color: #2c5282 !important;
-            color: white !important;
-        }
-
-        /* Expander */
-        .streamlit-expanderHeader {
-            background-color: #e2e8f0 !important;
-            color: #333333 !important;
-        }
-
-        /* Cards/Container */
-        [data-testid="stExpander"], .element-container {
-            background-color: #ffffff !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    else:
-        # Dunkles Design (Standard Navy-Gold) - VERBESSERT für besseren Kontrast
-        st.markdown("""
-        <style>
-        /* Dunkles Design - Navy Gold - Verbesserter Kontrast */
-        .stApp {
-            background-color: #0e1525 !important;
-        }
-
-        [data-testid="stSidebar"] {
-            background-color: #1a2332 !important;
-        }
-
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span,
-        [data-testid="stSidebar"] label {
-            color: #e2e8f0 !important;
-        }
-
-        .stMarkdown p, .stText, .main p, .main span {
-            color: #e2e8f0 !important;
-        }
-
-        h1, h2, h3, h4, h5, h6 {
-            color: #c9a227 !important;
-        }
-
-        /* Buttons im dunklen Modus - WEISSE SCHRIFT für Kontrast */
-        .stButton > button {
-            background-color: #2d4a6f !important;
-            background-image: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #c9a227 !important;
-            font-weight: 600 !important;
-        }
-
-        .stButton > button:hover {
-            background-color: #3d5a7f !important;
-            background-image: linear-gradient(135deg, #2d4a6f 0%, #3d5a7f 100%) !important;
-            color: #ffffff !important;
-            border-color: #e6c84a !important;
-        }
-
-        .stButton > button:active {
-            background-color: #c9a227 !important;
-            color: #1e3a5f !important;
-        }
-
-        /* Primary Buttons */
-        .stButton > button[kind="primary"] {
-            background-color: #c9a227 !important;
-            background-image: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
-            color: #1e3a5f !important;
-            border: none !important;
-            font-weight: 700 !important;
-        }
-
-        /* Tabs */
-        .stTabs [data-baseweb="tab"] {
-            background-color: #1a2332 !important;
-            color: #e2e8f0 !important;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background-color: #1e3a5f !important;
-            color: #c9a227 !important;
-            border-bottom: 2px solid #c9a227 !important;
-        }
-
-        /* Expander */
-        .streamlit-expanderHeader {
-            background-color: #1a2332 !important;
-            color: #c9a227 !important;
-        }
-
-        .streamlit-expanderContent {
-            background-color: #0e1525 !important;
-            border: 1px solid #2d4a6f !important;
-        }
-
-        /* Input fields */
-        .stTextInput > div > div > input,
-        .stSelectbox > div > div > div,
-        .stTextArea > div > div > textarea {
-            background-color: #1a2332 !important;
-            color: #ffffff !important;
-            border-color: #2d4a6f !important;
-        }
-
-        .stTextInput > div > div > input::placeholder {
-            color: #8899aa !important;
-        }
-
-        /* Selectbox */
-        .stSelectbox > div > div {
-            background-color: #1a2332 !important;
-            color: #ffffff !important;
-        }
-
-        /* Radio/Checkbox */
-        .stRadio > div, .stCheckbox > div {
-            color: #e2e8f0 !important;
-        }
-
-        /* Metriken */
-        [data-testid="stMetricValue"] {
-            color: #c9a227 !important;
-        }
-
-        [data-testid="stMetricLabel"] {
-            color: #e2e8f0 !important;
-        }
-
-        /* Dataframe/Table */
-        .stDataFrame {
-            background-color: #1a2332 !important;
-        }
-
-        /* Info/Warning/Error Boxes */
-        .stAlert {
-            background-color: #1a2332 !important;
-            color: #e2e8f0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-
-# ============================================================================
-# FIXIERTE TOPBAR FÜR ALLE DASHBOARDS
-# ============================================================================
-
-def render_fixed_topbar(role_icon: str, role_name: str):
-    """
-    Rendert eine fixierte Menüleiste über dem Hauptfenster.
-    Links: Rolle/Dashboard-Name
-    Mitte: Schnellaktionen (Suche, Benachrichtigungen, etc.)
-    Rechts: User-Info
-    """
-    user = st.session_state.current_user
-    user_name = getattr(user, 'name', 'Benutzer')
-    user_role = getattr(user, 'rolle', '')
-    user_id = getattr(user, 'user_id', '')
-
-    # Rollen-Anzeige formatieren
-    role_display = {
-        'makler': 'Makler',
-        'kaeufer': 'Käufer',
-        'verkaeufer': 'Verkäufer',
-        'notar': 'Notar',
-        'finanzierer': 'Finanzierer'
-    }.get(user_role, user_role)
-
-    # User Initialen für Avatar
-    initials = ""
-    if user_name:
-        parts = user_name.split()
-        if len(parts) >= 2:
-            initials = parts[0][0].upper() + parts[-1][0].upper()
-        elif len(parts) == 1:
-            initials = parts[0][:2].upper()
-
-    # Benachrichtigungen zählen
-    notif_count = 0
-    if user_id and 'benachrichtigungen' in st.session_state:
-        user_notifs = [n for n in st.session_state.benachrichtigungen
-                       if n.empfaenger_id == user_id and not n.gelesen]
-        notif_count = len(user_notifs)
-
-    notif_badge = f'<span class="topbar-badge">{notif_count}</span>' if notif_count > 0 else ''
-
-    # Design-Mode
-    design_mode = st.session_state.get('design_mode', 'navy-gold')
-    design_icon = "🌙" if design_mode == "navy-gold" else "☀️"
-
-    # Vollständige Topbar als fixiertes Element
-    st.markdown(f"""
-    <style>
-    /* Fixierte Topbar - volle Breite - WICHTIG: !important für alle Farben */
-    .immoflow-topbar {{
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 999999 !important;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-        border-bottom: 3px solid #c9a227 !important;
-    }}
-
-    .topbar-left {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.75rem !important;
-    }}
-
-    .topbar-icon {{
-        font-size: 1.5rem !important;
-        color: #ffffff !important;
-    }}
-
-    .topbar-title {{
-        color: #ffffff !important;
-        font-size: 1.1rem !important;
-        font-weight: 700 !important;
-        margin: 0 !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important;
-    }}
-
-    /* Mitte - Aktionen */
-    .topbar-center {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.5rem !important;
-    }}
-
-    .topbar-action {{
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 36px !important;
-        height: 36px !important;
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 8px !important;
-        color: #ffffff !important;
-        font-size: 1.1rem !important;
-        cursor: pointer !important;
-        transition: all 0.2s ease !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        text-decoration: none !important;
-        position: relative !important;
-    }}
-
-    .topbar-action:hover {{
-        background: rgba(201, 162, 39, 0.3) !important;
-        border-color: #c9a227 !important;
-        transform: translateY(-1px) !important;
-    }}
-
-    .topbar-action.active {{
-        background: #c9a227 !important;
-        color: #1e3a5f !important;
-    }}
-
-    .topbar-badge {{
-        position: absolute !important;
-        top: -5px !important;
-        right: -5px !important;
-        background: #dc3545 !important;
-        color: white !important;
-        font-size: 0.65rem !important;
-        font-weight: 700 !important;
-        padding: 2px 5px !important;
-        border-radius: 10px !important;
-        min-width: 16px !important;
-        text-align: center !important;
-    }}
-
-    .topbar-search {{
-        display: flex !important;
-        align-items: center !important;
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 20px !important;
-        padding: 0.3rem 0.8rem !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        gap: 0.5rem !important;
-    }}
-
-    .topbar-search input {{
-        background: transparent !important;
-        border: none !important;
-        color: #ffffff !important;
-        font-size: 0.85rem !important;
-        width: 150px;
-        outline: none;
-    }}
-
-    .topbar-search input::placeholder {{
-        color: rgba(255, 255, 255, 0.5) !important;
-    }}
-
-    .topbar-search-icon {{
-        color: rgba(255, 255, 255, 0.7) !important;
-        font-size: 0.9rem !important;
-    }}
-
-    /* Rechte Seite */
-    .topbar-right {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.75rem !important;
-    }}
-
-    .topbar-user-box {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.5rem !important;
-        background: rgba(255, 255, 255, 0.15) !important;
-        padding: 0.3rem 0.7rem !important;
-        border-radius: 20px !important;
-        border: 1px solid rgba(255, 255, 255, 0.25) !important;
-    }}
-
-    .topbar-avatar {{
-        width: 30px !important;
-        height: 30px !important;
-        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
-        border-radius: 50% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-weight: 700 !important;
-        color: #1e3a5f !important;
-        font-size: 0.8rem !important;
-    }}
-
-    .topbar-user-details {{
-        display: flex !important;
-        flex-direction: column !important;
-    }}
-
-    .topbar-username {{
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 0.8rem !important;
-        line-height: 1.2 !important;
-    }}
-
-    .topbar-userrole {{
-        color: #c9a227 !important;
-        font-size: 0.65rem !important;
-        font-weight: 500 !important;
-    }}
-
-    .topbar-logout {{
-        color: #ff6b6b !important;
-        font-size: 0.7rem !important;
-        font-weight: 500 !important;
-        cursor: pointer !important;
-        padding: 0.2rem 0.5rem !important;
-        border-radius: 4px !important;
-        background: rgba(255, 107, 107, 0.1) !important;
-        border: 1px solid rgba(255, 107, 107, 0.3) !important;
-        margin-left: 0.5rem !important;
-        transition: all 0.2s ease !important;
-        text-decoration: none !important;
-    }}
-
-    .topbar-logout:hover {{
-        background: rgba(255, 107, 107, 0.3) !important;
-        color: #ffffff !important;
-        text-decoration: none !important;
-    }}
-
-    /* Haupt-Content nach unten verschieben */
-    .main .block-container {{
-        padding-top: 65px !important;
-    }}
-
-    /* Sidebar auch nach unten */
-    [data-testid="stSidebar"] > div:first-child {{
-        padding-top: 65px !important;
-    }}
-
-    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
-    [data-testid="collapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    [data-testid="stSidebarCollapsedControl"] {{
-        z-index: 9999999 !important;
-        position: fixed !important;
-        top: 12px !important;
-        left: 12px !important;
-        background-color: rgba(30, 58, 95, 0.95) !important;
-        border-radius: 6px !important;
-        padding: 6px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-        border: 1px solid rgba(201, 162, 39, 0.5) !important;
-    }}
-
-    /* SVG-Icon im Toggle-Button weiß machen */
-    [data-testid="collapsedControl"] svg,
-    button[data-testid="baseButton-headerNoPadding"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg {{
-        fill: white !important;
-        stroke: white !important;
-        color: white !important;
-    }}
-
-    /* === RESPONSIVE TOPBAR === */
-
-    /* Sehr kleine Mobilgeräte (< 400px) */
-    @media (max-width: 399px) {{
-        .immoflow-topbar {{
-            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
-            flex-wrap: wrap;
-        }}
-        .topbar-left {{
-            flex: 0 0 auto;
-        }}
-        .topbar-icon {{
-            font-size: 1.1rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.75rem !important;
-            max-width: 80px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }}
-        .topbar-center {{
-            order: 3;
-            flex: 1 1 100%;
-            justify-content: center;
-            margin-top: 0.3rem;
-            gap: 0.2rem !important;
-        }}
-        .topbar-search {{
-            display: none !important;
-        }}
-        .topbar-action {{
-            width: 28px !important;
-            height: 28px !important;
-            font-size: 0.85rem !important;
-        }}
-        .topbar-right {{
-            flex: 0 0 auto;
-        }}
-        .topbar-user-box {{
-            padding: 0.2rem 0.4rem !important;
-        }}
-        .topbar-avatar {{
-            width: 24px !important;
-            height: 24px !important;
-            font-size: 0.65rem !important;
-        }}
-        .topbar-user-details {{
-            display: none !important;
-        }}
-        .topbar-logout {{
-            font-size: 0.6rem !important;
-            padding: 0.15rem 0.3rem !important;
-        }}
-        .topbar-badge {{
-            font-size: 0.55rem !important;
-            padding: 1px 3px !important;
-            top: -3px !important;
-            right: -3px !important;
-        }}
-        .main .block-container {{
-            padding-top: 90px !important;
-        }}
-        [data-testid="stSidebar"] > div:first-child {{
-            padding-top: 90px !important;
-        }}
-    }}
-
-    /* Kleine Mobilgeräte (400px - 575px) */
-    @media (min-width: 400px) and (max-width: 575px) {{
-        .immoflow-topbar {{
-            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
-        }}
-        .topbar-icon {{
-            font-size: 1.2rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.8rem !important;
-        }}
-        .topbar-search {{
-            display: none !important;
-        }}
-        .topbar-center {{
-            gap: 0.25rem !important;
-        }}
-        .topbar-action {{
-            width: 30px !important;
-            height: 30px !important;
-            font-size: 0.9rem !important;
-        }}
-        .topbar-user-details {{
-            display: none !important;
-        }}
-        .topbar-avatar {{
-            width: 26px !important;
-            height: 26px !important;
-            font-size: 0.7rem !important;
-        }}
-        .topbar-logout {{
-            font-size: 0.65rem !important;
-            padding: 0.15rem 0.35rem !important;
-        }}
-        .main .block-container {{
-            padding-top: 60px !important;
-        }}
-        [data-testid="stSidebar"] > div:first-child {{
-            padding-top: 60px !important;
-        }}
-    }}
-
-    /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
-    @media (min-width: 576px) and (max-width: 767px) {{
-        .immoflow-topbar {{
-            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
-        }}
-        .topbar-title {{
-            font-size: 0.9rem !important;
-        }}
-        .topbar-search {{
-            display: none !important;
-        }}
-        .topbar-action {{
-            width: 32px !important;
-            height: 32px !important;
-            font-size: 1rem !important;
-        }}
-        .topbar-user-details {{
-            display: none !important;
-        }}
-        .main .block-container {{
-            padding-top: 60px !important;
-        }}
-        [data-testid="stSidebar"] > div:first-child {{
-            padding-top: 60px !important;
-        }}
-    }}
-
-    /* Tablets (768px - 1023px) */
-    @media (min-width: 768px) and (max-width: 1023px) {{
-        .immoflow-topbar {{
-            padding: 0.45rem 1rem 0.45rem 55px !important;  /* Links Platz für Toggle */
-        }}
-        .topbar-title {{
-            font-size: 1rem !important;
-        }}
-        .topbar-search input {{
-            width: 120px !important;
-        }}
-        .topbar-action {{
-            width: 34px !important;
-            height: 34px !important;
-        }}
-        .topbar-username {{
-            font-size: 0.75rem !important;
-        }}
-        .topbar-userrole {{
-            font-size: 0.6rem !important;
-        }}
-    }}
-
-    /* Desktop (>= 1024px) - Standard-Styles gelten */
-
-    /* Touch-Geräte */
-    @media (hover: none) and (pointer: coarse) {{
-        .topbar-action {{
-            min-width: 40px !important;
-            min-height: 40px !important;
-        }}
-        .topbar-action:active {{
-            background: rgba(201, 162, 39, 0.4) !important;
-            transform: scale(0.95) !important;
-        }}
-        .topbar-logout:active {{
-            background: rgba(255, 107, 107, 0.5) !important;
-        }}
-    }}
-
-    /* Landscape auf Mobilgeräten */
-    @media (max-height: 450px) and (orientation: landscape) {{
-        .immoflow-topbar {{
-            padding: 0.25rem 0.8rem 0.25rem 50px !important;  /* Links Platz für Toggle */
-        }}
-        .topbar-icon {{
-            font-size: 1rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.8rem !important;
-        }}
-        .topbar-action {{
-            width: 28px !important;
-            height: 28px !important;
-        }}
-        .topbar-avatar {{
-            width: 24px !important;
-            height: 24px !important;
-        }}
-        .main .block-container {{
-            padding-top: 50px !important;
-        }}
-        [data-testid="stSidebar"] > div:first-child {{
-            padding-top: 50px !important;
-        }}
-    }}
-    </style>
-
-    <div class="immoflow-topbar">
-        <div class="topbar-left">
-            <span class="topbar-icon">{role_icon}</span>
-            <h1 class="topbar-title">{role_name}</h1>
-        </div>
-        <div class="topbar-center">
-            <div class="topbar-search">
-                <span class="topbar-search-icon">🔍</span>
-                <input type="text" placeholder="Suchen..." id="topbar-search-input">
-            </div>
-            <div class="topbar-action" title="Benachrichtigungen" id="topbar-btn-notif">
-                🔔{notif_badge}
-            </div>
-            <div class="topbar-action" title="Neues Projekt / Neue Akte" id="topbar-btn-new">
-                ➕
-            </div>
-            <div class="topbar-action" title="Design wechseln" id="topbar-btn-design">
-                {design_icon}
-            </div>
-            <div class="topbar-action" title="Einstellungen" id="topbar-btn-settings">
-                ⚙️
-            </div>
-            <div class="topbar-action" title="Hilfe" id="topbar-btn-help">
-                ❓
-            </div>
-        </div>
-        <div class="topbar-right">
-            <div class="topbar-user-box">
-                <div class="topbar-avatar">{initials}</div>
-                <div class="topbar-user-details">
-                    <span class="topbar-username">{user_name}</span>
-                    <span class="topbar-userrole">{role_display}</span>
-                </div>
-                <a href="?topbar_action=logout" class="topbar-logout" title="Abmelden">Abmelden</a>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Funktionale Buttons - Prüfen auf Aktionen via Query-Parameter
-    _handle_topbar_actions()
-
-
-def _handle_topbar_actions():
-    """
-    Verarbeitet Topbar-Aktionen basierend auf Query-Parametern.
-    Diese werden durch JavaScript-Klicks auf die HTML-Buttons gesetzt.
-    """
-    params = st.query_params
-
-    # Logout-Aktion
-    if params.get("topbar_action") == "logout":
-        st.query_params.clear()
-        logout()
-        return
-
-    # Design-Wechsel
-    if params.get("topbar_action") == "design":
-        st.query_params.clear()
-        current_design = st.session_state.get('design_mode', 'navy-gold')
-        if current_design == "navy-gold":
-            st.session_state['design_mode'] = 'light'
-        else:
-            st.session_state['design_mode'] = 'navy-gold'
-        st.rerun()
-
-    # Benachrichtigungen
-    if params.get("topbar_action") == "notif":
-        st.query_params.clear()
-        st.session_state['show_notifications_panel'] = True
-        st.rerun()
-
-    # Neues Projekt
-    if params.get("topbar_action") == "new":
-        st.query_params.clear()
-        st.session_state['show_new_project_dialog'] = True
-        st.rerun()
-
-    # Einstellungen
-    if params.get("topbar_action") == "settings":
-        st.query_params.clear()
-        st.session_state['show_settings_panel'] = True
-        st.rerun()
-
-    # Suche
-    search_query = params.get("topbar_search")
-    if search_query:
-        st.session_state['global_search_query'] = search_query
-        st.query_params.clear()
-        st.rerun()
-
-
-def render_fixed_topbar_functional(role_icon: str, role_name: str, role_key: str):
-    """
-    Rendert eine fixierte Topbar mit FUNKTIONALEN Streamlit-Buttons.
-    Die Buttons werden direkt unter der CSS-Topbar als echte Streamlit-Elemente gerendert.
-
-    Args:
-        role_icon: Icon für die Rolle (z.B. "⚖️")
-        role_name: Name des Dashboards (z.B. "Notar-Dashboard")
-        role_key: Eindeutiger Key für die Rolle (z.B. "notar")
-    """
-    user = st.session_state.current_user
-    user_name = getattr(user, 'name', 'Benutzer')
-    user_role = getattr(user, 'rolle', '')
-    user_id = getattr(user, 'user_id', '')
-
-    # Rollen-Anzeige formatieren
-    role_display = {
-        'makler': 'Makler',
-        'kaeufer': 'Käufer',
-        'verkaeufer': 'Verkäufer',
-        'notar': 'Notar',
-        'finanzierer': 'Finanzierer'
-    }.get(user_role, user_role)
-
-    # User Initialen für Avatar
-    initials = ""
-    if user_name:
-        parts = user_name.split()
-        if len(parts) >= 2:
-            initials = parts[0][0].upper() + parts[-1][0].upper()
-        elif len(parts) == 1:
-            initials = parts[0][:2].upper()
-
-    # Benachrichtigungen zählen
-    notif_count = 0
-    if user_id and 'benachrichtigungen' in st.session_state:
-        user_notifs = [n for n in st.session_state.benachrichtigungen
-                       if n.empfaenger_id == user_id and not n.gelesen]
-        notif_count = len(user_notifs)
-
-    # CSS für die Topbar (nur visuell - Header)
-    st.markdown(f"""
-    <style>
-    /* Fixierte Topbar Header */
-    .immoflow-topbar-header {{
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 999999 !important;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%) !important;
-        padding: 0.5rem 1.5rem 0.5rem 55px !important;  /* Links mehr Platz für Sidebar-Toggle */
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-        border-bottom: 3px solid #c9a227 !important;
-        height: 50px !important;
-    }}
-    .topbar-left {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.75rem !important;
-    }}
-    .topbar-icon {{
-        font-size: 1.5rem !important;
-        color: #ffffff !important;
-    }}
-    .topbar-title {{
-        color: #ffffff !important;
-        font-size: 1.1rem !important;
-        font-weight: 700 !important;
-        margin: 0 !important;
-    }}
-    .topbar-right {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.75rem !important;
-    }}
-    .topbar-user-box {{
-        display: flex !important;
-        align-items: center !important;
-        gap: 0.5rem !important;
-        background: rgba(255, 255, 255, 0.15) !important;
-        padding: 0.3rem 0.7rem !important;
-        border-radius: 20px !important;
-    }}
-    .topbar-avatar {{
-        width: 30px !important;
-        height: 30px !important;
-        background: linear-gradient(135deg, #c9a227 0%, #e6c84a 100%) !important;
-        border-radius: 50% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-weight: 700 !important;
-        color: #1e3a5f !important;
-        font-size: 0.8rem !important;
-    }}
-    .topbar-username {{
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        font-size: 0.8rem !important;
-    }}
-    .topbar-userrole {{
-        color: #c9a227 !important;
-        font-size: 0.65rem !important;
-    }}
-    /* Content nach unten verschieben */
-    .main .block-container {{
-        padding-top: 110px !important;
-    }}
-    [data-testid="stSidebar"] > div:first-child {{
-        padding-top: 65px !important;
-    }}
-    /* Sidebar Toggle Button über Topbar legen - WICHTIG: fixed position für Sichtbarkeit */
-    [data-testid="collapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    [data-testid="stSidebarCollapsedControl"] {{
-        z-index: 9999999 !important;
-        position: fixed !important;
-        top: 12px !important;
-        left: 12px !important;
-        background-color: rgba(30, 58, 95, 0.95) !important;
-        border-radius: 6px !important;
-        padding: 6px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-        border: 1px solid rgba(201, 162, 39, 0.5) !important;
-    }}
-    /* SVG-Icon im Toggle-Button weiß machen */
-    [data-testid="collapsedControl"] svg,
-    button[data-testid="baseButton-headerNoPadding"] svg,
-    [data-testid="stSidebarCollapsedControl"] svg {{
-        fill: white !important;
-        stroke: white !important;
-        color: white !important;
-    }}
-    /* Funktionale Topbar-Buttons */
-    .topbar-actions-row {{
-        position: fixed !important;
-        top: 53px !important;
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 999998 !important;
-        background: #f8f9fa !important;
-        padding: 0.4rem 1rem !important;
-        border-bottom: 1px solid #dee2e6 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }}
-
-    /* === RESPONSIVE TOPBAR HEADER === */
-
-    /* Sehr kleine Mobilgeräte (< 400px) */
-    @media (max-width: 399px) {{
-        .immoflow-topbar-header {{
-            padding: 0.3rem 0.5rem 0.3rem 50px !important;  /* Links Platz für Toggle */
-            height: 40px !important;
-        }}
-        .topbar-icon {{
-            font-size: 1rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.7rem !important;
-            max-width: 100px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }}
-        .topbar-user-box {{
-            padding: 0.2rem 0.4rem !important;
-        }}
-        .topbar-avatar {{
-            width: 22px !important;
-            height: 22px !important;
-            font-size: 0.6rem !important;
-        }}
-        .topbar-username {{
-            display: none !important;
-        }}
-        .topbar-userrole {{
-            display: none !important;
-        }}
-        .main .block-container {{
-            padding-top: 95px !important;
-        }}
-        [data-testid="stSidebar"] > div:first-child {{
-            padding-top: 50px !important;
-        }}
-    }}
-
-    /* Kleine Mobilgeräte (400px - 575px) */
-    @media (min-width: 400px) and (max-width: 575px) {{
-        .immoflow-topbar-header {{
-            padding: 0.35rem 0.6rem 0.35rem 50px !important;  /* Links Platz für Toggle */
-            height: 42px !important;
-        }}
-        .topbar-icon {{
-            font-size: 1.1rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.8rem !important;
-        }}
-        .topbar-username {{
-            font-size: 0.7rem !important;
-        }}
-        .topbar-userrole {{
-            display: none !important;
-        }}
-        .main .block-container {{
-            padding-top: 100px !important;
-        }}
-    }}
-
-    /* Größere Mobilgeräte / Kleine Tablets (576px - 767px) */
-    @media (min-width: 576px) and (max-width: 767px) {{
-        .immoflow-topbar-header {{
-            padding: 0.4rem 0.8rem 0.4rem 55px !important;  /* Links Platz für Toggle */
-            height: 45px !important;
-        }}
-        .topbar-title {{
-            font-size: 0.9rem !important;
-        }}
-        .main .block-container {{
-            padding-top: 105px !important;
-        }}
-    }}
-
-    /* Tablets (768px - 1023px) */
-    @media (min-width: 768px) and (max-width: 1023px) {{
-        .immoflow-topbar-header {{
-            padding: 0.4rem 1rem 0.4rem 55px !important;  /* Links Platz für Toggle */
-            height: 48px !important;
-        }}
-        .topbar-title {{
-            font-size: 1rem !important;
-        }}
-    }}
-
-    /* Touch-Geräte */
-    @media (hover: none) and (pointer: coarse) {{
-        .topbar-user-box {{
-            min-height: 36px !important;
-        }}
-    }}
-
-    /* Landscape auf Mobilgeräten */
-    @media (max-height: 450px) and (orientation: landscape) {{
-        .immoflow-topbar-header {{
-            height: 35px !important;
-            padding: 0.2rem 0.6rem 0.2rem 50px !important;  /* Links Platz für Toggle */
-        }}
-        .topbar-icon {{
-            font-size: 0.9rem !important;
-        }}
-        .topbar-title {{
-            font-size: 0.75rem !important;
-        }}
-        .topbar-avatar {{
-            width: 22px !important;
-            height: 22px !important;
-        }}
-        .main .block-container {{
-            padding-top: 85px !important;
-        }}
-    }}
-    </style>
-
-    <div class="immoflow-topbar-header">
-        <div class="topbar-left">
-            <span class="topbar-icon">{role_icon}</span>
-            <h1 class="topbar-title">{role_name}</h1>
-        </div>
-        <div class="topbar-right">
-            <div class="topbar-user-box">
-                <div class="topbar-avatar">{initials}</div>
-                <div style="display: flex; flex-direction: column;">
-                    <span class="topbar-username">{user_name}</span>
-                    <span class="topbar-userrole">{role_display}</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    # Alle Aktions-Buttons sind jetzt in der Sidebar (render_topbar_actions)
-
-
-def render_topbar_actions():
-    """
-    Rendert funktionale Aktionen in der Sidebar.
-    Enthält Benachrichtigungen, Neu-Button, Design-Wechsel und Abmelden.
-    """
-    user_id = getattr(st.session_state.current_user, 'user_id', '')
-
-    # Benachrichtigungen zählen
-    notif_count = 0
-    if user_id and 'benachrichtigungen' in st.session_state:
-        user_notifs = [n for n in st.session_state.benachrichtigungen
-                       if n.empfaenger_id == user_id and not n.gelesen]
-        notif_count = len(user_notifs)
-
-    with st.sidebar:
-        # === SCHNELLAKTIONEN ===
-        st.markdown("### ⚡ Aktionen")
-
-        # Benachrichtigungen
-        notif_label = f"🔔 Benachrichtigungen ({notif_count})" if notif_count > 0 else "🔔 Benachrichtigungen"
-        if st.button(notif_label, key="sidebar_notif", use_container_width=True):
-            st.session_state['show_notifications_panel'] = True
-            st.rerun()
-
-        # Neu-Button
-        if st.button("➕ Neu", key="sidebar_new", use_container_width=True):
-            st.session_state['show_new_project_dialog'] = True
-            st.rerun()
-
-        # === DESIGN-WECHSEL ===
-        current_design = st.session_state.get('design_mode', 'navy-gold')
-        design_label = "☀️ Helles Design" if current_design == "navy-gold" else "🌙 Dunkles Design"
-
-        if st.button(design_label, key="sidebar_design", use_container_width=True):
-            if current_design == "navy-gold":
-                st.session_state['design_mode'] = 'light'
-            else:
-                st.session_state['design_mode'] = 'navy-gold'
-            st.rerun()
-
-        st.markdown("---")
-
-        # Abmelden-Button
-        if st.button("🚪 Abmelden", key="sidebar_logout", use_container_width=True):
-            logout()
-
-        st.markdown("---")
-
-
-# ============================================================================
 # MAKLER-BEREICH
 # ============================================================================
 
-# Makler-spezifische Menüpunkte
-MAKLER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Projekte", "icon": "📁"},
-    {"key": "interessenten", "label": "Interessenten", "icon": "🎯"},
-    {"key": "timeline", "label": "Timeline", "icon": "📋"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "beteiligte", "label": "Beteiligte", "icon": "👥"},
-    {"key": "bankenmappe", "label": "Bankenmappe", "icon": "💼"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
 def makler_dashboard():
-    """Dashboard für Makler - Neues Design"""
-    user_id = st.session_state.current_user.user_id
-    user = st.session_state.current_user
+    """Dashboard für Makler - Modernes, übersichtliches Design"""
 
-    # Neues Dashboard CSS injizieren
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit funktionalen Buttons
-    render_fixed_topbar_functional("📊", "Makler-Dashboard", "makler")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('makler_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Projekt/Akte)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-    selection = render_sidebar_menu("makler", MAKLER_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
 
     # Aktentasche in der Sidebar
+    user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
     render_aktentasche_sidebar(user_id)
 
-    # Dialoge (werden benötigt)
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(user_id)
+
+    # Teilen-Dialog anzeigen falls aktiv
     render_aktentasche_teilen_dialog(user_id)
+
+    # Download-Dialog anzeigen falls aktiv
     render_aktentasche_download(user_id)
 
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
 
-    # === INHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == "dashboard":
-        _render_makler_dashboard_home(user_id)
-    elif selection == "projekte":
-        makler_projekte_view()
-    elif selection == "interessenten":
-        _render_makler_interessenten_view(user_id)
-    elif selection == "timeline":
-        makler_timeline_view()
-    elif selection == "nachrichten":
-        render_kommunikationszentrale(user_id)
-    elif selection == "dokumente":
-        _render_makler_dokumente_view(user_id)
-    elif selection == "termine":
-        _render_makler_termine_view(user_id)
-    elif selection == "beteiligte":
-        makler_teilnehmer_status()
-    elif selection == "bankenmappe":
-        render_bank_folder_view()
-    elif selection == "einstellungen":
-        _render_makler_einstellungen_view(user_id)
-    elif selection == "profil":
-        makler_profil_view()
+    # Dashboard Header
+    render_dashboard_header("Makler", user_name, unread_count)
+
+    # KPIs berechnen
+    makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+    aktive_projekte = len([p for p in makler_projekte if p.status not in [ProjektStatus.ABGESCHLOSSEN.value, ProjektStatus.STORNIERT.value]])
+    abgeschlossene = len([p for p in makler_projekte if p.status == ProjektStatus.ABGESCHLOSSEN.value])
+    offene_termine = len([t for t in st.session_state.get('termine', {}).values()
+                         if hasattr(t, 'teilnehmer_ids') and user_id in t.teilnehmer_ids
+                         and hasattr(t, 'datum') and t.datum >= datetime.now()])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📁', 'value': str(aktive_projekte), 'label': 'Aktive Projekte', 'type': 'success'},
+        {'icon': '✅', 'value': str(abgeschlossene), 'label': 'Abgeschlossen', 'type': ''},
+        {'icon': '📅', 'value': str(offene_termine), 'label': 'Anstehende Termine', 'type': 'info'},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
+
+    # Suchleiste
+    search_term = render_dashboard_search("makler")
+    if search_term:
+        st.session_state['makler_search'] = search_term
+
+    # Gruppierte Tabs für bessere Übersichtlichkeit
+    st.markdown("### Bereiche")
+
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "📁 Projekte",
+        "📊 Analyse",
+        "👥 Kontakte",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
+
+    # Tab 0: Übersicht - Dashboard-Startseite mit Timeline und Schnellübersicht
+    with tabs[0]:
+        makler_uebersicht_view(user_id, makler_projekte)
+
+    # Tab 1: Projekte - Alle projektbezogenen Funktionen
+    with tabs[1]:
+        projekt_subtabs = st.tabs(["📋 Übersicht", "➕ Neues Projekt", "👥 Teilnehmer", "✉️ Einladungen"])
+        with projekt_subtabs[0]:
+            makler_projekte_view()
+        with projekt_subtabs[1]:
+            makler_timeline_view()
+        with projekt_subtabs[2]:
+            makler_teilnehmer_status()
+        with projekt_subtabs[3]:
+            makler_einladungen()
+
+    # Tab 2: Analyse - Marktanalyse, Reporting, Vertragsvergleich
+    with tabs[2]:
+        analyse_subtabs = st.tabs(["📊 Marktanalyse", "📈 Reporting", "🔄 Vertragsvergleich", "⏰ Fristen"])
+        with analyse_subtabs[0]:
+            makler_marktanalyse_view()
+        with analyse_subtabs[1]:
+            render_reporting_dashboard(user_id)
+        with analyse_subtabs[2]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if makler_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen",
+                    list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x],
+                    key="makler_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+        with analyse_subtabs[3]:
+            render_fristenmanagement(user_id)
+
+    # Tab 3: Kontakte - Mitarbeiter, Kommunikation, Kommentare
+    with tabs[3]:
+        kontakt_subtabs = st.tabs(["👥 Mitarbeiter", "💬 Nachrichten", "📝 Kommentare", "🪪 Ausweisdaten"])
+        with kontakt_subtabs[0]:
+            render_makler_mitarbeiter_verwaltung(user_id)
+        with kontakt_subtabs[1]:
+            render_kommunikationszentrale(user_id)
+        with kontakt_subtabs[2]:
+            makler_kommentare()
+        with kontakt_subtabs[3]:
+            makler_ausweis_erfassung()
+
+    # Tab 4: Dokumente - Bankenmappe, rechtliche Dokumente
+    with tabs[4]:
+        dok_subtabs = st.tabs(["💼 Bankenmappe", "⚖️ Rechtliche Dokumente", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            render_bank_folder_view()
+        with dok_subtabs[1]:
+            makler_rechtliche_dokumente()
+        with dok_subtabs[2]:
+            render_papierkorb_tab(user_id, ist_notar=False)
+
+    # Tab 5: Termine - Kalender und Terminverwaltung
+    with tabs[5]:
+        st.subheader("📅 Meine Termine")
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.MAKLER.value)
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+
+    # Tab 6: Einstellungen - Profil, TTS, DSGVO
+    with tabs[6]:
+        einst_subtabs = st.tabs(["👤 Profil", "🔊 Vorlesen", "🔒 DSGVO"])
+        with einst_subtabs[0]:
+            makler_profil_view()
+        with einst_subtabs[1]:
+            st.subheader("🔊 Text-to-Speech Einstellungen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            st.markdown("### 📄 Dokument vorlesen testen")
+            demo_text = """
+            Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+            Als Makler können Sie Vertragsdokumente vorlesen lassen.
+            """
+            render_tts_controls(demo_text, "makler_demo_tts", user_id)
+        with einst_subtabs[2]:
+            render_dsgvo_tab_makler(user_id)
 
 
-def _render_makler_dashboard_home(user_id: str):
-    """Rendert die Makler-Dashboard Startseite mit Widgets"""
+def makler_uebersicht_view(user_id: str, makler_projekte: list):
+    """Übersichts-Startseite für Makler mit Schnellzugriff und Aktivitäten"""
+    st.subheader("📊 Dashboard-Übersicht")
 
-    # Statistiken sammeln
-    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
-    offene_projekte = len([p for p in projekte if p.status != "Abgeschlossen"])
-    abgeschlossene = len([p for p in projekte if p.status == "Abgeschlossen"])
-
-    # Nachrichten zählen
-    ungelesene_nachrichten = 0
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in st.session_state.nachrichten.values():
-            if getattr(n, 'empfaenger_id', None) == user_id and not getattr(n, 'gelesen', True):
-                ungelesene_nachrichten += 1
-
-    # Termine heute
-    from datetime import datetime, date
-    heute = date.today()
-    termine_heute = 0
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-                    if termin_datum == heute:
-                        termine_heute += 1
-            except:
-                pass
-
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
+    # Schnellaktionen
+    st.markdown("#### Schnellaktionen")
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Vorgänge aktiv',
-            'badges': [
-                {'text': f'{offene_projekte} offen', 'color': 'orange'},
-                {'text': f'{ungelesene_nachrichten} Nachrichten', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Aufgaben-Widget
-        aufgaben = _get_makler_aufgaben(user_id, projekte)
-        render_aufgaben_widget(aufgaben, "makler")
-
-        # Nachrichten-Widget
-        nachrichten = _get_makler_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
+        if st.button("➕ Neues Projekt", use_container_width=True, key="quick_new_project"):
+            st.session_state['show_new_project'] = True
 
     with col2:
-        # Vorgänge-Widget
-        vorgaenge = _get_makler_vorgaenge(projekte)
-        render_vorgaenge_widget(vorgaenge)
+        if st.button("📅 Termin planen", use_container_width=True, key="quick_new_termin"):
+            st.session_state['show_new_termin'] = True
 
-        # Timeline-Widget
-        timeline_steps = _get_makler_timeline_steps(projekte)
-        render_timeline_widget(timeline_steps)
+    with col3:
+        if st.button("📧 Einladung senden", use_container_width=True, key="quick_invite"):
+            st.session_state['show_invite'] = True
 
-        # Dokumente-Widget
-        dokumente = _get_makler_dokumente(user_id, projekte)
-        render_dokumente_widget(dokumente)
+    with col4:
+        if st.button("📊 Bericht erstellen", use_container_width=True, key="quick_report"):
+            st.session_state['show_report'] = True
 
+    st.markdown("---")
 
-def _get_makler_aufgaben(user_id: str, projekte: list) -> list:
-    """Holt die Aufgaben für den Makler"""
-    aufgaben = []
+    # Zwei-Spalten-Layout für Projekte und Aktivitäten
+    col_left, col_right = st.columns([2, 1])
 
-    # Prüfe ob Projekte Dokumente brauchen
-    for projekt in projekte[:3]:
-        if projekt.status == "Initiiert":
-            aufgaben.append({'text': f'Exposé erstellen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Dokumente":
-            aufgaben.append({'text': f'Dokumente prüfen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Abgeschlossen":
-            aufgaben.append({'text': f'Abrechnung: {projekt.name}', 'completed': True})
-
-    # Standard-Aufgaben falls keine Projekte
-    if not aufgaben:
-        aufgaben = [
-            {'text': 'Neues Projekt anlegen', 'completed': False},
-            {'text': 'Profil vervollständigen', 'completed': True},
-            {'text': 'Marktanalyse durchführen', 'completed': False},
-        ]
-
-    return aufgaben
-
-
-def _get_makler_nachrichten(user_id: str) -> list:
-    """Holt die letzten Nachrichten für den Makler"""
-    nachrichten = []
-
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in list(st.session_state.nachrichten.values())[:5]:
-            if getattr(n, 'empfaenger_id', None) == user_id:
-                sender_name = "System"
-                sender_id = getattr(n, 'sender_id', None)
-                if sender_id and sender_id in st.session_state.users:
-                    sender_name = st.session_state.users[sender_id].name
-                nachrichten.append({
-                    'sender': sender_name,
-                    'text': getattr(n, 'betreff', getattr(n, 'inhalt', 'Neue Nachricht'))[:50]
-                })
-
-    if not nachrichten:
-        nachrichten = [
-            {'sender': 'System', 'text': 'Willkommen im neuen Dashboard!'},
-        ]
-
-    return nachrichten
-
-
-def _get_makler_vorgaenge(projekte: list) -> list:
-    """Holt die Vorgänge (Projekte) des Maklers"""
-    vorgaenge = []
-
-    for projekt in projekte[:5]:
-        status = 'offen' if projekt.status != 'Abgeschlossen' else 'ok'
-        vorgaenge.append({
-            'id': projekt.projekt_id[:8].upper(),
-            'address': projekt.adresse or projekt.name,
-            'status': status,
-            'status_text': projekt.status
-        })
-
-    if not vorgaenge:
-        vorgaenge = [
-            {'id': 'DEMO0001', 'address': 'Beispielstraße 1', 'status': 'offen', 'status_text': 'Kein Projekt'}
-        ]
-
-    return vorgaenge
-
-
-def _get_makler_timeline_steps(projekte: list) -> list:
-    """Holt Timeline-Schritte basierend auf dem ersten aktiven Projekt"""
-    if not projekte:
-        return [
-            {'text': 'Projekt anlegen', 'status': 'pending'},
-            {'text': 'Exposé erstellen', 'status': 'pending'},
-            {'text': 'Käufer finden', 'status': 'pending'},
-        ]
-
-    projekt = projekte[0]
-    steps = []
-
-    status_map = {
-        'Initiiert': 0,
-        'Dokumente': 1,
-        'Prüfung': 2,
-        'Finanzierung': 3,
-        'Notar': 4,
-        'Abgeschlossen': 5
-    }
-
-    current_step = status_map.get(projekt.status, 0)
-
-    step_names = ['Projektstart', 'Dokumentensammlung', 'Prüfung', 'Finanzierung', 'Notartermin', 'Abschluss']
-
-    for i, name in enumerate(step_names):
-        if i < current_step:
-            status = 'done'
-        elif i == current_step:
-            status = 'active'
-        else:
-            status = 'pending'
-        steps.append({'text': name, 'status': status})
-
-    return steps
-
-
-def _get_makler_dokumente(user_id: str, projekte: list) -> list:
-    """Holt relevante Dokumente für den Makler"""
-    dokumente = []
-
-    # Standard-Dokumente
-    standard_docs = [
-        ('Exposé', 'vorliegend' if projekte else 'fehlt'),
-        ('Grundbuchauszug', 'fehlt'),
-        ('Energieausweis', 'optional'),
-        ('Kaufvertragsentwurf', 'fehlt'),
-        ('Finanzierungsbestätigung', 'optional'),
-    ]
-
-    for name, status in standard_docs:
-        dokumente.append({'name': name, 'status': status})
-
-    return dokumente
-
-
-def _render_makler_dokumente_view(user_id: str):
-    """Dokumente-Ansicht für Makler"""
-    st.subheader("📄 Dokumente")
-
-    doc_tabs = st.tabs(["📄 Rechtliche Dokumente", "🪪 Ausweisdaten", "🔄 Vertragsvergleich", "🗑️ Papierkorb"])
-
-    with doc_tabs[0]:
-        makler_rechtliche_dokumente()
-
-    with doc_tabs[1]:
-        makler_ausweis_erfassung()
-
-    with doc_tabs[2]:
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
+    with col_left:
+        st.markdown("#### 🏘️ Aktive Projekte")
         if makler_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="makler_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.MAKLER.value)
+            for projekt in makler_projekte[:5]:  # Zeige maximal 5 Projekte
+                fortschritt = berechne_projekt_fortschritt(projekt.projekt_id)
+                render_project_card(projekt, fortschritt)
+
+            if len(makler_projekte) > 5:
+                st.info(f"*... und {len(makler_projekte) - 5} weitere Projekte*")
         else:
-            st.info("Noch keine Projekte vorhanden.")
+            st.markdown("""
+            <div class="content-section" style="text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                <h4>Noch keine Projekte</h4>
+                <p style="color: #6c757d;">Erstellen Sie Ihr erstes Projekt, um loszulegen.</p>
+            </div>
+            """, unsafe_allow_html=True)
 
-    with doc_tabs[3]:
-        render_papierkorb_tab(user_id, ist_notar=False)
+    with col_right:
+        st.markdown("#### 📋 Letzte Aktivitäten")
 
+        # Sammle letzte Aktivitäten aus Benachrichtigungen
+        activities = []
+        user_benachrichtigungen = [n for n in st.session_state.benachrichtigungen.values()
+                                   if n.user_id == user_id]
+        user_benachrichtigungen.sort(key=lambda x: x.erstellt_am, reverse=True)
 
-def _render_makler_termine_view(user_id: str):
-    """Termine-Ansicht für Makler"""
-    st.subheader("📅 Meine Termine")
+        for n in user_benachrichtigungen[:5]:
+            zeit_diff = datetime.now() - n.erstellt_am
+            if zeit_diff.days > 0:
+                zeit_str = f"vor {zeit_diff.days} Tag(en)"
+            elif zeit_diff.seconds >= 3600:
+                zeit_str = f"vor {zeit_diff.seconds // 3600} Std."
+            else:
+                zeit_str = f"vor {zeit_diff.seconds // 60} Min."
 
-    termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt", "⏰ Fristen"])
+            activities.append({
+                'icon': '🔔' if not n.gelesen else '📌',
+                'title': n.titel,
+                'time': zeit_str
+            })
 
-    with termin_ansicht[0]:
-        render_termin_kalender(user_id, UserRole.MAKLER.value)
-
-    with termin_ansicht[1]:
-        projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+        if activities:
+            for activity in activities:
+                st.markdown(f"""
+                <div class="activity-item">
+                    <div class="activity-icon">{activity['icon']}</div>
+                    <div class="activity-content">
+                        <div class="activity-title">{activity['title']}</div>
+                        <div class="activity-time">{activity['time']}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            st.info("Noch keine Projekte vorhanden.")
-
-    with termin_ansicht[2]:
-        render_fristenmanagement(user_id)
-
-
-def _render_makler_einstellungen_view(user_id: str):
-    """Einstellungen-Ansicht für Makler"""
-    st.subheader("⚙️ Einstellungen")
-
-    settings_tabs = st.tabs(["👤 Profil", "👥 Mitarbeiter", "📊 Reporting", "🔊 Vorlesen", "🔒 DSGVO"])
-
-    with settings_tabs[0]:
-        makler_profil_view()
-
-    with settings_tabs[1]:
-        render_makler_mitarbeiter_verwaltung(user_id)
-
-    with settings_tabs[2]:
-        render_reporting_dashboard(user_id)
-
-    with settings_tabs[3]:
-        st.subheader("🔊 Text-to-Speech Einstellungen")
-        render_tts_einstellungen(user_id)
-        st.markdown("---")
-        st.markdown("### 📄 Dokument vorlesen testen")
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Makler können Sie Vertragsdokumente vorlesen lassen.
-        Die Geschwindigkeit kann angepasst werden.
-        """
-        render_tts_controls(demo_text, "makler_demo_tts", user_id)
-
-    with settings_tabs[4]:
-        render_dsgvo_tab_makler(user_id)
-
-
-def _render_makler_interessenten_view(user_id: str):
-    """Interessenten-Verwaltung für Makler"""
-    st.subheader("🎯 Interessenten-Verwaltung")
-
-    # Projekte des Maklers laden
-    projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
-
-    if not projekte:
-        st.info("Sie haben noch keine Projekte. Legen Sie zuerst ein Projekt an.")
-        return
-
-    # Tabs für Übersicht und Neuer Interessent
-    tabs = st.tabs(["📋 Übersicht", "➕ Interessent hinzufügen"])
-
-    with tabs[0]:
-        _render_interessenten_uebersicht(user_id, projekte, kann_hochstufen=True)
-
-    with tabs[1]:
-        _render_interessent_hinzufuegen(user_id, projekte)
-
+            st.info("Keine aktuellen Aktivitäten")
 
 def makler_timeline_view():
     """Timeline-Ansicht für Makler"""
@@ -17155,721 +15229,151 @@ def onboarding_flow():
         st.info("⏳ Bitte akzeptieren Sie alle Dokumente, um fortzufahren.")
 
 # ============================================================================
-# INTERESSENT-BEREICH (potenzielle Käufer, noch nicht bestätigt)
-# ============================================================================
-
-# Interessent-spezifische Menüpunkte (ohne Finanzierung - erst nach Bestätigung als Käufer)
-INTERESSENT_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "immobilien", "label": "Immobilien", "icon": "🏘️"},
-    {"key": "projekte", "label": "Meine Anfragen", "icon": "📁"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
-def interessent_dashboard():
-    """Dashboard für Interessenten - Potenzielle Käufer vor Kaufvertragsauftrag"""
-    # Onboarding prüfen
-    if not st.session_state.current_user.onboarding_complete:
-        onboarding_flow()
-        return
-
-    user_id = st.session_state.current_user.user_id
-
-    # Neues Dashboard CSS injizieren
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit funktionalen Buttons
-    render_fixed_topbar_functional("👀", "Interessent-Dashboard", "interessent")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('interessent_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Projekt/Akte)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-    selection = render_sidebar_menu("interessent", INTERESSENT_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
-
-    # Aktentasche in der Sidebar
-    render_aktentasche_sidebar(user_id)
-
-    # Dialoge
-    render_aktentasche_teilen_dialog(user_id)
-    render_aktentasche_download(user_id)
-
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
-
-    # === INHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == "dashboard":
-        _render_interessent_dashboard_home(user_id)
-    elif selection == "immobilien":
-        _render_interessent_immobilien_view(user_id)
-    elif selection == "projekte":
-        _render_interessent_projekte_view(user_id)
-    elif selection == "nachrichten":
-        # Nachrichten-Ansicht (gleich wie Käufer)
-        kaeufer_nachrichten()
-    elif selection == "dokumente":
-        _render_interessent_dokumente_view(user_id)
-    elif selection == "termine":
-        _render_interessent_termine_view(user_id)
-    elif selection == "einstellungen":
-        _render_interessent_einstellungen_view(user_id)
-
-
-def _render_interessent_dashboard_home(user_id: str):
-    """Rendert die Interessent-Dashboard Startseite mit Widgets"""
-    from datetime import datetime, date
-
-    # Projekte wo Interessent dabei ist
-    projekte = [p for p in st.session_state.projekte.values()
-                if user_id in getattr(p, 'interessenten_ids', [])]
-
-    # Nachrichten zählen
-    ungelesene_nachrichten = 0
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in st.session_state.nachrichten.values():
-            if getattr(n, 'empfaenger_id', None) == user_id and not getattr(n, 'gelesen', True):
-                ungelesene_nachrichten += 1
-
-    # Termine heute
-    heute = date.today()
-    termine_heute = 0
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-                    if termin_datum == heute:
-                        termine_heute += 1
-            except:
-                pass
-
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
-
-    with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Immobilien im Blick',
-            'badges': [
-                {'text': f'{len(projekte)} Anfragen', 'color': 'orange'},
-                {'text': f'{ungelesene_nachrichten} Nachrichten', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Info-Box: Status als Interessent
-        st.info("""
-        👀 **Sie sind als Interessent registriert**
-
-        Sobald Sie sich für eine Immobilie entschieden haben und der Kaufvertrag
-        beauftragt wird, werden Sie vom Makler, Verkäufer oder Notar als
-        **Käufer bestätigt**. Dann erhalten Sie Zugang zu weiteren Funktionen
-        wie der Finanzierungsübersicht.
-        """)
-
-        # Aufgaben-Widget
-        aufgaben = [
-            {'text': 'Immobilien durchsuchen', 'completed': len(projekte) > 0},
-            {'text': 'Besichtigungstermin vereinbaren', 'completed': False},
-            {'text': 'Profil vervollständigen', 'completed': st.session_state.current_user.onboarding_complete},
-        ]
-        render_aufgaben_widget(aufgaben, "interessent")
-
-    with col2:
-        # Vorgänge-Widget (Anfragen)
-        vorgaenge = []
-        for idx, p in enumerate(projekte[:5]):
-            vorgaenge.append({
-                'id': f'INT-{idx+1:03d}',
-                'address': p.name or p.adresse or 'Unbekannt',
-                'status': 'offen',
-                'status_text': 'Interesse bekundet'
-            })
-        render_vorgaenge_widget(vorgaenge)
-
-        # Nachrichten-Widget
-        nachrichten = _get_kaeufer_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
-
-
-def _render_interessent_immobilien_view(user_id: str):
-    """Zeigt verfügbare Immobilien für Interessenten"""
-    st.markdown("## 🏘️ Verfügbare Immobilien")
-
-    # Alle Projekte anzeigen, bei denen der Interessent dabei ist oder die öffentlich sind
-    projekte = [p for p in st.session_state.projekte.values()
-                if user_id in getattr(p, 'interessenten_ids', []) or
-                user_id in getattr(p, 'kaeufer_ids', [])]
-
-    if not projekte:
-        st.info("Sie haben noch keine Immobilien in Ihrer Merkliste. Wenden Sie sich an einen Makler, um passende Objekte zu finden.")
-        return
-
-    for i, projekt in enumerate(projekte):
-        with st.expander(f"🏠 {projekt.name or projekt.adresse or 'Unbekannt'}", expanded=i==0):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
-                if projekt.kaufpreis:
-                    st.markdown(f"**Preis:** {projekt.kaufpreis:,.0f} €")
-                st.markdown(f"**Status:** Interesse bekundet")
-
-            with col2:
-                st.markdown(f"**Beschreibung:**")
-                st.caption(projekt.beschreibung or "Keine Beschreibung verfügbar")
-
-            # Makler kontaktieren Button
-            if projekt.makler_id:
-                makler = st.session_state.users.get(projekt.makler_id)
-                if makler:
-                    st.markdown(f"**Makler:** {makler.name}")
-                    if st.button("💬 Makler kontaktieren", key=f"contact_makler_{i}"):
-                        st.session_state['interessent_menu_selection'] = 'nachrichten'
-                        st.rerun()
-
-
-def _render_interessent_projekte_view(user_id: str):
-    """Zeigt die Anfragen/Projekte des Interessenten"""
-    st.markdown("## 📁 Meine Anfragen")
-
-    projekte = [p for p in st.session_state.projekte.values()
-                if user_id in getattr(p, 'interessenten_ids', [])]
-
-    if not projekte:
-        st.info("Sie haben noch keine aktiven Anfragen.")
-        return
-
-    for i, projekt in enumerate(projekte):
-        with st.expander(f"📋 {projekt.name or projekt.adresse}", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f"**Status:** Interesse bekundet")
-                st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
-            with col2:
-                if projekt.kaufpreis:
-                    st.markdown(f"**Preis:** {projekt.kaufpreis:,.0f} €")
-
-
-def _render_interessent_dokumente_view(user_id: str):
-    """Dokumenten-Ansicht für Interessenten"""
-    st.markdown("## 📄 Dokumente")
-
-    # Nur eigene Dokumente anzeigen
-    docs = []
-    if hasattr(st.session_state, 'dokumente'):
-        for d in st.session_state.dokumente.values():
-            if getattr(d, 'uploader_id', None) == user_id:
-                docs.append(d)
-
-    if not docs:
-        st.info("Sie haben noch keine Dokumente hochgeladen.")
-    else:
-        for d in docs:
-            st.markdown(f"- 📄 {getattr(d, 'name', 'Dokument')}")
-
-
-def _render_interessent_termine_view(user_id: str):
-    """Termine-Ansicht für Interessenten"""
-    st.markdown("## 📅 Termine")
-    render_termin_kalender(user_id, UserRole.INTERESSENT.value)
-
-
-def _render_interessent_einstellungen_view(user_id: str):
-    """Einstellungen für Interessenten"""
-    st.markdown("## ⚙️ Einstellungen")
-
-    # Tabs für verschiedene Einstellungsbereiche
-    tab1, tab2 = st.tabs(["👤 Profil", "🔔 Benachrichtigungen"])
-
-    with tab1:
-        st.markdown("### Profil bearbeiten")
-        user = st.session_state.current_user
-
-        with st.form("interessent_profil_form"):
-            name = st.text_input("Name", value=user.name)
-            email = st.text_input("E-Mail", value=user.email, disabled=True)
-            telefon = st.text_input("Telefon", value=getattr(user, 'telefon', ''))
-
-            if st.form_submit_button("💾 Speichern"):
-                user.name = name
-                if telefon:
-                    user.telefon = telefon
-                st.success("✅ Profil gespeichert!")
-                st.rerun()
-
-    with tab2:
-        st.markdown("### Benachrichtigungseinstellungen")
-        st.checkbox("E-Mail bei neuen Nachrichten", value=True)
-        st.checkbox("E-Mail bei neuen Immobilien", value=True)
-        st.checkbox("Push-Benachrichtigungen", value=False)
-
-
-def befoerdere_interessent_zu_kaeufer(interessent_id: str, projekt_id: str, bestaetigt_von_id: str) -> bool:
-    """
-    Befördert einen Interessenten zum Käufer für ein bestimmtes Projekt.
-
-    Args:
-        interessent_id: User-ID des Interessenten
-        projekt_id: Projekt-ID des betroffenen Projekts
-        bestaetigt_von_id: User-ID desjenigen, der die Beförderung bestätigt (Makler/Verkäufer/Notar)
-
-    Returns:
-        True bei Erfolg, False bei Fehler
-    """
-    # Interessent finden
-    interessent = st.session_state.users.get(interessent_id)
-    if not interessent:
-        return False
-
-    # Projekt finden
-    projekt = st.session_state.projekte.get(projekt_id)
-    if not projekt:
-        return False
-
-    # Bestätiger finden und Rolle prüfen
-    bestaetiger = st.session_state.users.get(bestaetigt_von_id)
-    if not bestaetiger:
-        return False
-
-    # Nur Makler, Verkäufer oder Notar dürfen bestätigen
-    erlaubte_rollen = [UserRole.MAKLER.value, UserRole.VERKAEUFER.value, UserRole.NOTAR.value]
-    if bestaetiger.rolle not in erlaubte_rollen:
-        return False
-
-    # Zusätzliche Prüfung: Ist der Bestätiger am Projekt beteiligt?
-    if bestaetiger.rolle == UserRole.MAKLER.value and projekt.makler_id != bestaetigt_von_id:
-        return False
-    if bestaetiger.rolle == UserRole.VERKAEUFER.value and bestaetigt_von_id not in projekt.verkaeufer_ids:
-        return False
-    if bestaetiger.rolle == UserRole.NOTAR.value and projekt.notar_id != bestaetigt_von_id:
-        return False
-
-    # 1. Rolle des Interessenten zu Käufer ändern
-    interessent.rolle = UserRole.KAEUFER.value
-
-    # 2. Interessent aus interessenten_ids entfernen und zu kaeufer_ids hinzufügen
-    if interessent_id in projekt.interessenten_ids:
-        projekt.interessenten_ids.remove(interessent_id)
-    if interessent_id not in projekt.kaeufer_ids:
-        projekt.kaeufer_ids.append(interessent_id)
-
-    # 3. Benachrichtigung an den neuen Käufer senden
-    create_notification(
-        interessent_id,
-        f"🎉 Sie wurden als Käufer bestätigt! Das Projekt '{projekt.name or projekt.adresse}' wurde Ihnen zugewiesen.",
-        "success"
-    )
-
-    # 4. Timeline-Event erstellen
-    from datetime import datetime
-    event = TimelineEvent(
-        event_id=f"evt_kaeufer_{interessent_id}_{projekt_id}",
-        projekt_id=projekt_id,
-        titel="Käufer bestätigt",
-        beschreibung=f"{interessent.name} wurde als Käufer bestätigt durch {bestaetiger.name} ({bestaetiger.rolle})",
-        status=projekt.status,
-        erledigt=True,
-        datum=datetime.now(),
-        position=99,
-        erledigt_von=bestaetigt_von_id
-    )
-    if hasattr(st.session_state, 'timeline_events'):
-        st.session_state.timeline_events[event.event_id] = event
-
-    return True
-
-
-def render_interessenten_zu_kaeufer_dialog(projekt_id: str, bestaetiger_id: str):
-    """
-    Rendert einen Dialog zum Bestätigen von Interessenten als Käufer.
-    Wird im Makler-, Verkäufer- und Notar-Dashboard verwendet.
-    """
-    projekt = st.session_state.projekte.get(projekt_id)
-    if not projekt:
-        return
-
-    interessenten = []
-    for uid in getattr(projekt, 'interessenten_ids', []):
-        user = st.session_state.users.get(uid)
-        if user and user.rolle == UserRole.INTERESSENT.value:
-            interessenten.append(user)
-
-    if not interessenten:
-        st.info("Keine Interessenten für dieses Projekt vorhanden.")
-        return
-
-    st.markdown("### 👥 Interessenten zu Käufern bestätigen")
-    st.caption("Wählen Sie einen Interessenten aus, um ihn als Käufer zu bestätigen. Dies erfolgt typischerweise nach Beauftragung des Kaufvertrags.")
-
-    for i, interessent in enumerate(interessenten):
-        col1, col2, col3 = st.columns([2, 1, 1])
-
-        with col1:
-            st.markdown(f"**{interessent.name}**")
-            st.caption(interessent.email)
-
-        with col2:
-            st.markdown("👀 Interessent")
-
-        with col3:
-            if st.button("✅ Zum Käufer", key=f"confirm_buyer_{interessent.user_id}_{i}"):
-                if befoerdere_interessent_zu_kaeufer(interessent.user_id, projekt_id, bestaetiger_id):
-                    st.success(f"✅ {interessent.name} wurde als Käufer bestätigt!")
-                    st.rerun()
-                else:
-                    st.error("❌ Fehler bei der Bestätigung")
-
-
-# ============================================================================
 # KÄUFER-BEREICH
 # ============================================================================
 
-# Käufer-spezifische Menüpunkte
-KAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Meine Projekte", "icon": "📁"},
-    {"key": "timeline", "label": "Timeline", "icon": "📋"},
-    {"key": "finanzierung", "label": "Finanzierung", "icon": "💰"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
 def kaeufer_dashboard():
-    """Dashboard für Käufer - Neues Design"""
-    # Onboarding prüfen
+    """Dashboard für Käufer - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
+
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
 
-    user_id = st.session_state.current_user.user_id
-
     # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
+    user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
+
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.KAEUFER.value):
         return
 
-    # Neues Dashboard CSS injizieren
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit funktionalen Buttons
-    render_fixed_topbar_functional("🏠", "Käufer-Dashboard", "kaeufer")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('kaeufer_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Projekt/Akte)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-    selection = render_sidebar_menu("kaeufer", KAEUFER_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
-
     # Aktentasche in der Sidebar
     render_aktentasche_sidebar(user_id)
-
-    # Dialoge
+    render_benachrichtigungs_badge(user_id)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
 
-    # === INHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == "dashboard":
-        _render_kaeufer_dashboard_home(user_id)
-    elif selection == "projekte":
-        kaeufer_projekte_view()
-    elif selection == "timeline":
-        kaeufer_timeline_view()
-    elif selection == "finanzierung":
-        kaeufer_finanzierung_view()
-    elif selection == "nachrichten":
-        kaeufer_nachrichten()
-    elif selection == "dokumente":
-        _render_kaeufer_dokumente_view(user_id)
-    elif selection == "termine":
-        _render_kaeufer_termine_view(user_id)
-    elif selection == "einstellungen":
-        _render_kaeufer_einstellungen_view(user_id)
+    # Dashboard Header
+    render_dashboard_header("Käufer", user_name, unread_count)
 
+    # KPIs berechnen
+    kaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+    aktive_projekte = len(kaeufer_projekte)
+    offene_aufgaben = sum(1 for p in kaeufer_projekte
+                         for e in p.timeline_events
+                         if e in st.session_state.timeline_events
+                         and not st.session_state.timeline_events[e].completed)
+    finanzierungsangebote = len([o for o in st.session_state.financing_offers.values()
+                                if any(user_id in p.kaeufer_ids for p in st.session_state.projekte.values()
+                                      if p.projekt_id == o.projekt_id)])
 
-def _render_kaeufer_dashboard_home(user_id: str):
-    """Rendert die Käufer-Dashboard Startseite mit Widgets"""
-    from datetime import datetime, date
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '🏠', 'value': str(aktive_projekte), 'label': 'Meine Projekte', 'type': 'success'},
+        {'icon': '📝', 'value': str(offene_aufgaben), 'label': 'Offene Aufgaben', 'type': 'warning' if offene_aufgaben > 0 else ''},
+        {'icon': '💰', 'value': str(finanzierungsangebote), 'label': 'Finanzierungsangebote', 'type': 'info'},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
-    # Statistiken sammeln
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-    offene_projekte = len([p for p in projekte if p.status != "Abgeschlossen"])
+    # Suchleiste
+    search_term = render_dashboard_search("kaeufer")
+    if search_term:
+        st.session_state['kaeufer_search'] = search_term
+    else:
+        st.session_state['kaeufer_search'] = ''
 
-    # Nachrichten zählen
-    ungelesene_nachrichten = 0
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in st.session_state.nachrichten.values():
-            if getattr(n, 'empfaenger_id', None) == user_id and not getattr(n, 'gelesen', True):
-                ungelesene_nachrichten += 1
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "📋 Mein Kauf",
+        "💰 Finanzierung",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
 
-    # Termine heute
-    heute = date.today()
-    termine_heute = 0
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-                    if termin_datum == heute:
-                        termine_heute += 1
-            except:
-                pass
-
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
-
-    with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Immobilienkäufe',
-            'badges': [
-                {'text': f'{offene_projekte} aktiv', 'color': 'orange'},
-                {'text': f'{ungelesene_nachrichten} Nachrichten', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Aufgaben-Widget
-        aufgaben = _get_kaeufer_aufgaben(user_id, projekte)
-        render_aufgaben_widget(aufgaben, "kaeufer")
-
-        # Nachrichten-Widget
-        nachrichten = _get_kaeufer_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
-
-    with col2:
-        # Vorgänge-Widget
-        vorgaenge = _get_kaeufer_vorgaenge(projekte)
-        render_vorgaenge_widget(vorgaenge)
-
-        # Timeline-Widget
-        timeline_steps = _get_kaeufer_timeline_steps(projekte)
-        render_timeline_widget(timeline_steps)
-
-        # Dokumente-Widget
-        dokumente = _get_kaeufer_dokumente(user_id, projekte)
-        render_dokumente_widget(dokumente)
-
-
-def _get_kaeufer_aufgaben(user_id: str, projekte: list) -> list:
-    """Holt die Aufgaben für den Käufer"""
-    aufgaben = []
-
-    for projekt in projekte[:3]:
-        if projekt.status == "Finanzierung":
-            aufgaben.append({'text': f'Finanzierungsnachweis: {projekt.name}', 'completed': False})
-        elif projekt.status == "Dokumente":
-            aufgaben.append({'text': f'Dokumente prüfen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Notar":
-            aufgaben.append({'text': f'Notartermin bestätigen: {projekt.name}', 'completed': False})
-
-    if not aufgaben:
-        aufgaben = [
-            {'text': 'Finanzierung klären', 'completed': False},
-            {'text': 'Dokumente hochladen', 'completed': False},
-            {'text': 'Profil vervollständigen', 'completed': True},
-        ]
-
-    return aufgaben
-
-
-def _get_kaeufer_nachrichten(user_id: str) -> list:
-    """Holt die letzten Nachrichten für den Käufer"""
-    nachrichten = []
-
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in list(st.session_state.nachrichten.values())[:5]:
-            if getattr(n, 'empfaenger_id', None) == user_id:
-                sender_name = "System"
-                sender_id = getattr(n, 'sender_id', None)
-                if sender_id and sender_id in st.session_state.users:
-                    sender_name = st.session_state.users[sender_id].name
-                nachrichten.append({
-                    'sender': sender_name,
-                    'text': getattr(n, 'betreff', getattr(n, 'inhalt', 'Neue Nachricht'))[:50]
-                })
-
-    if not nachrichten:
-        nachrichten = [
-            {'sender': 'System', 'text': 'Willkommen im Käufer-Portal!'},
-        ]
-
-    return nachrichten
-
-
-def _get_kaeufer_vorgaenge(projekte: list) -> list:
-    """Holt die Vorgänge des Käufers"""
-    vorgaenge = []
-
-    for projekt in projekte[:5]:
-        status = 'offen' if projekt.status != 'Abgeschlossen' else 'ok'
-        vorgaenge.append({
-            'id': projekt.projekt_id[:8].upper(),
-            'address': projekt.adresse or projekt.name,
-            'status': status,
-            'status_text': projekt.status
-        })
-
-    if not vorgaenge:
-        vorgaenge = [
-            {'id': 'INFO', 'address': 'Noch keine Projekte', 'status': 'offen', 'status_text': 'Warten'}
-        ]
-
-    return vorgaenge
-
-
-def _get_kaeufer_timeline_steps(projekte: list) -> list:
-    """Holt Timeline-Schritte für den Käufer"""
-    if not projekte:
-        return [
-            {'text': 'Immobilie finden', 'status': 'active'},
-            {'text': 'Finanzierung klären', 'status': 'pending'},
-            {'text': 'Notartermin', 'status': 'pending'},
-        ]
-
-    projekt = projekte[0]
-    steps = []
-
-    status_map = {
-        'Initiiert': 0,
-        'Dokumente': 1,
-        'Prüfung': 2,
-        'Finanzierung': 3,
-        'Notar': 4,
-        'Abgeschlossen': 5
-    }
-
-    current_step = status_map.get(projekt.status, 0)
-    step_names = ['Projekt gestartet', 'Dokumente', 'Prüfung', 'Finanzierung', 'Notartermin', 'Abschluss']
-
-    for i, name in enumerate(step_names):
-        if i < current_step:
-            status = 'done'
-        elif i == current_step:
-            status = 'active'
-        else:
-            status = 'pending'
-        steps.append({'text': name, 'status': status})
-
-    return steps
-
-
-def _get_kaeufer_dokumente(user_id: str, projekte: list) -> list:
-    """Holt relevante Dokumente für den Käufer"""
-    return [
-        {'name': 'Personalausweis', 'status': 'vorliegend'},
-        {'name': 'Finanzierungsbestätigung', 'status': 'fehlt'},
-        {'name': 'Einkommensnachweis', 'status': 'optional'},
-        {'name': 'Kaufvertragsentwurf', 'status': 'fehlt'},
-        {'name': 'Grundbuchauszug', 'status': 'optional'},
-    ]
-
-
-def _render_kaeufer_dokumente_view(user_id: str):
-    """Dokumente-Ansicht für Käufer"""
-    st.subheader("📄 Dokumente")
-
-    doc_tabs = st.tabs(["📄 Meine Dokumente", "🪪 Ausweis", "🔄 Vertragsvergleich", "🗑️ Papierkorb"])
-
-    with doc_tabs[0]:
-        kaeufer_dokumente_view()
-
-    with doc_tabs[1]:
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(user_id, UserRole.KAEUFER.value)
-
-    with doc_tabs[2]:
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        kaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-        if kaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="kaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with doc_tabs[3]:
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-
-def _render_kaeufer_termine_view(user_id: str):
-    """Termine-Ansicht für Käufer"""
-    st.subheader("📅 Meine Termine")
-
-    termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-    with termin_ansicht[0]:
-        render_termin_kalender(user_id, UserRole.KAEUFER.value)
-
-    with termin_ansicht[1]:
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
-
-
-def _render_kaeufer_einstellungen_view(user_id: str):
-    """Einstellungen-Ansicht für Käufer"""
-    st.subheader("⚙️ Einstellungen")
-
-    settings_tabs = st.tabs(["🏠 Portal", "📝 Aufgaben", "🔧 Handwerker", "🔊 Vorlesen"])
-
-    with settings_tabs[0]:
+    # Tab 0: Übersicht
+    with tabs[0]:
         render_mandanten_portal(user_id, UserRole.KAEUFER.value)
 
-    with settings_tabs[1]:
-        kaeufer_aufgaben_view()
+    # Tab 1: Mein Kauf - Projekte, Timeline, Aufgaben
+    with tabs[1]:
+        kauf_subtabs = st.tabs(["📊 Timeline", "📋 Projekte", "📝 Aufgaben", "🔄 Vertragsvergleich"])
+        with kauf_subtabs[0]:
+            kaeufer_timeline_view()
+        with kauf_subtabs[1]:
+            kaeufer_projekte_view()
+        with kauf_subtabs[2]:
+            kaeufer_aufgaben_view()
+        with kauf_subtabs[3]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if kaeufer_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen",
+                    list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x],
+                    key="kaeufer_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.KAEUFER.value)
+            else:
+                st.info("Sie sind noch keinem Projekt zugewiesen.")
 
-    with settings_tabs[2]:
-        kaeufer_handwerker_empfehlungen()
+    # Tab 2: Finanzierung
+    with tabs[2]:
+        fin_subtabs = st.tabs(["💰 Finanzierung", "🔧 Handwerker"])
+        with fin_subtabs[0]:
+            kaeufer_finanzierung_view()
+        with fin_subtabs[1]:
+            kaeufer_handwerker_empfehlungen()
 
-    with settings_tabs[3]:
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-        st.markdown("---")
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Käufer können Sie alle Vertragsdokumente vorlesen lassen.
-        """
-        render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
+    # Tab 3: Dokumente
+    with tabs[3]:
+        dok_subtabs = st.tabs(["📄 Dokumente", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            kaeufer_dokumente_view()
+        with dok_subtabs[1]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.KAEUFER.value)
+        with dok_subtabs[2]:
+            kaeufer_nachrichten()
+        with dok_subtabs[3]:
+            render_papierkorb_tab(user_id, ist_notar=False)
+
+    # Tab 4: Termine
+    with tabs[4]:
+        st.subheader("📅 Meine Termine")
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.KAEUFER.value)
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.KAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
+
+    # Tab 5: Einstellungen
+    with tabs[5]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            st.markdown("### 📄 Kaufvertrag vorlesen")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
+            Als Käufer können Sie alle Vertragsdokumente vorlesen lassen."""
+            render_tts_controls(demo_text, "kaeufer_demo_tts", user_id)
 
 def kaeufer_timeline_view():
     """Timeline für Käufer"""
@@ -21319,681 +18823,141 @@ def kaeufer_dokumente_view():
 # VERKÄUFER-BEREICH
 # ============================================================================
 
-# Verkäufer-spezifische Menüpunkte
-VERKAEUFER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Meine Verkäufe", "icon": "📁"},
-    {"key": "interessenten", "label": "Interessenten", "icon": "👥"},
-    {"key": "timeline", "label": "Timeline", "icon": "📋"},
-    {"key": "preisfindung", "label": "Preisfindung", "icon": "💲"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
 def verkaeufer_dashboard():
-    """Dashboard für Verkäufer - Neues Design"""
-    # Onboarding prüfen
+    """Dashboard für Verkäufer - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
+
     if not st.session_state.current_user.onboarding_complete:
         onboarding_flow()
         return
 
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
 
-    # Pflicht-Akzeptanz von Rechtsdokumenten prüfen
     if not render_rechtsdokumente_akzeptanz_pflicht(user_id, UserRole.VERKAEUFER.value):
         return
 
-    # Neues Dashboard CSS injizieren
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit funktionalen Buttons
-    render_fixed_topbar_functional("🏡", "Verkäufer-Dashboard", "verkaeufer")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('verkaeufer_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Projekt/Akte)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-    selection = render_sidebar_menu("verkaeufer", VERKAEUFER_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
-
-    # Aktentasche in der Sidebar
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Dialoge
+    render_benachrichtigungs_badge(user_id)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
 
-    # === INHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == "dashboard":
-        _render_verkaeufer_dashboard_home(user_id)
-    elif selection == "projekte":
-        verkaeufer_projekte_view()
-    elif selection == "interessenten":
-        _render_verkaeufer_interessenten_view(user_id)
-    elif selection == "timeline":
-        verkaeufer_timeline_view()
-    elif selection == "preisfindung":
-        verkaeufer_preisfindung_view()
-    elif selection == "nachrichten":
-        verkaeufer_nachrichten()
-    elif selection == "dokumente":
-        _render_verkaeufer_dokumente_view(user_id)
-    elif selection == "termine":
-        _render_verkaeufer_termine_view(user_id)
-    elif selection == "einstellungen":
-        _render_verkaeufer_einstellungen_view(user_id)
+    # Dashboard Header
+    render_dashboard_header("Verkäufer", user_name, unread_count)
 
+    # KPIs berechnen
+    verkaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+    aktive_projekte = len(verkaeufer_projekte)
+    preisangebote = len([a for a in st.session_state.get('preisangebote', {}).values()
+                        if any(user_id in p.verkaeufer_ids for p in st.session_state.projekte.values()
+                              if p.projekt_id == a.projekt_id)])
 
-def _render_verkaeufer_dashboard_home(user_id: str):
-    """Rendert die Verkäufer-Dashboard Startseite mit Widgets"""
-    from datetime import datetime, date
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '🏡', 'value': str(aktive_projekte), 'label': 'Meine Immobilien', 'type': 'success'},
+        {'icon': '💰', 'value': str(preisangebote), 'label': 'Preisangebote', 'type': 'info'},
+        {'icon': '📄', 'value': '0', 'label': 'Dokumente', 'type': ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
 
-    # Statistiken sammeln
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-    offene_projekte = len([p for p in projekte if p.status != "Abgeschlossen"])
+    # Suchleiste
+    search_term = render_dashboard_search("verkaeufer")
+    if search_term:
+        st.session_state['verkaeufer_search'] = search_term
+    else:
+        st.session_state['verkaeufer_search'] = ''
 
-    # Nachrichten zählen
-    ungelesene_nachrichten = 0
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in st.session_state.nachrichten.values():
-            if getattr(n, 'empfaenger_id', None) == user_id and not getattr(n, 'gelesen', True):
-                ungelesene_nachrichten += 1
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "📋 Mein Verkauf",
+        "📈 Preisfindung",
+        "📄 Dokumente",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
 
-    # Termine heute
-    heute = date.today()
-    termine_heute = 0
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-                    if termin_datum == heute:
-                        termine_heute += 1
-            except:
-                pass
-
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
-
-    with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Verkaufsobjekte',
-            'badges': [
-                {'text': f'{offene_projekte} aktiv', 'color': 'orange'},
-                {'text': f'{ungelesene_nachrichten} Nachrichten', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Aufgaben-Widget
-        aufgaben = _get_verkaeufer_aufgaben(user_id, projekte)
-        render_aufgaben_widget(aufgaben, "verkaeufer")
-
-        # Nachrichten-Widget
-        nachrichten = _get_verkaeufer_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
-
-    with col2:
-        # Vorgänge-Widget
-        vorgaenge = _get_verkaeufer_vorgaenge(projekte)
-        render_vorgaenge_widget(vorgaenge)
-
-        # Timeline-Widget
-        timeline_steps = _get_verkaeufer_timeline_steps(projekte)
-        render_timeline_widget(timeline_steps)
-
-        # Dokumente-Widget
-        dokumente = _get_verkaeufer_dokumente(user_id, projekte)
-        render_dokumente_widget(dokumente)
-
-
-def _get_verkaeufer_aufgaben(user_id: str, projekte: list) -> list:
-    """Holt die Aufgaben für den Verkäufer"""
-    aufgaben = []
-
-    for projekt in projekte[:3]:
-        if projekt.status == "Initiiert":
-            aufgaben.append({'text': f'Dokumente bereitstellen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Dokumente":
-            aufgaben.append({'text': f'Unterlagen prüfen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Notar":
-            aufgaben.append({'text': f'Notartermin: {projekt.name}', 'completed': False})
-
-    if not aufgaben:
-        aufgaben = [
-            {'text': 'Objektunterlagen zusammenstellen', 'completed': False},
-            {'text': 'Energieausweis besorgen', 'completed': False},
-            {'text': 'Profil vervollständigen', 'completed': True},
-        ]
-
-    return aufgaben
-
-
-def _get_verkaeufer_nachrichten(user_id: str) -> list:
-    """Holt die letzten Nachrichten für den Verkäufer"""
-    nachrichten = []
-
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in list(st.session_state.nachrichten.values())[:5]:
-            if getattr(n, 'empfaenger_id', None) == user_id:
-                sender_name = "System"
-                sender_id = getattr(n, 'sender_id', None)
-                if sender_id and sender_id in st.session_state.users:
-                    sender_name = st.session_state.users[sender_id].name
-                nachrichten.append({
-                    'sender': sender_name,
-                    'text': getattr(n, 'betreff', getattr(n, 'inhalt', 'Neue Nachricht'))[:50]
-                })
-
-    if not nachrichten:
-        nachrichten = [
-            {'sender': 'System', 'text': 'Willkommen im Verkäufer-Portal!'},
-        ]
-
-    return nachrichten
-
-
-def _get_verkaeufer_vorgaenge(projekte: list) -> list:
-    """Holt die Vorgänge des Verkäufers"""
-    vorgaenge = []
-
-    for projekt in projekte[:5]:
-        status = 'offen' if projekt.status != 'Abgeschlossen' else 'ok'
-        vorgaenge.append({
-            'id': projekt.projekt_id[:8].upper(),
-            'address': projekt.adresse or projekt.name,
-            'status': status,
-            'status_text': projekt.status
-        })
-
-    if not vorgaenge:
-        vorgaenge = [
-            {'id': 'INFO', 'address': 'Noch keine Verkaufsobjekte', 'status': 'offen', 'status_text': 'Warten'}
-        ]
-
-    return vorgaenge
-
-
-def _get_verkaeufer_timeline_steps(projekte: list) -> list:
-    """Holt Timeline-Schritte für den Verkäufer"""
-    if not projekte:
-        return [
-            {'text': 'Objekt anlegen', 'status': 'active'},
-            {'text': 'Unterlagen sammeln', 'status': 'pending'},
-            {'text': 'Notartermin', 'status': 'pending'},
-        ]
-
-    projekt = projekte[0]
-    steps = []
-
-    status_map = {
-        'Initiiert': 0,
-        'Dokumente': 1,
-        'Prüfung': 2,
-        'Finanzierung': 3,
-        'Notar': 4,
-        'Abgeschlossen': 5
-    }
-
-    current_step = status_map.get(projekt.status, 0)
-    step_names = ['Verkauf gestartet', 'Dokumente', 'Prüfung', 'Käuferfinanzierung', 'Notartermin', 'Abschluss']
-
-    for i, name in enumerate(step_names):
-        if i < current_step:
-            status = 'done'
-        elif i == current_step:
-            status = 'active'
-        else:
-            status = 'pending'
-        steps.append({'text': name, 'status': status})
-
-    return steps
-
-
-def _get_verkaeufer_dokumente(user_id: str, projekte: list) -> list:
-    """Holt relevante Dokumente für den Verkäufer"""
-    return [
-        {'name': 'Grundbuchauszug', 'status': 'fehlt'},
-        {'name': 'Energieausweis', 'status': 'fehlt'},
-        {'name': 'Teilungserklärung', 'status': 'optional'},
-        {'name': 'Flurkarte', 'status': 'optional'},
-        {'name': 'Personalausweis', 'status': 'vorliegend'},
-    ]
-
-
-def _render_verkaeufer_dokumente_view(user_id: str):
-    """Dokumente-Ansicht für Verkäufer"""
-    st.subheader("📄 Dokumente")
-
-    doc_tabs = st.tabs(["📄 Hochladen", "📋 Anforderungen", "🪪 Ausweis", "🔄 Vertragsvergleich", "🗑️ Papierkorb"])
-
-    with doc_tabs[0]:
-        verkaeufer_dokumente_view()
-
-    with doc_tabs[1]:
-        render_document_requests_view(user_id, UserRole.VERKAEUFER.value)
-
-    with doc_tabs[2]:
-        st.subheader("🪪 Ausweisdaten erfassen")
-        render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
-
-    with doc_tabs[3]:
-        st.subheader("🔄 Vertragsversionen vergleichen")
-        verkaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-        if verkaeufer_projekte:
-            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
-            selected_projekt_id = st.selectbox(
-                "Projekt auswählen",
-                list(projekt_auswahl.keys()),
-                format_func=lambda x: projekt_auswahl[x],
-                key="verkaeufer_vertragsvergleich_projekt"
-            )
-            if selected_projekt_id:
-                render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
-        else:
-            st.info("Sie sind noch keinem Projekt zugewiesen.")
-
-    with doc_tabs[4]:
-        render_papierkorb_tab(user_id, ist_notar=False)
-
-
-def _render_verkaeufer_termine_view(user_id: str):
-    """Termine-Ansicht für Verkäufer"""
-    st.subheader("📅 Meine Termine")
-
-    termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-    with termin_ansicht[0]:
-        render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
-
-    with termin_ansicht[1]:
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
-
-
-def _render_verkaeufer_einstellungen_view(user_id: str):
-    """Einstellungen-Ansicht für Verkäufer"""
-    st.subheader("⚙️ Einstellungen")
-
-    settings_tabs = st.tabs(["🏠 Portal", "🔍 Makler finden", "💶 Kosten", "🔊 Vorlesen"])
-
-    with settings_tabs[0]:
+    # Tab 0: Übersicht
+    with tabs[0]:
         render_mandanten_portal(user_id, UserRole.VERKAEUFER.value)
 
-    with settings_tabs[1]:
-        verkaeufer_makler_finden()
-
-    with settings_tabs[2]:
-        verkaeufer_eigene_kosten_view()
-
-    with settings_tabs[3]:
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-        st.markdown("---")
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Verkäufer können Sie alle Vertragsdokumente vorlesen lassen.
-        """
-        render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
-
-
-def _render_verkaeufer_interessenten_view(user_id: str):
-    """Interessenten-Verwaltung für Verkäufer"""
-    st.subheader("👥 Interessenten-Verwaltung")
-
-    # Projekte des Verkäufers laden
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
-
-    if not projekte:
-        st.info("Sie haben noch keine Verkaufsobjekte. Legen Sie zuerst ein Projekt an.")
-        return
-
-    # Tabs für Übersicht und Neuer Interessent
-    tabs = st.tabs(["📋 Übersicht", "➕ Interessent hinzufügen"])
-
-    with tabs[0]:
-        _render_interessenten_uebersicht(user_id, projekte, kann_hochstufen=True)
-
+    # Tab 1: Mein Verkauf - Projekte, Timeline, Makler
     with tabs[1]:
-        _render_interessent_hinzufuegen(user_id, projekte)
-
-
-def _render_interessenten_uebersicht(user_id: str, projekte: list, kann_hochstufen: bool = True):
-    """Zeigt alle Interessenten der Projekte an"""
-
-    # Projekt auswählen
-    projekt_optionen = {"alle": "📁 Alle Projekte"}
-    for p in projekte:
-        projekt_optionen[p.projekt_id] = f"🏠 {p.name}"
-
-    selected_projekt = st.selectbox(
-        "Projekt filtern",
-        list(projekt_optionen.keys()),
-        format_func=lambda x: projekt_optionen[x],
-        key="interessenten_filter_projekt"
-    )
-
-    # Interessenten sammeln
-    alle_interessenten = []
-    for projekt in projekte:
-        if selected_projekt != "alle" and projekt.projekt_id != selected_projekt:
-            continue
-
-        interessenten_ids = getattr(projekt, 'interessenten_ids', [])
-        for int_id in interessenten_ids:
-            interessent = st.session_state.users.get(int_id)
-            if interessent:
-                alle_interessenten.append({
-                    'user': interessent,
-                    'projekt': projekt
-                })
-
-    if not alle_interessenten:
-        st.info("Noch keine Interessenten vorhanden.")
-        st.markdown("💡 **Tipp:** Fügen Sie neue Interessenten über den Tab '➕ Interessent hinzufügen' hinzu.")
-        return
-
-    # Interessenten-Karten anzeigen
-    st.markdown(f"**{len(alle_interessenten)} Interessent(en) gefunden**")
-
-    for idx, item in enumerate(alle_interessenten):
-        interessent = item['user']
-        projekt = item['projekt']
-
-        with st.container():
-            col1, col2, col3 = st.columns([3, 2, 2])
-
-            with col1:
-                st.markdown(f"""
-                <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
-                    <strong>👤 {interessent.name}</strong><br>
-                    <small>📧 {interessent.email}</small><br>
-                    <small>📍 Projekt: {projekt.name}</small>
-                </div>
-                """, unsafe_allow_html=True)
-
-            with col2:
-                # Status anzeigen
-                ist_kaeufer = interessent.user_id in projekt.kaeufer_ids
-                if ist_kaeufer:
-                    st.success("✅ Bereits Käufer")
-                else:
-                    st.info("👁️ Interessent")
-
-            with col3:
-                if kann_hochstufen and not ist_kaeufer:
-                    if st.button(
-                        "🎯 Zum Käufer machen",
-                        key=f"hochstufen_{interessent.user_id}_{projekt.projekt_id}_{idx}",
-                        type="primary"
-                    ):
-                        _interessent_zum_kaeufer_hochstufen(interessent.user_id, projekt.projekt_id)
-                        st.rerun()
-
-                # Entfernen-Button
-                if st.button(
-                    "🗑️ Entfernen",
-                    key=f"entfernen_{interessent.user_id}_{projekt.projekt_id}_{idx}"
-                ):
-                    _interessent_entfernen(interessent.user_id, projekt.projekt_id)
-                    st.rerun()
-
-            st.markdown("---")
-
-
-def _render_interessent_hinzufuegen(user_id: str, projekte: list):
-    """Formular zum Hinzufügen eines neuen Interessenten"""
-
-    st.markdown("### Neuen Interessenten hinzufügen")
-
-    # Projekt auswählen
-    projekt_optionen = {p.projekt_id: p.name for p in projekte}
-    selected_projekt_id = st.selectbox(
-        "Projekt auswählen",
-        list(projekt_optionen.keys()),
-        format_func=lambda x: projekt_optionen[x],
-        key="interessent_hinzufuegen_projekt"
-    )
-
-    st.markdown("---")
-
-    # Methode auswählen
-    methode = st.radio(
-        "Interessent hinzufügen via",
-        ["📝 Manuell eingeben", "🔍 Bestehenden User suchen"],
-        horizontal=True
-    )
-
-    if methode == "📝 Manuell eingeben":
-        with st.form("neuer_interessent_form"):
-            st.markdown("**Daten des Interessenten:**")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                name = st.text_input("Name *")
-                email = st.text_input("E-Mail *")
-            with col2:
-                telefon = st.text_input("Telefon")
-                notizen = st.text_area("Notizen", height=68)
-
-            submitted = st.form_submit_button("💾 Interessent anlegen", type="primary")
-
-            if submitted:
-                if not name or not email:
-                    st.error("Name und E-Mail sind Pflichtfelder!")
-                else:
-                    # Prüfen ob E-Mail bereits existiert
-                    bestehender_user = None
-                    for u in st.session_state.users.values():
-                        if u.email.lower() == email.lower():
-                            bestehender_user = u
-                            break
-
-                    if bestehender_user:
-                        # User existiert - als Interessent hinzufügen
-                        erfolg = _interessent_zu_projekt_hinzufuegen(
-                            bestehender_user.user_id,
-                            selected_projekt_id
-                        )
-                        if erfolg:
-                            st.success(f"✅ {name} wurde als Interessent hinzugefügt!")
-                            st.rerun()
-                    else:
-                        # Neuen User anlegen
-                        neuer_interessent = _neuen_interessenten_anlegen(
-                            name, email, telefon, notizen, selected_projekt_id
-                        )
-                        if neuer_interessent:
-                            st.success(f"✅ Neuer Interessent '{name}' wurde angelegt und dem Projekt zugeordnet!")
-                            st.rerun()
-
-    else:  # Bestehenden User suchen
-        st.markdown("**Bestehenden User suchen:**")
-
-        suche = st.text_input("Suche nach Name oder E-Mail", key="interessent_suche")
-
-        if suche:
-            gefundene_user = []
-            for u in st.session_state.users.values():
-                if suche.lower() in u.name.lower() or suche.lower() in u.email.lower():
-                    gefundene_user.append(u)
-
-            if gefundene_user:
-                st.markdown(f"**{len(gefundene_user)} Treffer:**")
-
-                for user in gefundene_user[:10]:  # Max 10 Ergebnisse
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.markdown(f"👤 **{user.name}** ({user.email})")
-                    with col2:
-                        # Prüfen ob bereits Interessent oder Käufer
-                        projekt = st.session_state.projekte.get(selected_projekt_id)
-                        if projekt:
-                            ist_interessent = user.user_id in getattr(projekt, 'interessenten_ids', [])
-                            ist_kaeufer = user.user_id in projekt.kaeufer_ids
-
-                            if ist_kaeufer:
-                                st.info("Bereits Käufer")
-                            elif ist_interessent:
-                                st.info("Bereits Interessent")
-                            else:
-                                if st.button(
-                                    "➕ Hinzufügen",
-                                    key=f"add_interessent_{user.user_id}"
-                                ):
-                                    erfolg = _interessent_zu_projekt_hinzufuegen(
-                                        user.user_id,
-                                        selected_projekt_id
-                                    )
-                                    if erfolg:
-                                        st.success(f"✅ {user.name} wurde als Interessent hinzugefügt!")
-                                        st.rerun()
+        verkauf_subtabs = st.tabs(["📊 Timeline", "📋 Projekte", "🔍 Makler finden", "🔄 Vertragsvergleich"])
+        with verkauf_subtabs[0]:
+            verkaeufer_timeline_view()
+        with verkauf_subtabs[1]:
+            verkaeufer_projekte_view()
+        with verkauf_subtabs[2]:
+            verkaeufer_makler_finden()
+        with verkauf_subtabs[3]:
+            st.subheader("🔄 Vertragsversionen vergleichen")
+            if verkaeufer_projekte:
+                projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+                selected_projekt_id = st.selectbox(
+                    "Projekt auswählen", list(projekt_auswahl.keys()),
+                    format_func=lambda x: projekt_auswahl[x], key="verkaeufer_vertragsvergleich_projekt"
+                )
+                if selected_projekt_id:
+                    render_vertragsvergleich_tab(selected_projekt_id, user_id, UserRole.VERKAEUFER.value)
             else:
-                st.warning("Keine User gefunden. Erstellen Sie den Interessenten manuell.")
+                st.info("Sie sind noch keinem Projekt zugewiesen.")
 
+    # Tab 2: Preisfindung
+    with tabs[2]:
+        preis_subtabs = st.tabs(["📈 Marktanalyse", "💶 Eigene Kosten"])
+        with preis_subtabs[0]:
+            verkaeufer_preisfindung_view()
+        with preis_subtabs[1]:
+            verkaeufer_eigene_kosten_view()
 
-def _neuen_interessenten_anlegen(name: str, email: str, telefon: str, notizen: str, projekt_id: str) -> Optional[object]:
-    """Legt einen neuen Interessenten als User an und fügt ihn zum Projekt hinzu"""
-    import uuid
+    # Tab 3: Dokumente
+    with tabs[3]:
+        dok_subtabs = st.tabs(["📄 Hochladen", "📋 Anforderungen", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        with dok_subtabs[0]:
+            verkaeufer_dokumente_view()
+        with dok_subtabs[1]:
+            render_document_requests_view(user_id, UserRole.VERKAEUFER.value)
+        with dok_subtabs[2]:
+            st.subheader("🪪 Ausweisdaten erfassen")
+            render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
+        with dok_subtabs[3]:
+            verkaeufer_nachrichten()
+        with dok_subtabs[4]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
-    # Neuen User erstellen mit Rolle "Käufer" (noch nicht aktiv als Käufer, aber passende Rolle)
-    neuer_user_id = str(uuid.uuid4())
+    # Tab 4: Termine
+    with tabs[4]:
+        st.subheader("📅 Meine Termine")
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.VERKAEUFER.value)
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.VERKAEUFER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
-    neuer_user = User(
-        user_id=neuer_user_id,
-        email=email,
-        password_hash="",  # Kein Login möglich ohne Passwort
-        name=name,
-        rolle=UserRole.KAEUFER.value,  # Käufer-Rolle für später
-        onboarding_complete=False,
-        telefon=telefon
-    )
-
-    # In Session State speichern
-    if 'users' not in st.session_state:
-        st.session_state.users = {}
-    st.session_state.users[neuer_user_id] = neuer_user
-
-    # Als Interessent zum Projekt hinzufügen
-    _interessent_zu_projekt_hinzufuegen(neuer_user_id, projekt_id)
-
-    # Notiz speichern falls vorhanden
-    if notizen:
-        if 'interessenten_notizen' not in st.session_state:
-            st.session_state.interessenten_notizen = {}
-        st.session_state.interessenten_notizen[f"{neuer_user_id}_{projekt_id}"] = notizen
-
-    return neuer_user
-
-
-def _interessent_zu_projekt_hinzufuegen(user_id: str, projekt_id: str) -> bool:
-    """Fügt einen User als Interessent zu einem Projekt hinzu"""
-    projekt = st.session_state.projekte.get(projekt_id)
-    if not projekt:
-        st.error("Projekt nicht gefunden!")
-        return False
-
-    # Sicherstellen dass interessenten_ids existiert
-    if not hasattr(projekt, 'interessenten_ids'):
-        projekt.interessenten_ids = []
-
-    # Prüfen ob bereits Interessent
-    if user_id in projekt.interessenten_ids:
-        st.warning("Diese Person ist bereits als Interessent eingetragen.")
-        return False
-
-    # Prüfen ob bereits Käufer
-    if user_id in projekt.kaeufer_ids:
-        st.warning("Diese Person ist bereits als Käufer eingetragen.")
-        return False
-
-    # Als Interessent hinzufügen
-    projekt.interessenten_ids.append(user_id)
-
-    # Timeline-Event hinzufügen
-    user = st.session_state.users.get(user_id)
-    if user:
-        projekt.timeline_events.append(
-            f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Neuer Interessent: {user.name}"
-        )
-
-    return True
-
-
-def _interessent_entfernen(user_id: str, projekt_id: str) -> bool:
-    """Entfernt einen Interessenten aus einem Projekt"""
-    projekt = st.session_state.projekte.get(projekt_id)
-    if not projekt:
-        return False
-
-    interessenten_ids = getattr(projekt, 'interessenten_ids', [])
-    if user_id in interessenten_ids:
-        interessenten_ids.remove(user_id)
-        projekt.interessenten_ids = interessenten_ids
-
-        # Timeline-Event hinzufügen
-        user = st.session_state.users.get(user_id)
-        if user:
-            projekt.timeline_events.append(
-                f"{datetime.now().strftime('%d.%m.%Y %H:%M')} - Interessent entfernt: {user.name}"
-            )
-
-        st.success("Interessent wurde entfernt.")
-        return True
-
-    return False
-
-
-def _interessent_zum_kaeufer_hochstufen(user_id: str, projekt_id: str) -> bool:
-    """Stuft einen Interessenten zum Käufer hoch.
-    Verwendet den aktuell eingeloggten Benutzer als Bestätiger.
-    """
-    # Aktuell eingeloggten Benutzer als Bestätiger verwenden
-    bestaetiger_id = st.session_state.current_user.user_id
-
-    # Zentrale Funktion aufrufen
-    erfolg = befoerdere_interessent_zu_kaeufer(user_id, projekt_id, bestaetiger_id)
-
-    if erfolg:
-        user = st.session_state.users.get(user_id)
-        st.success(f"✅ {user.name if user else 'Interessent'} wurde zum Käufer hochgestuft!")
-        return True
-
-    # Falls Fehler: Prüfe spezifischen Grund
-    user = st.session_state.users.get(user_id)
-    projekt = st.session_state.projekte.get(projekt_id)
-
-    if not user:
-        st.error("User nicht gefunden!")
-    elif not projekt:
-        st.error("Projekt nicht gefunden!")
-    elif user_id in getattr(projekt, 'kaeufer_ids', []):
-        st.warning("Diese Person ist bereits Käufer.")
-    else:
-        st.error("Fehler beim Hochstufen. Haben Sie die Berechtigung?")
-
-    return False
+    # Tab 5: Einstellungen
+    with tabs[5]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion."""
+            render_tts_controls(demo_text, "verkaeufer_demo_tts", user_id)
 
 
 def verkaeufer_preisfindung_view():
@@ -23276,293 +20240,99 @@ def verkaeufer_nachrichten():
 # FINANZIERER-BEREICH
 # ============================================================================
 
-# Finanzierer-spezifische Menüpunkte
-FINANZIERER_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "projekte", "label": "Finanzierungsprojekte", "icon": "🏦"},
-    {"key": "wirtschaftsdaten", "label": "Wirtschaftsdaten", "icon": "📊"},
-    {"key": "angebote", "label": "Angebote", "icon": "📋"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
 def finanzierer_dashboard():
-    """Dashboard für Finanzierer - Neues Design"""
+    """Dashboard für Finanzierer - Modernes, übersichtliches Design"""
+
+    # Einheitliche Dashboard-Styles injizieren
+    inject_unified_dashboard_styles()
+
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
 
-    # Neues Dashboard CSS injizieren
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit funktionalen Buttons
-    render_fixed_topbar_functional("💼", "Finanzierer-Dashboard", "finanzierer")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('finanzierer_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Projekt/Akte)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü ZUERST rendern (ganz oben)
-    selection = render_sidebar_menu("finanzierer", FINANZIERER_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
-
-    # Aktentasche in der Sidebar
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Dialoge
+    render_benachrichtigungs_badge(user_id)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
 
-    # === INHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == "dashboard":
-        _render_finanzierer_dashboard_home(user_id)
-    elif selection == "projekte":
+    # Dashboard Header
+    render_dashboard_header("Finanzierer", user_name, unread_count)
+
+    # KPIs berechnen
+    finanzierer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+    aktive_projekte = len(finanzierer_projekte)
+    meine_angebote = len([o for o in st.session_state.financing_offers.values() if o.finanzierer_id == user_id])
+    offene_angebote = len([o for o in st.session_state.financing_offers.values()
+                          if o.finanzierer_id == user_id and o.status == FinanzierungsStatus.GESENDET.value])
+
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📋', 'value': str(aktive_projekte), 'label': 'Zugewiesene Projekte', 'type': 'success'},
+        {'icon': '💰', 'value': str(meine_angebote), 'label': 'Meine Angebote', 'type': 'info'},
+        {'icon': '⏳', 'value': str(offene_angebote), 'label': 'Offene Angebote', 'type': 'warning' if offene_angebote > 0 else ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
+    ])
+
+    # Suchleiste
+    search_term = render_dashboard_search("finanzierer")
+    if search_term:
+        st.session_state['finanzierer_search'] = search_term
+    else:
+        st.session_state['finanzierer_search'] = ''
+
+    # Gruppierte Tabs
+    st.markdown("### Bereiche")
+    tabs = st.tabs([
+        "🏠 Übersicht",
+        "💰 Finanzierung",
+        "📅 Termine",
+        "⚙️ Einstellungen"
+    ])
+
+    # Tab 0: Übersicht
+    with tabs[0]:
         finanzierer_timeline_view()
-    elif selection == "wirtschaftsdaten":
-        finanzierer_wirtschaftsdaten_view()
-    elif selection == "angebote":
-        _render_finanzierer_angebote_view(user_id)
-    elif selection == "termine":
-        _render_finanzierer_termine_view(user_id)
-    elif selection == "einstellungen":
-        _render_finanzierer_einstellungen_view(user_id)
 
+    # Tab 1: Finanzierung - Wirtschaftsdaten, Angebote erstellen, Liste
+    with tabs[1]:
+        fin_subtabs = st.tabs(["📋 Wirtschaftsdaten", "➕ Angebot erstellen", "📜 Meine Angebote", "🗑️ Papierkorb"])
+        with fin_subtabs[0]:
+            finanzierer_wirtschaftsdaten_view()
+        with fin_subtabs[1]:
+            finanzierer_angebote_erstellen()
+        with fin_subtabs[2]:
+            finanzierer_angebote_liste()
+        with fin_subtabs[3]:
+            render_papierkorb_tab(user_id, ist_notar=False)
 
-def _render_finanzierer_dashboard_home(user_id: str):
-    """Rendert die Finanzierer-Dashboard Startseite mit Widgets"""
-    from datetime import datetime, date
+    # Tab 2: Termine
+    with tabs[2]:
+        st.subheader("📅 Meine Termine")
+        termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
+        with termin_ansicht[0]:
+            render_termin_kalender(user_id, UserRole.FINANZIERER.value)
+        with termin_ansicht[1]:
+            projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+            if projekte:
+                for projekt in projekte:
+                    with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                        render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
+            else:
+                st.info("Noch keine Projekte vorhanden.")
 
-    # Statistiken sammeln
-    projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
-    offene_projekte = len([p for p in projekte if p.status != "Abgeschlossen"])
-
-    # Angebote zählen
-    angebote_count = 0
-    if hasattr(st.session_state, 'finanzierungsangebote'):
-        angebote_count = len([a for a in st.session_state.finanzierungsangebote.values()
-                             if getattr(a, 'finanzierer_id', None) == user_id])
-
-    # Termine heute
-    heute = date.today()
-    termine_heute = 0
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-                    if termin_datum == heute:
-                        termine_heute += 1
-            except:
-                pass
-
-    # === LAYOUT: 2 Spalten ===
-    col1, col2 = st.columns([1.2, 1])
-
-    with col1:
-        # Heute-Widget
-        render_heute_widget({
-            'subtitle': f'{len(projekte)} Finanzierungsprojekte',
-            'badges': [
-                {'text': f'{offene_projekte} aktiv', 'color': 'orange'},
-                {'text': f'{angebote_count} Angebote', 'color': 'yellow'},
-                {'text': f'{termine_heute} Termine', 'color': 'green'},
-            ]
-        })
-
-        # Aufgaben-Widget
-        aufgaben = _get_finanzierer_aufgaben(user_id, projekte)
-        render_aufgaben_widget(aufgaben, "finanzierer")
-
-        # Nachrichten-Widget
-        nachrichten = _get_finanzierer_nachrichten(user_id)
-        render_nachrichten_widget(nachrichten)
-
-    with col2:
-        # Vorgänge-Widget
-        vorgaenge = _get_finanzierer_vorgaenge(projekte)
-        render_vorgaenge_widget(vorgaenge)
-
-        # Timeline-Widget
-        timeline_steps = _get_finanzierer_timeline_steps(projekte)
-        render_timeline_widget(timeline_steps)
-
-        # Dokumente-Widget
-        dokumente = _get_finanzierer_dokumente(user_id)
-        render_dokumente_widget(dokumente)
-
-
-def _get_finanzierer_aufgaben(user_id: str, projekte: list) -> list:
-    """Holt die Aufgaben für den Finanzierer"""
-    aufgaben = []
-
-    for projekt in projekte[:3]:
-        if projekt.status == "Finanzierung":
-            aufgaben.append({'text': f'Angebot erstellen: {projekt.name}', 'completed': False})
-        elif projekt.status == "Prüfung":
-            aufgaben.append({'text': f'Unterlagen prüfen: {projekt.name}', 'completed': False})
-
-    if not aufgaben:
-        aufgaben = [
-            {'text': 'Wirtschaftsdaten prüfen', 'completed': False},
-            {'text': 'Zinssätze aktualisieren', 'completed': True},
-            {'text': 'Neue Anfragen bearbeiten', 'completed': False},
-        ]
-
-    return aufgaben
-
-
-def _get_finanzierer_nachrichten(user_id: str) -> list:
-    """Holt die letzten Nachrichten für den Finanzierer"""
-    nachrichten = []
-
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in list(st.session_state.nachrichten.values())[:5]:
-            if getattr(n, 'empfaenger_id', None) == user_id:
-                sender_name = "System"
-                sender_id = getattr(n, 'sender_id', None)
-                if sender_id and sender_id in st.session_state.users:
-                    sender_name = st.session_state.users[sender_id].name
-                nachrichten.append({
-                    'sender': sender_name,
-                    'text': getattr(n, 'betreff', getattr(n, 'inhalt', 'Neue Nachricht'))[:50]
-                })
-
-    if not nachrichten:
-        nachrichten = [
-            {'sender': 'System', 'text': 'Willkommen im Finanzierer-Portal!'},
-        ]
-
-    return nachrichten
-
-
-def _get_finanzierer_vorgaenge(projekte: list) -> list:
-    """Holt die Vorgänge des Finanzierers"""
-    vorgaenge = []
-
-    for projekt in projekte[:5]:
-        status = 'offen' if projekt.status != 'Abgeschlossen' else 'ok'
-        vorgaenge.append({
-            'id': projekt.projekt_id[:8].upper(),
-            'address': projekt.adresse or projekt.name,
-            'status': status,
-            'status_text': projekt.status
-        })
-
-    if not vorgaenge:
-        vorgaenge = [
-            {'id': 'INFO', 'address': 'Noch keine Projekte', 'status': 'offen', 'status_text': 'Warten'}
-        ]
-
-    return vorgaenge
-
-
-def _get_finanzierer_timeline_steps(projekte: list) -> list:
-    """Holt Timeline-Schritte für den Finanzierer"""
-    if not projekte:
-        return [
-            {'text': 'Anfrage erhalten', 'status': 'pending'},
-            {'text': 'Unterlagen prüfen', 'status': 'pending'},
-            {'text': 'Angebot erstellen', 'status': 'pending'},
-        ]
-
-    projekt = projekte[0]
-    steps = []
-
-    status_map = {
-        'Initiiert': 0,
-        'Dokumente': 1,
-        'Prüfung': 2,
-        'Finanzierung': 3,
-        'Notar': 4,
-        'Abgeschlossen': 5
-    }
-
-    current_step = status_map.get(projekt.status, 0)
-    step_names = ['Anfrage', 'Dokumente', 'Prüfung', 'Finanzierungszusage', 'Notartermin', 'Abschluss']
-
-    for i, name in enumerate(step_names):
-        if i < current_step:
-            status = 'done'
-        elif i == current_step:
-            status = 'active'
-        else:
-            status = 'pending'
-        steps.append({'text': name, 'status': status})
-
-    return steps
-
-
-def _get_finanzierer_dokumente(user_id: str) -> list:
-    """Holt relevante Dokumente für den Finanzierer"""
-    return [
-        {'name': 'Einkommensnachweis', 'status': 'fehlt'},
-        {'name': 'Schufa-Auskunft', 'status': 'fehlt'},
-        {'name': 'Kontoauszüge', 'status': 'optional'},
-        {'name': 'Objektunterlagen', 'status': 'vorliegend'},
-        {'name': 'Finanzierungszusage', 'status': 'optional'},
-    ]
-
-
-def _render_finanzierer_angebote_view(user_id: str):
-    """Angebote-Ansicht für Finanzierer"""
-    st.subheader("💰 Finanzierungsangebote")
-
-    angebote_tabs = st.tabs(["➕ Neu erstellen", "📜 Meine Angebote"])
-
-    with angebote_tabs[0]:
-        finanzierer_angebote_erstellen()
-
-    with angebote_tabs[1]:
-        finanzierer_angebote_liste()
-
-
-def _render_finanzierer_termine_view(user_id: str):
-    """Termine-Ansicht für Finanzierer"""
-    st.subheader("📅 Meine Termine")
-
-    termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
-
-    with termin_ansicht[0]:
-        render_termin_kalender(user_id, UserRole.FINANZIERER.value)
-
-    with termin_ansicht[1]:
-        projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
-        if projekte:
-            for projekt in projekte:
-                with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                    render_termin_verwaltung(projekt, UserRole.FINANZIERER.value)
-        else:
-            st.info("Noch keine Projekte vorhanden.")
-
-
-def _render_finanzierer_einstellungen_view(user_id: str):
-    """Einstellungen-Ansicht für Finanzierer"""
-    st.subheader("⚙️ Einstellungen")
-
-    settings_tabs = st.tabs(["🔊 Vorlesen", "🗑️ Papierkorb"])
-
-    with settings_tabs[0]:
-        st.subheader("🔊 Dokumente vorlesen")
-        render_tts_einstellungen(user_id)
-        st.markdown("---")
-        demo_text = """
-        Dies ist ein Beispieltext zum Testen der Vorlesefunktion.
-        Als Finanzierer können Sie alle Dokumente vorlesen lassen.
-        """
-        render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
-
-    with settings_tabs[1]:
-        render_papierkorb_tab(user_id, ist_notar=False)
+    # Tab 3: Einstellungen
+    with tabs[3]:
+        einst_subtabs = st.tabs(["🔊 Vorlesen"])
+        with einst_subtabs[0]:
+            st.subheader("🔊 Dokumente vorlesen")
+            render_tts_einstellungen(user_id)
+            st.markdown("---")
+            demo_text = """Dies ist ein Beispieltext zum Testen der Vorlesefunktion."""
+            render_tts_controls(demo_text, "finanzierer_demo_tts", user_id)
 
 def finanzierer_timeline_view():
     """Timeline für Finanzierer"""
@@ -24818,97 +21588,6 @@ def render_notar_menu_styles():
         color: white;
         border-color: #495057;
     }
-
-    /* ==================== NOTAR WIDGET RESPONSIVE STYLES ==================== */
-
-    /* Notar-Widget Container (für 4-Quadranten) */
-    .notar-widget {
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        min-height: 200px;
-    }
-
-    /* Responsive 4-Quadranten-Layout */
-    @media screen and (max-width: 767px) {
-        /* Columns stapeln auf Mobile */
-        [data-testid="stHorizontalBlock"] {
-            flex-direction: column !important;
-        }
-
-        [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 100% !important;
-            max-width: 100% !important;
-        }
-
-        /* Widget-Container kompakter */
-        .notar-widget {
-            padding: 10px;
-            border-radius: 8px;
-            min-height: 150px;
-            margin-bottom: 10px;
-        }
-
-        /* Widget-Titel kleiner */
-        .notar-widget h4,
-        .notar-widget [style*="font-size: 16px"],
-        .notar-widget [style*="font-weight: 600"] {
-            font-size: 14px !important;
-        }
-
-        /* Weniger min-height für Widgets */
-        div[style*="min-height: 280px"] {
-            min-height: 180px !important;
-        }
-
-        div[style*="min-height: 320px"] {
-            min-height: 200px !important;
-        }
-    }
-
-    /* Tablet Anpassungen */
-    @media screen and (min-width: 768px) and (max-width: 1023px) {
-        .notar-widget {
-            padding: 12px;
-            min-height: 220px;
-        }
-
-        /* 2x2 Grid beibehalten, aber kompakter */
-        [data-testid="stHorizontalBlock"] [data-testid="column"] {
-            padding: 0 0.25rem !important;
-        }
-    }
-
-    /* Touch-Optimierung für Notar-Widgets */
-    @media (hover: none) and (pointer: coarse) {
-        /* Größere klickbare Bereiche in Widgets */
-        .notar-widget button {
-            min-height: 44px !important;
-            padding: 0.5rem 0.75rem !important;
-        }
-
-        /* Termine/Posteingang Items besser tippbar */
-        .notar-widget [data-testid="stButton"] {
-            margin-bottom: 8px !important;
-        }
-    }
-
-    /* Landscape auf Mobilgeräten */
-    @media screen and (max-height: 500px) and (orientation: landscape) {
-        /* Widgets sehr kompakt */
-        .notar-widget {
-            padding: 8px !important;
-            min-height: 120px !important;
-        }
-
-        div[style*="min-height: 280px"],
-        div[style*="min-height: 320px"] {
-            min-height: 120px !important;
-        }
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -25287,2194 +21966,88 @@ def render_notar_content(selection: str, user_id: str):
         st.warning(f"Unbekannter Menüpunkt: {selection}")
 
 
-# Notar-Menü-Items (wie bei Käufer - cleane st.radio Struktur)
-# Vorgänge entfernt - redundant zu Akten (beides zeigt Projekte/Akten)
-NOTAR_MENU_ITEMS = [
-    {"key": "dashboard", "label": "Dashboard", "icon": "🏠"},
-    {"key": "akten", "label": "Akten", "icon": "📁"},
-    {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-    {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-    {"key": "termine", "label": "Termine", "icon": "📅"},
-    {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-]
-
-
-def _render_notar_sidebar_suche(user_id: str):
-    """Rendert die Notar-Suche in der Sidebar"""
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("#### 🔍 Akten-Suche")
-        suchbegriff = st.text_input(
-            "Suchen",
-            key="notar_suche_input",
-            placeholder="Aktenzeichen, Name...",
-            label_visibility="collapsed"
-        )
-
-        if suchbegriff and len(suchbegriff) >= 2:
-            suchergebnisse = _suche_notar_akten(user_id, suchbegriff)
-            if suchergebnisse:
-                st.markdown(f"**{len(suchergebnisse)} Ergebnis(se):**")
-                for i, ergebnis in enumerate(suchergebnisse[:5]):
-                    # Posteingang-Badge
-                    badge = " 📬" if ergebnis.get('hat_posteingang') else ""
-                    if st.button(
-                        f"📁 {ergebnis['aktenzeichen']}{badge}",
-                        key=f"suche_result_{i}",
-                        help=ergebnis.get('kurzbezeichnung', ''),
-                        use_container_width=True
-                    ):
-                        if ergebnis.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        elif ergebnis.get('projekt_id'):
-                            st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
-                            st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_menu_selection'] = 'akten'
-                        st.rerun()
-            else:
-                st.caption("Keine Ergebnisse gefunden")
-
-
 def notar_dashboard():
-    """Dashboard für Notar mit verbesserter Navigation - Neues Design"""
+    """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
+
+    # Beide CSS-Systeme laden
+    inject_unified_dashboard_styles()
+    render_notar_menu_styles()
+
     user_id = st.session_state.current_user.user_id
+    user_name = st.session_state.current_user.name
 
-    # Neues Dashboard CSS injizieren (für konsistentes Design)
-    inject_new_dashboard_css()
-
-    # Fixierte Topbar mit Rolle links und User rechts + funktionale Buttons
-    render_fixed_topbar_functional("⚖️", "Notar-Dashboard", "notar")
-
-    # Aktuelle Menü-Auswahl aus Session State
-    current_selection = st.session_state.get('notar_menu_selection', 'dashboard')
-
-    # Kontext-Auswahl in Sidebar (Akte für Notar)
-    render_sidebar_case_context(st.session_state.current_user)
-
-    # WICHTIG: Sidebar-Menü mit st.radio (wie Käufer - clean)
-    selection = render_sidebar_menu("notar", NOTAR_MENU_ITEMS, current_selection)
-
-    # Schnellaktionen in der Sidebar (nach dem Menü)
-    render_topbar_actions()
-
-    # Notar-spezifische Suche in der Sidebar
-    _render_notar_sidebar_suche(user_id)
-
-    # Aktentasche in der Sidebar
+    # Sidebar-Elemente
     render_aktentasche_sidebar(user_id)
-
-    # Dialoge
+    render_benachrichtigungs_badge(user_id)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
 
-    # Sticky Kontextleiste im Hauptbereich (immer sichtbar)
-    render_case_context_header(st.session_state.current_user)
-
-    # === HAUPTINHALT JE NACH MENÜ-AUSWAHL ===
-    if selection == 'dashboard':
-        # Dashboard-Home anzeigen (4-Quadranten oder Akte-Detail)
-        _render_notar_dashboard_home(user_id)
-
-    elif selection == 'akten':
-        # Akten-Übersicht (oder Akte-Detail wenn geöffnet)
-        if st.session_state.get('notar_open_akte_id'):
-            _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
-        elif st.session_state.get('notar_open_projekt_id'):
-            _render_notar_projekt_detail(user_id, st.session_state['notar_open_projekt_id'])
-        else:
-            _render_notar_akten_uebersicht(user_id)
-
-    elif selection == 'nachrichten':
-        # Nachrichten-Ansicht
-        _render_notar_nachrichten_view(user_id)
-
-    elif selection == 'dokumente':
-        # Dokumente-Ansicht
-        _render_notar_dokumente_view(user_id)
-
-    elif selection == 'termine':
-        # Termine-Ansicht
-        _render_notar_termine_view(user_id)
-
-    elif selection == 'einstellungen':
-        # Einstellungen-Ansicht
-        _render_notar_einstellungen_view(user_id)
-
-    else:
-        # Fallback: Dashboard
-        _render_notar_dashboard_home(user_id)
-
-
-def _render_notar_vorgaenge_view(user_id: str):
-    """Rendert die Vorgänge/Projekte-Ansicht"""
-    st.markdown("## 📋 Vorgänge")
-
-    # Nutze die bestehende Projekte-View, aber nenne es "Akten" für Notar
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
-
-    if not projekte:
-        st.info("Keine Vorgänge vorhanden")
-        return
-
-    # Tabs für verschiedene Ansichten
-    tab1, tab2 = st.tabs(["📋 Übersicht", "📊 Timeline"])
-
-    with tab1:
-        st.markdown(f"**{len(projekte)} Vorgang/Vorgänge**")
-
-        for i, projekt in enumerate(projekte):
-            with st.expander(f"📁 {projekt.name or projekt.adresse} - {projekt.status}"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"**Status:** {projekt.status}")
-                    st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
-                with col2:
-                    if projekt.kaufpreis:
-                        st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.0f} €")
-
-                if st.button("📂 Zur Akte", key=f"vorg_akte_{i}"):
-                    # Suche zugehörige Akte
-                    akte_id = None
-                    if hasattr(st.session_state, 'akten'):
-                        for a in st.session_state.akten.values():
-                            if getattr(a, 'projekt_id', None) == projekt.projekt_id:
-                                akte_id = a.akte_id
-                                break
-                    if akte_id:
-                        st.session_state['notar_open_akte_id'] = akte_id
-                        st.session_state['notar_open_projekt_id'] = None
-                    else:
-                        st.session_state['notar_open_projekt_id'] = projekt.projekt_id
-                        st.session_state['notar_open_akte_id'] = None
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-    with tab2:
-        render_notar_timeline_kompakt(user_id)
-
-
-def _render_notar_nachrichten_view(user_id: str):
-    """Rendert die Nachrichten-Ansicht"""
-    st.markdown("## 💬 Nachrichten")
-
-    # Nutze die bestehende Kommunikationszentrale
-    render_kommunikationszentrale(user_id)
-
-
-def _render_notar_dokumente_view(user_id: str):
-    """Rendert die Dokumente-Ansicht"""
-    st.markdown("## 📄 Dokumente")
-
-    # Tabs für verschiedene Dokumenten-Bereiche
-    tab1, tab2, tab3 = st.tabs(["📁 Aktenverwaltung", "📥 Dokumentenanforderungen", "✅ Freigaben"])
-
-    with tab1:
-        notar_aktenmanagement_view()
-
-    with tab2:
-        render_document_requests_view(user_id, UserRole.NOTAR.value)
-
-    with tab3:
-        notar_dokumenten_freigaben()
-
-
-def _render_notar_termine_view(user_id: str):
-    """Rendert die Termine-Ansicht"""
-    st.markdown("## 📅 Termine")
-
-    # Nutze die bestehende Termine-Funktion
-    notar_termine()
-
-
-def _render_notar_einstellungen_view(user_id: str):
-    """Rendert die Einstellungen-Ansicht"""
-    st.markdown("## ⚙️ Einstellungen")
-
-    # Tabs für verschiedene Einstellungsbereiche
-    tab1, tab2, tab3, tab4 = st.tabs(["👤 Profil", "👥 Mitarbeiter", "📜 DSGVO", "🗑️ Papierkorb"])
-
-    with tab1:
-        notar_einstellungen_view()
-
-    with tab2:
-        notar_mitarbeiter_view()
-
-    with tab3:
-        render_dsgvo_tab_notar(user_id)
-
-    with tab4:
-        render_papierkorb_tab(user_id, ist_notar=True)
-
-
-def _render_notar_sidebar_menu_new(user_id: str):
-    """Neues vereinfachtes Sidebar-Menü für Notar-Dashboard mit aufklappbaren Untermenüs"""
-    # Aktuelle Ansicht ermitteln
-    current_view = st.session_state.get('notar_current_view', 'dashboard')
-    expanded_menu = st.session_state.get('notar_expanded_menu', None)
-
-    with st.sidebar:
-        st.markdown("#### Menü")
-
-        # === DASHBOARD (Home) ===
-        is_dashboard_active = current_view == 'dashboard' and not st.session_state.get('notar_open_akte_id')
-        if st.button(
-            "🏠 Dashboard",
-            key="notar_menu_dashboard",
-            use_container_width=True,
-            type="primary" if is_dashboard_active else "secondary"
-        ):
-            st.session_state['notar_open_akte_id'] = None
-            st.session_state['notar_highlight_doc'] = None
-            st.session_state['notar_show_assistent'] = False
-            st.session_state['notar_show_ki'] = False
-            st.session_state['notar_menu_selection'] = 'dashboard'
-            st.session_state['notar_current_view'] = 'dashboard'
-            st.rerun()
-
-        # === AKTEN (mit Untermenü) ===
-        is_akten_active = current_view == 'akten' or st.session_state.get('notar_open_akte_id')
-
-        # Akten-Hauptbutton der Untermenü öffnet/schließt
-        col_akten, col_arrow = st.columns([4, 1])
-        with col_akten:
-            if st.button(
-                "📁 Akten",
-                key="notar_menu_akten_main",
-                use_container_width=True,
-                type="primary" if is_akten_active else "secondary"
-            ):
-                # Toggle Untermenü
-                if expanded_menu == 'akten':
-                    st.session_state['notar_expanded_menu'] = None
-                else:
-                    st.session_state['notar_expanded_menu'] = 'akten'
-                # Zeige Akten-Übersicht
-                st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_menu_selection'] = 'dashboard'
-                st.session_state['notar_current_view'] = 'akten'
-                st.rerun()
-
-        with col_arrow:
-            arrow = "▼" if expanded_menu == 'akten' else "▶"
-            st.markdown(f"<div style='padding: 8px; text-align: center;'>{arrow}</div>", unsafe_allow_html=True)
-
-        # Akten-Untermenü (wenn aufgeklappt)
-        if expanded_menu == 'akten' or is_akten_active:
-            st.markdown("""
-            <style>
-            .submenu-item { margin-left: 20px; }
-            </style>
-            """, unsafe_allow_html=True)
-
-            # Untermenüpunkte
-            submenu_items = [
-                {"key": "alle_akten", "label": "Alle Akten", "icon": "📋"},
-                {"key": "neue_akte", "label": "Neue Akte anlegen", "icon": "➕"},
-                {"key": "posteingang", "label": "Posteingang", "icon": "📬"},
-                {"key": "entwuerfe", "label": "Entwürfe", "icon": "📝"},
-                {"key": "beurkundungen", "label": "Beurkundungen", "icon": "✅"},
-            ]
-
-            for sub_item in submenu_items:
-                sub_key = sub_item['key']
-                sub_active = st.session_state.get('notar_akten_submenu') == sub_key
-
-                if st.button(
-                    f"   {sub_item['icon']} {sub_item['label']}",
-                    key=f"notar_submenu_{sub_key}",
-                    use_container_width=True,
-                    type="primary" if sub_active else "secondary"
-                ):
-                    st.session_state['notar_akten_submenu'] = sub_key
-                    st.session_state['notar_open_akte_id'] = None
-                    st.session_state['notar_menu_selection'] = 'dashboard'
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-        # === WEITERE MENÜPUNKTE ===
-        other_menu_items = [
-            {"key": "vorgaenge", "label": "Vorgänge", "icon": "📋"},
-            {"key": "nachrichten", "label": "Nachrichten", "icon": "💬"},
-            {"key": "dokumente", "label": "Dokumente", "icon": "📄"},
-            {"key": "termine", "label": "Termine", "icon": "📅"},
-            {"key": "einstellungen", "label": "Einstellungen", "icon": "⚙️"},
-        ]
-
-        for item in other_menu_items:
-            is_active = item['key'] == current_view
-
-            if st.button(
-                f"{item['icon']} {item['label']}",
-                key=f"notar_menu_new_{item['key']}",
-                use_container_width=True,
-                type="primary" if is_active else "secondary"
-            ):
-                st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_highlight_doc'] = None
-                st.session_state['notar_expanded_menu'] = None
-                st.session_state['notar_menu_selection'] = item['key']
-                st.session_state['notar_current_view'] = item['key']
-                # Map zu bestehenden Keys
-                key_mapping = {
-                    'vorgaenge': 'projekte',
-                    'nachrichten': 'nachrichten',
-                    'dokumente': 'aktenverwaltung',
-                    'termine': 'termine',
-                    'einstellungen': 'settings',
-                }
-                if item['key'] in key_mapping:
-                    st.session_state['notar_bereich'] = key_mapping[item['key']]
-                st.rerun()
-
-        st.markdown("---")
-
-        # === SUCHE ===
-        st.markdown("#### 🔍 Suche")
-        suchbegriff = st.text_input("Akten durchsuchen", key="notar_suche_input",
-                                    placeholder="Aktenzeichen, Name...")
-
-        if suchbegriff and len(suchbegriff) >= 2:
-            suchergebnisse = _suche_notar_akten(user_id, suchbegriff)
-            if suchergebnisse:
-                st.markdown(f"**{len(suchergebnisse)} Ergebnis(se):**")
-                for i, ergebnis in enumerate(suchergebnisse[:5]):
-                    # Posteingang-Badge
-                    badge = " 📬" if ergebnis.get('hat_posteingang') else ""
-                    if st.button(f"📁 {ergebnis['aktenzeichen']}{badge}",
-                                key=f"suche_result_{i}",
-                                help=ergebnis.get('kurzbezeichnung', ''),
-                                use_container_width=True):
-                        if ergebnis.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = ergebnis['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        elif ergebnis.get('projekt_id'):
-                            st.session_state['notar_open_projekt_id'] = ergebnis['projekt_id']
-                            st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.session_state['notar_menu_selection'] = 'akten'
-                        st.rerun()
-            else:
-                st.caption("Keine Ergebnisse gefunden")
-
-        st.markdown("---")
-
-
-def _render_notar_dashboard_home(user_id: str):
-    """Rendert die Notar-Dashboard Startseite mit 4-Quadranten-Layout"""
-    from datetime import datetime, date
-
-    # Prüfe ob eine Akte geöffnet werden soll
-    if st.session_state.get('notar_open_akte_id'):
-        _render_notar_akte_detail(user_id, st.session_state['notar_open_akte_id'])
-        return
-
-    # Prüfe ob Akten-Übersicht angezeigt werden soll
-    current_view = st.session_state.get('notar_current_view', 'dashboard')
-    if current_view == 'akten':
-        _render_notar_akten_uebersicht(user_id)
-        return
-
-    heute = date.today()
-
-    # Daten sammeln
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
-    akten = _get_notar_akten(user_id)
-    termine_heute = _get_notar_termine_heute(user_id, heute)
-    posteingang = _get_notar_posteingang(user_id)
-    entwurf_akten = _get_notar_entwurf_akten(user_id, projekte)
-    beurkundete_vertraege = _get_notar_beurkundete_vertraege(user_id, projekte)
-
-    # === TIMELINE AM OBEREN RAND ===
-    _render_notar_dashboard_timeline(user_id, projekte)
-
-    st.markdown("---")
-
-    # === 4-QUADRANTEN-LAYOUT ===
-    col_left, col_right = st.columns(2)
-
-    # === LINKS OBEN: TERMINE DES TAGES ===
-    with col_left:
-        _render_notar_termine_widget(termine_heute, heute)
-
-    # === RECHTS OBEN: POSTEINGANG ===
-    with col_right:
-        _render_notar_posteingang_widget(posteingang, user_id)
-
-    st.markdown("")  # Abstand
-
-    col_left2, col_right2 = st.columns(2)
-
-    # === LINKS UNTEN: URKUNDSENTWURF-AKTEN ===
-    with col_left2:
-        _render_notar_entwurf_widget(entwurf_akten, user_id)
-
-    # === RECHTS UNTEN: BEURKUNDETE VERTRÄGE NACH 3 STADIEN ===
-    with col_right2:
-        _render_notar_beurkundete_widget(beurkundete_vertraege, user_id)
-
-    # Button um zum erweiterten Notar-Menü zu wechseln
-    st.markdown("---")
-    if st.button("📋 Erweitertes Notar-Menü öffnen", use_container_width=True, key="notar_erw_menu"):
-        st.session_state['notar_menu_selection'] = 'projekte'
-        st.rerun()
-
-
-def _get_notar_akten(user_id: str) -> list:
-    """Holt alle Akten des Notars"""
-    akten = []
-    if hasattr(st.session_state, 'akten'):
-        for a in st.session_state.akten.values():
-            if getattr(a, 'notar_id', None) == user_id:
-                akten.append(a)
-    return akten
-
-
-def _suche_notar_akten(user_id: str, suchbegriff: str) -> list:
-    """Sucht in Akten und Projekten nach dem Suchbegriff"""
-    from datetime import datetime, timedelta
-    ergebnisse = []
-    suchbegriff_lower = suchbegriff.lower()
-
-    # In Akten suchen
-    if hasattr(st.session_state, 'akten'):
-        for a in st.session_state.akten.values():
-            if getattr(a, 'notar_id', None) != user_id:
-                continue
-
-            aktenzeichen = getattr(a, 'aktenzeichen', '')
-            kurzbezeichnung = getattr(a, 'kurzbezeichnung', '')
-            betreff = getattr(a, 'betreff', '')
-            verkaeufer = getattr(a, 'verkaeufer_nachname', '')
-            kaeufer = getattr(a, 'kaeufer_nachname', '')
-
-            if (suchbegriff_lower in aktenzeichen.lower() or
-                suchbegriff_lower in kurzbezeichnung.lower() or
-                suchbegriff_lower in betreff.lower() or
-                suchbegriff_lower in verkaeufer.lower() or
-                suchbegriff_lower in kaeufer.lower()):
-
-                # Prüfe ob Posteingang vorhanden
-                hat_posteingang = _hat_akte_posteingang(a.akte_id, user_id)
-
-                ergebnisse.append({
-                    'akte_id': a.akte_id,
-                    'projekt_id': getattr(a, 'projekt_id', None),
-                    'aktenzeichen': aktenzeichen or a.akte_id[:8].upper(),
-                    'kurzbezeichnung': kurzbezeichnung,
-                    'hat_posteingang': hat_posteingang,
-                    'typ': 'akte'
-                })
-
-    # In Projekten suchen (falls keine Akten gefunden)
-    if not ergebnisse:
-        for p in st.session_state.projekte.values():
-            if p.notar_id != user_id:
-                continue
-
-            name = p.name or ''
-            adresse = p.adresse or ''
-
-            if (suchbegriff_lower in name.lower() or
-                suchbegriff_lower in adresse.lower() or
-                suchbegriff_lower in p.projekt_id.lower()):
-
-                # Prüfe ob Posteingang vorhanden
-                hat_posteingang = _hat_projekt_posteingang(p.projekt_id, user_id)
-
-                ergebnisse.append({
-                    'akte_id': None,
-                    'projekt_id': p.projekt_id,
-                    'aktenzeichen': p.projekt_id[:8].upper(),
-                    'kurzbezeichnung': name or adresse,
-                    'hat_posteingang': hat_posteingang,
-                    'typ': 'projekt'
-                })
-
-    return ergebnisse[:10]
-
-
-def _hat_akte_posteingang(akte_id: str, user_id: str) -> bool:
-    """Prüft ob eine Akte neue Dokumente im Posteingang hat"""
-    from datetime import datetime, timedelta
-
-    if not hasattr(st.session_state, 'dokumente'):
-        return False
-
-    for dok in st.session_state.dokumente.values():
-        if getattr(dok, 'akte_id', None) != akte_id:
-            continue
-
-        status = getattr(dok, 'status', '')
-        if status == 'erledigt':
-            continue
-
-        # Prüfe ob Dokument kürzlich hochgeladen wurde
-        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
-        if erstellt_am:
-            if isinstance(erstellt_am, str):
-                try:
-                    erstellt_am = datetime.fromisoformat(erstellt_am)
-                except:
-                    continue
-
-            if datetime.now() - erstellt_am <= timedelta(days=7):
-                return True
-
-    return False
-
-
-def _hat_projekt_posteingang(projekt_id: str, user_id: str) -> bool:
-    """Prüft ob ein Projekt neue Dokumente im Posteingang hat"""
-    from datetime import datetime, timedelta
-
-    if not hasattr(st.session_state, 'dokumente'):
-        return False
-
-    for dok in st.session_state.dokumente.values():
-        if getattr(dok, 'projekt_id', None) != projekt_id:
-            continue
-
-        status = getattr(dok, 'status', '')
-        if status == 'erledigt':
-            continue
-
-        # Prüfe ob Dokument kürzlich hochgeladen wurde
-        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
-        if erstellt_am:
-            if isinstance(erstellt_am, str):
-                try:
-                    erstellt_am = datetime.fromisoformat(erstellt_am)
-                except:
-                    continue
-
-            if datetime.now() - erstellt_am <= timedelta(days=7):
-                return True
-
-    return False
-
-
-def _render_notar_akten_uebersicht(user_id: str):
-    """Rendert die Akten-Übersichtsseite mit Sortierung und Suche"""
-    from datetime import datetime
-
-    # Prüfe welches Untermenü gewählt wurde
-    submenu = st.session_state.get('notar_akten_submenu', 'alle_akten')
-
-    # Titel je nach Untermenü
-    titel_mapping = {
-        'alle_akten': "📁 Alle Akten",
-        'neue_akte': "➕ Neue Akte anlegen",
-        'posteingang': "📬 Posteingang",
-        'entwuerfe': "📝 Entwürfe",
-        'beurkundungen': "✅ Beurkundungen",
-    }
-
-    st.markdown(f"## {titel_mapping.get(submenu, '📁 Alle Akten')}")
-
-    # Spezielle Ansichten je nach Untermenü
-    if submenu == 'neue_akte':
-        _render_neue_akte_formular(user_id)
-        return
-
-    if submenu == 'posteingang':
-        _render_akten_posteingang_liste(user_id)
-        return
-
-    if submenu == 'entwuerfe':
-        _render_akten_entwuerfe_liste(user_id)
-        return
-
-    if submenu == 'beurkundungen':
-        _render_akten_beurkundungen_liste(user_id)
-        return
-
-    # Standard: Alle Akten anzeigen
-    # Suchfeld im Hauptbereich
-    col_suche, col_sort = st.columns([2, 1])
-
-    with col_suche:
-        suche_hauptbereich = st.text_input("🔍 Akten durchsuchen",
-                                           key="akten_suche_hauptbereich",
-                                           placeholder="Aktenzeichen, Name, Partei...")
-
-    with col_sort:
-        sortierung = st.selectbox("Sortieren nach",
-                                  ["Aktenzeichen", "Datum (neueste)", "Datum (älteste)", "Status"],
-                                  key="akten_sortierung")
-
-    st.markdown("---")
-
-    # Alle Akten und Projekte sammeln
-    alle_akten = []
-
-    # Aus Akten-Datenstruktur
-    if hasattr(st.session_state, 'akten'):
-        for a in st.session_state.akten.values():
-            if getattr(a, 'notar_id', None) != user_id:
-                continue
-
-            aktenzeichen = getattr(a, 'aktenzeichen', a.akte_id[:8].upper())
-            kurzbezeichnung = getattr(a, 'kurzbezeichnung', '')
-            status = getattr(a, 'status', 'Neu')
-            erstellt_am = getattr(a, 'erstellt_am', datetime.now())
-
-            # Posteingang prüfen
-            hat_posteingang = _hat_akte_posteingang(a.akte_id, user_id)
-            posteingang_count = _zaehle_posteingang(a.akte_id, None, user_id)
-
-            alle_akten.append({
-                'akte_id': a.akte_id,
-                'projekt_id': getattr(a, 'projekt_id', None),
-                'aktenzeichen': aktenzeichen,
-                'kurzbezeichnung': kurzbezeichnung,
-                'status': status,
-                'erstellt_am': erstellt_am,
-                'hat_posteingang': hat_posteingang,
-                'posteingang_count': posteingang_count,
-                'typ': 'akte'
-            })
-
-    # Projekte ohne Akte hinzufügen
-    for p in st.session_state.projekte.values():
-        if p.notar_id != user_id:
-            continue
-
-        # Prüfen ob bereits als Akte vorhanden
-        bereits_vorhanden = any(a['projekt_id'] == p.projekt_id for a in alle_akten)
-        if bereits_vorhanden:
-            continue
-
-        hat_posteingang = _hat_projekt_posteingang(p.projekt_id, user_id)
-        posteingang_count = _zaehle_posteingang(None, p.projekt_id, user_id)
-
-        alle_akten.append({
-            'akte_id': None,
-            'projekt_id': p.projekt_id,
-            'aktenzeichen': p.projekt_id[:8].upper(),
-            'kurzbezeichnung': p.name or p.adresse or '',
-            'status': p.status,
-            'erstellt_am': getattr(p, 'erstellt_am', datetime.now()),
-            'hat_posteingang': hat_posteingang,
-            'posteingang_count': posteingang_count,
-            'typ': 'projekt'
-        })
-
-    # Suche anwenden
-    if suche_hauptbereich and len(suche_hauptbereich) >= 2:
-        suche_lower = suche_hauptbereich.lower()
-        alle_akten = [a for a in alle_akten if
-                      suche_lower in a['aktenzeichen'].lower() or
-                      suche_lower in a['kurzbezeichnung'].lower() or
-                      suche_lower in a['status'].lower()]
-
-    # Sortierung anwenden
-    if sortierung == "Aktenzeichen":
-        alle_akten.sort(key=lambda x: x['aktenzeichen'])
-    elif sortierung == "Datum (neueste)":
-        alle_akten.sort(key=lambda x: x['erstellt_am'] if x['erstellt_am'] else datetime.min, reverse=True)
-    elif sortierung == "Datum (älteste)":
-        alle_akten.sort(key=lambda x: x['erstellt_am'] if x['erstellt_am'] else datetime.min)
-    elif sortierung == "Status":
-        alle_akten.sort(key=lambda x: x['status'])
-
-    # Akten anzeigen
-    if not alle_akten:
-        st.info("Keine Akten gefunden")
-    else:
-        st.markdown(f"**{len(alle_akten)} Akte(n) gefunden**")
-
-        # Tabellenkopf
-        col_az, col_bez, col_status, col_post, col_aktion = st.columns([2, 3, 2, 1, 2])
-        with col_az:
-            st.markdown("**Aktenzeichen**")
-        with col_bez:
-            st.markdown("**Bezeichnung**")
-        with col_status:
-            st.markdown("**Status**")
-        with col_post:
-            st.markdown("**📬**")
-        with col_aktion:
-            st.markdown("**Aktion**")
-
-        st.markdown("---")
-
-        for i, akte in enumerate(alle_akten):
-            col_az, col_bez, col_status, col_post, col_aktion = st.columns([2, 3, 2, 1, 2])
-
-            with col_az:
-                st.markdown(f"**{akte['aktenzeichen']}**")
-
-            with col_bez:
-                st.markdown(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
-
-            with col_status:
-                # Status-Badge
-                status = akte['status']
-                if status == 'Abgeschlossen':
-                    st.markdown("🟢 Abgeschlossen")
-                elif status == 'Neu':
-                    st.markdown("🔵 Neu")
-                else:
-                    st.markdown(f"🟡 {status[:15]}")
-
-            with col_post:
-                if akte['hat_posteingang']:
-                    st.markdown(f"📬 {akte['posteingang_count']}")
-                else:
-                    st.markdown("-")
-
-            with col_aktion:
-                btn_col1, btn_col2 = st.columns(2)
-
-                with btn_col1:
-                    if st.button("📂", key=f"open_akte_{i}", help="Akte öffnen"):
-                        if akte.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = akte['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        elif akte.get('projekt_id'):
-                            st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                            st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.rerun()
-
-                with btn_col2:
-                    if akte['hat_posteingang']:
-                        if st.button("📬", key=f"post_akte_{i}", help="Zum Posteingang"):
-                            if akte.get('akte_id'):
-                                st.session_state['notar_open_akte_id'] = akte['akte_id']
-                                st.session_state['notar_open_projekt_id'] = None
-                                st.session_state['notar_akte_folder'] = 'sonstiges'  # Posteingang zeigen
-                            elif akte.get('projekt_id'):
-                                st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                                st.session_state['notar_open_akte_id'] = None
-                            st.session_state['notar_current_view'] = 'akten'
-                            st.rerun()
-
-
-def _zaehle_posteingang(akte_id: str, projekt_id: str, user_id: str) -> int:
-    """Zählt die Anzahl neuer Dokumente im Posteingang"""
-    from datetime import datetime, timedelta
-
-    count = 0
-    if not hasattr(st.session_state, 'dokumente'):
-        return 0
-
-    for dok in st.session_state.dokumente.values():
-        # Prüfe Zuordnung
-        if akte_id and getattr(dok, 'akte_id', None) != akte_id:
-            continue
-        if projekt_id and getattr(dok, 'projekt_id', None) != projekt_id:
-            continue
-        if not akte_id and not projekt_id:
-            continue
-
-        status = getattr(dok, 'status', '')
-        if status == 'erledigt':
-            continue
-
-        erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
-        if erstellt_am:
-            if isinstance(erstellt_am, str):
-                try:
-                    erstellt_am = datetime.fromisoformat(erstellt_am)
-                except:
-                    continue
-
-            if datetime.now() - erstellt_am <= timedelta(days=7):
-                count += 1
-
-    return count
-
-
-def _render_neue_akte_formular(user_id: str):
-    """Rendert das Formular zum Anlegen einer neuen Akte"""
-    st.info("Legen Sie hier eine neue Akte an")
-
-    with st.form("neue_akte_form"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            verkaufer_name = st.text_input("Verkäufer Nachname *")
-            aktenjahr = st.number_input("Jahr", min_value=20, max_value=99, value=24)
-
-        with col2:
-            kaeufer_name = st.text_input("Käufer Nachname *")
-            aktennummer = st.number_input("Aktennummer", min_value=1, max_value=9999, value=1)
-
-        betreff = st.text_input("Betreff / Kurzbezeichnung")
-
-        hauptbereich = st.selectbox("Hauptbereich", [
-            "Immobilienrecht",
-            "Erbrecht",
-            "Gesellschaftsrecht",
-            "Familienrecht",
-            "Sonstiges"
-        ])
-
-        submitted = st.form_submit_button("Akte anlegen", type="primary", use_container_width=True)
-
-        if submitted:
-            if verkaufer_name and kaeufer_name:
-                st.success(f"Akte '{verkaufer_name} ./. {kaeufer_name} {aktennummer}/{aktenjahr}' wurde angelegt!")
-                # Hier würde die echte Akte erstellt werden
-            else:
-                st.error("Bitte Verkäufer und Käufer Namen eingeben")
-
-
-def _render_akten_posteingang_liste(user_id: str):
-    """Rendert die Liste aller Akten mit Posteingang"""
-    from datetime import datetime
-
-    st.info("Akten mit neuen Dokumenten der letzten 7 Tage")
-
-    # Sammle alle Akten mit Posteingang
-    akten_mit_posteingang = []
-
-    # Aus Akten
-    if hasattr(st.session_state, 'akten'):
-        for a in st.session_state.akten.values():
-            if getattr(a, 'notar_id', None) != user_id:
-                continue
-            if _hat_akte_posteingang(a.akte_id, user_id):
-                count = _zaehle_posteingang(a.akte_id, None, user_id)
-                akten_mit_posteingang.append({
-                    'akte_id': a.akte_id,
-                    'aktenzeichen': getattr(a, 'aktenzeichen', a.akte_id[:8].upper()),
-                    'kurzbezeichnung': getattr(a, 'kurzbezeichnung', ''),
-                    'posteingang_count': count,
-                })
-
-    # Aus Projekten
-    for p in st.session_state.projekte.values():
-        if p.notar_id != user_id:
-            continue
-        if _hat_projekt_posteingang(p.projekt_id, user_id):
-            # Prüfen ob nicht schon als Akte vorhanden
-            if not any(a['akte_id'] and getattr(st.session_state.akten.get(a['akte_id']), 'projekt_id', None) == p.projekt_id
-                      for a in akten_mit_posteingang if hasattr(st.session_state, 'akten')):
-                count = _zaehle_posteingang(None, p.projekt_id, user_id)
-                akten_mit_posteingang.append({
-                    'akte_id': None,
-                    'projekt_id': p.projekt_id,
-                    'aktenzeichen': p.projekt_id[:8].upper(),
-                    'kurzbezeichnung': p.name or p.adresse or '',
-                    'posteingang_count': count,
-                })
-
-    if not akten_mit_posteingang:
-        st.success("Kein neuer Posteingang vorhanden")
-    else:
-        st.markdown(f"**{len(akten_mit_posteingang)} Akte(n) mit Posteingang**")
-        st.markdown("---")
-
-        for i, akte in enumerate(akten_mit_posteingang):
-            col1, col2, col3 = st.columns([3, 2, 2])
-
-            with col1:
-                st.markdown(f"**{akte['aktenzeichen']}**")
-                st.caption(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
-
-            with col2:
-                st.markdown(f"📬 **{akte['posteingang_count']}** neue(s) Dokument(e)")
-
-            with col3:
-                if st.button("📂 Öffnen", key=f"post_open_{i}", use_container_width=True):
-                    if akte.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = akte['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                    elif akte.get('projekt_id'):
-                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                        st.session_state['notar_open_akte_id'] = None
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-
-def _render_akten_entwuerfe_liste(user_id: str):
-    """Rendert die Liste der Akten die Entwürfe benötigen"""
-
-    st.info("Akten die einen Urkundsentwurf benötigen")
-
-    # Hole Projekte die Entwurf benötigen
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
-    entwurf_akten = _get_notar_entwurf_akten(user_id, projekte)
-
-    if not entwurf_akten:
-        st.success("Alle Entwürfe sind aktuell")
-    else:
-        st.markdown(f"**{len(entwurf_akten)} Akte(n) benötigen Entwurf**")
-        st.markdown("---")
-
-        for i, akte in enumerate(entwurf_akten):
-            col1, col2, col3 = st.columns([3, 2, 2])
-
-            with col1:
-                st.markdown(f"**{akte['aktenzeichen']}**")
-                st.caption(akte['kurzbezeichnung'][:40] if akte['kurzbezeichnung'] else "-")
-
-            with col2:
-                if akte.get('braucht_finale_urkunde'):
-                    st.markdown("⚡ **Finale Urkunde**")
-                else:
-                    st.markdown("📝 Entwurf")
-
-            with col3:
-                if st.button("📋 Assistent", key=f"entw_ass_{i}", use_container_width=True):
-                    if akte.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = akte['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_show_assistent'] = True
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-
-def _render_akten_beurkundungen_liste(user_id: str):
-    """Rendert die Liste der beurkundeten Akten nach Stadien"""
-
-    st.info("Beurkundete Verträge nach Bearbeitungsstand")
-
-    # Hole beurkundete Verträge
-    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
-    stadien = _get_notar_beurkundete_vertraege(user_id, projekte)
-
-    # Tabs für die 3 Stadien
-    tab1, tab2, tab3 = st.tabs([
-        f"1️⃣ Kaufpreisfälligkeit ({len(stadien['stadium_1'])})",
-        f"2️⃣ Kaufpreis bestätigt ({len(stadien['stadium_2'])})",
-        f"3️⃣ Eingetragen ({len(stadien['stadium_3'])})"
-    ])
-
-    with tab1:
-        st.caption("Warten auf Kaufpreisfälligkeit")
-        if not stadien['stadium_1']:
-            st.info("Keine Vorgänge in diesem Stadium")
-        else:
-            for i, v in enumerate(stadien['stadium_1']):
-                col1, col2, col3 = st.columns([3, 2, 2])
-                with col1:
-                    st.markdown(f"**{v['aktenzeichen']}**")
-                    st.caption(v['kurzbezeichnung'][:30])
-                with col2:
-                    if v.get('bank'):
-                        st.caption(f"🏦 {v['bank']}")
-                with col3:
-                    if st.button("📂", key=f"beur1_{i}"):
-                        if v.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = v['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.rerun()
-
-    with tab2:
-        st.caption("Kaufpreis und Darlehen bestätigt")
-        if not stadien['stadium_2']:
-            st.info("Keine Vorgänge in diesem Stadium")
-        else:
-            for i, v in enumerate(stadien['stadium_2']):
-                col1, col2, col3 = st.columns([3, 2, 2])
-                with col1:
-                    st.markdown(f"**{v['aktenzeichen']}**")
-                    st.caption(v['kurzbezeichnung'][:30])
-                with col2:
-                    if v.get('bank'):
-                        st.caption(f"🏦 {v['bank']}")
-                with col3:
-                    if st.button("📂", key=f"beur2_{i}"):
-                        if v.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = v['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.rerun()
-
-    with tab3:
-        st.caption("Auflassung/Grundschuld eingetragen")
-        if not stadien['stadium_3']:
-            st.info("Keine Vorgänge in diesem Stadium")
-        else:
-            for i, v in enumerate(stadien['stadium_3']):
-                col1, col2, col3 = st.columns([3, 2, 2])
-                with col1:
-                    st.markdown(f"**{v['aktenzeichen']}**")
-                    st.caption(v['kurzbezeichnung'][:30])
-                with col2:
-                    st.markdown("✅ Abgeschlossen")
-                with col3:
-                    if st.button("📂", key=f"beur3_{i}"):
-                        if v.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = v['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.rerun()
-
-
-def _get_notar_termine_heute(user_id: str, heute) -> list:
-    """Holt die Termine des heutigen Tages für den Notar"""
-    from datetime import datetime
-    termine = []
-
-    if hasattr(st.session_state, 'termine'):
-        for t in st.session_state.termine.values():
-            try:
-                termin_datum = getattr(t, 'datum', None)
-                if termin_datum:
-                    if isinstance(termin_datum, str):
-                        termin_datum = datetime.fromisoformat(termin_datum).date()
-                    elif isinstance(termin_datum, datetime):
-                        termin_datum = termin_datum.date()
-
-                    if termin_datum == heute:
-                        # Projektinfo holen
-                        projekt_id = getattr(t, 'projekt_id', None)
-                        projekt = st.session_state.projekte.get(projekt_id) if projekt_id else None
-
-                        # Aktenzeichen/Kurzbezeichnung ermitteln
-                        aktenzeichen = ""
-                        kurzbezeichnung = ""
-                        akte_id = None
-
-                        if projekt:
-                            kurzbezeichnung = projekt.name or projekt.adresse or ""
-                            aktenzeichen = projekt.projekt_id[:8].upper()
-                            # Versuche zugehörige Akte zu finden
-                            if hasattr(st.session_state, 'akten'):
-                                for a in st.session_state.akten.values():
-                                    if getattr(a, 'projekt_id', None) == projekt_id:
-                                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
-                                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
-                                        akte_id = a.akte_id
-                                        break
-
-                        termine.append({
-                            'termin_id': t.termin_id,
-                            'uhrzeit': getattr(t, 'uhrzeit_start', '09:00'),
-                            'typ': getattr(t, 'termin_typ', 'Termin'),
-                            'aktenzeichen': aktenzeichen,
-                            'kurzbezeichnung': kurzbezeichnung,
-                            'projekt_id': projekt_id,
-                            'akte_id': akte_id,
-                            'beschreibung': getattr(t, 'beschreibung', ''),
-                        })
-            except:
-                pass
-
-    # Nach Uhrzeit sortieren
-    termine.sort(key=lambda x: x['uhrzeit'])
-    return termine
-
-
-def _get_notar_posteingang(user_id: str) -> list:
-    """Holt den Posteingang (neue Dokumente von Parteien)"""
-    from datetime import datetime, timedelta
-    posteingang = []
-
-    if hasattr(st.session_state, 'dokumente'):
-        for dok_id, dok in st.session_state.dokumente.items():
-            # Nur Dokumente der letzten 7 Tage
-            erstellt_am = getattr(dok, 'erstellt_am', None) or getattr(dok, 'hochgeladen_am', None)
-            if erstellt_am:
-                if isinstance(erstellt_am, str):
-                    try:
-                        erstellt_am = datetime.fromisoformat(erstellt_am)
-                    except:
-                        continue
-
-                if datetime.now() - erstellt_am > timedelta(days=7):
-                    continue
-
-            # Projekt/Akte ermitteln
-            projekt_id = getattr(dok, 'projekt_id', None)
-            if not projekt_id:
-                continue
-
-            projekt = st.session_state.projekte.get(projekt_id)
-            if not projekt or projekt.notar_id != user_id:
-                continue
-
-            # Aktenzeichen ermitteln
-            aktenzeichen = projekt.projekt_id[:8].upper()
-            kurzbezeichnung = projekt.name or projekt.adresse or ""
-            akte_id = None
-
-            if hasattr(st.session_state, 'akten'):
-                for a in st.session_state.akten.values():
-                    if getattr(a, 'projekt_id', None) == projekt_id:
-                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
-                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
-                        akte_id = a.akte_id
+    # Ungelesene Benachrichtigungen zählen
+    unread_count = len([n for n in st.session_state.benachrichtigungen.values()
+                        if n.user_id == user_id and not n.gelesen])
+
+    # Sidebar-Menü rendern (nur auf Desktop sichtbar via CSS)
+    selection = render_notar_sidebar_menu(user_id)
+
+    # Titel mit aktuellem Bereich ermitteln
+    aktueller_bereich = ""
+    aktueller_bereich_icon = ""
+    aktive_gruppe = ""
+
+    # Suche in Hauptmenü und Untermenüs
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == selection:
+                aktueller_bereich = item['name']
+                aktueller_bereich_icon = item['icon']
+                aktive_gruppe = gruppe_name
+                break
+            # Prüfe auch Untermenüs
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == selection:
+                        aktueller_bereich = sub_item['name']
+                        aktueller_bereich_icon = sub_item['icon']
+                        aktive_gruppe = gruppe_name
                         break
 
-            # Absender ermitteln
-            sender_id = getattr(dok, 'hochgeladen_von', None) or getattr(dok, 'erstellt_von', None)
-            sender_name = "Unbekannt"
-            sender_rolle = ""
-            if sender_id and sender_id in st.session_state.users:
-                user = st.session_state.users[sender_id]
-                sender_name = user.name
-                sender_rolle = user.rolle
+    # Dashboard Header mit KPIs
+    render_dashboard_header("Notar", user_name, unread_count)
 
-            # Status ermitteln
-            status = getattr(dok, 'status', 'offen')
-            ist_dringend = getattr(dok, 'ist_dringend', False) or getattr(dok, 'dringend', False)
-            frist = getattr(dok, 'frist', None)
+    # KPIs berechnen
+    notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    aktive_projekte = len([p for p in notar_projekte if p.status != ProjektStatus.ABGESCHLOSSEN.value])
+    beurkundungen = len([p for p in notar_projekte if p.status == ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value])
 
-            posteingang.append({
-                'dok_id': dok_id,
-                'datum': erstellt_am.strftime('%d.%m.%Y') if erstellt_am else '',
-                'aktenzeichen': aktenzeichen,
-                'kurzbezeichnung': kurzbezeichnung,
-                'dokument_name': getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument')),
-                'sender_name': sender_name,
-                'sender_rolle': sender_rolle,
-                'status': status,
-                'ist_dringend': ist_dringend,
-                'frist': frist.strftime('%d.%m.%Y') if frist else None,
-                'projekt_id': projekt_id,
-                'akte_id': akte_id,
-            })
-
-    # Nach Datum sortieren (neueste zuerst)
-    posteingang.sort(key=lambda x: x['datum'], reverse=True)
-    return posteingang[:10]  # Max 10 Einträge
-
-
-def _get_notar_entwurf_akten(user_id: str, projekte: list) -> list:
-    """Holt Akten, die einen Urkundsentwurf benötigen"""
-    entwurf_akten = []
-
-    # Projekte die bereit für Urkundsentwurf sind
-    for projekt in projekte:
-        status = projekt.status
-
-        # Prüfe ob alle Daten für Urkundsentwurf vorhanden
-        bereit_fuer_entwurf = False
-        braucht_neuen_entwurf = False
-        braucht_finale_urkunde = False
-
-        if status in ['Dokumente vollständig', 'Wirtschaftsdaten hochgeladen',
-                      'Finanzierung gesichert', 'Notartermin vereinbart']:
-            bereit_fuer_entwurf = True
-
-        if status == 'Notartermin vereinbart':
-            braucht_finale_urkunde = True
-
-        if bereit_fuer_entwurf or braucht_neuen_entwurf or braucht_finale_urkunde:
-            aktenzeichen = projekt.projekt_id[:8].upper()
-            kurzbezeichnung = projekt.name or projekt.adresse or ""
-            akte_id = None
-
-            if hasattr(st.session_state, 'akten'):
-                for a in st.session_state.akten.values():
-                    if getattr(a, 'projekt_id', None) == projekt.projekt_id:
-                        aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
-                        kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
-                        akte_id = a.akte_id
-                        break
-
-            entwurf_akten.append({
-                'projekt_id': projekt.projekt_id,
-                'akte_id': akte_id,
-                'aktenzeichen': aktenzeichen,
-                'kurzbezeichnung': kurzbezeichnung,
-                'status': status,
-                'braucht_finale_urkunde': braucht_finale_urkunde,
-                'typ': 'Kaufvertrag',  # Standard
-            })
-
-    return entwurf_akten
-
-
-def _get_notar_beurkundete_vertraege(user_id: str, projekte: list) -> dict:
-    """Holt beurkundete Verträge nach den 3 Stadien"""
-    stadien = {
-        'stadium_1': [],  # Kaufpreisfälligkeit raus?
-        'stadium_2': [],  # Kaufpreis Eingang bestätigt
-        'stadium_3': [],  # Auflassung/Grundschuld eingetragen
-    }
-
-    for projekt in projekte:
-        status = projekt.status
-
-        # Nur beurkundete Projekte
-        if status not in ['Kaufvertrag unterzeichnet', 'Auflassungsvormerkung eingetragen',
-                         'Vorkaufsrecht erteilt', 'Löschungsbewilligung vorhanden',
-                         'Kaufpreisfälligkeit', 'Unbedenklichkeitsbescheinigung',
-                         'Kaufpreiseingang bestätigt', 'Schlüsselübergabe',
-                         'Auflassung eingetragen', 'Abgeschlossen']:
-            continue
-
-        aktenzeichen = projekt.projekt_id[:8].upper()
-        kurzbezeichnung = projekt.name or projekt.adresse or ""
-        akte_id = None
-        bank_name = ""
-
-        if hasattr(st.session_state, 'akten'):
-            for a in st.session_state.akten.values():
-                if getattr(a, 'projekt_id', None) == projekt.projekt_id:
-                    aktenzeichen = getattr(a, 'aktenzeichen', aktenzeichen)
-                    kurzbezeichnung = getattr(a, 'kurzbezeichnung', kurzbezeichnung)
-                    akte_id = a.akte_id
-                    break
-
-        # Bank ermitteln
-        if projekt.finanzierer_id and projekt.finanzierer_id in st.session_state.users:
-            bank_name = st.session_state.users[projekt.finanzierer_id].name
-
-        eintrag = {
-            'projekt_id': projekt.projekt_id,
-            'akte_id': akte_id,
-            'aktenzeichen': aktenzeichen,
-            'kurzbezeichnung': kurzbezeichnung,
-            'typ': 'Kaufvertrag',
-            'bank': bank_name,
-            'status': status,
-        }
-
-        # In richtiges Stadium einordnen
-        if status in ['Auflassung eingetragen', 'Abgeschlossen']:
-            stadien['stadium_3'].append(eintrag)
-        elif status in ['Kaufpreiseingang bestätigt', 'Schlüsselübergabe']:
-            stadien['stadium_2'].append(eintrag)
-        else:
-            stadien['stadium_1'].append(eintrag)
-
-    return stadien
-
-
-def _render_notar_dashboard_timeline(user_id: str, projekte: list):
-    """Rendert die Timeline am oberen Rand des Dashboards"""
-    st.markdown("""
-    <style>
-    .notar-timeline-bar {
-        display: flex;
-        gap: 8px;
-        padding: 10px 15px;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border-radius: 10px;
-        overflow-x: auto;
-        margin-bottom: 10px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-    .timeline-chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        white-space: nowrap;
-        color: white;
-        flex-shrink: 0;
-    }
-    .timeline-chip.vorbereitung { background: #3498db; }
-    .timeline-chip.finanzierung { background: #9b59b6; }
-    .timeline-chip.beurkundung { background: #e74c3c; }
-    .timeline-chip.nachkauf { background: #f39c12; }
-    .timeline-chip.abgeschlossen { background: #27ae60; }
-
-    /* Responsive Notar-Timeline */
-    @media screen and (max-width: 575px) {
-        .notar-timeline-bar {
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 8px 10px;
-        }
-        .timeline-chip {
-            padding: 4px 8px;
-            font-size: 10px;
-            flex: 0 0 auto;
-        }
-    }
-
-    @media screen and (min-width: 576px) and (max-width: 767px) {
-        .notar-timeline-bar {
-            gap: 6px;
-            padding: 8px 12px;
-        }
-        .timeline-chip {
-            padding: 5px 10px;
-            font-size: 11px;
-        }
-    }
-
-    @media screen and (min-width: 768px) and (max-width: 1023px) {
-        .timeline-chip {
-            padding: 5px 10px;
-            font-size: 11px;
-        }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Zähle Projekte nach Status-Kategorie
-    vorbereitung = 0
-    finanzierung = 0
-    beurkundung = 0
-    nachkauf = 0
-    abgeschlossen = 0
-
-    for p in projekte:
-        s = p.status
-        if s in ['Vorbereitung', 'Expose erstellt', 'Teilnehmer eingeladen',
-                 'Onboarding läuft', 'Dokumente vollständig', 'Wirtschaftsdaten hochgeladen']:
-            vorbereitung += 1
-        elif s in ['Finanzierung angefragt', 'Finanzierung gesichert']:
-            finanzierung += 1
-        elif s in ['Notartermin vereinbart', 'Kaufvertrag unterzeichnet']:
-            beurkundung += 1
-        elif s in ['Auflassungsvormerkung eingetragen', 'Vorkaufsrecht erteilt',
-                   'Löschungsbewilligung vorhanden', 'Kaufpreisfälligkeit',
-                   'Unbedenklichkeitsbescheinigung', 'Kaufpreiseingang bestätigt',
-                   'Schlüsselübergabe', 'Auflassung eingetragen']:
-            nachkauf += 1
-        elif s == 'Abgeschlossen':
-            abgeschlossen += 1
-
-    chips_html = f"""
-    <div class="notar-timeline-bar">
-        <span class="timeline-chip vorbereitung">📋 Vorbereitung: {vorbereitung}</span>
-        <span class="timeline-chip finanzierung">💰 Finanzierung: {finanzierung}</span>
-        <span class="timeline-chip beurkundung">⚖️ Beurkundung: {beurkundung}</span>
-        <span class="timeline-chip nachkauf">📝 Nach Kaufvertrag: {nachkauf}</span>
-        <span class="timeline-chip abgeschlossen">✅ Abgeschlossen: {abgeschlossen}</span>
-    </div>
-    """
-    st.markdown(chips_html, unsafe_allow_html=True)
-
-
-def _render_notar_termine_widget(termine: list, heute):
-    """Rendert das Widget für Termine des Tages (LINKS OBEN)"""
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-                padding: 15px; border-radius: 12px; border: 1px solid #e0e0e0;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
-        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
-            {heute.strftime('%A, %d. %B %Y')}
-        </div>
-        <div style="font-weight: 600; font-size: 16px; color: #1a1a2e; margin-bottom: 15px;">
-            📅 Termine des Tages
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Container für klickbare Termine
-    if not termine:
-        st.info("Keine Termine für heute")
-    else:
-        for i, termin in enumerate(termine[:6]):
-            col_time, col_info = st.columns([1, 3])
-
-            with col_time:
-                st.markdown(f"**{termin['uhrzeit']}**")
-
-            with col_info:
-                # Klickbarer Button für Akte
-                btn_label = f"{termin['aktenzeichen']} - {termin['kurzbezeichnung'][:25]}"
-                if termin.get('akte_id') or termin.get('projekt_id'):
-                    if st.button(f"📁 {btn_label}", key=f"termin_akte_{i}", use_container_width=True):
-                        if termin.get('akte_id'):
-                            st.session_state['notar_open_akte_id'] = termin['akte_id']
-                            st.session_state['notar_open_projekt_id'] = None
-                            st.session_state['notar_highlight_doc'] = None
-                        elif termin.get('projekt_id'):
-                            st.session_state['notar_open_projekt_id'] = termin['projekt_id']
-                            st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_current_view'] = 'akten'
-                        st.rerun()
-                else:
-                    st.markdown(f"📁 {btn_label}")
-
-
-def _render_notar_posteingang_widget(posteingang: list, user_id: str):
-    """Rendert das Posteingang-Widget (RECHTS OBEN)"""
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-                padding: 15px; border-radius: 12px; border: 1px solid #e0e0e0;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
-        <div style="font-weight: 600; font-size: 16px; color: #1a1a2e; margin-bottom: 15px;">
-            📬 Posteingang
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if not posteingang:
-        st.info("Keine neuen Eingänge")
-    else:
-        for i, eintrag in enumerate(posteingang[:5]):
-            # Status-Farbe
-            if eintrag.get('ist_dringend'):
-                status_icon = "🔴"
-            elif eintrag.get('status') == 'erledigt':
-                status_icon = "✅"
-            else:
-                status_icon = "🟡"
-
-            col1, col2 = st.columns([1, 2])
-
-            with col1:
-                st.markdown(f"**{eintrag['datum']}**")
-                st.caption(f"{eintrag['sender_name']}")
-
-            with col2:
-                # Klickbares Aktenzeichen
-                if st.button(f"📁 {eintrag['aktenzeichen']}", key=f"post_akte_{i}", use_container_width=True):
-                    if eintrag.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = eintrag['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_highlight_doc'] = eintrag['dok_id']
-                    elif eintrag.get('projekt_id'):
-                        st.session_state['notar_open_projekt_id'] = eintrag['projekt_id']
-                        st.session_state['notar_open_akte_id'] = None
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-                # Klickbares Dokument
-                if st.button(f"📄 {eintrag['dokument_name'][:20]}... {status_icon}",
-                            key=f"post_dok_{i}", use_container_width=True):
-                    if eintrag.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = eintrag['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_highlight_doc'] = eintrag['dok_id']
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-            if eintrag.get('frist'):
-                st.caption(f"⏰ Frist: {eintrag['frist']}")
-
-            st.markdown("---")
-
-
-def _render_notar_entwurf_widget(entwurf_akten: list, user_id: str):
-    """Rendert das Widget für Akten die Urkundsentwurf benötigen (LINKS UNTEN)"""
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-                padding: 15px; border-radius: 12px; border: 1px solid #ffc107;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
-        <div style="font-weight: 600; font-size: 16px; color: #856404; margin-bottom: 15px;">
-            📝 Urkundsentwurf erforderlich
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if not entwurf_akten:
-        st.success("Alle Entwürfe aktuell")
-    else:
-        for i, akte in enumerate(entwurf_akten[:5]):
-            st.markdown(f"**{akte['aktenzeichen']}** - {akte['kurzbezeichnung'][:30]}")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Zur Akte navigieren (manueller Assistent)
-                if st.button("📋 Urkundenassistent", key=f"entwurf_manuell_{i}", use_container_width=True):
-                    if akte.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = akte['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_show_assistent'] = True
-                    elif akte.get('projekt_id'):
-                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                        st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_show_assistent'] = True
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-            with col2:
-                # KI-Entwurf
-                if st.button("🤖 Urkunde-KI", key=f"entwurf_ki_{i}", use_container_width=True):
-                    if akte.get('akte_id'):
-                        st.session_state['notar_open_akte_id'] = akte['akte_id']
-                        st.session_state['notar_open_projekt_id'] = None
-                        st.session_state['notar_show_ki'] = True
-                    elif akte.get('projekt_id'):
-                        st.session_state['notar_open_projekt_id'] = akte['projekt_id']
-                        st.session_state['notar_open_akte_id'] = None
-                        st.session_state['notar_show_ki'] = True
-                    st.session_state['notar_current_view'] = 'akten'
-                    st.rerun()
-
-            if akte.get('braucht_finale_urkunde'):
-                st.caption("⚡ Finale Urkunde erforderlich")
-
-            st.markdown("---")
-
-
-def _render_notar_beurkundete_widget(stadien: dict, user_id: str):
-    """Rendert das Widget für beurkundete Verträge nach 3 Stadien (RECHTS UNTEN)"""
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-                padding: 15px; border-radius: 12px; border: 1px solid #4caf50;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 280px;">
-        <div style="font-weight: 600; font-size: 16px; color: #2e7d32; margin-bottom: 15px;">
-            ✅ Beurkundete Verträge
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Tabs für die 3 Stadien
-    tab1, tab2, tab3 = st.tabs([
-        f"1️⃣ Fälligkeit ({len(stadien['stadium_1'])})",
-        f"2️⃣ Kaufpreis ({len(stadien['stadium_2'])})",
-        f"3️⃣ Eingetragen ({len(stadien['stadium_3'])})"
+    # KPI-Karten
+    render_kpi_cards([
+        {'icon': '📋', 'value': str(aktive_projekte), 'label': 'Aktive Akten', 'type': 'success'},
+        {'icon': '✍️', 'value': str(beurkundungen), 'label': 'Beurkundungen', 'type': 'info'},
+        {'icon': '📅', 'value': '0', 'label': 'Anstehende Termine', 'type': ''},
+        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
     ])
 
-    with tab1:
-        st.caption("Kaufpreisfälligkeit raus?")
-        if not stadien['stadium_1']:
-            st.info("Keine Vorgänge")
-        for i, v in enumerate(stadien['stadium_1'][:3]):
-            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
-                        key=f"stadium1_{i}", use_container_width=True):
-                if v.get('akte_id'):
-                    st.session_state['notar_open_akte_id'] = v['akte_id']
-                    st.session_state['notar_open_projekt_id'] = None
-                elif v.get('projekt_id'):
-                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
-                    st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_current_view'] = 'akten'
-                st.rerun()
-            if v.get('bank'):
-                st.caption(f"🏦 {v['bank']}")
+    # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
+    render_notar_timeline_kompakt(user_id)
 
-    with tab2:
-        st.caption("Kaufpreis & Darlehen bestätigt")
-        if not stadien['stadium_2']:
-            st.info("Keine Vorgänge")
-        for i, v in enumerate(stadien['stadium_2'][:3]):
-            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
-                        key=f"stadium2_{i}", use_container_width=True):
-                if v.get('akte_id'):
-                    st.session_state['notar_open_akte_id'] = v['akte_id']
-                    st.session_state['notar_open_projekt_id'] = None
-                elif v.get('projekt_id'):
-                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
-                    st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_current_view'] = 'akten'
-                st.rerun()
-            if v.get('bank'):
-                st.caption(f"🏦 {v['bank']}")
+    # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
+    st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
+    render_notar_hauptmenu_leiste()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    with tab3:
-        st.caption("Auflassung/Grundschuld eingetragen")
-        if not stadien['stadium_3']:
-            st.info("Keine Vorgänge")
-        for i, v in enumerate(stadien['stadium_3'][:3]):
-            if st.button(f"📁 {v['aktenzeichen']} - {v['kurzbezeichnung'][:20]}",
-                        key=f"stadium3_{i}", use_container_width=True):
-                if v.get('akte_id'):
-                    st.session_state['notar_open_akte_id'] = v['akte_id']
-                    st.session_state['notar_open_projekt_id'] = None
-                elif v.get('projekt_id'):
-                    st.session_state['notar_open_projekt_id'] = v['projekt_id']
-                    st.session_state['notar_open_akte_id'] = None
-                st.session_state['notar_current_view'] = 'akten'
-                st.rerun()
-
-
-def _render_notar_akte_detail(user_id: str, akte_id: str):
-    """Rendert die Akten-Detailansicht mit Ordnerstruktur"""
-    from datetime import datetime
-
-    # Akte laden
-    akte = None
-    if hasattr(st.session_state, 'akten') and akte_id in st.session_state.akten:
-        akte = st.session_state.akten[akte_id]
-
-    # Zurück-Button
-    col_back, col_title = st.columns([1, 4])
-    with col_back:
-        if st.button("⬅️ Zurück zum Dashboard", key="back_to_dashboard"):
-            st.session_state['notar_open_akte_id'] = None
-            st.session_state['notar_highlight_doc'] = None
-            st.session_state['notar_show_assistent'] = False
-            st.session_state['notar_show_ki'] = False
-            st.rerun()
-
-    with col_title:
-        if akte:
-            st.markdown(f"### 📁 {getattr(akte, 'aktenzeichen', akte_id)}")
-            st.caption(getattr(akte, 'kurzbezeichnung', ''))
-        else:
-            st.markdown(f"### 📁 Akte {akte_id[:8]}")
-
-    # Timeline der Akte am oberen Rand
-    _render_akte_timeline(akte)
-
-    st.markdown("---")
-
-    # Entscheidungen/Aktionen für das Dokument
-    highlight_doc = st.session_state.get('notar_highlight_doc')
-    if highlight_doc:
-        _render_dokument_aktionen(highlight_doc, user_id)
-        st.markdown("---")
-
-    # Ordnerstruktur
-    col_folders, col_content = st.columns([1, 2])
-
-    with col_folders:
-        st.markdown("#### 📂 Ordner")
-
-        # Standard-Ordner für Notar
-        ordner = [
-            {"key": "entwuerfe", "name": "📝 Entwürfe", "icon": "📝"},
-            {"key": "urkunden", "name": "📜 Urkunden", "icon": "📜"},
-            {"key": "grundbuch", "name": "📋 Grundbuch", "icon": "📋"},
-            {"key": "parteien", "name": "👥 Parteien", "icon": "👥"},
-            {"key": "korrespondenz", "name": "💬 Korrespondenz", "icon": "💬"},
-            {"key": "sonstiges", "name": "📎 Sonstiges", "icon": "📎"},
-        ]
-
-        current_folder = st.session_state.get('notar_akte_folder', 'entwuerfe')
-
-        for o in ordner:
-            is_active = o['key'] == current_folder
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(o['name'], key=f"folder_{o['key']}", use_container_width=True, type=btn_type):
-                st.session_state['notar_akte_folder'] = o['key']
-                st.rerun()
-
-    with col_content:
-        st.markdown(f"#### Dokumente im Ordner")
-        _render_ordner_dokumente(akte_id, current_folder, highlight_doc)
-
-    # Urkundenassistent oder KI anzeigen
-    if st.session_state.get('notar_show_assistent'):
-        st.markdown("---")
-        _render_urkunden_assistent(akte, user_id)
-
-    if st.session_state.get('notar_show_ki'):
-        st.markdown("---")
-        _render_urkunden_ki(akte, user_id)
-
-
-def _render_notar_projekt_detail(user_id: str, projekt_id: str):
-    """Rendert die Projekt-Detailansicht (für Projekte ohne formelle Akte)"""
-    from datetime import datetime
-
-    # Projekt laden
-    projekt = st.session_state.projekte.get(projekt_id)
-
-    # Zurück-Button
-    col_back, col_title = st.columns([1, 4])
-    with col_back:
-        if st.button("⬅️ Zurück zur Übersicht", key="back_to_akten_list"):
-            st.session_state['notar_open_projekt_id'] = None
-            st.session_state['notar_open_akte_id'] = None
-            st.rerun()
-
-    with col_title:
-        if projekt:
-            st.markdown(f"### 📁 {projekt.name or projekt.adresse or projekt_id[:8].upper()}")
-            st.caption(f"Status: {projekt.status}")
-        else:
-            st.markdown(f"### 📁 Projekt {projekt_id[:8]}")
-
-    if not projekt:
-        st.warning("Projekt nicht gefunden")
-        return
-
-    # Projekt-Status Timeline
-    _render_projekt_status_timeline(projekt)
-
-    st.markdown("---")
-
-    # Projekt-Details in zwei Spalten
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        st.markdown("#### 📋 Projektdaten")
-        st.markdown(f"**Adresse:** {projekt.adresse or '-'}")
-        if projekt.kaufpreis:
-            st.markdown(f"**Kaufpreis:** {projekt.kaufpreis:,.0f} €")
-        st.markdown(f"**Status:** {projekt.status}")
-
-        # Parteien
-        st.markdown("#### 👥 Beteiligte")
-        if projekt.kaeufer_id:
-            kaeufer = st.session_state.users.get(projekt.kaeufer_id)
-            if kaeufer:
-                st.markdown(f"**Käufer:** {kaeufer.vorname} {kaeufer.nachname}")
-        if projekt.verkaeufer_id:
-            verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
-            if verkaeufer:
-                st.markdown(f"**Verkäufer:** {verkaeufer.vorname} {verkaeufer.nachname}")
-        if projekt.makler_id:
-            makler = st.session_state.users.get(projekt.makler_id)
-            if makler:
-                st.markdown(f"**Makler:** {makler.vorname} {makler.nachname}")
-
-    with col_right:
-        st.markdown("#### 📄 Dokumente")
-        # Dokumente des Projekts anzeigen
-        projekt_docs = []
-        if hasattr(st.session_state, 'dokumente'):
-            for dok in st.session_state.dokumente.values():
-                if getattr(dok, 'projekt_id', None) == projekt_id:
-                    projekt_docs.append(dok)
-
-        if projekt_docs:
-            for dok in projekt_docs[:10]:  # Max 10 anzeigen
-                dok_name = getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument'))
-                dok_status = getattr(dok, 'status', 'hochgeladen')
-                st.markdown(f"- 📄 {dok_name} ({dok_status})")
-            if len(projekt_docs) > 10:
-                st.caption(f"... und {len(projekt_docs) - 10} weitere")
-        else:
-            st.info("Keine Dokumente vorhanden")
-
-    st.markdown("---")
-
-    # Aktionen
-    st.markdown("#### ⚡ Aktionen")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("📝 Akte anlegen", key="create_akte_from_projekt", use_container_width=True):
-            # Formelle Akte für das Projekt erstellen
-            from uuid import uuid4
-            akte_id = str(uuid4())
-
-            # Neue Akte erstellen
-            if not hasattr(st.session_state, 'akten'):
-                st.session_state.akten = {}
-
-            # Einfaches Akten-Objekt erstellen
-            class Akte:
-                pass
-
-            neue_akte = Akte()
-            neue_akte.akte_id = akte_id
-            neue_akte.projekt_id = projekt_id
-            neue_akte.notar_id = user_id
-            neue_akte.aktenzeichen = f"UR-{datetime.now().strftime('%Y%m%d')}-{len(st.session_state.akten) + 1:03d}"
-            neue_akte.kurzbezeichnung = projekt.name or projekt.adresse or ''
-            neue_akte.status = 'Neu'
-            neue_akte.erstellt_am = datetime.now()
-
-            st.session_state.akten[akte_id] = neue_akte
-
-            # Zur neuen Akte wechseln
-            st.session_state['notar_open_akte_id'] = akte_id
-            st.session_state['notar_open_projekt_id'] = None
-            st.success("Akte angelegt!")
-            st.rerun()
-
-    with col2:
-        if st.button("💬 Nachricht senden", key="send_msg_projekt", use_container_width=True):
-            st.session_state['notar_current_view'] = 'nachrichten'
-            st.session_state['selected_projekt_id'] = projekt_id
-            st.rerun()
-
-    with col3:
-        if st.button("📅 Termin planen", key="plan_termin_projekt", use_container_width=True):
-            st.session_state['notar_current_view'] = 'termine'
-            st.session_state['selected_projekt_id'] = projekt_id
-            st.rerun()
-
-
-def _render_projekt_status_timeline(projekt):
-    """Rendert die Status-Timeline eines Projekts"""
-    status = projekt.status if projekt else 'Vorbereitung'
-
-    # Standard-Status-Schritte
-    schritte = [
-        ('Vorbereitung', 'Vorbereitung'),
-        ('Finanzierung', 'Finanzierung'),
-        ('Beurkundung', 'Beurkundung'),
-        ('Nach Kaufvertrag', 'Vollzug'),
-        ('Abgeschlossen', 'Abschluss'),
-    ]
-
-    # Aktuellen Schritt finden
-    current_idx = 0
-    for i, (s, _) in enumerate(schritte):
-        if status == s:
-            current_idx = i
-            break
-
-    # Timeline HTML
-    timeline_html = '<div style="display: flex; gap: 5px; margin: 10px 0;">'
-    for i, (_, label) in enumerate(schritte):
-        if i < current_idx:
-            color = "#27ae60"
-            icon = "✓"
-        elif i == current_idx:
-            color = "#f39c12"
-            icon = "●"
-        else:
-            color = "#bdc3c7"
-            icon = "○"
-
-        timeline_html += f'''
-        <div style="flex: 1; text-align: center; padding: 5px;
-                    background: {color}22; border-radius: 5px; border: 1px solid {color};">
-            <div style="color: {color}; font-size: 14px;">{icon}</div>
-            <div style="font-size: 10px; color: #666;">{label}</div>
+    # Kompakte Breadcrumb-Navigation
+    if aktueller_bereich and aktive_gruppe:
+        st.markdown(f"""
+        <div class="breadcrumb-nav">
+            {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
         </div>
-        '''
-    timeline_html += '</div>'
+        """, unsafe_allow_html=True)
 
-    st.markdown(timeline_html, unsafe_allow_html=True)
+    # Inhalt rendern
+    render_notar_content(selection, user_id)
 
-
-def _render_akte_timeline(akte):
-    """Rendert die Timeline einer spezifischen Akte"""
-    if not akte:
-        return
-
-    status = getattr(akte, 'status', 'Neu')
-
-    # Timeline-Schritte für Notar-Akte
-    schritte = [
-        ('Neu', 'Angelegt'),
-        ('In Bearbeitung', 'Bearbeitung'),
-        ('Entwurf erstellt', 'Entwurf'),
-        ('Beurkundet', 'Beurkundung'),
-        ('Vollzug', 'Vollzug'),
-        ('Abgeschlossen', 'Abschluss'),
-    ]
-
-    # Aktuellen Schritt finden
-    current_idx = 0
-    for i, (s, _) in enumerate(schritte):
-        if status == s:
-            current_idx = i
-            break
-
-    # Timeline HTML
-    timeline_html = '<div style="display: flex; gap: 5px; margin: 10px 0;">'
-    for i, (_, label) in enumerate(schritte):
-        if i < current_idx:
-            color = "#27ae60"
-            icon = "✓"
-        elif i == current_idx:
-            color = "#f39c12"
-            icon = "●"
-        else:
-            color = "#bdc3c7"
-            icon = "○"
-
-        timeline_html += f'''
-        <div style="flex: 1; text-align: center; padding: 5px;
-                    background: {color}22; border-radius: 5px; border: 1px solid {color};">
-            <div style="color: {color}; font-size: 14px;">{icon}</div>
-            <div style="font-size: 10px; color: #666;">{label}</div>
-        </div>
-        '''
-    timeline_html += '</div>'
-
-    st.markdown(timeline_html, unsafe_allow_html=True)
-
-
-def _render_dokument_aktionen(dok_id: str, user_id: str):
-    """Rendert Aktionen für ein spezifisches Dokument"""
-    st.markdown("#### 📄 Dokumentaktionen")
-
-    # Dokument laden
-    dok = None
-    if hasattr(st.session_state, 'dokumente') and dok_id in st.session_state.dokumente:
-        dok = st.session_state.dokumente[dok_id]
-
-    if dok:
-        dok_name = getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument'))
-        st.info(f"Ausgewähltes Dokument: **{dok_name}**")
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("✅ Als erledigt markieren", key="dok_erledigt"):
-                if hasattr(dok, 'status'):
-                    dok.status = 'erledigt'
-                st.success("Dokument als erledigt markiert")
-                st.rerun()
-
-        with col2:
-            if st.button("📤 An Partei senden", key="dok_senden"):
-                st.session_state['show_send_dialog'] = True
-
-        with col3:
-            if st.button("📝 In Entwurf übernehmen", key="dok_entwurf"):
-                st.session_state['notar_show_assistent'] = True
-                st.rerun()
-    else:
-        st.warning("Dokument nicht gefunden")
-
-    # Highlight entfernen
-    if st.button("❌ Auswahl aufheben", key="clear_highlight"):
-        st.session_state['notar_highlight_doc'] = None
-        st.rerun()
-
-
-def _render_ordner_dokumente(akte_id: str, folder: str, highlight_doc: str = None):
-    """Rendert die Dokumente eines Ordners"""
-    dokumente = []
-
-    # Dokumente aus Session State laden
-    if hasattr(st.session_state, 'dokumente'):
-        for dok_id, dok in st.session_state.dokumente.items():
-            # Prüfe ob Dokument zur Akte gehört
-            dok_akte_id = getattr(dok, 'akte_id', None)
-            if dok_akte_id != akte_id:
-                continue
-
-            # Ordner-Zuordnung (vereinfacht)
-            dok_typ = getattr(dok, 'typ', getattr(dok, 'dokument_typ', 'sonstiges'))
-            dok_folder = 'sonstiges'
-
-            if 'entwurf' in dok_typ.lower() or 'vertrag' in dok_typ.lower():
-                dok_folder = 'entwuerfe'
-            elif 'urkunde' in dok_typ.lower() or 'beurkund' in dok_typ.lower():
-                dok_folder = 'urkunden'
-            elif 'grundbuch' in dok_typ.lower():
-                dok_folder = 'grundbuch'
-            elif 'ausweis' in dok_typ.lower() or 'vollmacht' in dok_typ.lower():
-                dok_folder = 'parteien'
-            elif 'nachricht' in dok_typ.lower() or 'mail' in dok_typ.lower():
-                dok_folder = 'korrespondenz'
-
-            if dok_folder == folder:
-                dokumente.append({
-                    'dok_id': dok_id,
-                    'name': getattr(dok, 'name', getattr(dok, 'dateiname', 'Dokument')),
-                    'erstellt_am': getattr(dok, 'erstellt_am', None),
-                    'is_highlighted': dok_id == highlight_doc,
-                })
-
-    if not dokumente:
-        st.info("Keine Dokumente in diesem Ordner")
-    else:
-        for dok in dokumente:
-            # Hervorhebung wenn highlighted
-            if dok['is_highlighted']:
-                st.markdown(f"""
-                <div style="background: #fff3cd; padding: 10px; border-radius: 8px;
-                            border: 2px solid #ffc107; margin: 5px 0;">
-                    📄 <strong>{dok['name']}</strong> ⬅️ Aktuell ausgewählt
-                </div>
-                """, unsafe_allow_html=True)
-
-            if st.button(f"📄 {dok['name']}", key=f"dok_{dok['dok_id']}", use_container_width=True):
-                st.session_state['notar_highlight_doc'] = dok['dok_id']
-                st.rerun()
-
-
-def _render_urkunden_assistent(akte, user_id: str):
-    """Rendert den Urkundenassistenten (Step-by-Step)"""
-    st.markdown("### 📋 Urkundenassistent")
-    st.info("Erstellen Sie Ihre Urkunde Schritt für Schritt mit Textbausteinen")
-
-    # Schließen-Button
-    if st.button("❌ Assistent schließen", key="close_assistent"):
-        st.session_state['notar_show_assistent'] = False
-        st.rerun()
-
-    # Schritte des Assistenten
-    current_step = st.session_state.get('assistent_step', 1)
-
-    st.progress(current_step / 6)
-
-    steps = [
-        "1. Vertragsparteien",
-        "2. Kaufgegenstand",
-        "3. Kaufpreis & Zahlungsmodalitäten",
-        "4. Auflassung & Besitzübergang",
-        "5. Haftung & Gewährleistung",
-        "6. Schlussbestimmungen"
-    ]
-
-    st.markdown(f"**Aktueller Schritt:** {steps[current_step - 1]}")
-
-    # Textbaustein-Vorschläge (basierend auf Akteninhalt)
-    st.markdown("#### Vorgeschlagene Textbausteine:")
-
-    with st.expander("📝 Standardtext verwenden", expanded=True):
-        st.text_area("Text bearbeiten:", value="[Textbaustein wird basierend auf Akteninhalt vorgeschlagen]",
-                    height=150, key=f"baustein_{current_step}")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if current_step > 1:
-            if st.button("⬅️ Zurück", key="step_back"):
-                st.session_state['assistent_step'] = current_step - 1
-                st.rerun()
-
-    with col2:
-        if current_step < 6:
-            if st.button("Weiter ➡️", key="step_next", type="primary"):
-                st.session_state['assistent_step'] = current_step + 1
-                st.rerun()
-        else:
-            if st.button("✅ Urkunde fertigstellen", key="step_finish", type="primary"):
-                st.success("Urkunde wurde erstellt!")
-                st.session_state['notar_show_assistent'] = False
-                st.rerun()
-
-
-def _render_urkunden_ki(akte, user_id: str):
-    """Rendert die KI-gestützte Urkundenerstellung"""
-    st.markdown("### 🤖 Urkunde-KI")
-    st.info("Lassen Sie die KI einen ersten Entwurf basierend auf den Aktendokumenten erstellen")
-
-    # Schließen-Button
-    if st.button("❌ KI-Modus schließen", key="close_ki"):
-        st.session_state['notar_show_ki'] = False
-        st.rerun()
-
-    # KI-Optionen
-    vertragstyp = st.selectbox("Vertragstyp:",
-                               ["Kaufvertrag", "Grundschuldbestellung", "Überlassungsvertrag", "Erbvertrag"],
-                               key="ki_vertragstyp")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.checkbox("Alle Parteien-Daten verwenden", value=True, key="ki_parteien")
-        st.checkbox("Grundbuchdaten übernehmen", value=True, key="ki_grundbuch")
-
-    with col2:
-        st.checkbox("Finanzierungsdaten einbeziehen", value=True, key="ki_finanz")
-        st.checkbox("Standard-Klauseln verwenden", value=True, key="ki_klauseln")
-
-    if st.button("🚀 KI-Entwurf generieren", key="generate_ki", type="primary", use_container_width=True):
-        with st.spinner("KI erstellt Entwurf..."):
-            import time
-            time.sleep(2)  # Simulierte Verarbeitung
-
-        st.success("Entwurf wurde erstellt!")
-        st.markdown("#### Generierter Entwurf:")
-        st.text_area("", value=f"""
-KAUFVERTRAG
-
-Urkundennummer: [wird vergeben]
-Verhandelt am: [Datum]
-
-Vor mir, dem unterzeichnenden Notar, erschienen heute:
-
-1. [Verkäufer-Daten aus Akte]
-   - nachstehend "Verkäufer" genannt -
-
-2. [Käufer-Daten aus Akte]
-   - nachstehend "Käufer" genannt -
-
-§ 1 Kaufgegenstand
-[Immobiliendaten aus Grundbuch]
-
-§ 2 Kaufpreis
-[Kaufpreis aus Akte]
-
-[Weitere Paragraphen...]
-        """, height=400, key="ki_result")
-
-
-def _get_notar_aufgaben(user_id: str, projekte: list) -> list:
-    """Holt die Aufgaben für den Notar"""
-    aufgaben = []
-
-    for projekt in projekte[:3]:
-        if projekt.status == "Notar":
-            aufgaben.append({'text': f'Beurkundung: {projekt.name}', 'completed': False})
-        elif "Kaufvertrag" in projekt.status:
-            aufgaben.append({'text': f'Vertrag prüfen: {projekt.name}', 'completed': False})
-
-    if not aufgaben:
-        aufgaben = [
-            {'text': 'Neue Akten prüfen', 'completed': False},
-            {'text': 'Termine bestätigen', 'completed': False},
-            {'text': 'Grundbuchanträge', 'completed': True},
-        ]
-
-    return aufgaben
-
-
-def _get_notar_nachrichten(user_id: str) -> list:
-    """Holt die letzten Nachrichten für den Notar"""
-    nachrichten = []
-
-    if hasattr(st.session_state, 'nachrichten'):
-        for n in list(st.session_state.nachrichten.values())[:5]:
-            if getattr(n, 'empfaenger_id', None) == user_id:
-                sender_name = "System"
-                sender_id = getattr(n, 'sender_id', None)
-                if sender_id and sender_id in st.session_state.users:
-                    sender_name = st.session_state.users[sender_id].name
-                nachrichten.append({
-                    'sender': sender_name,
-                    'text': getattr(n, 'betreff', getattr(n, 'inhalt', 'Neue Nachricht'))[:50]
-                })
-
-    if not nachrichten:
-        nachrichten = [
-            {'sender': 'System', 'text': 'Willkommen im Notar-Portal!'},
-        ]
-
-    return nachrichten
-
-
-def _get_notar_vorgaenge(projekte: list) -> list:
-    """Holt die Vorgänge des Notars"""
-    vorgaenge = []
-
-    for projekt in projekte[:5]:
-        status = 'offen' if projekt.status != 'Abgeschlossen' else 'ok'
-        vorgaenge.append({
-            'id': projekt.projekt_id[:8].upper(),
-            'address': projekt.adresse or projekt.name,
-            'status': status,
-            'status_text': projekt.status
-        })
-
-    if not vorgaenge:
-        vorgaenge = [
-            {'id': 'INFO', 'address': 'Noch keine Vorgänge', 'status': 'offen', 'status_text': 'Warten'}
-        ]
-
-    return vorgaenge
-
-
-def _get_notar_timeline_steps(projekte: list) -> list:
-    """Holt Timeline-Schritte für den Notar"""
-    if not projekte:
-        return [
-            {'text': 'Akte anlegen', 'status': 'pending'},
-            {'text': 'Kaufvertrag erstellen', 'status': 'pending'},
-            {'text': 'Beurkundung', 'status': 'pending'},
-        ]
-
-    projekt = projekte[0]
-    steps = []
-
-    # Notar-spezifische Schritte
-    step_names = [
-        'Vorbereitung',
-        'Dokumente sammeln',
-        'Vertragsentwurf',
-        'Beurkundung',
-        'Grundbuch',
-        'Abschluss'
-    ]
-
-    # Fortschritt basierend auf Status
-    fortschritt = berechne_projekt_fortschritt(projekt.projekt_id) if 'berechne_projekt_fortschritt' in dir() else 0
-    current_step = int(fortschritt / 100 * len(step_names))
-
-    for i, name in enumerate(step_names):
-        if i < current_step:
-            status = 'done'
-        elif i == current_step:
-            status = 'active'
-        else:
-            status = 'pending'
-        steps.append({'text': name, 'status': status})
-
-    return steps
-
-
-def _get_notar_dokumente(user_id: str) -> list:
-    """Holt relevante Dokumente für den Notar"""
-    return [
-        {'name': 'Kaufvertragsentwurf', 'status': 'vorliegend'},
-        {'name': 'Grundbuchauszug', 'status': 'vorliegend'},
-        {'name': 'Finanzierungsnachweis', 'status': 'fehlt'},
-        {'name': 'Personalausweise', 'status': 'optional'},
-        {'name': 'Vollmachten', 'status': 'optional'},
-    ]
+    # Bottom Navigation für Mobile (wird nur auf Mobile angezeigt via CSS)
+    render_notar_bottom_nav()
 
 
 def berechne_projekt_fortschritt(projekt_id: str) -> int:
@@ -34846,50 +29419,14 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text.""".format(text=text[:4000])
 
     import re
 
-    # === AKTENVORBLATT-FORMAT PARSING ===
-    # Im Aktenvorblatt: Auftraggeber = Verkäufer, Gegner = Käufer
+    # Käufer/Verkäufer Muster
+    kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if kaeufer_match:
+        ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
 
-    # Auftraggeber (= Verkäufer im Aktenvorblatt-Format)
-    auftraggeber_match = re.search(r'Auftraggeber[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if auftraggeber_match:
-        ergebnis["verkaeufer"] = [{"name": auftraggeber_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
-
-    # Gegner (= Käufer im Aktenvorblatt-Format)
-    gegner_match = re.search(r'Gegner[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if gegner_match:
-        ergebnis["kaeufer"] = [{"name": gegner_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
-
-    # Standard Käufer/Verkäufer Muster (falls Auftraggeber/Gegner nicht gefunden)
-    if not ergebnis["kaeufer"]:
-        kaeufer_match = re.search(r'(?:Käufer|Erwerber)[:\s]+([^\n]+)', text, re.IGNORECASE)
-        if kaeufer_match:
-            ergebnis["kaeufer"] = [{"name": kaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
-
-    if not ergebnis["verkaeufer"]:
-        verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
-        if verkaeufer_match:
-            ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
-
-    # === AKTEN-METADATEN AUS AKTENVORBLATT ===
-    # Aktennummer/Aktenzeichen (oben rechts im Aktenvorblatt)
-    aktennr_match = re.search(r'Aktennr\.?[:\s]+([^\n\s]+)', text, re.IGNORECASE)
-    if aktennr_match:
-        ergebnis["aktenzeichen"] = aktennr_match.group(1).strip()
-
-    # Notar-Kürzel aus "SB / Referat:" (z.B. SQ = Sven-Bryde Meier)
-    sb_match = re.search(r'(?:SB|Sachbearbeiter)[:\s/]*(?:Referat)?[:\s]*([A-Z]{1,3})', text, re.IGNORECASE)
-    if sb_match:
-        ergebnis["notar_kuerzel"] = sb_match.group(1).strip().upper()
-
-    # Anlagedatum aus "angelegt am:"
-    angelegt_match = re.search(r'angelegt\s+am[:\s]+(\d{1,2}[./]\d{1,2}[./]\d{2,4})', text, re.IGNORECASE)
-    if angelegt_match:
-        ergebnis["angelegt_am"] = angelegt_match.group(1).strip()
-
-    # Titel der Akte (oft in der oberen rechten Ecke)
-    titel_match = re.search(r'(?:Akte|Vorgang|Betreff)[:\s]+([^\n]+)', text, re.IGNORECASE)
-    if titel_match:
-        ergebnis["akte_titel"] = titel_match.group(1).strip()
+    verkaeufer_match = re.search(r'(?:Verkäufer|Veräußerer)[:\s]+([^\n]+)', text, re.IGNORECASE)
+    if verkaeufer_match:
+        ergebnis["verkaeufer"] = [{"name": verkaeufer_match.group(1).strip(), "adresse": "", "geburtsdatum": ""}]
 
     # Kaufpreis
     preis_match = re.search(r'(?:Kaufpreis|Preis)[:\s]+([0-9.,]+)\s*(?:EUR|€)?', text, re.IGNORECASE)
@@ -35340,17 +29877,8 @@ def render_akten_import():
                 'dateiname': uploaded_file.name
             }
 
-        # pdf_bytes aus Session State holen oder neu lesen
-        # WICHTIG: Bei Form-Submit kann der File-Stream leer sein
-        if st.session_state.akten_import_state.get('pdf_bytes') and len(st.session_state.akten_import_state['pdf_bytes']) > 0:
-            pdf_bytes = st.session_state.akten_import_state['pdf_bytes']
-        else:
-            pdf_bytes = uploaded_file.read()
-            if pdf_bytes and len(pdf_bytes) > 0:
-                st.session_state.akten_import_state['pdf_bytes'] = pdf_bytes
-            elif st.session_state.akten_import_state.get('pdf_bytes'):
-                # Fallback auf gespeicherte Bytes
-                pdf_bytes = st.session_state.akten_import_state['pdf_bytes']
+        pdf_bytes = uploaded_file.read()
+        st.session_state.akten_import_state['pdf_bytes'] = pdf_bytes
 
         # === SCHRITT 1: PDF ANALYSE ===
         st.markdown("---")
@@ -35431,41 +29959,10 @@ def render_akten_import():
         if beteiligte:
             st.success(f"✅ Beteiligte erkannt mit: {beteiligte.get('ki_verwendet', 'Unbekannt')}")
 
-            # === AKTENVORBLATT-METADATEN ===
-            if beteiligte.get('aktenzeichen') or beteiligte.get('notar_kuerzel') or beteiligte.get('angelegt_am'):
-                st.markdown("#### 📋 Akten-Metadaten (aus Aktenvorblatt)")
-                col_meta1, col_meta2, col_meta3 = st.columns(3)
-                with col_meta1:
-                    if beteiligte.get('aktenzeichen'):
-                        st.write(f"**Aktenzeichen:** {beteiligte['aktenzeichen']}")
-                    if beteiligte.get('akte_titel'):
-                        st.write(f"**Titel:** {beteiligte['akte_titel']}")
-                with col_meta2:
-                    if beteiligte.get('notar_kuerzel'):
-                        # Notar-Kürzel Mapping
-                        notar_mapping = {
-                            'SQ': 'Sven-Bryde Meier',
-                            'SM': 'Sven Meier',
-                            # Weitere Kürzel können hier ergänzt werden
-                        }
-                        notar_name = notar_mapping.get(beteiligte['notar_kuerzel'], '')
-                        if notar_name:
-                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']} ({notar_name})")
-                        else:
-                            st.write(f"**Notar (SB):** {beteiligte['notar_kuerzel']}")
-                with col_meta3:
-                    if beteiligte.get('angelegt_am'):
-                        st.write(f"**Angelegt am:** {beteiligte['angelegt_am']}")
-
-                st.markdown("---")
-
-            # Hinweis auf Aktenvorblatt-Terminologie
-            st.caption("ℹ️ Im Aktenvorblatt: **Auftraggeber** = Verkäufer, **Gegner** = Käufer")
-
             col_b1, col_b2 = st.columns(2)
 
             with col_b1:
-                st.markdown("#### 🏠 Käufer (Gegner)")
+                st.markdown("#### 🏠 Käufer")
                 if beteiligte.get('kaeufer'):
                     for k in beteiligte['kaeufer']:
                         if isinstance(k, dict):
@@ -35480,7 +29977,7 @@ def render_akten_import():
                     st.write("*Keine Käufer erkannt*")
 
             with col_b2:
-                st.markdown("#### 🏷️ Verkäufer (Auftraggeber)")
+                st.markdown("#### 🏷️ Verkäufer")
                 if beteiligte.get('verkaeufer'):
                     for v in beteiligte['verkaeufer']:
                         if isinstance(v, dict):
@@ -35535,22 +30032,8 @@ def render_akten_import():
 
             # Tabelle mit Zuordnungen
             with st.expander("📋 Dokumente bearbeiten", expanded=True):
-                # Header
-                col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([0.5, 3, 1, 1, 2])
-                with col_h1:
-                    st.write("✓")
-                with col_h2:
-                    st.write("**Dokument**")
-                with col_h3:
-                    st.write("**Seite**")
-                with col_h4:
-                    st.write("**Ansicht**")
-                with col_h5:
-                    st.write("**Ordner**")
-                st.markdown("---")
-
                 for i, eintrag in enumerate(dokument_eintraege[:50]):  # Max 50
-                    col_check, col_titel, col_seite, col_view, col_ordner = st.columns([0.5, 3, 1, 1, 2])
+                    col_check, col_titel, col_seite, col_ordner = st.columns([0.5, 3, 1, 2])
 
                     with col_check:
                         aktiv = st.checkbox(
@@ -35565,25 +30048,7 @@ def render_akten_import():
                         st.write(f"**{eintrag['titel'][:50]}**" + ("..." if len(eintrag['titel']) > 50 else ""))
 
                     with col_seite:
-                        # Berechne Seitenbereich
-                        start_seite = eintrag['seite']
-                        if i + 1 < len(dokument_eintraege):
-                            end_seite = dokument_eintraege[i + 1]['seite'] - 1
-                        else:
-                            end_seite = struktur.get('seiten_anzahl', start_seite)
-                        if start_seite == end_seite:
-                            st.write(f"S. {start_seite}")
-                        else:
-                            st.write(f"S. {start_seite}-{end_seite}")
-
-                    with col_view:
-                        if st.button("👁️", key=f"view_dok_{i}", help=f"Dokument ansehen (Seite {start_seite})"):
-                            st.session_state['akten_preview_doc'] = {
-                                'titel': eintrag['titel'],
-                                'start_seite': start_seite,
-                                'end_seite': end_seite,
-                                'index': i
-                            }
+                        st.write(f"S. {eintrag['seite']}")
 
                     with col_ordner:
                         aktueller_ordner = zuordnungen.get(i, {}).get('ordner', 'Sonstiges')
@@ -35599,55 +30064,6 @@ def render_akten_import():
 
                 if len(dokument_eintraege) > 50:
                     st.info(f"*... und {len(dokument_eintraege) - 50} weitere Dokumente*")
-
-            # === DOKUMENTEN-VORSCHAU ===
-            if st.session_state.get('akten_preview_doc') and pdf_bytes:
-                preview_info = st.session_state['akten_preview_doc']
-                with st.expander(f"📄 Vorschau: {preview_info['titel']}", expanded=True):
-                    st.markdown(f"**Seiten {preview_info['start_seite']} bis {preview_info['end_seite']}**")
-
-                    col_prev, col_close = st.columns([4, 1])
-                    with col_close:
-                        if st.button("❌ Schließen", key="close_preview"):
-                            del st.session_state['akten_preview_doc']
-                            st.rerun()
-
-                    # PDF-Seiten extrahieren und anzeigen
-                    try:
-                        import io
-                        from PyPDF2 import PdfReader, PdfWriter
-                        import base64
-
-                        reader = PdfReader(io.BytesIO(pdf_bytes))
-                        writer = PdfWriter()
-
-                        # 0-basierter Index
-                        start_idx = max(0, preview_info['start_seite'] - 1)
-                        end_idx = min(len(reader.pages), preview_info['end_seite'])
-
-                        for page_num in range(start_idx, end_idx):
-                            writer.add_page(reader.pages[page_num])
-
-                        # Extrahiertes PDF als Bytes
-                        output = io.BytesIO()
-                        writer.write(output)
-                        preview_pdf_bytes = output.getvalue()
-
-                        # Download-Button für das extrahierte Dokument
-                        st.download_button(
-                            label=f"📥 Download: {preview_info['titel'][:30]}...",
-                            data=preview_pdf_bytes,
-                            file_name=f"{preview_info['titel'][:50].replace('/', '-')}.pdf",
-                            mime="application/pdf"
-                        )
-
-                        # PDF Base64 für Anzeige
-                        pdf_base64 = base64.b64encode(preview_pdf_bytes).decode('utf-8')
-                        pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="600" type="application/pdf"></iframe>'
-                        st.markdown(pdf_display, unsafe_allow_html=True)
-
-                    except Exception as e:
-                        st.error(f"Fehler bei der Vorschau: {str(e)}")
 
             # Zusammenfassung
             aktive_docs = sum(1 for z in zuordnungen.values() if z.get('aktiv', True))
@@ -35757,31 +30173,15 @@ def render_akten_import():
                             'dateiname': None
                         }
 
-                        # Import erfolgreich - merken für Tab-Wechsel
-                        st.session_state['akten_import_erfolg'] = {
-                            'akte_id': akte.akte_id,
-                            'bezeichnung': bezeichnung,
-                            'dokumente': len(akte.dokumente),
-                            'ordner': len(akte.ordner),
-                            'kaeufer': akte.kaeufer_namen,
-                            'verkaeufer': akte.verkaeufer_namen
-                        }
-
-                        # Debug: Bestätigen dass Akte gespeichert wurde
                         st.success(f"✅ Akte '{bezeichnung}' wurde erfolgreich importiert!")
                         st.info(f"📊 {len(akte.dokumente)} Dokumente in {len(akte.ordner)} Ordnern erstellt.")
-                        st.info(f"🆔 Akte-ID: {akte.akte_id} | Notar-ID: {akte.notar_id}")
-                        st.info(f"📂 Gesamt-Akten im System: {len(st.session_state.importierte_akten)}")
 
                         if akte.kaeufer_namen:
                             st.info(f"👥 Käufer: {', '.join(akte.kaeufer_namen)}")
                         if akte.verkaeufer_namen:
                             st.info(f"👥 Verkäufer: {', '.join(akte.verkaeufer_namen)}")
 
-                        st.balloons()
-
-                        # Hinweis zum Wechseln zum Verwaltungs-Tab
-                        st.success("📂 Wechseln Sie zum Tab **'Akten verwalten'** um Ihre importierte Akte zu sehen.")
+                        st.rerun()
 
 
 def erstelle_akte_aus_pdf_erweitert(
@@ -35976,23 +30376,6 @@ def render_akten_verwaltung():
 
     notar_id = st.session_state.current_user.user_id
 
-    # Debug-Info anzeigen falls kürzlich importiert
-    if st.session_state.get('akten_import_erfolg'):
-        erfolg = st.session_state['akten_import_erfolg']
-        st.success(f"✅ Zuletzt importiert: **{erfolg['bezeichnung']}** (ID: {erfolg['akte_id']})")
-        # Import-Erfolg-Nachricht nur einmal anzeigen
-        del st.session_state['akten_import_erfolg']
-
-    # Debug: Alle Akten im System anzeigen
-    alle_akten = st.session_state.importierte_akten
-    if alle_akten:
-        with st.expander("🔧 Debug: Alle Akten im System", expanded=False):
-            st.write(f"**Aktuelle Notar-ID:** {notar_id}")
-            st.write(f"**Gesamt-Akten im System:** {len(alle_akten)}")
-            for aid, a in alle_akten.items():
-                match_status = "✅ MATCH" if a.notar_id == notar_id else "❌ Keine Übereinstimmung"
-                st.write(f"- **{a.bezeichnung}** (Akte-ID: {aid[:8]}) | Notar-ID: {a.notar_id} | {match_status}")
-
     # Nur Akten des aktuellen Notars
     meine_akten = {
         akte_id: akte
@@ -36002,7 +30385,6 @@ def render_akten_verwaltung():
 
     if not meine_akten:
         st.info("📭 Noch keine Akten importiert. Nutzen Sie den Tab 'Neue Akte importieren' um Akten hochzuladen.")
-        st.caption(f"ℹ️ Ihre Notar-ID: {notar_id}")
         return
 
     # Akten-Liste
@@ -36796,8 +31178,11 @@ def notarmitarbeiter_dashboard():
     """Dashboard für Notar-Mitarbeiter"""
     mitarbeiter = st.session_state.current_user
 
-    # Fixierte Topbar mit Rolle links und User rechts
-    render_fixed_topbar("⚖️", "Notar-Mitarbeiter")
+    st.title("⚖️ Notar-Mitarbeiter-Dashboard")
+    st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
+
+    # Benachrichtigungs-Badge in der Sidebar
+    render_benachrichtigungs_badge(mitarbeiter.user_id)
 
     # Tab-Liste basierend auf Berechtigungen
     tab_labels = ["📊 Timeline", "📋 Projekte"]
@@ -42879,6 +37264,32 @@ def main():
         login_page()
         return
 
+    # Sidebar
+    with st.sidebar:
+        st.markdown("### 👤 Angemeldet als:")
+        st.write(f"**{st.session_state.current_user.name}**")
+
+        # Unterschiedliche Anzeige für Mitarbeiter vs normale Benutzer
+        if st.session_state.get("is_notar_mitarbeiter", False):
+            st.caption(f"Rolle: Notar-Mitarbeiter ({st.session_state.current_user.rolle})")
+            st.caption(f"E-Mail: {st.session_state.current_user.email}")
+        else:
+            st.caption(f"Rolle: {st.session_state.current_user.rolle}")
+            st.caption(f"E-Mail: {st.session_state.current_user.email}")
+
+        if st.button("🚪 Abmelden", use_container_width=True):
+            logout()
+
+        # Benachrichtigungen nur für normale Benutzer (Mitarbeiter haben keine user_id)
+        if not st.session_state.get("is_notar_mitarbeiter", False):
+            render_notifications()
+
+        st.markdown("---")
+        st.markdown("### ℹ️ System-Info")
+        st.caption(f"Benutzer: {len(st.session_state.users)}")
+        st.caption(f"Projekte: {len(st.session_state.projekte)}")
+        st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
+
     # Hauptbereich
     # Prüfe ob Mitarbeiter oder normaler Benutzer
     if st.session_state.get("is_notar_mitarbeiter", False):
@@ -42888,8 +37299,6 @@ def main():
 
         if role == UserRole.MAKLER.value:
             makler_dashboard()
-        elif role == UserRole.INTERESSENT.value:
-            interessent_dashboard()
         elif role == UserRole.KAEUFER.value:
             kaeufer_dashboard()
         elif role == UserRole.VERKAEUFER.value:
