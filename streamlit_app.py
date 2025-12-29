@@ -7667,6 +7667,7 @@ def init_session_state():
         create_demo_makler_empfehlungen()
         create_demo_handwerker()
         create_demo_notar_rechtsdokumente()
+        create_demo_notar_mitarbeiter()
 
 def create_demo_users():
     """Erstellt Demo-Benutzer für alle Rollen"""
@@ -7952,6 +7953,34 @@ Das Widerrufsrecht erlischt bei Verträgen zur Erbringung von Dienstleistungen, 
             'pflicht': True
         }
     }
+
+
+def create_demo_notar_mitarbeiter():
+    """Erstellt Demo-Notar-Mitarbeiter (Notarfachkraft) für das Demo-Notariat"""
+    if 'notar_mitarbeiter' not in st.session_state:
+        st.session_state.notar_mitarbeiter = {}
+
+    # Demo-Notarfachkraft für notar1 (Nina Notar)
+    demo_mitarbeiter = NotarMitarbeiter(
+        mitarbeiter_id="notarma_demo1",
+        notar_id="notar1",
+        name="Sabine Sachbearbeiter",
+        email="notarfachkraft@demo.de",
+        password_hash=hash_password("notarfachkraft123"),
+        rolle=NotarMitarbeiterRolle.SACHBEARBEITER.value,
+        kann_checklisten_bearbeiten=True,
+        kann_dokumente_freigeben=True,
+        kann_termine_verwalten=True,
+        kann_finanzierung_sehen=True,
+        projekt_ids=["projekt1"],
+        aktiv=True
+    )
+    st.session_state.notar_mitarbeiter[demo_mitarbeiter.mitarbeiter_id] = demo_mitarbeiter
+
+    # Zusätzlich Mitarbeiter-Kürzel speichern
+    if 'mitarbeiter_kuerzel' not in st.session_state:
+        st.session_state.mitarbeiter_kuerzel = {}
+    st.session_state.mitarbeiter_kuerzel["notarma_demo1"] = "SS"
 
 
 def hash_password(password: str) -> str:
@@ -13897,6 +13926,7 @@ def login_page():
     demo_logins_row2 = [
         ("🏦 Finanzierer", "finanz@demo.de", "finanz123", "Frank Finanzierer"),
         ("⚖️ Notar", "notar@demo.de", "notar123", "Nina Notar"),
+        ("📋 Notarfachkraft", "notarfachkraft@demo.de", "notarfachkraft123", "Sabine Sachbearbeiter"),
     ]
 
     # Erste Zeile: Makler, Interessent, Käufer, Verkäufer
@@ -13925,31 +13955,46 @@ def login_page():
                         )
                         st.rerun()
 
-    # Zweite Zeile: Finanzierer, Notar
-    cols2 = st.columns(2)
+    # Zweite Zeile: Finanzierer, Notar, Notarfachkraft
+    cols2 = st.columns(3)
     for idx, (label, email, password, name) in enumerate(demo_logins_row2):
         with cols2[idx]:
             if st.button(label, key=f"demo_login_row2_{idx}", use_container_width=True):
-                # Demo-Benutzer finden und einloggen
-                for u in st.session_state.users.values():
-                    if u.email == email:
-                        st.session_state.current_user = u
-                        st.session_state.is_notar_mitarbeiter = False
+                # Notarfachkraft ist ein Mitarbeiter, kein normaler Benutzer
+                if "notarfachkraft" in email:
+                    for ma in st.session_state.notar_mitarbeiter.values():
+                        if ma.email == email and ma.aktiv:
+                            st.session_state.current_user = ma
+                            st.session_state.is_notar_mitarbeiter = True
 
-                        # Login-Event tracken
-                        safe_track_interaktion(
-                            interaktions_typ='login',
-                            details={'rolle': u.rolle, 'demo_login': True},
-                            nutzer_id=u.user_id
-                        )
+                            # Login-Event tracken
+                            safe_track_interaktion(
+                                interaktions_typ='login',
+                                details={'rolle': 'notar_mitarbeiter', 'mitarbeiter_rolle': ma.rolle, 'demo_login': True},
+                                nutzer_id=ma.mitarbeiter_id
+                            )
+                            st.rerun()
+                else:
+                    # Demo-Benutzer finden und einloggen
+                    for u in st.session_state.users.values():
+                        if u.email == email:
+                            st.session_state.current_user = u
+                            st.session_state.is_notar_mitarbeiter = False
 
-                        create_notification(
-                            u.user_id,
-                            "Willkommen!",
-                            f"Demo-Login als {u.rolle} erfolgreich.",
-                            NotificationType.SUCCESS.value
-                        )
-                        st.rerun()
+                            # Login-Event tracken
+                            safe_track_interaktion(
+                                interaktions_typ='login',
+                                details={'rolle': u.rolle, 'demo_login': True},
+                                nutzer_id=u.user_id
+                            )
+
+                            create_notification(
+                                u.user_id,
+                                "Willkommen!",
+                                f"Demo-Login als {u.rolle} erfolgreich.",
+                                NotificationType.SUCCESS.value
+                            )
+                            st.rerun()
 
     with st.expander("📋 Demo-Zugangsdaten (manuell)"):
         st.markdown("""
@@ -13964,6 +14009,8 @@ def login_page():
         **Finanzierer:** `finanz@demo.de` | `finanz123`
 
         **Notar:** `notar@demo.de` | `notar123`
+
+        **Notarfachkraft:** `notarfachkraft@demo.de` | `notarfachkraft123`
         """)
 
 def logout():
