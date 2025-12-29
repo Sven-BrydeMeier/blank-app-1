@@ -23069,8 +23069,8 @@ def render_notar_hauptmenu_leiste() -> str:
                         aktive_gruppe = gruppe_name
                         break
 
-    # Horizontale Button-Leiste (5 Gruppen)
-    cols = st.columns(5)
+    # Horizontale Button-Leiste (dynamisch nach Anzahl der Gruppen)
+    cols = st.columns(len(NOTAR_MENU_STRUKTUR))
 
     for i, (gruppe_name, gruppe_data) in enumerate(NOTAR_MENU_STRUKTUR.items()):
         with cols[i]:
