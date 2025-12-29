@@ -3398,6 +3398,204 @@ class GrundbuchAnfrage:
     abteilung_2: str = ""  # Lasten und Beschränkungen
     abteilung_3: str = ""  # Hypotheken, Grundschulden
     notizen: str = ""
+    # NEU: Extrahierte Belastungen aus OCR
+    belastungen_abt2: List[Dict] = field(default_factory=list)  # Lasten/Beschränkungen
+    belastungen_abt3: List[Dict] = field(default_factory=list)  # Hypotheken/Grundschulden
+
+
+class GrundbuchBelastungTyp(Enum):
+    """Typen von Grundbuch-Belastungen"""
+    # Abteilung II - Lasten und Beschränkungen
+    WEGERECHT = "Wegerecht"
+    LEITUNGSRECHT = "Leitungsrecht"
+    WOHNRECHT = "Wohnrecht"
+    NIESSBRAUCH = "Nießbrauch"
+    VORKAUFSRECHT = "Vorkaufsrecht"
+    REALLAST = "Reallast"
+    DIENSTBARKEIT = "Dienstbarkeit"
+    AUFLASSUNGSVORMERKUNG = "Auflassungsvormerkung"
+    ZWANGSVERSTEIGERUNGSVERMERK = "Zwangsversteigerungsvermerk"
+    INSOLVENZ = "Insolvenzvermerk"
+    SONSTIGE_ABT2 = "Sonstige (Abt. II)"
+    # Abteilung III - Hypotheken, Grundschulden, Rentenschulden
+    GRUNDSCHULD = "Grundschuld"
+    HYPOTHEK = "Hypothek"
+    RENTENSCHULD = "Rentenschuld"
+    SICHERUNGSHYPOTHEK = "Sicherungshypothek"
+    SONSTIGE_ABT3 = "Sonstige (Abt. III)"
+
+
+class LoeschungsStatus(Enum):
+    """Status einer Löschungsanforderung"""
+    OFFEN = "Offen"
+    ANGEFRAGT = "Löschungsbewilligung angefragt"
+    BEWILLIGUNG_ERHALTEN = "Löschungsbewilligung erhalten"
+    ZUR_LOESCHUNG_BEANTRAGT = "Beim Grundbuchamt beantragt"
+    GELOESCHT = "Gelöscht"
+    UEBERNOMMEN = "Vom Käufer übernommen"
+    NICHT_ERFORDERLICH = "Löschung nicht erforderlich"
+
+
+class KaeuferEntscheidungStatus(Enum):
+    """Status der Käufer-Entscheidung zu Belastungen"""
+    AUSSTEHEND = "Ausstehend"
+    UEBERNEHMEN = "Käufer übernimmt"
+    LOESCHEN = "Löschung angefordert"
+    WIRD_GEPRUEFT = "Wird geprüft"
+
+
+@dataclass
+class GrundbuchBelastung:
+    """Einzelne Belastung aus dem Grundbuch (Abt. II oder III)"""
+    belastung_id: str
+    projekt_id: str
+    grundbuch_anfrage_id: str
+    # Grundbuchdaten
+    abteilung: int  # 2 oder 3
+    lfd_nr: str  # Laufende Nummer im Grundbuch
+    belastung_typ: str  # GrundbuchBelastungTyp.value
+    # Beschreibung
+    bezeichnung: str  # z.B. "Grundschuld ohne Brief"
+    betrag: float = 0.0  # Bei Abt. III: Betrag in EUR
+    waehrung: str = "EUR"
+    glaeubiger: str = ""  # z.B. Bank-Name bei Grundschuld
+    # Rechteinhaber / Begünstigter (bei Abt. II)
+    rechteinhaber: str = ""
+    # Zusatzinfos
+    eingetragen_am: Optional[date] = None
+    bezug: str = ""  # z.B. "Flst. 123/4"
+    bemerkungen: str = ""
+    volltext: str = ""  # Original-Text aus OCR
+    # Status
+    kaeufer_entscheidung: str = KaeuferEntscheidungStatus.AUSSTEHEND.value
+    loeschung_status: str = LoeschungsStatus.OFFEN.value
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class LoeschungsAnforderung:
+    """ToDo-Item für eine Löschungsanforderung"""
+    anforderung_id: str
+    projekt_id: str
+    belastung_id: str  # Referenz auf GrundbuchBelastung
+    # Glaubigerinformationen
+    glaeubiger_name: str
+    glaeubiger_adresse: str = ""
+    glaeubiger_ansprechpartner: str = ""
+    glaeubiger_telefon: str = ""
+    glaeubiger_email: str = ""
+    # Löschungsbewilligung
+    bewilligung_angefragt_am: Optional[datetime] = None
+    bewilligung_erhalten_am: Optional[datetime] = None
+    bewilligung_dokument: Optional[bytes] = None
+    bewilligung_dateiname: str = ""
+    # Status & Ablösung
+    status: str = LoeschungsStatus.OFFEN.value
+    abloese_betrag: float = 0.0
+    abloese_konto: str = ""  # IBAN für Ablösung
+    abloese_verwendungszweck: str = ""
+    # Fristen
+    frist_datum: Optional[date] = None
+    prioritaet: int = 1  # 1=hoch, 2=mittel, 3=niedrig
+    # Notizen
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class KaeuferBelastungsAbfrage:
+    """Abfrage an Käufer: Recht übernehmen oder löschen lassen?"""
+    abfrage_id: str
+    projekt_id: str
+    belastung_id: str
+    kaeufer_id: str
+    # Abfrage-Status
+    gesendet_am: Optional[datetime] = None
+    beantwortet_am: Optional[datetime] = None
+    entscheidung: str = KaeuferEntscheidungStatus.AUSSTEHEND.value
+    begruendung: str = ""  # Optionale Begründung des Käufers
+    # Benachrichtigung
+    benachrichtigung_gesendet: bool = False
+
+
+@dataclass
+class BankGrundschuldInfo:
+    """Informationen zur finanzierenden Bank für Grundschuldbestellung"""
+    info_id: str
+    projekt_id: str
+    kaeufer_id: str
+    # Bank-Daten
+    bank_name: str
+    bank_adresse: str = ""
+    bank_blz: str = ""
+    bank_bic: str = ""
+    # Ansprechpartner
+    ansprechpartner_name: str = ""
+    ansprechpartner_telefon: str = ""
+    ansprechpartner_email: str = ""
+    # Grundschuld-Details
+    grundschuld_betrag: float = 0.0
+    grundschuld_zinsen: float = 0.0  # z.B. 15% als Sicherheit
+    mit_brief: bool = False  # Briefgrundschuld oder Buchgrundschuld
+    # Status
+    entwurf_angefordert: bool = False
+    entwurf_erhalten_am: Optional[datetime] = None
+    entwurf_dokument: Optional[bytes] = None
+    # Notizen
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class MietverhaeltnisInfo:
+    """Informationen zu bestehenden Mietverhältnissen"""
+    info_id: str
+    projekt_id: str
+    # Mietobjekt
+    einheit_bezeichnung: str  # z.B. "EG links", "Wohnung 1"
+    # Mieter
+    mieter_name: str
+    mieter_adresse: str = ""
+    mieter_telefon: str = ""
+    mieter_email: str = ""
+    # Mietvertrag
+    mietvertrag_datum: Optional[date] = None
+    miete_kalt: float = 0.0
+    miete_warm: float = 0.0
+    kaution: float = 0.0
+    # Kündigungsfristen
+    kuendigungsfrist_monate: int = 3
+    sonderkuendigungsrecht: bool = False
+    sonderkuendigungsrecht_details: str = ""
+    # Status
+    kaeufer_informiert: bool = False
+    informiert_am: Optional[datetime] = None
+    # Dokumente
+    mietvertrag_dokument: Optional[bytes] = None
+    # Notizen
+    notizen: str = ""
+
+
+@dataclass
+class WorkflowBenachrichtigung:
+    """Benachrichtigung an Parteien nach Workflow-Schritten"""
+    benachrichtigung_id: str
+    projekt_id: str
+    # Empfänger
+    empfaenger_ids: List[str] = field(default_factory=list)
+    empfaenger_typ: str = ""  # "Käufer", "Verkäufer", "Bank", "Alle"
+    # Inhalt
+    workflow_schritt: str = ""  # z.B. "Grundbuch geprüft", "Entwurf versendet"
+    betreff: str = ""
+    nachricht: str = ""
+    # Optionen
+    kann_abgewaehlt_werden: bool = True  # Empfänger kann Benachrichtigung abwählen
+    abgewaehlt_von: List[str] = field(default_factory=list)
+    # Status
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    gesendet_am: Optional[datetime] = None
+    gelesen_von: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -7511,6 +7709,14 @@ def init_session_state():
         st.session_state.grunderwerbsteuer_meldungen = {}  # ID -> GrunderwerbsteuerMeldung
         st.session_state.vorkaufsrecht_anfragen = {}  # ID -> VorkaufsrechtAnfrage
 
+        # NEU: Grundbuch-Belastungen & Löschungsanforderungen
+        st.session_state.grundbuch_belastungen = {}  # ID -> GrundbuchBelastung
+        st.session_state.loeschungs_anforderungen = {}  # ID -> LoeschungsAnforderung
+        st.session_state.kaeufer_belastungs_abfragen = {}  # ID -> KaeuferBelastungsAbfrage
+        st.session_state.bank_grundschuld_infos = {}  # ID -> BankGrundschuldInfo
+        st.session_state.mietverhaeltnis_infos = {}  # ID -> MietverhaeltnisInfo
+        st.session_state.workflow_benachrichtigungen = {}  # ID -> WorkflowBenachrichtigung
+
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
 
@@ -10473,6 +10679,537 @@ Geschlecht: {geschlecht}
 """
 
     return personal_daten, ocr_text
+
+
+# ============================================================================
+# GRUNDBUCH OCR - Extraktion von Abteilungen II und III
+# ============================================================================
+
+def ocr_grundbuch_mit_ki(pdf_data: bytes, api_keys: Dict) -> Dict:
+    """
+    Extrahiert Grundbuch-Abteilungen II und III aus einem PDF mittels KI.
+
+    Args:
+        pdf_data: PDF als Bytes
+        api_keys: Dict mit 'openai' und/oder 'anthropic' Keys
+
+    Returns:
+        Dict mit strukturierten Daten zu Abteilung II und III
+    """
+    import json
+    import base64
+
+    ergebnis = {
+        "erfolg": False,
+        "grundbuch_daten": {
+            "amtsgericht": "",
+            "grundbuchbezirk": "",
+            "blatt": "",
+            "gemarkung": "",
+            "flur": "",
+            "flurstueck": "",
+            "groesse_qm": 0,
+        },
+        "eigentuemer": [],  # Abteilung I
+        "abteilung_2": [],  # Lasten und Beschränkungen
+        "abteilung_3": [],  # Hypotheken, Grundschulden
+        "raw_text": "",
+        "fehler": None
+    }
+
+    # Versuche Text aus PDF zu extrahieren
+    try:
+        from PyPDF2 import PdfReader
+        import io
+
+        reader = PdfReader(io.BytesIO(pdf_data))
+        text = ""
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n\n"
+
+        ergebnis["raw_text"] = text[:5000]  # Für Debug
+
+        if not text.strip():
+            ergebnis["fehler"] = "Kein Text im PDF gefunden. OCR erforderlich."
+            return ergebnis
+
+    except Exception as e:
+        ergebnis["fehler"] = f"PDF-Lesefehler: {str(e)}"
+        return ergebnis
+
+    # KI-Prompt für Grundbuch-Analyse
+    prompt = f"""Analysiere den folgenden Grundbuchauszug-Text und extrahiere alle relevanten Informationen.
+
+TEXT:
+{text[:8000]}
+
+Extrahiere die Daten im folgenden JSON-Format:
+{{
+    "grundbuch_daten": {{
+        "amtsgericht": "Name des Amtsgerichts",
+        "grundbuchbezirk": "Bezirk/Gemeinde",
+        "blatt": "Blattnummer",
+        "gemarkung": "Gemarkung",
+        "flur": "Flurnummer",
+        "flurstueck": "Flurstücksnummer",
+        "groesse_qm": 0
+    }},
+    "eigentuemer": [
+        {{"name": "Name", "anteil": "z.B. 1/2", "seit": "Datum der Eintragung"}}
+    ],
+    "abteilung_2": [
+        {{
+            "lfd_nr": "1",
+            "typ": "Wegerecht|Leitungsrecht|Wohnrecht|Nießbrauch|Vorkaufsrecht|Reallast|Dienstbarkeit|Auflassungsvormerkung|Sonstige",
+            "bezeichnung": "Vollständige Beschreibung der Eintragung",
+            "rechteinhaber": "Name des Berechtigten",
+            "eingetragen_am": "TT.MM.JJJJ oder leer",
+            "bezug": "z.B. zu Gunsten von Flurstück xyz",
+            "bemerkungen": "Zusätzliche Hinweise"
+        }}
+    ],
+    "abteilung_3": [
+        {{
+            "lfd_nr": "1",
+            "typ": "Grundschuld|Hypothek|Rentenschuld|Sicherungshypothek",
+            "betrag": 0.0,
+            "waehrung": "EUR",
+            "zinsen": "z.B. 15% Zinsen",
+            "glaeubiger": "Name der Bank/Gläubiger",
+            "mit_brief": true,
+            "eingetragen_am": "TT.MM.JJJJ oder leer",
+            "bemerkungen": "Zusätzliche Hinweise wie 'zur Zeit kein Eigentümer'"
+        }}
+    ]
+}}
+
+WICHTIG:
+- Bei Abteilung II: Unterscheide zwischen löschungsfähigen Rechten (z.B. alte Grundschulden) und dauerhaften Rechten (z.B. Leitungsrechte)
+- Bei Abteilung III: Extrahiere ALLE eingetragenen Grundschulden/Hypotheken mit Beträgen
+- Beträge immer als Zahl in EUR (auch wenn DM angegeben, dann in EUR umrechnen: 1 EUR = 1.95583 DM)
+- Falls "gelöscht" oder "gerötet" bei einem Eintrag steht, vermerke das in bemerkungen
+
+Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
+
+    # Versuche OpenAI zuerst
+    if api_keys.get('openai'):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_keys['openai'])
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=3000
+            )
+
+            antwort = response.choices[0].message.content.strip()
+
+            # JSON extrahieren
+            if "```json" in antwort:
+                antwort = antwort.split("```json")[1].split("```")[0]
+            elif "```" in antwort:
+                antwort = antwort.split("```")[1].split("```")[0]
+
+            daten = json.loads(antwort)
+
+            ergebnis["erfolg"] = True
+            ergebnis["grundbuch_daten"] = daten.get("grundbuch_daten", ergebnis["grundbuch_daten"])
+            ergebnis["eigentuemer"] = daten.get("eigentuemer", [])
+            ergebnis["abteilung_2"] = daten.get("abteilung_2", [])
+            ergebnis["abteilung_3"] = daten.get("abteilung_3", [])
+            ergebnis["ki_verwendet"] = "OpenAI GPT-4o-mini"
+
+            return ergebnis
+
+        except Exception as e:
+            ergebnis["fehler_openai"] = str(e)
+
+    # Fallback: Anthropic
+    if api_keys.get('anthropic'):
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_keys['anthropic'])
+
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=3000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            antwort = response.content[0].text.strip()
+
+            if "```json" in antwort:
+                antwort = antwort.split("```json")[1].split("```")[0]
+            elif "```" in antwort:
+                antwort = antwort.split("```")[1].split("```")[0]
+
+            daten = json.loads(antwort)
+
+            ergebnis["erfolg"] = True
+            ergebnis["grundbuch_daten"] = daten.get("grundbuch_daten", ergebnis["grundbuch_daten"])
+            ergebnis["eigentuemer"] = daten.get("eigentuemer", [])
+            ergebnis["abteilung_2"] = daten.get("abteilung_2", [])
+            ergebnis["abteilung_3"] = daten.get("abteilung_3", [])
+            ergebnis["ki_verwendet"] = "Anthropic Claude-3-Haiku"
+
+            return ergebnis
+
+        except Exception as e:
+            ergebnis["fehler_anthropic"] = str(e)
+
+    # Kein API-Key verfügbar - Regex-Fallback
+    ergebnis["fehler"] = "Kein API-Key konfiguriert. Bitte OpenAI oder Anthropic API-Key in Einstellungen hinterlegen."
+    ergebnis["ki_verwendet"] = "Keine (API-Key fehlt)"
+
+    # Einfache Regex-Extraktion als Fallback
+    import re
+
+    # Grundbuch-Basisdaten
+    amtsgericht_match = re.search(r'Amtsgericht\s+([^\n,]+)', text, re.IGNORECASE)
+    if amtsgericht_match:
+        ergebnis["grundbuch_daten"]["amtsgericht"] = amtsgericht_match.group(1).strip()
+
+    blatt_match = re.search(r'Blatt\s*(\d+)', text, re.IGNORECASE)
+    if blatt_match:
+        ergebnis["grundbuch_daten"]["blatt"] = blatt_match.group(1)
+
+    gemarkung_match = re.search(r'Gemarkung\s+([^\n,]+)', text, re.IGNORECASE)
+    if gemarkung_match:
+        ergebnis["grundbuch_daten"]["gemarkung"] = gemarkung_match.group(1).strip()
+
+    return ergebnis
+
+
+def erstelle_belastungen_aus_ocr(projekt_id: str, grundbuch_anfrage_id: str, ocr_ergebnis: Dict) -> List[GrundbuchBelastung]:
+    """
+    Erstellt GrundbuchBelastung-Objekte aus dem OCR-Ergebnis.
+
+    Args:
+        projekt_id: ID des Projekts
+        grundbuch_anfrage_id: ID der GrundbuchAnfrage
+        ocr_ergebnis: Ergebnis von ocr_grundbuch_mit_ki()
+
+    Returns:
+        Liste von GrundbuchBelastung-Objekten
+    """
+    belastungen = []
+
+    # Abteilung II verarbeiten
+    for eintrag in ocr_ergebnis.get("abteilung_2", []):
+        belastung_id = f"GB2-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(belastungen)}"
+
+        # Typ bestimmen
+        typ_mapping = {
+            "wegerecht": GrundbuchBelastungTyp.WEGERECHT.value,
+            "leitungsrecht": GrundbuchBelastungTyp.LEITUNGSRECHT.value,
+            "wohnrecht": GrundbuchBelastungTyp.WOHNRECHT.value,
+            "nießbrauch": GrundbuchBelastungTyp.NIESSBRAUCH.value,
+            "niessbrauch": GrundbuchBelastungTyp.NIESSBRAUCH.value,
+            "vorkaufsrecht": GrundbuchBelastungTyp.VORKAUFSRECHT.value,
+            "reallast": GrundbuchBelastungTyp.REALLAST.value,
+            "dienstbarkeit": GrundbuchBelastungTyp.DIENSTBARKEIT.value,
+            "auflassungsvormerkung": GrundbuchBelastungTyp.AUFLASSUNGSVORMERKUNG.value,
+        }
+
+        typ_str = eintrag.get("typ", "").lower()
+        belastung_typ = typ_mapping.get(typ_str, GrundbuchBelastungTyp.SONSTIGE_ABT2.value)
+
+        # Datum parsen
+        eingetragen_am = None
+        if eintrag.get("eingetragen_am"):
+            try:
+                eingetragen_am = datetime.strptime(eintrag["eingetragen_am"], "%d.%m.%Y").date()
+            except:
+                pass
+
+        belastung = GrundbuchBelastung(
+            belastung_id=belastung_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            abteilung=2,
+            lfd_nr=str(eintrag.get("lfd_nr", "")),
+            belastung_typ=belastung_typ,
+            bezeichnung=eintrag.get("bezeichnung", ""),
+            rechteinhaber=eintrag.get("rechteinhaber", ""),
+            eingetragen_am=eingetragen_am,
+            bezug=eintrag.get("bezug", ""),
+            bemerkungen=eintrag.get("bemerkungen", ""),
+            volltext=str(eintrag)
+        )
+        belastungen.append(belastung)
+
+    # Abteilung III verarbeiten
+    for eintrag in ocr_ergebnis.get("abteilung_3", []):
+        belastung_id = f"GB3-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(belastungen)}"
+
+        # Typ bestimmen
+        typ_mapping = {
+            "grundschuld": GrundbuchBelastungTyp.GRUNDSCHULD.value,
+            "hypothek": GrundbuchBelastungTyp.HYPOTHEK.value,
+            "rentenschuld": GrundbuchBelastungTyp.RENTENSCHULD.value,
+            "sicherungshypothek": GrundbuchBelastungTyp.SICHERUNGSHYPOTHEK.value,
+        }
+
+        typ_str = eintrag.get("typ", "").lower()
+        belastung_typ = typ_mapping.get(typ_str, GrundbuchBelastungTyp.SONSTIGE_ABT3.value)
+
+        # Betrag
+        betrag = 0.0
+        try:
+            betrag = float(eintrag.get("betrag", 0) or 0)
+        except:
+            pass
+
+        # Datum parsen
+        eingetragen_am = None
+        if eintrag.get("eingetragen_am"):
+            try:
+                eingetragen_am = datetime.strptime(eintrag["eingetragen_am"], "%d.%m.%Y").date()
+            except:
+                pass
+
+        belastung = GrundbuchBelastung(
+            belastung_id=belastung_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            abteilung=3,
+            lfd_nr=str(eintrag.get("lfd_nr", "")),
+            belastung_typ=belastung_typ,
+            bezeichnung=eintrag.get("bezeichnung", f"{belastung_typ} {betrag:,.2f} EUR"),
+            betrag=betrag,
+            waehrung=eintrag.get("waehrung", "EUR"),
+            glaeubiger=eintrag.get("glaeubiger", ""),
+            eingetragen_am=eingetragen_am,
+            bemerkungen=eintrag.get("bemerkungen", ""),
+            volltext=str(eintrag)
+        )
+        belastungen.append(belastung)
+
+    return belastungen
+
+
+def erstelle_loeschungs_todos_aus_belastungen(projekt_id: str, belastungen: List[GrundbuchBelastung]) -> List[LoeschungsAnforderung]:
+    """
+    Erstellt automatisch Löschungs-ToDos für alle Belastungen in Abteilung III.
+
+    Args:
+        projekt_id: ID des Projekts
+        belastungen: Liste der extrahierten Belastungen
+
+    Returns:
+        Liste von LoeschungsAnforderung-Objekten
+    """
+    todos = []
+
+    for belastung in belastungen:
+        # Nur für Abteilung III (Grundschulden, Hypotheken)
+        if belastung.abteilung != 3:
+            continue
+
+        # Prüfe ob bereits gerötet/gelöscht
+        if "gelöscht" in belastung.bemerkungen.lower() or "gerötet" in belastung.bemerkungen.lower():
+            continue
+
+        anforderung_id = f"LOESCH-{datetime.now().strftime('%Y%m%d%H%M%S')}-{len(todos)}"
+
+        # Priorität basierend auf Betrag
+        prioritaet = 1  # Hoch
+        if belastung.betrag < 50000:
+            prioritaet = 2  # Mittel
+        if belastung.betrag < 10000:
+            prioritaet = 3  # Niedrig
+
+        anforderung = LoeschungsAnforderung(
+            anforderung_id=anforderung_id,
+            projekt_id=projekt_id,
+            belastung_id=belastung.belastung_id,
+            glaeubiger_name=belastung.glaeubiger,
+            status=LoeschungsStatus.OFFEN.value,
+            abloese_betrag=belastung.betrag,
+            prioritaet=prioritaet,
+            notizen=f"Automatisch erstellt aus Grundbuch-OCR. {belastung.belastung_typ}: {belastung.betrag:,.2f} EUR"
+        )
+        todos.append(anforderung)
+
+    return todos
+
+
+def generiere_grundbuchstand_text(projekt_id: str) -> str:
+    """
+    Generiert den Grundbuchstand-Abschnitt für den Kaufvertrag.
+
+    Args:
+        projekt_id: ID des Projekts
+
+    Returns:
+        Formatierter Text für den Kaufvertrag
+    """
+    # Hole Grundbuch-Daten
+    anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
+                if a.projekt_id == projekt_id]
+
+    if not anfragen:
+        return """I. Grundbuchstand
+
+Im Grundbuch des Amtsgerichts [___] von [___] Blatt [___] ist folgender Grundbesitz eingetragen
+unter lfd.-Nr. [___] des Bestandsverzeichnisses:
+
+Gemarkung [___] Flur [___] Flurstück [___]
+Gebäude- und Freifläche [___] qm.
+
+Eigentümer: [___]
+
+Der Grundbesitz ist im Grundbuch wie folgt belastet:
+
+Abteilung II:
+[Keine Eintragungen / Eintragungen sind vom Notar zu ergänzen]
+
+Abteilung III:
+[Keine Eintragungen / Eintragungen sind vom Notar zu ergänzen]
+"""
+
+    anfrage = anfragen[-1]  # Neueste Anfrage
+
+    # Grunddaten
+    amtsgericht = anfrage.amtsgericht or "[___]"
+    bezirk = anfrage.grundbuchbezirk or "[___]"
+    blatt = anfrage.grundbuchblatt or "[___]"
+
+    # Belastungen für dieses Projekt
+    belastungen = [b for b in st.session_state.grundbuch_belastungen.values()
+                   if b.projekt_id == projekt_id]
+
+    abt2_eintraege = [b for b in belastungen if b.abteilung == 2]
+    abt3_eintraege = [b for b in belastungen if b.abteilung == 3]
+
+    # Text zusammenstellen
+    text = f"""I. Grundbuchstand
+
+Im Grundbuch des Amtsgerichts {amtsgericht} von {bezirk} Blatt {blatt} ist folgender Grundbesitz eingetragen:
+
+Eigentümer: {anfrage.abteilung_1 or "[wird ergänzt]"}
+
+Der Grundbesitz ist im Grundbuch wie folgt belastet:
+
+Abteilung II (Lasten und Beschränkungen):
+"""
+
+    if abt2_eintraege:
+        for eintrag in abt2_eintraege:
+            status = ""
+            if eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
+                status = " [wird vom Käufer übernommen]"
+            elif eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.LOESCHEN.value:
+                status = " [zur Löschung vorgesehen]"
+
+            text += f"  Lfd. Nr. {eintrag.lfd_nr}: {eintrag.bezeichnung}"
+            if eintrag.rechteinhaber:
+                text += f" zugunsten {eintrag.rechteinhaber}"
+            text += f"{status}\n"
+    else:
+        text += "  Keine Eintragungen.\n"
+
+    text += "\nAbteilung III (Hypotheken, Grundschulden, Rentenschulden):\n"
+
+    if abt3_eintraege:
+        for eintrag in abt3_eintraege:
+            status = ""
+            if eintrag.loeschung_status == LoeschungsStatus.GELOESCHT.value:
+                status = " [bereits gelöscht]"
+            elif eintrag.loeschung_status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value]:
+                status = " [Löschung in Vorbereitung]"
+            elif eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
+                status = " [wird vom Käufer übernommen]"
+
+            text += f"  Lfd. Nr. {eintrag.lfd_nr}: {eintrag.belastung_typ}"
+            if eintrag.betrag > 0:
+                text += f" über {eintrag.betrag:,.2f} {eintrag.waehrung}"
+            if eintrag.glaeubiger:
+                text += f" zugunsten {eintrag.glaeubiger}"
+            text += f"{status}\n"
+    else:
+        text += "  Keine Eintragungen.\n"
+
+    text += """
+Der Verkäufer verpflichtet sich, den Kaufgegenstand lastenfrei zu übergeben, soweit vorstehend
+nicht anders vereinbart. Die zur Löschung vorgesehenen Belastungen werden durch den Verkäufer
+beseitigt. Die Kosten der Löschung trägt der Verkäufer.
+"""
+
+    return text
+
+
+def sende_workflow_benachrichtigung(
+    projekt_id: str,
+    workflow_schritt: str,
+    betreff: str,
+    nachricht: str,
+    empfaenger_typ: str = "Alle",
+    empfaenger_ids: List[str] = None
+) -> WorkflowBenachrichtigung:
+    """
+    Erstellt und sendet eine Workflow-Benachrichtigung an die Beteiligten.
+
+    Args:
+        projekt_id: ID des Projekts
+        workflow_schritt: z.B. "Grundbuch geprüft"
+        betreff: Betreff der Nachricht
+        nachricht: Inhalt der Nachricht
+        empfaenger_typ: "Käufer", "Verkäufer", "Bank", "Alle"
+        empfaenger_ids: Optionale Liste spezifischer Empfänger-IDs
+
+    Returns:
+        WorkflowBenachrichtigung-Objekt
+    """
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return None
+
+    # Empfänger bestimmen
+    if empfaenger_ids is None:
+        empfaenger_ids = []
+
+        if empfaenger_typ in ["Käufer", "Alle"]:
+            empfaenger_ids.extend(projekt.kaeufer_ids)
+
+        if empfaenger_typ in ["Verkäufer", "Alle"]:
+            empfaenger_ids.extend(projekt.verkaeufer_ids)
+
+        if empfaenger_typ in ["Makler", "Alle"] and projekt.makler_id:
+            empfaenger_ids.append(projekt.makler_id)
+
+    benachrichtigung_id = f"WF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    benachrichtigung = WorkflowBenachrichtigung(
+        benachrichtigung_id=benachrichtigung_id,
+        projekt_id=projekt_id,
+        empfaenger_ids=empfaenger_ids,
+        empfaenger_typ=empfaenger_typ,
+        workflow_schritt=workflow_schritt,
+        betreff=betreff,
+        nachricht=nachricht,
+        erstellt_am=datetime.now(),
+        gesendet_am=datetime.now()
+    )
+
+    # Speichern
+    st.session_state.workflow_benachrichtigungen[benachrichtigung_id] = benachrichtigung
+
+    # Auch als normale Benachrichtigung an jeden Empfänger senden
+    for emp_id in empfaenger_ids:
+        if emp_id not in benachrichtigung.abgewaehlt_von:
+            create_notification(
+                user_id=emp_id,
+                title=betreff,
+                message=nachricht,
+                notification_type=NotificationType.STATUS_UPDATE.value
+            )
+
+    return benachrichtigung
 
 
 def parse_ausweis_ocr_text(ocr_text: str) -> 'PersonalDaten':
@@ -21249,46 +21986,47 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 # NOTAR-BEREICH
 # ============================================================================
 
-# Menüstruktur für Notar-Dashboard - Optimiert für Mobile (5 Hauptgruppen)
+# Menüstruktur für Notar-Dashboard - WORKFLOW-ORIENTIERT (nach Notarablauf)
+# Phase 1: Akte → Phase 2: Grundbuch → Phase 3: Parteien → Phase 4: Finanzierung
+# Phase 5: Kaufvertrag → Phase 6: Beurkundung → Phase 7: Vollzug → Kommunikation
 NOTAR_MENU_STRUKTUR = {
-    "Timeline": {
-        "icon": "📊",
-        "items": [
-            {"name": "Übersicht", "icon": "📈", "key": "timeline"},
-            {"name": "Berichte", "icon": "📊", "key": "reporting"},
-        ]
-    },
     "Akte": {
         "icon": "📁",
         "items": [
-            {"name": "Projekte", "icon": "📋", "key": "projekte"},
-            {"name": "Verwaltung", "icon": "📂", "key": "aktenmanagement"},
+            {"name": "Übersicht", "icon": "🏠", "key": "timeline"},
+            {"name": "Akten", "icon": "📋", "key": "projekte"},
             {"name": "Import", "icon": "📥", "key": "aktenimport"},
         ]
     },
-    "Verträge": {
-        "icon": "📝",
+    "Grundbuch": {
+        "icon": "📚",
         "items": [
-            {"name": "Archiv", "icon": "📚", "key": "vertragsarchiv"},
-            {"name": "Erstellen", "icon": "✍️", "key": "vertragserstellung"},
-            {"name": "Kaufvertrag", "icon": "📜", "key": "kaufvertrag"},
-            {"name": "Vergleich", "icon": "🔄", "key": "vertragsvergleich"},
-            {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
+            {"name": "Auszug & OCR", "icon": "🔍", "key": "datenermittlung"},
+            {"name": "Belastungen", "icon": "⚠️", "key": "_grundbuch_belastungen"},
+            {"name": "Löschungs-ToDos", "icon": "✅", "key": "_loeschungs_todos"},
         ]
     },
-    "Termine": {
-        "icon": "📅",
+    "Finanzierung": {
+        "icon": "💰",
         "items": [
-            {"name": "Kalender", "icon": "📆", "key": "termine"},
-            {"name": "Fristen", "icon": "⏰", "key": "fristen"},
-            {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
+            {"name": "Nachweise", "icon": "📄", "key": "finanzierungsnachweise"},
+            {"name": "Bank-Grundschuld", "icon": "🏦", "key": "bank_grundschuld"},
+            {"name": "Preiseinigungen", "icon": "🤝", "key": "preiseinigungen"},
+        ]
+    },
+    "Kaufvertrag": {
+        "icon": "📜",
+        "items": [
+            {"name": "Erstellen", "icon": "✍️", "key": "kaufvertrag"},
+            {"name": "Vorlagen", "icon": "📋", "key": "vorlagen"},
+            {"name": "Vergleich", "icon": "🔄", "key": "vertragsvergleich"},
         ]
     },
     "Mehr": {
         "icon": "☰",
         "items": [
-            {"name": "Dokumente", "icon": "📄", "key": "_dokumente"},
-            {"name": "Finanzen", "icon": "💰", "key": "_finanzen"},
+            {"name": "Termine", "icon": "📅", "key": "_termine"},
+            {"name": "Vollzug", "icon": "⚡", "key": "_vollzug"},
             {"name": "Kontakte", "icon": "👥", "key": "_kontakte"},
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
             {"name": "System", "icon": "⚙️", "key": "_system"},
@@ -21298,19 +22036,31 @@ NOTAR_MENU_STRUKTUR = {
 
 # Untermenüs für erweiterte Bereiche
 NOTAR_UNTERMENUS = {
-    "_dokumente": [
-        {"name": "Ermittlung", "icon": "🔍", "key": "datenermittlung"},
-        {"name": "Anforderung", "icon": "📋", "key": "dokumentenanforderungen"},
-        {"name": "Freigaben", "icon": "✅", "key": "dokumentenfreigaben"},
-        {"name": "Rechtsdoku", "icon": "⚖️", "key": "rechtsdokumente"},
+    "_grundbuch_belastungen": [
+        {"name": "Abt. II (Lasten)", "icon": "📋", "key": "belastungen_abt2"},
+        {"name": "Abt. III (Grundschulden)", "icon": "💸", "key": "belastungen_abt3"},
+        {"name": "Käufer-Abfrage", "icon": "❓", "key": "kaeufer_abfrage"},
     ],
-    "_finanzen": [
-        {"name": "Preise", "icon": "🤝", "key": "preiseinigungen"},
-        {"name": "Finanzierung", "icon": "💵", "key": "finanzierungsnachweise"},
+    "_loeschungs_todos": [
+        {"name": "Offene ToDos", "icon": "🔴", "key": "loeschung_offen"},
+        {"name": "In Bearbeitung", "icon": "🟡", "key": "loeschung_bearbeitung"},
+        {"name": "Erledigt", "icon": "🟢", "key": "loeschung_erledigt"},
+    ],
+    "_termine": [
+        {"name": "Kalender", "icon": "📆", "key": "termine"},
+        {"name": "Fristen", "icon": "⏰", "key": "fristen"},
+        {"name": "Checklisten", "icon": "✓", "key": "checklisten"},
+        {"name": "Beurkundung", "icon": "✒️", "key": "beurkundung"},
+    ],
+    "_vollzug": [
+        {"name": "Status", "icon": "📊", "key": "vollzug_status"},
+        {"name": "Grunderwerbsteuer", "icon": "🏛️", "key": "grunderwerbsteuer"},
+        {"name": "Auflassung", "icon": "📜", "key": "auflassung"},
+        {"name": "Eigentumsumschreibung", "icon": "📖", "key": "eigentumsumschreibung"},
     ],
     "_kontakte": [
+        {"name": "Parteien", "icon": "👥", "key": "ausweisdaten"},
         {"name": "Mitarbeiter", "icon": "👤", "key": "mitarbeiter"},
-        {"name": "Ausweise", "icon": "🪪", "key": "ausweisdaten"},
         {"name": "Makler", "icon": "🤝", "key": "maklerempfehlung"},
         {"name": "Handwerker", "icon": "🔧", "key": "handwerker"},
     ],
@@ -22469,6 +23219,81 @@ def render_notar_content(selection: str, user_id: str):
         Die Übergabe erfolgt zum vereinbarten Termin.
         """
         render_tts_controls(demo_text, "notar_demo_tts", user_id)
+
+    # === NEUE WORKFLOW-ORIENTIERTE MENÜPUNKTE ===
+
+    elif selection == "bank_grundschuld":
+        notar_bank_grundschuld()
+
+    elif selection in ["belastungen_abt2", "belastungen_abt3", "kaeufer_abfrage"]:
+        # Alle Grundbuch-Belastungen Untermenüs leiten zur Datenermittlung weiter
+        notar_datenermittlung_view()
+
+    elif selection in ["loeschung_offen", "loeschung_bearbeitung", "loeschung_erledigt"]:
+        # Alle Löschungs-ToDo Untermenüs leiten zur Datenermittlung weiter
+        notar_datenermittlung_view()
+
+    elif selection == "beurkundung":
+        st.subheader("✒️ Beurkundungstermin")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            st.info("Hier können Sie Beurkundungstermine planen und durchführen.")
+            notar_termine()
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
+
+    elif selection == "vollzug_status":
+        st.subheader("📊 Vollzugs-Status")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            for projekt in notar_projekte:
+                with st.expander(f"🏘️ {projekt.name}", expanded=True):
+                    # Vollzugs-Checkliste
+                    st.markdown("**Vollzugs-Schritte:**")
+                    vollzug_status = st.session_state.get(f"vollzug_{projekt.projekt_id}", {})
+
+                    schritte = [
+                        ("Grunderwerbsteuer-Anzeige", "grest_anzeige"),
+                        ("Kaufpreisfälligkeitsmitteilung", "kpf_mitteilung"),
+                        ("Kaufpreis eingegangen", "kp_eingegangen"),
+                        ("Auflassungsvormerkung", "auflassung"),
+                        ("Grundschuldeintragung", "grundschuld_eingetragen"),
+                        ("Eigentumsumschreibung", "eigentum_umgeschrieben"),
+                    ]
+
+                    for schritt_name, schritt_key in schritte:
+                        erledigt = vollzug_status.get(schritt_key, False)
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.write(f"{'✅' if erledigt else '⬜'} {schritt_name}")
+                        with col2:
+                            if st.checkbox("Erledigt", value=erledigt, key=f"vz_{projekt.projekt_id}_{schritt_key}", label_visibility="collapsed"):
+                                vollzug_status[schritt_key] = True
+                                st.session_state[f"vollzug_{projekt.projekt_id}"] = vollzug_status
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
+
+    elif selection == "grunderwerbsteuer":
+        st.subheader("🏛️ Grunderwerbsteuer-Anzeige")
+        notar_datenermittlung_view()
+
+    elif selection == "auflassung":
+        st.subheader("📜 Auflassungsvormerkung")
+        st.info("Hier können Auflassungsvormerkungen beantragt werden.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            notar_timeline_view()
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
+
+    elif selection == "eigentumsumschreibung":
+        st.subheader("📖 Eigentumsumschreibung")
+        st.info("Hier wird die Eigentumsumschreibung im Grundbuch dokumentiert.")
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            notar_timeline_view()
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
 
     else:
         st.warning(f"Unbekannter Menüpunkt: {selection}")
@@ -26682,6 +27507,238 @@ def notar_finanzierungsnachweise():
 
         st.markdown("---")
 
+
+def notar_bank_grundschuld():
+    """Bank-Auswahl für Grundschuldbestellung"""
+    st.subheader("🏦 Grundschuldbestellung - Bank-Auswahl")
+    st.caption("Hier wird die finanzierende Bank für die Grundschuldbestellung erfasst.")
+
+    notar_id = st.session_state.current_user.user_id
+    projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
+
+    if not projekte:
+        st.info("Noch keine Projekte zugewiesen.")
+        return
+
+    # Projekt auswählen
+    projekt_namen = {p.projekt_id: p.name for p in projekte}
+    selected_projekt_id = st.selectbox(
+        "Projekt auswählen",
+        options=list(projekt_namen.keys()),
+        format_func=lambda x: projekt_namen[x],
+        key="bank_gs_projekt_select"
+    )
+
+    if not selected_projekt_id:
+        return
+
+    projekt = st.session_state.projekte.get(selected_projekt_id)
+
+    # Prüfe ob Finanzierung angenommen wurde
+    finanzierungen = [o for o in st.session_state.financing_offers.values()
+                     if o.projekt_id == projekt.projekt_id
+                     and o.status == FinanzierungsStatus.ANGENOMMEN.value]
+
+    if finanzierungen:
+        st.success(f"✅ Finanzierung gesichert ({len(finanzierungen)} Angebot(e) angenommen)")
+
+        # Vorausfüllung mit Finanzierungs-Daten
+        for offer in finanzierungen:
+            finanzierer = st.session_state.users.get(offer.finanzierer_id)
+            if finanzierer:
+                st.info(f"💰 Finanzierung über {offer.darlehensbetrag:,.2f} EUR von {finanzierer.name}")
+    else:
+        st.warning("⚠️ Noch keine Finanzierung gesichert. Die Bank-Daten können trotzdem erfasst werden.")
+
+    st.markdown("---")
+
+    # Bestehende Bank-Infos
+    existing_infos = [b for b in st.session_state.bank_grundschuld_infos.values()
+                     if b.projekt_id == projekt.projekt_id]
+
+    if existing_infos:
+        st.markdown("### 📋 Erfasste Banken für Grundschuldbestellung")
+
+        for bank_info in existing_infos:
+            kaeufer = st.session_state.users.get(bank_info.kaeufer_id)
+            kaeufer_name = kaeufer.name if kaeufer else "Alle Käufer"
+
+            status_icon = "✅" if bank_info.entwurf_erhalten_am else "⏳" if bank_info.entwurf_angefordert else "📝"
+
+            with st.expander(f"{status_icon} {bank_info.bank_name} - {bank_info.grundschuld_betrag:,.2f} EUR"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write(f"**Bank:** {bank_info.bank_name}")
+                    st.write(f"**Adresse:** {bank_info.bank_adresse}")
+                    st.write(f"**BIC:** {bank_info.bank_bic}")
+                    if bank_info.ansprechpartner_name:
+                        st.write(f"**Ansprechpartner:** {bank_info.ansprechpartner_name}")
+                    if bank_info.ansprechpartner_email:
+                        st.write(f"**E-Mail:** {bank_info.ansprechpartner_email}")
+
+                with col2:
+                    st.write(f"**Grundschuld-Betrag:** {bank_info.grundschuld_betrag:,.2f} EUR")
+                    st.write(f"**Zinsen:** {bank_info.grundschuld_zinsen}%")
+                    st.write(f"**Mit Brief:** {'Ja (Briefgrundschuld)' if bank_info.mit_brief else 'Nein (Buchgrundschuld)'}")
+                    st.write(f"**Für Käufer:** {kaeufer_name}")
+
+                # Status-Buttons
+                st.markdown("---")
+                col_a, col_b, col_c = st.columns(3)
+
+                with col_a:
+                    if not bank_info.entwurf_angefordert:
+                        if st.button("📤 Entwurf anfordern", key=f"anford_gs_{bank_info.info_id}"):
+                            bank_info.entwurf_angefordert = True
+                            st.session_state.bank_grundschuld_infos[bank_info.info_id] = bank_info
+
+                            # Benachrichtigung senden
+                            sende_workflow_benachrichtigung(
+                                projekt_id=projekt.projekt_id,
+                                workflow_schritt="Grundschuldentwurf angefordert",
+                                betreff="Grundschuldentwurf von Bank angefordert",
+                                nachricht=f"Der Grundschuldentwurf wurde bei {bank_info.bank_name} angefordert.",
+                                empfaenger_typ="Käufer"
+                            )
+                            st.success("✅ Entwurf angefordert!")
+                            st.rerun()
+                    else:
+                        st.success("📤 Entwurf angefordert")
+
+                with col_b:
+                    if bank_info.entwurf_angefordert and not bank_info.entwurf_erhalten_am:
+                        uploaded = st.file_uploader(
+                            "Entwurf hochladen",
+                            type=["pdf"],
+                            key=f"upload_gs_{bank_info.info_id}"
+                        )
+                        if uploaded:
+                            bank_info.entwurf_dokument = uploaded.read()
+                            bank_info.entwurf_erhalten_am = datetime.now()
+                            st.session_state.bank_grundschuld_infos[bank_info.info_id] = bank_info
+                            st.success("✅ Entwurf hochgeladen!")
+                            st.rerun()
+
+                with col_c:
+                    if bank_info.entwurf_dokument:
+                        st.download_button(
+                            "📥 Entwurf",
+                            data=bank_info.entwurf_dokument,
+                            file_name=f"Grundschuldentwurf_{bank_info.bank_name}.pdf",
+                            mime="application/pdf",
+                            key=f"dl_gs_{bank_info.info_id}"
+                        )
+
+                # Löschen
+                if st.button("🗑️ Löschen", key=f"del_gs_{bank_info.info_id}"):
+                    del st.session_state.bank_grundschuld_infos[bank_info.info_id]
+                    st.rerun()
+
+    st.markdown("---")
+
+    # Neue Bank erfassen
+    st.markdown("### ➕ Neue Bank für Grundschuldbestellung")
+
+    with st.form(key=f"neue_bank_gs_{projekt.projekt_id}"):
+        st.markdown("#### 🏦 Bank-Daten")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            bank_name = st.text_input("Bank-Name *", placeholder="z.B. Sparkasse Musterstadt")
+            bank_adresse = st.text_input("Bank-Adresse", placeholder="Straße, PLZ Ort")
+            bank_bic = st.text_input("BIC", placeholder="DEUTDEDB")
+
+        with col2:
+            ansprechpartner = st.text_input("Ansprechpartner", placeholder="Name des Sachbearbeiters")
+            ansprechpartner_tel = st.text_input("Telefon Ansprechpartner")
+            ansprechpartner_email = st.text_input("E-Mail Ansprechpartner")
+
+        st.markdown("#### 💰 Grundschuld-Details")
+
+        col3, col4 = st.columns(2)
+
+        with col3:
+            # Vorausfüllen mit Finanzierungsbetrag falls vorhanden
+            default_betrag = finanzierungen[0].darlehensbetrag if finanzierungen else 0.0
+            grundschuld_betrag = st.number_input(
+                "Grundschuld-Betrag (EUR) *",
+                min_value=0.0,
+                value=default_betrag,
+                step=1000.0
+            )
+            grundschuld_zinsen = st.number_input(
+                "Zinsen (% p.a., als Sicherheit)",
+                min_value=0.0,
+                max_value=20.0,
+                value=15.0,
+                step=0.5,
+                help="Üblicherweise 15% als Sicherheitszuschlag"
+            )
+
+        with col4:
+            mit_brief = st.radio(
+                "Grundschuld-Art",
+                options=["Buchgrundschuld (ohne Brief)", "Briefgrundschuld (mit Brief)"],
+                horizontal=True
+            )
+
+            # Käufer-Auswahl falls mehrere
+            if len(projekt.kaeufer_ids) > 1:
+                kaeufer_options = {"alle": "Alle Käufer gemeinsam"}
+                for kid in projekt.kaeufer_ids:
+                    k = st.session_state.users.get(kid)
+                    if k:
+                        kaeufer_options[kid] = k.name
+
+                selected_kaeufer = st.selectbox(
+                    "Für welchen Käufer?",
+                    options=list(kaeufer_options.keys()),
+                    format_func=lambda x: kaeufer_options[x]
+                )
+            else:
+                selected_kaeufer = projekt.kaeufer_ids[0] if projekt.kaeufer_ids else ""
+
+        notizen = st.text_area("Notizen", placeholder="Besondere Hinweise zur Grundschuldbestellung")
+
+        if st.form_submit_button("💾 Bank speichern", type="primary"):
+            if bank_name and grundschuld_betrag > 0:
+                info_id = f"BGS-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+                neue_bank_info = BankGrundschuldInfo(
+                    info_id=info_id,
+                    projekt_id=projekt.projekt_id,
+                    kaeufer_id=selected_kaeufer if selected_kaeufer != "alle" else "",
+                    bank_name=bank_name,
+                    bank_adresse=bank_adresse,
+                    bank_bic=bank_bic,
+                    ansprechpartner_name=ansprechpartner,
+                    ansprechpartner_telefon=ansprechpartner_tel,
+                    ansprechpartner_email=ansprechpartner_email,
+                    grundschuld_betrag=grundschuld_betrag,
+                    grundschuld_zinsen=grundschuld_zinsen,
+                    mit_brief=(mit_brief == "Briefgrundschuld (mit Brief)"),
+                    notizen=notizen
+                )
+
+                st.session_state.bank_grundschuld_infos[info_id] = neue_bank_info
+
+                # Workflow-Benachrichtigung
+                sende_workflow_benachrichtigung(
+                    projekt_id=projekt.projekt_id,
+                    workflow_schritt="Bank für Grundschuld erfasst",
+                    betreff="Bank für Grundschuldbestellung erfasst",
+                    nachricht=f"Die Bank {bank_name} wurde für die Grundschuldbestellung über {grundschuld_betrag:,.2f} EUR erfasst.",
+                    empfaenger_typ="Käufer"
+                )
+
+                st.success(f"✅ Bank {bank_name} wurde gespeichert!")
+                st.rerun()
+            else:
+                st.error("Bitte Bank-Name und Grundschuld-Betrag angeben.")
+
+
 def notar_dokumenten_freigaben():
     """Dokumenten-Freigaben für Notar"""
     st.subheader("📄 Dokumenten-Freigaben")
@@ -28043,9 +29100,12 @@ def _render_flurkarten_bereich(projekt, notar_id: str):
 
 
 def _render_grundbuch_bereich(projekt, notar_id: str):
-    """Elektronisches Grundbuch - Abruf je nach Bundesland"""
+    """Elektronisches Grundbuch - Abruf je nach Bundesland mit OCR-Analyse"""
     st.markdown("### 📚 Elektronisches Grundbuch")
-    st.caption("Elektronischer Grundbuchabruf über EGVP oder SolumSTAR je nach Bundesland-Unterstützung.")
+    st.caption("Grundbuchauszug hochladen, per OCR analysieren und Belastungen extrahieren.")
+
+    # Tabs für verschiedene Funktionen
+    gb_tabs = st.tabs(["📤 PDF-Import & OCR", "📋 Belastungen Abt. II/III", "⚠️ Löschungs-ToDos", "📝 Neue Anfrage"])
 
     # Projektdaten für Vorausfüllung laden
     projekt_daten = get_projekt_immobiliendaten(projekt.projekt_id)
@@ -28053,125 +29113,562 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
     # Bundesland aus Projektdaten oder Adresse ermitteln
     bundesland = projekt_daten.get('bundesland') or (_ermittle_bundesland_aus_adresse(projekt.adresse) if projekt.adresse else None)
 
-    # Support-Info anzeigen
-    if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT:
-        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT[bundesland]
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("EGVP", "✅ Ja" if support['egvp'] else "❌ Nein")
-        with col2:
-            st.metric("SolumSTAR", "✅ Ja" if support['solum_star'] else "❌ Nein")
-        with col3:
-            st.info(f"Portal: {support['portal']}")
+    # === TAB 1: PDF-Import & OCR ===
+    with gb_tabs[0]:
+        st.markdown("#### 📤 Grundbuchauszug hochladen & analysieren")
+        st.info("Laden Sie einen Grundbuchauszug als PDF hoch. Die Abteilungen II und III werden automatisch per KI extrahiert.")
 
-    # Hinweis auf automatische Datenübernahme
-    if projekt_daten.get('grundbuchamt') or projekt_daten.get('grundbuchblatt'):
-        st.success("📋 Grundbuchdaten aus Projekt werden automatisch übernommen")
+        # Bestehende Anfragen mit PDFs
+        anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
+                    if a.projekt_id == projekt.projekt_id]
 
-    # Bestehende Anfragen
-    anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
-                if a.projekt_id == projekt.projekt_id]
+        if anfragen:
+            st.markdown("##### Vorhandene Grundbuchauszüge")
+            for anfrage in anfragen:
+                status_icon = _get_datenermittlung_status_icon(anfrage.status)
+                with st.expander(f"{status_icon} {anfrage.amtsgericht or anfrage.grundbuchamt} - Blatt {anfrage.grundbuchblatt}"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk}")
+                        st.write(f"**Status:** {anfrage.status}")
+                    with col2:
+                        if anfrage.abteilung_1:
+                            st.write(f"**Eigentümer:** {anfrage.abteilung_1[:100]}...")
 
-    if anfragen:
-        st.markdown("#### Bestehende Grundbuch-Anfragen")
-        for anfrage in anfragen:
-            status_icon = _get_datenermittlung_status_icon(anfrage.status)
-            with st.expander(f"{status_icon} {anfrage.grundbuchamt} - Blatt {anfrage.grundbuchblatt}"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk}")
-                    st.write(f"**Band:** {anfrage.band}")
-                    st.write(f"**Abteilung:** {anfrage.abteilung or 'Alle'}")
-                with col2:
-                    st.write(f"**Status:** {anfrage.status}")
-                    st.write(f"**Zugang:** {'EGVP' if anfrage.egvp_zugang else 'SolumSTAR' if anfrage.solum_star_zugang else 'Manuell'}")
-                    if anfrage.abruf_datum:
-                        st.write(f"**Abgerufen am:** {anfrage.abruf_datum.strftime('%d.%m.%Y %H:%M')}")
+                    if anfrage.grundbuchauszug_pdf:
+                        col_dl, col_ocr = st.columns(2)
+                        with col_dl:
+                            st.download_button(
+                                "📥 PDF herunterladen",
+                                data=anfrage.grundbuchauszug_pdf,
+                                file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt}.pdf",
+                                mime="application/pdf",
+                                key=f"dl_grundbuch_{anfrage.anfrage_id}"
+                            )
+                        with col_ocr:
+                            if st.button("🔍 Erneut analysieren", key=f"reocr_{anfrage.anfrage_id}"):
+                                _run_grundbuch_ocr(anfrage, projekt.projekt_id)
 
-                if anfrage.grundbuchauszug_pdf:
-                    st.download_button(
-                        "📥 Grundbuchauszug herunterladen",
-                        data=anfrage.grundbuchauszug_pdf,
-                        file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt}.pdf",
-                        mime="application/pdf",
-                        key=f"dl_grundbuch_{anfrage.anfrage_id}"
-                    )
+        st.markdown("---")
 
-    # Neue Anfrage
-    st.markdown("#### Neuen Grundbuchauszug anfordern")
-
-    with st.form(key=f"grundbuch_form_{projekt.projekt_id}"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            # Bundesland mit Vorauswahl aus Projektdaten
-            bundesland_options = list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys())
-            default_bundesland_idx = 0
-            if bundesland and bundesland in bundesland_options:
-                default_bundesland_idx = bundesland_options.index(bundesland)
-            bundesland_input = st.selectbox(
-                "Bundesland",
-                options=bundesland_options,
-                index=default_bundesland_idx,
-                key=f"grundbuch_bundesland_{projekt.projekt_id}"
-            )
-            grundbuchamt = st.text_input(
-                "Grundbuchamt",
-                value=projekt_daten.get('grundbuchamt', ''),
-                key=f"grundbuch_amt_{projekt.projekt_id}"
-            )
-            grundbuchbezirk = st.text_input(
-                "Grundbuchbezirk",
-                value=projekt_daten.get('grundbuchbezirk', ''),
-                key=f"grundbuch_bezirk_{projekt.projekt_id}"
-            )
-
-        with col2:
-            grundbuchblatt = st.text_input(
-                "Grundbuchblatt",
-                value=projekt_daten.get('grundbuchblatt', ''),
-                key=f"grundbuch_blatt_{projekt.projekt_id}"
-            )
-            band = st.text_input("Band", key=f"grundbuch_band_{projekt.projekt_id}")
-            abteilung = st.selectbox(
-                "Abteilung",
-                options=["Alle", "I (Eigentum)", "II (Lasten/Beschränkungen)", "III (Grundpfandrechte)"],
-                key=f"grundbuch_abteilung_{projekt.projekt_id}"
-            )
-
-        # Zugangsmethode
-        support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT.get(bundesland_input, {})
-        zugang = st.radio(
-            "Zugangsart",
-            options=["EGVP", "SolumSTAR", "Manuell"],
-            horizontal=True,
-            key=f"grundbuch_zugang_{projekt.projekt_id}",
-            help="EGVP = Elektronisches Gerichts- und Verwaltungspostfach"
+        # Neues PDF hochladen
+        st.markdown("##### Neuen Grundbuchauszug hochladen")
+        uploaded_pdf = st.file_uploader(
+            "Grundbuchauszug (PDF)",
+            type=["pdf"],
+            key=f"gb_upload_{projekt.projekt_id}",
+            help="Laden Sie den Grundbuchauszug als PDF hoch. OCR-Analyse erfolgt automatisch."
         )
 
-        if st.form_submit_button("📚 Grundbuchauszug anfordern", type="primary"):
-            if grundbuchamt and grundbuchblatt:
-                anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
-                neue_anfrage = GrundbuchAnfrage(
-                    anfrage_id=anfrage_id,
-                    projekt_id=projekt.projekt_id,
-                    notar_id=notar_id,
-                    bundesland=bundesland_input,
-                    grundbuchamt=grundbuchamt,
-                    grundbuchbezirk=grundbuchbezirk,
-                    grundbuchblatt=grundbuchblatt,
-                    band=band,
-                    abteilung=None if abteilung == "Alle" else abteilung,
-                    egvp_zugang=(zugang == "EGVP"),
-                    solum_star_zugang=(zugang == "SolumSTAR"),
-                    status=DatenermittlungStatus.ANGEFRAGT.value,
-                    angefragt_am=datetime.now()
+        if uploaded_pdf:
+            pdf_bytes = uploaded_pdf.read()
+            st.success(f"📄 {uploaded_pdf.name} hochgeladen ({len(pdf_bytes)/1024:.1f} KB)")
+
+            # Grunddaten eingeben
+            col1, col2 = st.columns(2)
+            with col1:
+                amtsgericht = st.text_input("Amtsgericht", value=projekt_daten.get('grundbuchamt', ''), key=f"gb_ag_{projekt.projekt_id}")
+                grundbuchbezirk = st.text_input("Grundbuchbezirk", value=projekt_daten.get('grundbuchbezirk', ''), key=f"gb_bezirk_{projekt.projekt_id}")
+            with col2:
+                grundbuchblatt = st.text_input("Grundbuchblatt", value=projekt_daten.get('grundbuchblatt', ''), key=f"gb_blatt_{projekt.projekt_id}")
+
+            if st.button("🤖 PDF hochladen & OCR-Analyse starten", type="primary", key=f"start_ocr_{projekt.projekt_id}"):
+                if amtsgericht and grundbuchblatt:
+                    # Neue Anfrage erstellen
+                    anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                    neue_anfrage = GrundbuchAnfrage(
+                        anfrage_id=anfrage_id,
+                        projekt_id=projekt.projekt_id,
+                        notar_id=notar_id,
+                        bundesland=bundesland or "",
+                        amtsgericht=amtsgericht,
+                        grundbuchbezirk=grundbuchbezirk,
+                        grundbuchblatt=grundbuchblatt,
+                        grundbuchauszug_pdf=pdf_bytes,
+                        grundbuchauszug_dateiname=uploaded_pdf.name,
+                        status=DatenermittlungStatus.ERHALTEN.value,
+                        erhalten_am=datetime.now()
+                    )
+                    st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
+
+                    # OCR-Analyse durchführen
+                    _run_grundbuch_ocr(neue_anfrage, projekt.projekt_id)
+                else:
+                    st.error("Bitte Amtsgericht und Grundbuchblatt angeben.")
+
+    # === TAB 2: Belastungen Abt. II/III ===
+    with gb_tabs[1]:
+        _render_grundbuch_belastungen(projekt)
+
+    # === TAB 3: Löschungs-ToDos ===
+    with gb_tabs[2]:
+        _render_loeschungs_todos(projekt)
+
+    # === TAB 4: Neue Anfrage (klassisch) ===
+    with gb_tabs[3]:
+        st.markdown("#### Neuen Grundbuchauszug anfordern")
+
+        # Support-Info anzeigen
+        if bundesland and bundesland in ELEKTRONISCHES_GRUNDBUCH_SUPPORT:
+            support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT[bundesland]
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("EGVP", "✅ Ja" if support['egvp'] else "❌ Nein")
+            with col2:
+                st.metric("SolumSTAR", "✅ Ja" if support['solum_star'] else "❌ Nein")
+            with col3:
+                st.info(f"Portal: {support['portal']}")
+
+        with st.form(key=f"grundbuch_form_{projekt.projekt_id}"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                bundesland_options = list(ELEKTRONISCHES_GRUNDBUCH_SUPPORT.keys())
+                default_bundesland_idx = 0
+                if bundesland and bundesland in bundesland_options:
+                    default_bundesland_idx = bundesland_options.index(bundesland)
+                bundesland_input = st.selectbox(
+                    "Bundesland",
+                    options=bundesland_options,
+                    index=default_bundesland_idx,
+                    key=f"grundbuch_bundesland_{projekt.projekt_id}"
                 )
-                st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
-                st.success(f"✅ Grundbuch-Anfrage erstellt! Zugang: {zugang}")
-                st.rerun()
-            else:
-                st.error("Bitte Grundbuchamt und Grundbuchblatt angeben.")
+                grundbuchamt = st.text_input(
+                    "Grundbuchamt",
+                    value=projekt_daten.get('grundbuchamt', ''),
+                    key=f"grundbuch_amt_{projekt.projekt_id}"
+                )
+                grundbuchbezirk = st.text_input(
+                    "Grundbuchbezirk",
+                    value=projekt_daten.get('grundbuchbezirk', ''),
+                    key=f"grundbuch_bezirk_{projekt.projekt_id}"
+                )
+
+            with col2:
+                grundbuchblatt = st.text_input(
+                    "Grundbuchblatt",
+                    value=projekt_daten.get('grundbuchblatt', ''),
+                    key=f"grundbuch_blatt_{projekt.projekt_id}"
+                )
+                band = st.text_input("Band", key=f"grundbuch_band_{projekt.projekt_id}")
+                abteilung = st.selectbox(
+                    "Abteilung",
+                    options=["Alle", "I (Eigentum)", "II (Lasten/Beschränkungen)", "III (Grundpfandrechte)"],
+                    key=f"grundbuch_abteilung_{projekt.projekt_id}"
+                )
+
+            support = ELEKTRONISCHES_GRUNDBUCH_SUPPORT.get(bundesland_input, {})
+            zugang = st.radio(
+                "Zugangsart",
+                options=["EGVP", "SolumSTAR", "Manuell"],
+                horizontal=True,
+                key=f"grundbuch_zugang_{projekt.projekt_id}",
+                help="EGVP = Elektronisches Gerichts- und Verwaltungspostfach"
+            )
+
+            if st.form_submit_button("📚 Grundbuchauszug anfordern", type="primary"):
+                if grundbuchamt and grundbuchblatt:
+                    anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                    neue_anfrage = GrundbuchAnfrage(
+                        anfrage_id=anfrage_id,
+                        projekt_id=projekt.projekt_id,
+                        notar_id=notar_id,
+                        bundesland=bundesland_input,
+                        amtsgericht=grundbuchamt,
+                        grundbuchbezirk=grundbuchbezirk,
+                        grundbuchblatt=grundbuchblatt,
+                        band=band,
+                        abteilung=None if abteilung == "Alle" else abteilung,
+                        egvp_unterstuetzt=(zugang == "EGVP"),
+                        solum_star_unterstuetzt=(zugang == "SolumSTAR"),
+                        status=DatenermittlungStatus.ANGEFRAGT.value,
+                        angefragt_am=datetime.now()
+                    )
+                    st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
+                    st.success(f"✅ Grundbuch-Anfrage erstellt! Zugang: {zugang}")
+                    st.rerun()
+                else:
+                    st.error("Bitte Grundbuchamt und Grundbuchblatt angeben.")
+
+
+def _run_grundbuch_ocr(anfrage: GrundbuchAnfrage, projekt_id: str):
+    """Führt die OCR-Analyse für einen Grundbuchauszug durch"""
+    if not anfrage.grundbuchauszug_pdf:
+        st.error("Kein PDF vorhanden.")
+        return
+
+    api_keys = st.session_state.get('api_keys', {})
+
+    with st.spinner("🔍 Analysiere Grundbuchauszug mit KI..."):
+        ocr_ergebnis = ocr_grundbuch_mit_ki(anfrage.grundbuchauszug_pdf, api_keys)
+
+    if ocr_ergebnis.get("erfolg"):
+        st.success(f"✅ OCR-Analyse erfolgreich! (via {ocr_ergebnis.get('ki_verwendet', 'unbekannt')})")
+
+        # Grundbuch-Basisdaten aktualisieren
+        gb_daten = ocr_ergebnis.get("grundbuch_daten", {})
+        if gb_daten.get("amtsgericht"):
+            anfrage.amtsgericht = gb_daten["amtsgericht"]
+        if gb_daten.get("grundbuchbezirk"):
+            anfrage.grundbuchbezirk = gb_daten["grundbuchbezirk"]
+        if gb_daten.get("blatt"):
+            anfrage.grundbuchblatt = gb_daten["blatt"]
+
+        # Eigentümer speichern
+        eigentuemer = ocr_ergebnis.get("eigentuemer", [])
+        if eigentuemer:
+            anfrage.abteilung_1 = ", ".join([e.get("name", "") for e in eigentuemer])
+
+        # Abteilung II/III Texte
+        abt2 = ocr_ergebnis.get("abteilung_2", [])
+        abt3 = ocr_ergebnis.get("abteilung_3", [])
+        anfrage.abteilung_2 = str(abt2)
+        anfrage.abteilung_3 = str(abt3)
+
+        st.session_state.grundbuch_anfragen[anfrage.anfrage_id] = anfrage
+
+        # Belastungen erstellen
+        belastungen = erstelle_belastungen_aus_ocr(projekt_id, anfrage.anfrage_id, ocr_ergebnis)
+
+        for belastung in belastungen:
+            st.session_state.grundbuch_belastungen[belastung.belastung_id] = belastung
+
+        # Löschungs-ToDos erstellen
+        todos = erstelle_loeschungs_todos_aus_belastungen(projekt_id, belastungen)
+
+        for todo in todos:
+            st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+
+        # Zusammenfassung anzeigen
+        st.markdown("### 📊 Extrahierte Daten")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Eigentümer", len(eigentuemer))
+        with col2:
+            st.metric("Abt. II Einträge", len(abt2))
+        with col3:
+            st.metric("Abt. III Einträge", len(abt3))
+
+        if eigentuemer:
+            with st.expander("👤 Eigentümer (Abt. I)"):
+                for e in eigentuemer:
+                    st.write(f"- {e.get('name', 'Unbekannt')} ({e.get('anteil', 'Anteil unbekannt')})")
+
+        if abt2:
+            with st.expander(f"📋 Lasten & Beschränkungen (Abt. II) - {len(abt2)} Einträge"):
+                for eintrag in abt2:
+                    st.write(f"**Nr. {eintrag.get('lfd_nr', '?')}:** {eintrag.get('typ', 'Unbekannt')}")
+                    st.caption(eintrag.get('bezeichnung', ''))
+
+        if abt3:
+            with st.expander(f"💰 Hypotheken/Grundschulden (Abt. III) - {len(abt3)} Einträge"):
+                for eintrag in abt3:
+                    betrag = eintrag.get('betrag', 0)
+                    st.write(f"**Nr. {eintrag.get('lfd_nr', '?')}:** {eintrag.get('typ', 'Unbekannt')} - {betrag:,.2f} EUR")
+                    if eintrag.get('glaeubiger'):
+                        st.caption(f"Gläubiger: {eintrag['glaeubiger']}")
+
+        if todos:
+            st.warning(f"⚠️ {len(todos)} Löschungs-ToDos wurden automatisch erstellt!")
+
+        # Workflow-Benachrichtigung senden
+        sende_workflow_benachrichtigung(
+            projekt_id=projekt_id,
+            workflow_schritt="Grundbuch analysiert",
+            betreff="Grundbuchauszug wurde analysiert",
+            nachricht=f"Der Grundbuchauszug für Blatt {anfrage.grundbuchblatt} wurde analysiert. "
+                      f"Es wurden {len(abt2)} Einträge in Abt. II und {len(abt3)} Einträge in Abt. III gefunden.",
+            empfaenger_typ="Alle"
+        )
+
+        st.rerun()
+
+    else:
+        st.error(f"❌ OCR-Analyse fehlgeschlagen: {ocr_ergebnis.get('fehler', 'Unbekannter Fehler')}")
+        if ocr_ergebnis.get("raw_text"):
+            with st.expander("🔍 Extrahierter Rohtext"):
+                st.text(ocr_ergebnis["raw_text"][:2000])
+
+
+def _render_grundbuch_belastungen(projekt):
+    """Zeigt alle Belastungen aus Abt. II und III mit Käufer-Abfrage"""
+    st.markdown("#### 📋 Grundbuch-Belastungen")
+
+    belastungen = [b for b in st.session_state.grundbuch_belastungen.values()
+                   if b.projekt_id == projekt.projekt_id]
+
+    if not belastungen:
+        st.info("Noch keine Belastungen aus Grundbuch extrahiert. Laden Sie einen Grundbuchauszug im Tab 'PDF-Import & OCR' hoch.")
+        return
+
+    # Abteilung II
+    abt2 = [b for b in belastungen if b.abteilung == 2]
+    abt3 = [b for b in belastungen if b.abteilung == 3]
+
+    st.markdown("##### Abteilung II - Lasten und Beschränkungen")
+
+    if abt2:
+        for belastung in abt2:
+            with st.expander(f"Nr. {belastung.lfd_nr}: {belastung.belastung_typ} - {belastung.bezeichnung[:50]}..."):
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    st.write(f"**Typ:** {belastung.belastung_typ}")
+                    st.write(f"**Bezeichnung:** {belastung.bezeichnung}")
+                    if belastung.rechteinhaber:
+                        st.write(f"**Rechteinhaber:** {belastung.rechteinhaber}")
+                    if belastung.eingetragen_am:
+                        st.write(f"**Eingetragen am:** {belastung.eingetragen_am.strftime('%d.%m.%Y')}")
+                    if belastung.bemerkungen:
+                        st.caption(f"Bemerkungen: {belastung.bemerkungen}")
+
+                with col2:
+                    st.write("**Käufer-Entscheidung:**")
+                    entscheidung = st.radio(
+                        "Aktion",
+                        options=[
+                            KaeuferEntscheidungStatus.AUSSTEHEND.value,
+                            KaeuferEntscheidungStatus.UEBERNEHMEN.value,
+                            KaeuferEntscheidungStatus.LOESCHEN.value
+                        ],
+                        index=0 if belastung.kaeufer_entscheidung == KaeuferEntscheidungStatus.AUSSTEHEND.value
+                              else 1 if belastung.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value
+                              else 2,
+                        key=f"entsch_abt2_{belastung.belastung_id}",
+                        label_visibility="collapsed"
+                    )
+
+                    if entscheidung != belastung.kaeufer_entscheidung:
+                        belastung.kaeufer_entscheidung = entscheidung
+                        st.session_state.grundbuch_belastungen[belastung.belastung_id] = belastung
+                        st.rerun()
+    else:
+        st.success("✅ Keine Eintragungen in Abteilung II")
+
+    st.markdown("---")
+    st.markdown("##### Abteilung III - Hypotheken, Grundschulden, Rentenschulden")
+
+    if abt3:
+        gesamt_betrag = sum(b.betrag for b in abt3)
+        st.metric("Summe aller Belastungen", f"{gesamt_betrag:,.2f} EUR")
+
+        for belastung in abt3:
+            status_icon = "🔴" if belastung.loeschung_status == LoeschungsStatus.OFFEN.value else \
+                         "🟡" if belastung.loeschung_status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value] else \
+                         "🟢" if belastung.loeschung_status == LoeschungsStatus.GELOESCHT.value else "⚪"
+
+            with st.expander(f"{status_icon} Nr. {belastung.lfd_nr}: {belastung.belastung_typ} - {belastung.betrag:,.2f} EUR"):
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    st.write(f"**Typ:** {belastung.belastung_typ}")
+                    st.write(f"**Betrag:** {belastung.betrag:,.2f} {belastung.waehrung}")
+                    if belastung.glaeubiger:
+                        st.write(f"**Gläubiger:** {belastung.glaeubiger}")
+                    if belastung.eingetragen_am:
+                        st.write(f"**Eingetragen am:** {belastung.eingetragen_am.strftime('%d.%m.%Y')}")
+                    st.write(f"**Löschungs-Status:** {belastung.loeschung_status}")
+
+                with col2:
+                    st.write("**Käufer-Entscheidung:**")
+                    entscheidung = st.radio(
+                        "Aktion",
+                        options=[
+                            KaeuferEntscheidungStatus.AUSSTEHEND.value,
+                            KaeuferEntscheidungStatus.UEBERNEHMEN.value,
+                            KaeuferEntscheidungStatus.LOESCHEN.value
+                        ],
+                        index=0 if belastung.kaeufer_entscheidung == KaeuferEntscheidungStatus.AUSSTEHEND.value
+                              else 1 if belastung.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value
+                              else 2,
+                        key=f"entsch_abt3_{belastung.belastung_id}",
+                        label_visibility="collapsed"
+                    )
+
+                    if entscheidung != belastung.kaeufer_entscheidung:
+                        belastung.kaeufer_entscheidung = entscheidung
+                        st.session_state.grundbuch_belastungen[belastung.belastung_id] = belastung
+
+                        # Bei "Löschen" ToDo erstellen falls nicht vorhanden
+                        if entscheidung == KaeuferEntscheidungStatus.LOESCHEN.value:
+                            existing_todos = [t for t in st.session_state.loeschungs_anforderungen.values()
+                                            if t.belastung_id == belastung.belastung_id]
+                            if not existing_todos:
+                                todo = LoeschungsAnforderung(
+                                    anforderung_id=f"LOESCH-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                                    projekt_id=projekt.projekt_id,
+                                    belastung_id=belastung.belastung_id,
+                                    glaeubiger_name=belastung.glaeubiger,
+                                    status=LoeschungsStatus.OFFEN.value,
+                                    abloese_betrag=belastung.betrag
+                                )
+                                st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+
+                        st.rerun()
+    else:
+        st.success("✅ Keine Eintragungen in Abteilung III")
+
+    # Button zum Käufer-Abfrage senden
+    if belastungen:
+        st.markdown("---")
+        ausstehend = [b for b in belastungen if b.kaeufer_entscheidung == KaeuferEntscheidungStatus.AUSSTEHEND.value]
+
+        if ausstehend:
+            st.warning(f"⚠️ {len(ausstehend)} Belastungen haben noch keine Käufer-Entscheidung.")
+
+            if st.button("📧 Käufer-Abfrage senden", key=f"send_kaeufer_abfrage_{projekt.projekt_id}"):
+                _sende_kaeufer_belastungs_abfrage(projekt, ausstehend)
+
+
+def _sende_kaeufer_belastungs_abfrage(projekt, belastungen: List[GrundbuchBelastung]):
+    """Sendet eine Abfrage an alle Käufer bzgl. der Belastungen"""
+    for kaeufer_id in projekt.kaeufer_ids:
+        for belastung in belastungen:
+            abfrage_id = f"KBA-{datetime.now().strftime('%Y%m%d%H%M%S')}-{belastung.belastung_id[-4:]}"
+
+            abfrage = KaeuferBelastungsAbfrage(
+                abfrage_id=abfrage_id,
+                projekt_id=projekt.projekt_id,
+                belastung_id=belastung.belastung_id,
+                kaeufer_id=kaeufer_id,
+                gesendet_am=datetime.now(),
+                benachrichtigung_gesendet=True
+            )
+            st.session_state.kaeufer_belastungs_abfragen[abfrage_id] = abfrage
+
+        # Benachrichtigung an Käufer
+        create_notification(
+            user_id=kaeufer_id,
+            title="Entscheidung zu Grundbuch-Belastungen erforderlich",
+            message=f"Für das Projekt '{projekt.name}' wurden {len(belastungen)} Grundbuch-Belastungen gefunden. "
+                    f"Bitte entscheiden Sie, ob diese übernommen oder gelöscht werden sollen.",
+            notification_type=NotificationType.ACTION_REQUIRED.value
+        )
+
+    st.success(f"✅ Abfrage an {len(projekt.kaeufer_ids)} Käufer gesendet!")
+
+
+def _render_loeschungs_todos(projekt):
+    """Zeigt alle Löschungs-ToDos für das Projekt"""
+    st.markdown("#### ⚠️ Löschungs-ToDos")
+
+    todos = [t for t in st.session_state.loeschungs_anforderungen.values()
+             if t.projekt_id == projekt.projekt_id]
+
+    if not todos:
+        st.success("✅ Keine offenen Löschungsanforderungen.")
+        return
+
+    # Nach Priorität sortieren
+    todos.sort(key=lambda x: (x.prioritaet, x.erstellt_am))
+
+    # Statistik
+    offen = len([t for t in todos if t.status == LoeschungsStatus.OFFEN.value])
+    in_bearbeitung = len([t for t in todos if t.status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value]])
+    erledigt = len([t for t in todos if t.status in [LoeschungsStatus.GELOESCHT.value, LoeschungsStatus.UEBERNOMMEN.value]])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("🔴 Offen", offen)
+    with col2:
+        st.metric("🟡 In Bearbeitung", in_bearbeitung)
+    with col3:
+        st.metric("🟢 Erledigt", erledigt)
+
+    st.markdown("---")
+
+    for todo in todos:
+        # Belastung laden
+        belastung = st.session_state.grundbuch_belastungen.get(todo.belastung_id)
+
+        prioritaet_icon = "🔴" if todo.prioritaet == 1 else "🟡" if todo.prioritaet == 2 else "🟢"
+        status_color = "red" if todo.status == LoeschungsStatus.OFFEN.value else \
+                      "orange" if todo.status in [LoeschungsStatus.ANGEFRAGT.value] else \
+                      "blue" if todo.status == LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value else "green"
+
+        with st.expander(f"{prioritaet_icon} {todo.glaeubiger_name} - {todo.abloese_betrag:,.2f} EUR [{todo.status}]"):
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.write(f"**Gläubiger:** {todo.glaeubiger_name}")
+                st.write(f"**Ablösebetrag:** {todo.abloese_betrag:,.2f} EUR")
+
+                if belastung:
+                    st.write(f"**Grundbuch-Eintrag:** Abt. {belastung.abteilung}, Nr. {belastung.lfd_nr}")
+
+                if todo.abloese_konto:
+                    st.write(f"**IBAN für Ablösung:** {todo.abloese_konto}")
+
+                if todo.bewilligung_angefragt_am:
+                    st.write(f"**Bewilligung angefragt am:** {todo.bewilligung_angefragt_am.strftime('%d.%m.%Y')}")
+
+                if todo.bewilligung_erhalten_am:
+                    st.success(f"✅ Bewilligung erhalten am: {todo.bewilligung_erhalten_am.strftime('%d.%m.%Y')}")
+
+                if todo.notizen:
+                    st.caption(f"Notizen: {todo.notizen}")
+
+            with col2:
+                st.write("**Status ändern:**")
+
+                neuer_status = st.selectbox(
+                    "Status",
+                    options=[s.value for s in LoeschungsStatus],
+                    index=[s.value for s in LoeschungsStatus].index(todo.status),
+                    key=f"loesch_status_{todo.anforderung_id}",
+                    label_visibility="collapsed"
+                )
+
+                if neuer_status != todo.status:
+                    todo.status = neuer_status
+                    todo.aktualisiert_am = datetime.now()
+
+                    if neuer_status == LoeschungsStatus.ANGEFRAGT.value:
+                        todo.bewilligung_angefragt_am = datetime.now()
+                    elif neuer_status == LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value:
+                        todo.bewilligung_erhalten_am = datetime.now()
+
+                    # Belastung auch aktualisieren
+                    if belastung:
+                        belastung.loeschung_status = neuer_status
+                        st.session_state.grundbuch_belastungen[belastung.belastung_id] = belastung
+
+                    st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+                    st.rerun()
+
+                # Gläubiger-Kontakt
+                st.markdown("---")
+                st.write("**Gläubiger-Kontakt:**")
+
+                glaeubiger_adresse = st.text_input("Adresse", value=todo.glaeubiger_adresse, key=f"gl_adr_{todo.anforderung_id}")
+                glaeubiger_email = st.text_input("E-Mail", value=todo.glaeubiger_email, key=f"gl_email_{todo.anforderung_id}")
+                abloese_konto = st.text_input("IBAN für Ablösung", value=todo.abloese_konto, key=f"gl_iban_{todo.anforderung_id}")
+
+                if st.button("💾 Speichern", key=f"save_gl_{todo.anforderung_id}"):
+                    todo.glaeubiger_adresse = glaeubiger_adresse
+                    todo.glaeubiger_email = glaeubiger_email
+                    todo.abloese_konto = abloese_konto
+                    todo.aktualisiert_am = datetime.now()
+                    st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+                    st.success("✅ Gespeichert!")
+
+            # Dokument-Upload für Löschungsbewilligung
+            if todo.status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value]:
+                st.markdown("---")
+                uploaded = st.file_uploader(
+                    "Löschungsbewilligung hochladen",
+                    type=["pdf"],
+                    key=f"bewilligung_{todo.anforderung_id}"
+                )
+                if uploaded:
+                    todo.bewilligung_dokument = uploaded.read()
+                    todo.bewilligung_dateiname = uploaded.name
+                    todo.bewilligung_erhalten_am = datetime.now()
+                    todo.status = LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value
+                    st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+                    st.success("✅ Löschungsbewilligung hochgeladen!")
+                    st.rerun()
 
 
 def _render_baulasten_bereich(projekt, notar_id: str):

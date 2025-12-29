@@ -212,13 +212,80 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 - Session State für alle persistenten Daten
 - CSS-Injection via `st.markdown(unsafe_allow_html=True)`
 
+## Neue Grundbuch-OCR & Workflow-Funktionen
+
+### Grundbuch-Abteilungen II/III Extraktion
+- **OCR-Analyse:** PDF-Upload mit KI-gestützter Extraktion (OpenAI/Anthropic)
+- **Abteilung II:** Lasten und Beschränkungen (Wegerechte, Leitungsrechte, Wohnrechte, Nießbrauch, etc.)
+- **Abteilung III:** Hypotheken, Grundschulden, Rentenschulden
+- Automatische Erkennung von Gläubigern und Beträgen
+
+### Löschungs-ToDo-System
+- **Automatische ToDo-Erstellung** für jede Belastung in Abt. III
+- **Prioritäts-Stufen:** Hoch (>50.000€), Mittel (10.000-50.000€), Niedrig (<10.000€)
+- **Status-Tracking:** Offen → Angefragt → Bewilligung erhalten → Gelöscht
+- **Gläubiger-Verwaltung:** Adresse, E-Mail, IBAN für Ablösung
+- **Dokument-Upload:** Löschungsbewilligungen hochladen
+
+### Käufer-Abfrage zu Belastungen
+- **Entscheidungs-Dialog:** Käufer wählt "Übernehmen" oder "Löschen" für jede Belastung
+- **Benachrichtigungs-System:** Automatische Benachrichtigung bei offenen Entscheidungen
+- **Status-Anzeige:** Farbcodierte Anzeige (🔴 Offen, 🟡 In Bearbeitung, 🟢 Erledigt)
+
+### Grundbuchstand im Kaufvertrag
+- **Template-Generierung:** Automatisch formatierter Grundbuchstand-Abschnitt
+- **Integration von Käufer-Entscheidungen:** [wird übernommen] / [zur Löschung vorgesehen]
+- **Funktion:** `generiere_grundbuchstand_text(projekt_id)`
+
+### Bank-Grundschuld-Auswahl
+- **Bank-Erfassung:** Name, Adresse, BIC, Ansprechpartner
+- **Grundschuld-Details:** Betrag, Zinsen, Buchgrundschuld/Briefgrundschuld
+- **Workflow:** Entwurf anfordern → Entwurf hochladen → Beurkundung
+- **Automatische Vorausfüllung** aus Finanzierungsangeboten
+
+### Workflow-Benachrichtigungen
+- **Automatische Benachrichtigung** nach jedem Workflow-Schritt
+- **Empfänger-Auswahl:** Käufer, Verkäufer, Makler, Alle
+- **Abwahl-Option:** Empfänger können Benachrichtigungen abwählen
+- **Funktion:** `sende_workflow_benachrichtigung(projekt_id, ...)`
+
+### Neue Notar-Menüstruktur (Workflow-orientiert)
+```
+📁 Akte        → Übersicht, Akten, Import
+📚 Grundbuch   → Auszug & OCR, Belastungen, Löschungs-ToDos
+💰 Finanzierung → Nachweise, Bank-Grundschuld, Preiseinigungen
+📜 Kaufvertrag → Erstellen, Vorlagen, Vergleich
+☰ Mehr        → Termine, Vollzug, Kontakte, Nachrichten, System
+```
+
+### Neue Dataclasses
+- `GrundbuchBelastung` - Einzelne Belastung aus Grundbuch
+- `LoeschungsAnforderung` - ToDo für Löschungsbewilligung
+- `KaeuferBelastungsAbfrage` - Käufer-Entscheidung zu Belastung
+- `BankGrundschuldInfo` - Finanzierende Bank für Grundschuld
+- `MietverhaeltnisInfo` - Mietverhältnisse im Objekt
+- `WorkflowBenachrichtigung` - Automatische Benachrichtigungen
+
+### Neue Funktionen
+- `ocr_grundbuch_mit_ki()` - KI-gestützte Grundbuch-OCR
+- `erstelle_belastungen_aus_ocr()` - Belastungen aus OCR-Ergebnis erstellen
+- `erstelle_loeschungs_todos_aus_belastungen()` - Automatische ToDo-Erstellung
+- `generiere_grundbuchstand_text()` - Kaufvertrag-Abschnitt generieren
+- `sende_workflow_benachrichtigung()` - Workflow-Benachrichtigung senden
+- `notar_bank_grundschuld()` - Bank-Grundschuld-Verwaltung
+- `_render_grundbuch_belastungen()` - UI für Belastungen-Anzeige
+- `_render_loeschungs_todos()` - UI für Löschungs-ToDos
+- `_run_grundbuch_ocr()` - OCR-Analyse durchführen
+
 ## Letzte Änderungen
 
-1. **Notar-Dashboard komplett überarbeitet** - 4-Quadranten-Layout mit klickbaren Widgets
-2. **Sidebar-Suche funktional** - Echtzeit-Suche mit klickbaren Ergebnissen
-3. **Home-Button im Sidebar-Menü** - Dashboard-Button führt zurück zum Haupt-Dashboard
-4. **Akten-Übersichtsseite** - Alle Akten sortierbar, durchsuchbar, mit Posteingang-Badge
-5. **Posteingang-Badge** - 📬 zeigt neue Dokumente pro Akte an (Anzahl sichtbar)
-6. **Akten-Detailansicht** - Ordnerstruktur (Entwürfe, Urkunden) mit Dokumentaktionen
-7. **Timeline am oberen Rand** - Übersicht aller Vorgänge nach Status
-8. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
+1. **Grundbuch-OCR mit KI** - Automatische Extraktion von Abt. II und III aus PDFs
+2. **Löschungs-ToDo-System** - Automatische ToDos für Grundschulden/Hypotheken
+3. **Käufer-Abfrage-Dialog** - Entscheidung über Übernahme/Löschung von Rechten
+4. **Bank-Grundschuld-Modul** - Erfassung der finanzierenden Bank
+5. **Workflow-Benachrichtigungen** - Automatische Benachrichtigungen an Parteien
+6. **Notar-Menü workflow-orientiert** - Neue Menüstruktur nach Notarablauf
+7. **Grundbuchstand im Kaufvertrag** - Automatisch generierter Abschnitt mit allen Belastungen
+8. **Notar-Dashboard komplett überarbeitet** - 4-Quadranten-Layout mit klickbaren Widgets
+9. **Sidebar-Suche funktional** - Echtzeit-Suche mit klickbaren Ergebnissen
+10. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
