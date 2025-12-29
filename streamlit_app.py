@@ -22843,7 +22843,7 @@ def render_notar_menu_styles():
 
 def render_notar_bottom_nav():
     """
-    Rendert die Bottom-Navigation für Mobile.
+    Rendert die Bottom-Navigation für Mobile mit nativen Streamlit-Buttons.
     Wird nur auf Mobilgeräten angezeigt (via CSS).
     """
     if 'notar_menu_selection' not in st.session_state:
@@ -22869,27 +22869,96 @@ def render_notar_bottom_nav():
                         active_group = gruppe_name
                         break
 
-    # Bottom Navigation HTML
-    nav_items = []
-    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
-        icon = gruppe_data['icon']
-        is_active = gruppe_name == active_group
-        active_class = 'active' if is_active else ''
+    # CSS für Mobile Bottom Navigation (versteckt auf Desktop)
+    st.markdown("""
+    <style>
+    /* Mobile Bottom Navigation - nur auf kleinen Bildschirmen sichtbar */
+    @media (min-width: 769px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] button[kind="secondary"][key*="mobile_nav"]),
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] button[kind="primary"][key*="mobile_nav"]) {
+            display: none !important;
+        }
+        .mobile-nav-container {
+            display: none !important;
+        }
+    }
+    @media (max-width: 768px) {
+        .mobile-nav-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 2px solid #1a365d;
+            padding: 0.3rem 0.5rem;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.15);
+        }
+        .mobile-nav-container .stButton button {
+            font-size: 1.2rem !important;
+            padding: 0.4rem 0.2rem !important;
+            min-height: 40px !important;
+            border-radius: 8px !important;
+        }
+        /* Platz am Ende der Seite für die fixierte Navigation */
+        .main .block-container {
+            padding-bottom: 120px !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-        nav_items.append(f'''
-            <div class="bottom-nav-item {active_class}" data-group="{gruppe_name}">
-                <span class="nav-icon">{icon}</span>
-                <span class="nav-label">{gruppe_name}</span>
-            </div>
-        ''')
+    # Mobile Navigation Container
+    mobile_container = st.container()
+    with mobile_container:
+        st.markdown('<div class="mobile-nav-container">', unsafe_allow_html=True)
 
-    nav_html = f'''
-    <div class="bottom-nav">
-        {''.join(nav_items)}
-    </div>
-    '''
+        menu_items = list(NOTAR_MENU_STRUKTUR.items())
 
-    st.markdown(nav_html, unsafe_allow_html=True)
+        # Alle 8 Gruppen in 2 Reihen à 4 Spalten
+        # Erste Reihe: Akte, Grundbuch, Parteien, Finanzierung
+        cols1 = st.columns(4)
+        for i, (gruppe_name, gruppe_data) in enumerate(menu_items[:4]):
+            with cols1[i]:
+                icon = gruppe_data['icon']
+                is_active = gruppe_name == active_group
+                default_key = gruppe_data['items'][0]['key']
+                if default_key.startswith('_') and default_key in NOTAR_UNTERMENUS:
+                    default_key = NOTAR_UNTERMENUS[default_key][0]['key']
+
+                if st.button(
+                    icon,
+                    key=f"mobile_nav_{gruppe_name}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary",
+                    help=gruppe_name
+                ):
+                    st.session_state.notar_menu_selection = default_key
+                    st.session_state.notar_mobile_group = gruppe_name
+                    st.rerun()
+
+        # Zweite Reihe: Kaufvertrag, Beurkundung, Vollzug, Kommunikation
+        cols2 = st.columns(4)
+        for i, (gruppe_name, gruppe_data) in enumerate(menu_items[4:]):
+            with cols2[i]:
+                icon = gruppe_data['icon']
+                is_active = gruppe_name == active_group
+                default_key = gruppe_data['items'][0]['key']
+                if default_key.startswith('_') and default_key in NOTAR_UNTERMENUS:
+                    default_key = NOTAR_UNTERMENUS[default_key][0]['key']
+
+                if st.button(
+                    icon,
+                    key=f"mobile_nav_{gruppe_name}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary",
+                    help=gruppe_name
+                ):
+                    st.session_state.notar_menu_selection = default_key
+                    st.session_state.notar_mobile_group = gruppe_name
+                    st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_notar_sidebar_menu(user_id: str) -> str:
