@@ -21,6 +21,7 @@
 | Verkäufer | verkaeufer@demo.de | verkaeufer123 |
 | Finanzierer | finanz@demo.de | finanz123 |
 | Notar | notar@demo.de | notar123 |
+| Notarfachkraft | notarfachkraft@demo.de | notarfachkraft123 |
 
 ## Dashboard-Struktur (Neues Design)
 
@@ -69,6 +70,37 @@
 **Notar:**
 - Dashboard + erweitertes Notar-Menü (Akten, Vorgänge, Dokumente, Termine, etc.)
 - **WICHTIG:** Beim Notar heißen "Projekte" immer "Akten"
+- Kann Mitarbeiter anlegen und Berechtigungen vergeben
+- Weist Mitarbeiter Projekten/Akten zu
+
+**Notarfachkraft (Notar-Mitarbeiter):**
+- Eingeschränktes Dashboard basierend auf Berechtigungen
+- Bearbeitet zugewiesene Projekte/Akten
+- Tabs: Timeline, Projekte, Checklisten, Dokumenten-Freigaben, Termine, Finanzierung
+- Berechtigungen werden vom Notar festgelegt
+
+### Notar ↔ Notarfachkraft Zusammenarbeit
+
+**Berechtigungssystem:**
+| Berechtigung | Beschreibung |
+|--------------|--------------|
+| kann_checklisten_bearbeiten | Checklisten für Projekte bearbeiten |
+| kann_dokumente_freigeben | Dokumente im Namen des Notars freigeben |
+| kann_termine_verwalten | Termine anlegen und bearbeiten |
+| kann_finanzierung_sehen | Finanzierungsnachweise einsehen |
+
+**Mitarbeiter-Rollen:**
+- `Vollzugriff` - Alle Berechtigungen
+- `Sachbearbeiter` - Standard-Bearbeitung (Checklisten, Termine)
+- `Checklisten-Verwalter` - Nur Checklisten
+- `Nur Lesen` - Lesezugriff ohne Bearbeitungsrechte
+
+**Workflow:**
+1. Notar legt Mitarbeiter an (Menü → Mehr → Kontakte → Mitarbeiter)
+2. Notar weist Berechtigungen zu
+3. Notar weist Projekte/Akten zu
+4. Mitarbeiter loggt sich ein und sieht nur zugewiesene Projekte
+5. Mitarbeiter bearbeitet Checklisten, gibt Dokumente frei, etc.
 
 ### Interessent → Käufer Workflow
 
