@@ -23057,64 +23057,117 @@ def render_notar_sidebar_menu(user_id: str) -> str:
 
 def render_notar_mobile_menu():
     """
-    Rendert das mobile Menü mit Untermenü-Auswahl.
-    Wird nach der Bottom-Nav angezeigt wenn eine Gruppe ausgewählt wurde.
+    Rendert das mobile Untermenü mit Buttons für schnellen Zugriff.
+    Zeigt die Untermenüpunkte der aktuell aktiven Gruppe an.
+    Nur auf Mobile sichtbar (via CSS).
     """
     if 'notar_menu_selection' not in st.session_state:
         st.session_state.notar_menu_selection = 'timeline'
-    if 'notar_mobile_group' not in st.session_state:
-        st.session_state.notar_mobile_group = 'Timeline'
 
-    current_group = st.session_state.notar_mobile_group
+    current_selection = st.session_state.notar_menu_selection
+
+    # Finde aktuelle Gruppe basierend auf Selection
+    current_group = None
+    for gruppe_name, gruppe_data in NOTAR_MENU_STRUKTUR.items():
+        for item in gruppe_data['items']:
+            if item['key'] == current_selection:
+                current_group = gruppe_name
+                break
+            if item['key'].startswith('_') and item['key'] in NOTAR_UNTERMENUS:
+                for sub_item in NOTAR_UNTERMENUS[item['key']]:
+                    if sub_item['key'] == current_selection:
+                        current_group = gruppe_name
+                        break
+        if current_group:
+            break
+
+    # Fallback auf erste Gruppe
+    if not current_group:
+        current_group = list(NOTAR_MENU_STRUKTUR.keys())[0]
+
+    # CSS für Mobile-only Anzeige
+    st.markdown("""
+    <style>
+    /* Mobile Untermenü - nur auf kleinen Bildschirmen sichtbar */
+    .mobile-submenu-container {
+        display: none;
+    }
+    @media (max-width: 768px) {
+        .mobile-submenu-container {
+            display: block;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e9ecef;
+        }
+        .mobile-submenu-container .stButton button {
+            font-size: 0.85rem !important;
+            padding: 0.3rem !important;
+            min-height: 36px !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     if current_group in NOTAR_MENU_STRUKTUR:
         gruppe_data = NOTAR_MENU_STRUKTUR[current_group]
-
-        # Kompakte horizontale Buttons für Untermenü
         items = gruppe_data['items']
-        cols = st.columns(len(items))
+
+        # Container für Mobile
+        st.markdown('<div class="mobile-submenu-container">', unsafe_allow_html=True)
+        st.markdown(f"**{gruppe_data['icon']} {current_group}:**")
+
+        # Buttons für Untermenüpunkte
+        cols = st.columns(min(len(items), 4))  # Max 4 Spalten
 
         for i, item in enumerate(items):
-            with cols[i]:
+            col_idx = i % min(len(items), 4)
+            with cols[col_idx]:
                 item_key = item['key']
 
                 # Prüfen ob Untermenü
                 if item_key.startswith('_') and item_key in NOTAR_UNTERMENUS:
                     # Zeige Untermenü-Auswahl
-                    if st.button(f"{item['icon']}", key=f"mob_{item_key}", help=item['name']):
+                    if st.button(f"{item['icon']}", key=f"mob_{item_key}", help=item['name'], use_container_width=True):
                         st.session_state.notar_active_submenu = item_key
                         st.rerun()
                 else:
-                    ist_aktiv = st.session_state.notar_menu_selection == item_key
+                    ist_aktiv = current_selection == item_key
                     if st.button(
                         f"{item['icon']}",
                         key=f"mob_{item_key}",
                         help=item['name'],
+                        use_container_width=True,
                         type="primary" if ist_aktiv else "secondary"
                     ):
                         st.session_state.notar_menu_selection = item_key
                         st.rerun()
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
         # Untermenü anzeigen wenn aktiv
         if hasattr(st.session_state, 'notar_active_submenu') and st.session_state.notar_active_submenu:
             submenu_key = st.session_state.notar_active_submenu
             if submenu_key in NOTAR_UNTERMENUS:
-                st.markdown("---")
+                st.markdown('<div class="mobile-submenu-container">', unsafe_allow_html=True)
                 sub_items = NOTAR_UNTERMENUS[submenu_key]
                 sub_cols = st.columns(len(sub_items))
 
                 for j, sub_item in enumerate(sub_items):
                     with sub_cols[j]:
-                        ist_aktiv = st.session_state.notar_menu_selection == sub_item['key']
+                        ist_aktiv = current_selection == sub_item['key']
                         if st.button(
                             f"{sub_item['icon']}",
                             key=f"sub_{sub_item['key']}",
                             help=sub_item['name'],
+                            use_container_width=True,
                             type="primary" if ist_aktiv else "secondary"
                         ):
                             st.session_state.notar_menu_selection = sub_item['key']
                             st.session_state.notar_active_submenu = None
                             st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_notar_hauptmenu_leiste() -> str:
@@ -23762,6 +23815,9 @@ def notar_dashboard():
             {NOTAR_MENU_STRUKTUR[aktive_gruppe]['icon']} <strong>{aktive_gruppe}</strong> › {aktueller_bereich_icon} {aktueller_bereich}
         </div>
         """, unsafe_allow_html=True)
+
+    # Mobile Untermenü-Navigation (nur auf Mobile sichtbar)
+    render_notar_mobile_menu()
 
     # Inhalt rendern
     render_notar_content(selection, user_id)
