@@ -1612,6 +1612,88 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """, unsafe_allow_html=True)
 
 
+def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
+    """
+    Rendert einen kompakten Dashboard-Header mit User-Info, Zahnrad (Einstellungen) und Abmelden rechts.
+    """
+    rolle_config = {
+        'Makler': {'icon': '📊', 'color': '#495057'},
+        'Käufer': {'icon': '🏠', 'color': '#28a745'},
+        'Verkäufer': {'icon': '🏡', 'color': '#17a2b8'},
+        'Finanzierer': {'icon': '💼', 'color': '#6f42c1'},
+        'Notar': {'icon': '⚖️', 'color': '#343a40'},
+    }
+
+    config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
+
+    notification_html = ""
+    if unread_count > 0:
+        notification_html = f'<span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">{unread_count}</span>'
+
+    # Kompakter Header mit flexbox Layout
+    st.markdown(f"""
+    <style>
+    .compact-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: {config['color']};
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }}
+    .compact-header-left {{
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+    }}
+    .compact-header-right {{
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.85rem;
+    }}
+    .compact-header-user {{
+        opacity: 0.9;
+    }}
+    .compact-header-actions {{
+        display: flex;
+        gap: 0.5rem;
+    }}
+    .compact-header-link {{
+        color: white;
+        opacity: 0.8;
+        text-decoration: none;
+        cursor: pointer;
+    }}
+    .compact-header-link:hover {{
+        opacity: 1;
+    }}
+    </style>
+    <div class="compact-header">
+        <div class="compact-header-left">
+            {config['icon']} {rolle}-Dashboard {notification_html}
+        </div>
+        <div class="compact-header-right">
+            <span class="compact-header-user">{user_name}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Buttons für Einstellungen und Abmelden (native Streamlit buttons for functionality)
+    cols = st.columns([8, 1, 1])
+    with cols[1]:
+        if st.button("⚙️", key="header_settings", help="Einstellungen"):
+            st.session_state.notar_menu_selection = "einstellungen"
+            st.rerun()
+    with cols[2]:
+        if st.button("🚪", key="header_logout", help="Abmelden"):
+            logout()
+
+
 def render_kpi_cards(kpis: list):
     """
     Rendert KPI-Karten in einem Grid.
@@ -23901,85 +23983,77 @@ def render_notar_content(selection: str, user_id: str):
         st.warning(f"Unbekannter Menüpunkt: {selection}")
 
 
-def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundungen: int, anstehende_termine: int):
+def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundungen: int, anstehende_termine: int, posteingang: int = 0):
     """
     Rendert klickbare KPI-Karten für das Notar-Dashboard.
-    Quadratisch, mit Schatten, ohne Icons.
+    Vertikal angeordnet, kompakt, mit Schatten, ohne Icons.
     """
-    # CSS für quadratische Karten mit Schatten
+    # CSS für kompakte vertikale Karten
     st.markdown("""
     <style>
-    .clickable-kpi-container {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .clickable-kpi-card {
-        flex: 1;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 1.5rem;
-        text-align: center;
-        min-height: 120px;
+    .kpi-vertical-container {
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .kpi-compact-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        padding: 0.6rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
     }
-    .clickable-kpi-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    .kpi-compact-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     }
-    .clickable-kpi-value {
-        font-size: 2.5rem;
+    .kpi-compact-value {
+        font-size: 1.4rem;
         font-weight: 700;
         color: #1a365d;
-        line-height: 1;
-        margin-bottom: 0.5rem;
+        min-width: 40px;
+        text-align: center;
     }
-    .clickable-kpi-label {
-        font-size: 0.95rem;
+    .kpi-compact-label {
+        font-size: 0.85rem;
         color: #495057;
         font-weight: 500;
+        flex: 1;
+        margin-left: 0.75rem;
+    }
+    .kpi-compact-arrow {
+        color: #adb5bd;
+        font-size: 0.9rem;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # Klickbare Buttons in Spalten
-    cols = st.columns(3)
+    # Vertikale KPI-Karten
+    kpi_data = [
+        (aktive_akten, "Aktive Akten", "kpi_aktive_akten", "projekte"),
+        (beurkundungen, "Beurkundungen", "kpi_beurkundungen", "beurkundung"),
+        (anstehende_termine, "Anstehende Termine", "kpi_termine", "termine"),
+        (posteingang, "Posteingang", "kpi_posteingang", "eingaenge"),
+    ]
 
-    with cols[0]:
+    for value, label, key, target in kpi_data:
         st.markdown(f"""
-        <div class="clickable-kpi-card">
-            <div class="clickable-kpi-value">{aktive_akten}</div>
-            <div class="clickable-kpi-label">Aktive Akten</div>
+        <div class="kpi-compact-card">
+            <div class="kpi-compact-value">{value}</div>
+            <div class="kpi-compact-label">{label}</div>
+            <div class="kpi-compact-arrow">›</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("Zu Akten", key="kpi_aktive_akten", use_container_width=True, type="secondary"):
-            st.session_state.notar_menu_selection = "projekte"
-            st.rerun()
-
-    with cols[1]:
-        st.markdown(f"""
-        <div class="clickable-kpi-card">
-            <div class="clickable-kpi-value">{beurkundungen}</div>
-            <div class="clickable-kpi-label">Beurkundungen</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Zu Beurkundungen", key="kpi_beurkundungen", use_container_width=True, type="secondary"):
-            st.session_state.notar_menu_selection = "beurkundung"
-            st.rerun()
-
-    with cols[2]:
-        st.markdown(f"""
-        <div class="clickable-kpi-card">
-            <div class="clickable-kpi-value">{anstehende_termine}</div>
-            <div class="clickable-kpi-label">Anstehende Termine</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Zu Terminen", key="kpi_termine", use_container_width=True, type="secondary"):
-            st.session_state.notar_menu_selection = "termine"
+        if st.button(f"→ {label}", key=key, use_container_width=True, type="secondary"):
+            if target == "eingaenge":
+                st.session_state.show_eingaenge_center = True
+            else:
+                st.session_state.notar_menu_selection = target
             st.rerun()
 
 
@@ -24006,9 +24080,16 @@ def notar_dashboard():
 
     # Weitere Sidebar-Elemente (unterhalb des Menüs)
     render_aktentasche_sidebar(user_id)
-    render_benachrichtigungs_badge(user_id)
     render_aktentasche_teilen_dialog(user_id)
     render_aktentasche_download(user_id)
+
+    # System-Info am Ende der Sidebar
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### ℹ️ System-Info")
+        st.caption(f"Benutzer: {len(st.session_state.users)}")
+        st.caption(f"Projekte: {len(st.session_state.projekte)}")
+        st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
 
     # Titel mit aktuellem Bereich ermitteln
     aktueller_bereich = ""
@@ -24032,8 +24113,8 @@ def notar_dashboard():
                         aktive_gruppe = gruppe_name
                         break
 
-    # Dashboard Header
-    render_dashboard_header("Notar", user_name, unread_count)
+    # Kompakter Dashboard Header mit User-Info, Zahnrad und Abmelden
+    render_compact_dashboard_header("Notar", user_name, unread_count)
 
     # KPIs berechnen
     notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
@@ -24050,8 +24131,12 @@ def notar_dashboard():
             if termin and hasattr(termin, 'datum') and termin.datum >= heute:
                 anstehende_termine += 1
 
-    # Klickbare KPI-Karten (quadratisch, mit Schatten, ohne Icons)
-    render_clickable_kpi_cards_notar(user_id, aktive_projekte, beurkundungen, anstehende_termine)
+    # Posteingang zählen
+    zaehler = get_eingaenge_zaehler(user_id)
+    posteingang = zaehler.get("gesamt", 0)
+
+    # Klickbare KPI-Karten (vertikal, kompakt, mit Posteingang)
+    render_clickable_kpi_cards_notar(user_id, aktive_projekte, beurkundungen, anstehende_termine, posteingang)
 
     # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
     st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
@@ -40184,39 +40269,42 @@ def main():
         login_page()
         return
 
-    # Sidebar
-    with st.sidebar:
-        st.markdown("### 👤 Angemeldet als:")
-        st.write(f"**{st.session_state.current_user.name}**")
+    # Notar hat eigene Sidebar-Verwaltung im Dashboard
+    role = st.session_state.current_user.rolle
+    is_notar = role == UserRole.NOTAR.value and not st.session_state.get("is_notar_mitarbeiter", False)
 
-        # Unterschiedliche Anzeige für Mitarbeiter vs normale Benutzer
-        if st.session_state.get("is_notar_mitarbeiter", False):
-            st.caption(f"Rolle: Notar-Mitarbeiter ({st.session_state.current_user.rolle})")
-            st.caption(f"E-Mail: {st.session_state.current_user.email}")
-        else:
-            st.caption(f"Rolle: {st.session_state.current_user.rolle}")
-            st.caption(f"E-Mail: {st.session_state.current_user.email}")
+    # Sidebar nur für Nicht-Notar-Rollen
+    if not is_notar:
+        with st.sidebar:
+            st.markdown("### 👤 Angemeldet als:")
+            st.write(f"**{st.session_state.current_user.name}**")
 
-        if st.button("🚪 Abmelden", use_container_width=True):
-            logout()
+            # Unterschiedliche Anzeige für Mitarbeiter vs normale Benutzer
+            if st.session_state.get("is_notar_mitarbeiter", False):
+                st.caption(f"Rolle: Notar-Mitarbeiter ({st.session_state.current_user.rolle})")
+                st.caption(f"E-Mail: {st.session_state.current_user.email}")
+            else:
+                st.caption(f"Rolle: {st.session_state.current_user.rolle}")
+                st.caption(f"E-Mail: {st.session_state.current_user.email}")
 
-        # Benachrichtigungen nur für normale Benutzer (Mitarbeiter haben keine user_id)
-        if not st.session_state.get("is_notar_mitarbeiter", False):
-            render_notifications()
+            if st.button("🚪 Abmelden", use_container_width=True):
+                logout()
 
-        st.markdown("---")
-        st.markdown("### ℹ️ System-Info")
-        st.caption(f"Benutzer: {len(st.session_state.users)}")
-        st.caption(f"Projekte: {len(st.session_state.projekte)}")
-        st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
+            # Benachrichtigungen nur für normale Benutzer (Mitarbeiter haben keine user_id)
+            if not st.session_state.get("is_notar_mitarbeiter", False):
+                render_notifications()
+
+            st.markdown("---")
+            st.markdown("### ℹ️ System-Info")
+            st.caption(f"Benutzer: {len(st.session_state.users)}")
+            st.caption(f"Projekte: {len(st.session_state.projekte)}")
+            st.caption(f"Angebote: {len(st.session_state.financing_offers)}")
 
     # Hauptbereich
     # Prüfe ob Mitarbeiter oder normaler Benutzer
     if st.session_state.get("is_notar_mitarbeiter", False):
         notarmitarbeiter_dashboard()
     else:
-        role = st.session_state.current_user.rolle
-
         if role == UserRole.MAKLER.value:
             makler_dashboard()
         elif role == UserRole.INTERESSENT.value:
