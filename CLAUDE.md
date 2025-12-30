@@ -317,6 +317,58 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 - `_render_loeschungs_todos()` - UI für Löschungs-ToDos
 - `_run_grundbuch_ocr()` - OCR-Analyse durchführen
 
+## Erklärungs-Modus für Verträge
+
+### Übersicht
+Der Erklärungs-Modus ermöglicht es Käufern, Verkäufern und Maklern, Kaufverträge und Grundschuldbestellungsurkunden mit verständlichen, nicht-juristischen Erklärungen zu lesen.
+
+### Funktionsweise
+- **Split-View:** Links der Originaltext, rechts die verständliche Erklärung
+- **Abschnitts-Navigation:** Klick auf einen Vertragsabschnitt zeigt dessen Erklärung
+- **Standard-Erklärungen:** Vordefinierte Erklärungen für typische Vertragsabschnitte (Präambel, Kaufpreis, Zahlung, Besitzübergang, etc.)
+
+### Rollen-spezifische Funktionen
+
+| Rolle | Erklärungs-Modus | Einstellung |
+|-------|------------------|-------------|
+| Käufer | Standardmäßig aktiv | Nicht einstellbar |
+| Verkäufer | Standardmäßig aktiv | Nicht einstellbar |
+| Makler | Einstellbar | Toggle in Profil-Einstellungen |
+
+### Vertragsabschnitt-Typen
+- `PRAEAMBEL` - Vertragsparteien und Grundstück
+- `KAUFPREIS` - Der vereinbarte Kaufpreis
+- `ZAHLUNG` - Zahlungsmodalitäten und Fälligkeit
+- `BESITZUEBERGANG` - Wirtschaftlicher Übergang
+- `LASTEN` - Lasten und Beschränkungen im Grundbuch
+- `GEWAEHRLEISTUNG` - Sachmängelhaftung
+- `KOSTEN` - Kosten und Steuern
+- `GRUNDSCHULD` - Grundschuldbestellung (bei Finanzierung)
+- `AUFLASSUNG` - Eigentumsübergang
+- `VOLLMACHTEN` - Belastungsvollmacht etc.
+- `SCHLUSSBESTIMMUNGEN` - Formale Regelungen
+
+### Neue Dataclasses
+- `VertragsAbschnittTyp` (Enum) - Typen von Vertragsabschnitten
+- `VertragsAbschnitt` - Einzelner Abschnitt mit Originaltext
+- `VertragsErklaerung` - Erklärung zu einem Abschnitt
+- `VertragMitErklaerungen` - Vertragsdokument mit allen Abschnitten
+
+### Neue Funktionen
+- `render_erklaerungsmodus_splitview()` - Split-View Komponente
+- `render_erklaerungsmodus_toggle()` - Toggle für Makler-Einstellungen
+- `erstelle_demo_vertrag_mit_erklaerungen()` - Demo-Vertrag erstellen
+- `render_dokument_mit_erklaerungsmodus()` - Wrapper für Dokumentansicht
+- `kaeufer_dokumente_view()` - Erweitert um Erklärungs-Modus Tab
+- `verkaeufer_erklaerungsmodus_view()` - Erklärungs-Modus für Verkäufer
+- `makler_erklaerungsmodus_view()` - Erklärungs-Modus für Makler
+
+### Session State Variablen
+- `st.session_state.vertrags_abschnitte` - Alle Vertragsabschnitte
+- `st.session_state.vertrags_erklaerungen` - Alle Erklärungen
+- `st.session_state.vertraege_mit_erklaerungen` - Verträge mit Erklärungen
+- `st.session_state.aktiver_erklaerungsmodus_vertrag` - Aktuell angezeigter Vertrag
+
 ## Letzte Änderungen
 
 1. **Grundbuch-OCR mit KI** - Automatische Extraktion von Abt. II und III aus PDFs
@@ -329,3 +381,4 @@ Das Notar-Dashboard ist speziell auf den Notarworkflow zugeschnitten:
 8. **Notar-Dashboard komplett überarbeitet** - 4-Quadranten-Layout mit klickbaren Widgets
 9. **Sidebar-Suche funktional** - Echtzeit-Suche mit klickbaren Ergebnissen
 10. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
+11. **Erklärungs-Modus für Verträge** - Split-View mit verständlichen Erklärungen für Käufer/Verkäufer/Makler

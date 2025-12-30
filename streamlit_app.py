@@ -5016,6 +5016,8 @@ class MaklerProfile:
     onboarding_token: str = ""
     onboarding_abgeschlossen: bool = False
     onboarding_email_gesendet: bool = False
+    # Erklärungs-Modus für Verträge (Käufer/Verkäufer können Verträge mit Erklärungen lesen)
+    erklaerungsmodus_aktiviert: bool = True  # Standardmäßig an
 
 class MaklerEmpfehlungStatus(Enum):
     """Status einer Makler-Empfehlung"""
@@ -5662,6 +5664,570 @@ class Frist:
     automatisch_berechnet: bool = False
     basis_datum: datetime = None  # Datum von dem aus berechnet wird
     tage_offset: int = 0  # Tage nach Basisdatum
+
+# ============================================================
+# ERKLÄRUNGS-MODUS FÜR VERTRÄGE
+# ============================================================
+
+class VertragsAbschnittTyp(Enum):
+    """Typen von Vertragsabschnitten"""
+    PRAEAMBEL = "Präambel"
+    VERTRAGSGEGENSTAND = "Vertragsgegenstand"
+    KAUFPREIS = "Kaufpreis"
+    ZAHLUNG = "Zahlungsmodalitäten"
+    BESITZUEBERGANG = "Besitzübergang"
+    LASTEN = "Lasten und Beschränkungen"
+    GEWAEHRLEISTUNG = "Gewährleistung"
+    RUECKTRITT = "Rücktrittsrechte"
+    KOSTEN = "Kosten und Steuern"
+    VOLLMACHTEN = "Vollmachten"
+    GRUNDSCHULD = "Grundschuldbestellung"
+    AUFLASSUNG = "Auflassung"
+    SCHLUSSBESTIMMUNGEN = "Schlussbestimmungen"
+    SONSTIGES = "Sonstiges"
+
+@dataclass
+class VertragsAbschnitt:
+    """Ein Abschnitt eines Vertrags mit Originaltext"""
+    abschnitt_id: str
+    dokument_id: str  # Referenz zum Vertragsdokument
+    typ: str = VertragsAbschnittTyp.SONSTIGES.value
+    titel: str = ""
+    originaltext: str = ""  # Der juristische Originaltext
+    reihenfolge: int = 0
+
+@dataclass
+class VertragsErklaerung:
+    """Laienverständliche Erklärung zu einem Vertragsabschnitt"""
+    erklaerung_id: str
+    abschnitt_id: str  # Referenz zum Vertragsabschnitt
+    erklaerung_kurz: str = ""  # Kurze Zusammenfassung (1-2 Sätze)
+    erklaerung_ausfuehrlich: str = ""  # Ausführliche Erklärung
+    beispiel: str = ""  # Praktisches Beispiel zur Verdeutlichung
+    wichtig_fuer: str = ""  # "Käufer", "Verkäufer", "Beide"
+    hinweise: str = ""  # Besondere Hinweise/Warnungen
+    erstellt_von: str = ""  # User-ID (Notar) oder "KI"
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VertragMitErklaerungen:
+    """Ein Vertragsdokument mit allen Abschnitten und Erklärungen"""
+    vertrag_id: str
+    dokument_id: str  # Referenz zum Original-Dokument
+    projekt_id: str
+    vertrag_typ: str  # "Kaufvertrag" oder "Grundschuldbestellung"
+    titel: str = ""
+    abschnitte: List[str] = field(default_factory=list)  # Liste von abschnitt_ids
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+    freigegeben: bool = False  # Vom Notar freigegeben
+    freigegeben_am: datetime = None
+    freigegeben_von: str = ""
+
+# Standard-Erklärungen für typische Kaufvertragsabschnitte
+STANDARD_ERKLAERUNGEN = {
+    VertragsAbschnittTyp.PRAEAMBEL.value: {
+        "kurz": "Die Präambel stellt die Vertragsparteien vor und beschreibt das Grundstück.",
+        "ausfuehrlich": "In der Präambel werden alle Beteiligten des Kaufvertrags mit vollständigen Personalien aufgeführt. Außerdem wird das Kaufobjekt genau bezeichnet - mit Grundbuchbezirk, Blattnummer, Flurstück und Adresse. Dies dient der eindeutigen Identifikation aller Beteiligten und des Vertragsgegenstands.",
+        "wichtig_fuer": "Beide"
+    },
+    VertragsAbschnittTyp.KAUFPREIS.value: {
+        "kurz": "Der Kaufpreis ist der vereinbarte Betrag, den der Käufer für die Immobilie zahlt.",
+        "ausfuehrlich": "Der Kaufpreis wird als Festbetrag in Euro angegeben. Wichtig: Der Kaufpreis ist die Bemessungsgrundlage für die Grunderwerbsteuer (je nach Bundesland 3,5% - 6,5%) und die Notarkosten. Nebenabreden über Teile des Kaufpreises müssen im Vertrag stehen, sonst sind sie unwirksam.",
+        "wichtig_fuer": "Beide",
+        "hinweise": "⚠️ Schwarzgeldabreden sind strafbar und machen den gesamten Vertrag anfechtbar!"
+    },
+    VertragsAbschnittTyp.ZAHLUNG.value: {
+        "kurz": "Hier wird geregelt, wann und wie der Kaufpreis zu zahlen ist.",
+        "ausfuehrlich": "Die Kaufpreiszahlung erfolgt typischerweise erst nach Eintritt bestimmter Voraussetzungen (Fälligkeitsvoraussetzungen): Eintragung einer Auflassungsvormerkung im Grundbuch, Vorliegen aller Genehmigungen, Löschungsbewilligungen für alte Grundschulden. Der Notar teilt mit, wann alle Voraussetzungen erfüllt sind.",
+        "wichtig_fuer": "Käufer",
+        "beispiel": "Beispiel: Der Käufer zahlt nicht sofort bei Vertragsschluss, sondern erst wenn der Notar ihm mitteilt, dass die Auflassungsvormerkung im Grundbuch eingetragen ist. So ist der Käufer vor Verlust seines Geldes geschützt."
+    },
+    VertragsAbschnittTyp.BESITZUEBERGANG.value: {
+        "kurz": "Ab wann gehört die Immobilie wirtschaftlich dem Käufer?",
+        "ausfuehrlich": "Der Besitzübergang (auch 'wirtschaftlicher Übergang' genannt) ist der Zeitpunkt, ab dem der Käufer alle Rechte und Pflichten an der Immobilie übernimmt - Nutzungen (z.B. Mieteinnahmen), aber auch Lasten (Grundsteuer, Versicherungen, Instandhaltung). Dies ist meist der Tag der vollständigen Kaufpreiszahlung.",
+        "wichtig_fuer": "Beide"
+    },
+    VertragsAbschnittTyp.LASTEN.value: {
+        "kurz": "Welche Belastungen auf dem Grundstück gibt es und was passiert damit?",
+        "ausfuehrlich": "Im Grundbuch können verschiedene Rechte Dritter eingetragen sein: Grundschulden/Hypotheken (Abteilung III), Wohnrechte, Wegerechte, Leitungsrechte (Abteilung II). Der Vertrag regelt, welche Belastungen gelöscht werden müssen und welche der Käufer übernimmt.",
+        "wichtig_fuer": "Käufer",
+        "hinweise": "⚠️ Prüfen Sie genau, welche Belastungen Sie übernehmen!"
+    },
+    VertragsAbschnittTyp.GEWAEHRLEISTUNG.value: {
+        "kurz": "Haftet der Verkäufer für Mängel an der Immobilie?",
+        "ausfuehrlich": "Bei Privatverkäufen wird die Gewährleistung (Sachmängelhaftung) üblicherweise ausgeschlossen - Sie kaufen 'wie gesehen'. Der Verkäufer haftet aber trotzdem für arglistig verschwiegene Mängel. Hat er also einen Mangel gekannt und absichtlich verschwiegen, können Sie Schadensersatz verlangen.",
+        "wichtig_fuer": "Beide",
+        "beispiel": "Beispiel: Verschweigt der Verkäufer einen ihm bekannten Hausschwamm-Befall, haftet er trotz Gewährleistungsausschluss."
+    },
+    VertragsAbschnittTyp.KOSTEN.value: {
+        "kurz": "Wer trägt welche Kosten beim Immobilienkauf?",
+        "ausfuehrlich": "Üblicherweise trägt der Käufer: Grunderwerbsteuer, Notar- und Grundbuchkosten, Finanzierungskosten. Die Maklerprovision wird oft geteilt. Die Kosten für Löschung von Belastungen des Verkäufers trägt dieser selbst.",
+        "wichtig_fuer": "Beide"
+    },
+    VertragsAbschnittTyp.GRUNDSCHULD.value: {
+        "kurz": "Die Grundschuld sichert das Bankdarlehen des Käufers ab.",
+        "ausfuehrlich": "Wenn der Käufer den Kauf mit einem Bankdarlehen finanziert, verlangt die Bank eine Sicherheit. Diese Sicherheit ist die Grundschuld - ein Recht, das der Bank erlaubt, die Immobilie zwangszuversteigern, wenn der Käufer sein Darlehen nicht zurückzahlt. Die Grundschuld wird im Grundbuch eingetragen.",
+        "wichtig_fuer": "Käufer",
+        "hinweise": "Die Grundschuld bleibt bestehen, auch wenn das Darlehen abbezahlt ist. Lassen Sie sie dann löschen oder als 'Eigentümergrundschuld' umschreiben."
+    },
+    VertragsAbschnittTyp.AUFLASSUNG.value: {
+        "kurz": "Die Auflassung ist die Einigung über den Eigentumsübergang.",
+        "ausfuehrlich": "Die 'Auflassung' ist die rechtsverbindliche Erklärung von Käufer und Verkäufer, dass das Eigentum übergehen soll. Sie ist Voraussetzung für die spätere Eigentumsumschreibung im Grundbuch. Ohne Auflassung kann kein Eigentum übertragen werden.",
+        "wichtig_fuer": "Beide"
+    },
+    VertragsAbschnittTyp.VOLLMACHTEN.value: {
+        "kurz": "Vollmachten erlauben anderen Personen, für Sie zu handeln.",
+        "ausfuehrlich": "Manchmal können Käufer oder Verkäufer nicht persönlich beim Notar erscheinen. Dann können sie eine Vollmacht erteilen. Im Kaufvertrag sind oft Belastungsvollmachten enthalten, die es dem Käufer erlauben, das noch nicht umgeschriebene Grundstück bereits mit einer Grundschuld zu belasten.",
+        "wichtig_fuer": "Beide"
+    },
+    VertragsAbschnittTyp.SCHLUSSBESTIMMUNGEN.value: {
+        "kurz": "Hier werden formale Regelungen getroffen.",
+        "ausfuehrlich": "Die Schlussbestimmungen enthalten üblicherweise: Salvatorische Klausel (falls ein Teil unwirksam ist, bleibt der Rest gültig), Hinweise auf Grunderwerbsteuer und weitere Kosten, Genehmigungsvorbehalte und die Belehrung durch den Notar.",
+        "wichtig_fuer": "Beide"
+    }
+}
+
+# ============================================================================
+# ERKLÄRUNGS-MODUS - UI-KOMPONENTEN
+# ============================================================================
+
+def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
+    """
+    Rendert die Split-View für den Erklärungs-Modus.
+    Links: Vertragstext, Rechts: Erklärungen zum ausgewählten Abschnitt.
+    """
+    if vertrag_id not in st.session_state.vertraege_mit_erklaerungen:
+        st.warning("Vertrag nicht gefunden.")
+        return
+
+    vertrag = st.session_state.vertraege_mit_erklaerungen[vertrag_id]
+
+    # CSS für Split-View
+    st.markdown("""
+    <style>
+    .erklaerung-container {
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .erklaerung-header {
+        background: linear-gradient(135deg, #1B2A4A 0%, #2C3E5A 100%);
+        color: white;
+        padding: 15px 20px;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    .vertragstext-abschnitt {
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .vertragstext-abschnitt:hover {
+        background: #f8f9fa;
+    }
+    .vertragstext-abschnitt.active {
+        background: #e8f4f8;
+        border-left: 4px solid #C9A227;
+    }
+    .abschnitt-titel {
+        font-weight: 600;
+        color: #1B2A4A;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+    }
+    .abschnitt-text {
+        color: #333;
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+    .erklaerung-box {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    .erklaerung-kurz {
+        font-size: 1rem;
+        color: #1B2A4A;
+        font-weight: 500;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    .erklaerung-detail {
+        color: #444;
+        line-height: 1.7;
+        font-size: 0.9rem;
+    }
+    .erklaerung-beispiel {
+        background: #fff3cd;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+        font-size: 0.85rem;
+        color: #856404;
+    }
+    .erklaerung-hinweis {
+        background: #f8d7da;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+        font-size: 0.85rem;
+        color: #721c24;
+    }
+    .erklaerung-wichtig-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-top: 10px;
+    }
+    .wichtig-kaeufer {
+        background: #d4edda;
+        color: #155724;
+    }
+    .wichtig-verkaeufer {
+        background: #cce5ff;
+        color: #004085;
+    }
+    .wichtig-beide {
+        background: #e2d5f0;
+        color: #5a2d82;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Header mit Vertragstitel
+    st.markdown(f"""
+    <div class="erklaerung-container">
+        <div class="erklaerung-header">
+            📄 {vertrag.titel} - Erklärungs-Modus
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write("")
+
+    # Session State für ausgewählten Abschnitt
+    if 'erklaerungsmodus_aktiver_abschnitt' not in st.session_state:
+        st.session_state.erklaerungsmodus_aktiver_abschnitt = None
+
+    # Zwei Spalten: Links Vertrag, Rechts Erklärung
+    col_vertrag, col_erklaerung = st.columns([1, 1])
+
+    with col_vertrag:
+        st.markdown("### 📜 Vertragstext")
+
+        # Alle Abschnitte des Vertrags anzeigen
+        for abschnitt_id in vertrag.abschnitte:
+            if abschnitt_id in st.session_state.vertrags_abschnitte:
+                abschnitt = st.session_state.vertrags_abschnitte[abschnitt_id]
+
+                is_active = st.session_state.erklaerungsmodus_aktiver_abschnitt == abschnitt_id
+
+                # Button für jeden Abschnitt
+                with st.container():
+                    if st.button(
+                        f"**{abschnitt.titel}**",
+                        key=f"abschnitt_{abschnitt_id}",
+                        use_container_width=True,
+                        type="secondary" if not is_active else "primary"
+                    ):
+                        st.session_state.erklaerungsmodus_aktiver_abschnitt = abschnitt_id
+                        st.rerun()
+
+                    # Vertragstext anzeigen
+                    with st.expander("Vollständiger Text anzeigen", expanded=is_active):
+                        st.markdown(f"""
+                        <div style="font-size: 0.85rem; line-height: 1.6; color: #333;">
+                        {abschnitt.originaltext}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+    with col_erklaerung:
+        st.markdown("### 💡 Erklärung")
+
+        if st.session_state.erklaerungsmodus_aktiver_abschnitt:
+            aktiver_abschnitt_id = st.session_state.erklaerungsmodus_aktiver_abschnitt
+
+            if aktiver_abschnitt_id in st.session_state.vertrags_abschnitte:
+                abschnitt = st.session_state.vertrags_abschnitte[aktiver_abschnitt_id]
+
+                # Suche passende Erklärung
+                erklaerung = None
+                for erk_id, erk in st.session_state.vertrags_erklaerungen.items():
+                    if erk.abschnitt_id == aktiver_abschnitt_id:
+                        erklaerung = erk
+                        break
+
+                # Falls keine individuelle Erklärung, Standard-Erklärung verwenden
+                if erklaerung is None and abschnitt.typ in STANDARD_ERKLAERUNGEN:
+                    std_erkl = STANDARD_ERKLAERUNGEN[abschnitt.typ]
+                    st.markdown(f"""
+                    <div class="erklaerung-box">
+                        <div class="erklaerung-kurz">{std_erkl.get('kurz', '')}</div>
+                        <div class="erklaerung-detail">{std_erkl.get('ausfuehrlich', '')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if std_erkl.get('beispiel'):
+                        st.markdown(f"""
+                        <div class="erklaerung-beispiel">
+                            💡 {std_erkl['beispiel']}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    if std_erkl.get('hinweise'):
+                        st.markdown(f"""
+                        <div class="erklaerung-hinweis">
+                            {std_erkl['hinweise']}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    wichtig = std_erkl.get('wichtig_fuer', 'Beide')
+                    badge_class = 'wichtig-beide'
+                    if wichtig == 'Käufer':
+                        badge_class = 'wichtig-kaeufer'
+                    elif wichtig == 'Verkäufer':
+                        badge_class = 'wichtig-verkaeufer'
+
+                    st.markdown(f"""
+                    <span class="erklaerung-wichtig-badge {badge_class}">
+                        Besonders wichtig für: {wichtig}
+                    </span>
+                    """, unsafe_allow_html=True)
+
+                elif erklaerung:
+                    st.markdown(f"""
+                    <div class="erklaerung-box">
+                        <div class="erklaerung-kurz">{erklaerung.erklaerung_kurz}</div>
+                        <div class="erklaerung-detail">{erklaerung.erklaerung_ausfuehrlich}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    if erklaerung.beispiel:
+                        st.markdown(f"""
+                        <div class="erklaerung-beispiel">
+                            💡 {erklaerung.beispiel}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    if erklaerung.hinweise:
+                        st.markdown(f"""
+                        <div class="erklaerung-hinweis">
+                            {erklaerung.hinweise}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    if erklaerung.wichtig_fuer:
+                        wichtig = erklaerung.wichtig_fuer
+                        badge_class = 'wichtig-beide'
+                        if wichtig == 'Käufer':
+                            badge_class = 'wichtig-kaeufer'
+                        elif wichtig == 'Verkäufer':
+                            badge_class = 'wichtig-verkaeufer'
+
+                        st.markdown(f"""
+                        <span class="erklaerung-wichtig-badge {badge_class}">
+                            Besonders wichtig für: {wichtig}
+                        </span>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("Für diesen Abschnitt ist noch keine Erklärung verfügbar.")
+        else:
+            st.markdown("""
+            <div style="padding: 30px; text-align: center; color: #666;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">👆</div>
+                <p>Wählen Sie links einen Vertragsabschnitt aus, um hier die Erklärung zu sehen.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def render_erklaerungsmodus_toggle(rolle: str):
+    """Rendert den Toggle für den Erklärungs-Modus (nur für Makler einstellbar)"""
+    if rolle != "Makler":
+        return True  # Für Käufer/Verkäufer ist es immer aktiv
+
+    user_id = st.session_state.current_user.get('id', '')
+
+    # Makler-Profil laden
+    if user_id in st.session_state.makler_profiles:
+        profil = st.session_state.makler_profiles[user_id]
+        erklaerungsmodus_aktiv = getattr(profil, 'erklaerungsmodus_aktiviert', True)
+    else:
+        erklaerungsmodus_aktiv = True
+
+    return erklaerungsmodus_aktiv
+
+
+def erstelle_demo_vertrag_mit_erklaerungen(projekt_id: str, vertrag_typ: str = "Kaufvertrag"):
+    """
+    Erstellt einen Demo-Vertrag mit allen Abschnitten und Standard-Erklärungen.
+    Wird verwendet, um die Funktionalität zu demonstrieren.
+    """
+    import uuid
+
+    vertrag_id = str(uuid.uuid4())
+    dokument_id = f"demo_dok_{vertrag_id[:8]}"
+
+    # Demo-Vertragsabschnitte erstellen
+    demo_abschnitte = [
+        {
+            "typ": VertragsAbschnittTyp.PRAEAMBEL.value,
+            "titel": "§ 1 Vertragsparteien und Grundstück",
+            "text": """Vor mir, dem beurkundenden Notar Dr. Max Mustermann, erscheinen heute:
+
+1. Herr/Frau [Verkäufer Name], geboren am [Datum], wohnhaft in [Adresse]
+   - nachfolgend "Verkäufer" genannt -
+
+2. Herr/Frau [Käufer Name], geboren am [Datum], wohnhaft in [Adresse]
+   - nachfolgend "Käufer" genannt -
+
+Der Verkäufer ist eingetragener Eigentümer des im Grundbuch von [Ort], Blatt [Nr.], Flur [Nr.], Flurstück [Nr.] verzeichneten Grundstücks, bebaut mit einem Einfamilienhaus, gelegen in [Adresse]."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.KAUFPREIS.value,
+            "titel": "§ 2 Kaufpreis",
+            "text": """Der Kaufpreis für den Vertragsgegenstand beträgt EUR [Betrag] (in Worten: [Betrag in Worten]).
+
+Der Kaufpreis ist fällig und zahlbar binnen 14 Tagen nach Zugang der schriftlichen Mitteilung des Notars, dass alle Fälligkeitsvoraussetzungen gemäß § 4 dieses Vertrages erfüllt sind."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.ZAHLUNG.value,
+            "titel": "§ 3 Zahlungsmodalitäten",
+            "text": """Der Kaufpreis ist auf folgendes Konto des Verkäufers zu überweisen:
+
+Bank: [Bankname]
+IBAN: [IBAN]
+BIC: [BIC]
+Verwendungszweck: Kaufpreis [Adresse des Objekts], UR-Nr. [Nummer]
+
+Eine Verrechnung oder Aufrechnung mit Gegenforderungen ist ausgeschlossen."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.BESITZUEBERGANG.value,
+            "titel": "§ 4 Besitzübergang",
+            "text": """Der Besitz, die Nutzungen und Lasten sowie die Gefahr des zufälligen Untergangs gehen mit vollständiger Kaufpreiszahlung auf den Käufer über.
+
+Ab diesem Zeitpunkt trägt der Käufer alle öffentlichen und privaten Lasten und Abgaben, insbesondere die Grundsteuer."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.LASTEN.value,
+            "titel": "§ 5 Lasten und Beschränkungen",
+            "text": """Der Verkäufer versichert, dass das Grundstück frei von nicht übernommenen Lasten und Beschränkungen auf den Käufer übergeht.
+
+In Abteilung II des Grundbuchs sind eingetragen: [Auflistung oder "keine Eintragungen"]
+
+In Abteilung III des Grundbuchs sind eingetragen: [Auflistung der Grundschulden]
+Diese werden im Zuge der Kaufpreiszahlung zur Löschung gebracht."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.GEWAEHRLEISTUNG.value,
+            "titel": "§ 6 Gewährleistung",
+            "text": """Der Verkäufer verkauft den Vertragsgegenstand wie besichtigt unter Ausschluss jeglicher Sachmängelhaftung.
+
+Dieser Ausschluss gilt nicht für Ansprüche wegen Vorsatz oder arglistig verschwiegener Mängel.
+
+Der Verkäufer versichert, dass ihm keine versteckten Mängel bekannt sind, die den Wert oder die Gebrauchstauglichkeit des Objekts wesentlich beeinträchtigen."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.KOSTEN.value,
+            "titel": "§ 7 Kosten und Steuern",
+            "text": """Die Kosten dieses Vertrages und seines Vollzuges sowie die Grunderwerbsteuer trägt der Käufer.
+
+Die Kosten der Lastenfreistellung (Löschung der Verkäufer-Grundschulden) trägt der Verkäufer.
+
+Die Maklercourtage wird wie folgt getragen: [Regelung]"""
+        },
+        {
+            "typ": VertragsAbschnittTyp.AUFLASSUNG.value,
+            "titel": "§ 8 Auflassung",
+            "text": """Die Vertragsteile sind sich über den Eigentumsübergang einig und bewilligen und beantragen die Eintragung der Eigentumsänderung im Grundbuch.
+
+Der Notar wird angewiesen, den Antrag auf Eigentumsumschreibung erst zu stellen, wenn die vollständige Kaufpreiszahlung nachgewiesen ist."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.VOLLMACHTEN.value,
+            "titel": "§ 9 Vollmachten",
+            "text": """Der Verkäufer erteilt dem Käufer hiermit Belastungsvollmacht. Der Käufer ist berechtigt, das Vertragsobjekt bereits vor seiner Eintragung als Eigentümer mit Grundpfandrechten zugunsten eines Kreditinstituts zu belasten.
+
+Diese Vollmacht umfasst auch die Unterwerfung unter die sofortige Zwangsvollstreckung in das Grundstück."""
+        },
+        {
+            "typ": VertragsAbschnittTyp.SCHLUSSBESTIMMUNGEN.value,
+            "titel": "§ 10 Schlussbestimmungen",
+            "text": """Mündliche Nebenabreden bestehen nicht. Änderungen und Ergänzungen dieses Vertrages bedürfen zu ihrer Wirksamkeit der notariellen Beurkundung.
+
+Sollte eine Bestimmung dieses Vertrages unwirksam sein oder werden, so bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.
+
+Diese Urkunde wurde den Erschienenen vom Notar vorgelesen, von ihnen genehmigt und eigenhändig unterschrieben."""
+        }
+    ]
+
+    abschnitt_ids = []
+
+    for idx, abschnitt_data in enumerate(demo_abschnitte):
+        abschnitt_id = str(uuid.uuid4())
+        abschnitt = VertragsAbschnitt(
+            abschnitt_id=abschnitt_id,
+            dokument_id=dokument_id,
+            typ=abschnitt_data["typ"],
+            titel=abschnitt_data["titel"],
+            originaltext=abschnitt_data["text"],
+            reihenfolge=idx
+        )
+        st.session_state.vertrags_abschnitte[abschnitt_id] = abschnitt
+        abschnitt_ids.append(abschnitt_id)
+
+    # Vertrag mit Erklärungen erstellen
+    vertrag = VertragMitErklaerungen(
+        vertrag_id=vertrag_id,
+        dokument_id=dokument_id,
+        projekt_id=projekt_id,
+        vertrag_typ=vertrag_typ,
+        titel=f"{vertrag_typ}sentwurf - {projekt_id[:8]}",
+        abschnitte=abschnitt_ids,
+        erstellt_am=datetime.now(),
+        aktualisiert_am=datetime.now()
+    )
+
+    st.session_state.vertraege_mit_erklaerungen[vertrag_id] = vertrag
+
+    return vertrag_id
+
+
+def render_dokument_mit_erklaerungsmodus(dokument_id: str, projekt_id: str, rolle: str):
+    """
+    Wrapper-Funktion: Prüft ob Erklärungs-Modus aktiviert ist und
+    rendert das Dokument entsprechend.
+    """
+    erklaerungsmodus_aktiv = render_erklaerungsmodus_toggle(rolle)
+
+    # Prüfen ob es einen Vertrag mit Erklärungen zu diesem Dokument gibt
+    vertrag_id = None
+    for vid, vertrag in st.session_state.vertraege_mit_erklaerungen.items():
+        if vertrag.dokument_id == dokument_id or vertrag.projekt_id == projekt_id:
+            vertrag_id = vid
+            break
+
+    if vertrag_id and erklaerungsmodus_aktiv:
+        # Toggle zum Umschalten
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("🔄 Normale Ansicht", key=f"toggle_normal_{dokument_id}"):
+                st.session_state.temp_erklaerungsmodus_aus = True
+                st.rerun()
+
+        if not st.session_state.get('temp_erklaerungsmodus_aus', False):
+            render_erklaerungsmodus_splitview(vertrag_id, rolle)
+            return True
+
+    return False  # Signalisiert: normale Dokumentansicht verwenden
+
 
 @dataclass
 class GatingPruefung:
@@ -7784,6 +8350,12 @@ def init_session_state():
         st.session_state.bank_grundschuld_infos = {}  # ID -> BankGrundschuldInfo
         st.session_state.mietverhaeltnis_infos = {}  # ID -> MietverhaeltnisInfo
         st.session_state.workflow_benachrichtigungen = {}  # ID -> WorkflowBenachrichtigung
+
+        # NEU: Erklärungs-Modus für Verträge
+        st.session_state.vertrags_abschnitte = {}  # abschnitt_id -> VertragsAbschnitt
+        st.session_state.vertrags_erklaerungen = {}  # erklaerung_id -> VertragsErklaerung
+        st.session_state.vertraege_mit_erklaerungen = {}  # vertrag_id -> VertragMitErklaerungen
+        st.session_state.aktiver_erklaerungsmodus_vertrag = None  # Aktuell angezeigter Vertrag im Erklärungs-Modus
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
@@ -15045,14 +15617,16 @@ def makler_dashboard():
         with kontakt_subtabs[3]:
             makler_ausweis_erfassung()
 
-    # Tab 4: Dokumente - Bankenmappe, rechtliche Dokumente
+    # Tab 4: Dokumente - Bankenmappe, rechtliche Dokumente, Erklärungs-Modus
     with tabs[4]:
-        dok_subtabs = st.tabs(["💼 Bankenmappe", "⚖️ Rechtliche Dokumente", "🗑️ Papierkorb"])
+        dok_subtabs = st.tabs(["📖 Verträge mit Erklärungen", "💼 Bankenmappe", "⚖️ Rechtliche Dokumente", "🗑️ Papierkorb"])
         with dok_subtabs[0]:
-            render_bank_folder_view()
+            makler_erklaerungsmodus_view(user_id, makler_projekte)
         with dok_subtabs[1]:
-            makler_rechtliche_dokumente()
+            render_bank_folder_view()
         with dok_subtabs[2]:
+            makler_rechtliche_dokumente()
+        with dok_subtabs[3]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
     # Tab 5: Termine - Kalender und Terminverwaltung
@@ -15917,6 +16491,137 @@ def makler_profil_view():
                     st.rerun()
                 else:
                     st.error("Bitte alle Pflichtfelder ausfüllen!")
+
+    # Erklärungs-Modus Einstellungen
+    st.markdown("---")
+    st.markdown("### 📖 Erklärungs-Modus für Verträge")
+    st.markdown("""
+    Der **Erklärungs-Modus** zeigt Käufern und Verkäufern eine verständliche Erklärung
+    zu jedem Abschnitt des Kaufvertrags oder der Grundschuldbestellungsurkunde.
+    """)
+
+    # Aktuellen Status laden
+    erklaerungsmodus_aktiv = getattr(profile, 'erklaerungsmodus_aktiviert', True)
+
+    erklaerung_toggle = st.toggle(
+        "Erklärungs-Modus für meine Käufer/Verkäufer aktivieren",
+        value=erklaerungsmodus_aktiv,
+        key="makler_erklaerungsmodus_toggle",
+        help="Wenn aktiviert, können Ihre Käufer und Verkäufer Verträge im Erklärungs-Modus lesen."
+    )
+
+    if erklaerung_toggle != erklaerungsmodus_aktiv:
+        profile.erklaerungsmodus_aktiviert = erklaerung_toggle
+        st.session_state.makler_profiles[profile.profile_id] = profile
+        status_text = "aktiviert" if erklaerung_toggle else "deaktiviert"
+        st.success(f"✅ Erklärungs-Modus wurde {status_text}!")
+
+    if erklaerung_toggle:
+        st.info("💡 Tipp: Käufer und Verkäufer sehen den Erklärungs-Modus standardmäßig, können aber zur normalen Ansicht wechseln.")
+
+
+def makler_erklaerungsmodus_view(user_id: str, makler_projekte: list):
+    """Erklärungs-Modus für Makler - Kaufverträge mit Erklärungen verwalten und ansehen"""
+    st.subheader("📖 Verträge im Erklärungs-Modus")
+
+    # Prüfen ob Erklärungs-Modus aktiviert ist
+    erklaerungsmodus_aktiv = True
+    if user_id in st.session_state.makler_profiles:
+        profil = st.session_state.makler_profiles[user_id]
+        erklaerungsmodus_aktiv = getattr(profil, 'erklaerungsmodus_aktiviert', True)
+    else:
+        # Profil nach makler_id suchen
+        for p in st.session_state.makler_profiles.values():
+            if p.makler_id == user_id:
+                erklaerungsmodus_aktiv = getattr(p, 'erklaerungsmodus_aktiviert', True)
+                break
+
+    if not erklaerungsmodus_aktiv:
+        st.warning("⚠️ Der Erklärungs-Modus ist für Ihre Käufer/Verkäufer deaktiviert.")
+        st.info("Sie können ihn in den Einstellungen unter 'Profil' aktivieren.")
+        return
+
+    st.markdown("""
+    Hier können Sie Kaufverträge und Grundschuldbestellungsurkunden mit verständlichen
+    Erklärungen zu jedem Abschnitt ansehen. Diese Ansicht steht auch Ihren Käufern und Verkäufern zur Verfügung.
+    """)
+
+    # Tabs für Verwaltung und Ansicht
+    makler_erk_tabs = st.tabs(["📄 Verträge ansehen", "➕ Vertrag mit Erklärungen erstellen"])
+
+    with makler_erk_tabs[0]:
+        if makler_projekte:
+            # Vorhandene Verträge mit Erklärungen suchen
+            verfuegbare_vertraege = []
+            for vid, vertrag in st.session_state.vertraege_mit_erklaerungen.items():
+                if vertrag.projekt_id in [p.projekt_id for p in makler_projekte]:
+                    verfuegbare_vertraege.append((vid, vertrag))
+
+            if verfuegbare_vertraege:
+                for vid, vertrag in verfuegbare_vertraege:
+                    with st.container():
+                        col1, col2, col3 = st.columns([2, 1, 1])
+                        with col1:
+                            st.markdown(f"**📄 {vertrag.titel}**")
+                            st.caption(f"Typ: {vertrag.vertrag_typ} | Erstellt: {vertrag.erstellt_am.strftime('%d.%m.%Y')}")
+                        with col2:
+                            if st.button("📖 Ansehen", key=f"open_erk_mk_{vid}"):
+                                st.session_state.aktiver_erklaerungsmodus_vertrag = vid
+                                st.rerun()
+                        with col3:
+                            freigabe_status = "✅ Freigegeben" if vertrag.freigegeben else "⏳ Entwurf"
+                            st.caption(freigabe_status)
+                        st.markdown("---")
+
+                # Wenn ein Vertrag ausgewählt wurde, anzeigen
+                if st.session_state.get('aktiver_erklaerungsmodus_vertrag'):
+                    aktiver_vid = st.session_state.aktiver_erklaerungsmodus_vertrag
+                    if aktiver_vid in st.session_state.vertraege_mit_erklaerungen:
+                        if st.button("⬅️ Zurück zur Übersicht", key="back_from_erklaerung_mk"):
+                            st.session_state.aktiver_erklaerungsmodus_vertrag = None
+                            st.rerun()
+                        st.markdown("---")
+                        render_erklaerungsmodus_splitview(aktiver_vid, "Makler")
+            else:
+                st.info("Noch keine Kaufverträge im Erklärungs-Modus verfügbar.")
+
+                if st.button("📄 Demo-Kaufvertrag laden", key="load_demo_vertrag_makler"):
+                    if makler_projekte:
+                        projekt_id = makler_projekte[0].projekt_id
+                        vertrag_id = erstelle_demo_vertrag_mit_erklaerungen(projekt_id, "Kaufvertrag")
+                        st.success("Demo-Kaufvertrag wurde erstellt!")
+                        st.rerun()
+        else:
+            st.info("Noch keine Projekte vorhanden.")
+
+    with makler_erk_tabs[1]:
+        st.markdown("### ➕ Neuen Vertrag mit Erklärungen erstellen")
+
+        if makler_projekte:
+            # Projekt auswählen
+            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="makler_erklaerung_projekt_auswahl"
+            )
+
+            # Vertragstyp auswählen
+            vertrag_typ = st.selectbox(
+                "Vertragstyp",
+                ["Kaufvertrag", "Grundschuldbestellung"],
+                key="makler_erklaerung_vertrag_typ"
+            )
+
+            if st.button("📄 Demo-Vertrag erstellen", key="create_erklaerung_vertrag", type="primary"):
+                vertrag_id = erstelle_demo_vertrag_mit_erklaerungen(selected_projekt_id, vertrag_typ)
+                st.success(f"✅ {vertrag_typ} mit Erklärungen wurde erstellt!")
+                st.info("Ihre Käufer und Verkäufer können diesen Vertrag jetzt im Erklärungs-Modus lesen.")
+                st.rerun()
+        else:
+            st.info("Erstellen Sie zuerst ein Projekt, um Verträge mit Erklärungen hinzufügen zu können.")
+
 
 def makler_rechtliche_dokumente():
     """Verwaltung rechtlicher Dokumente"""
@@ -20280,15 +20985,74 @@ def kaeufer_nachrichten():
                 st.info("Noch keine Nachrichten.")
 
 def kaeufer_dokumente_view():
-    """Dokumenten-Übersicht für Käufer"""
-    st.subheader("📄 Akzeptierte Dokumente")
-
+    """Dokumenten-Übersicht für Käufer mit Erklärungs-Modus"""
     user = st.session_state.current_user
-    if user.document_acceptances:
-        for acc in user.document_acceptances:
-            st.write(f"✅ {acc.document_type} (Version {acc.document_version}) - akzeptiert am {acc.accepted_at.strftime('%d.%m.%Y %H:%M')}")
-    else:
-        st.info("Noch keine Dokumente akzeptiert.")
+    user_id = user.user_id
+
+    # Tabs für verschiedene Dokumenten-Bereiche
+    dok_tabs = st.tabs(["📖 Verträge mit Erklärungen", "✅ Akzeptierte Dokumente"])
+
+    with dok_tabs[0]:
+        st.subheader("📖 Kaufvertrag im Erklärungs-Modus")
+        st.markdown("""
+        Hier können Sie Kaufverträge und Grundschuldbestellungsurkunden mit verständlichen
+        Erklärungen zu jedem Abschnitt lesen.
+        """)
+
+        # Projekte des Käufers laden
+        kaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.kaeufer_ids]
+
+        if kaeufer_projekte:
+            # Vorhandene Verträge mit Erklärungen suchen
+            verfuegbare_vertraege = []
+            for vid, vertrag in st.session_state.vertraege_mit_erklaerungen.items():
+                if vertrag.projekt_id in [p.projekt_id for p in kaeufer_projekte]:
+                    verfuegbare_vertraege.append((vid, vertrag))
+
+            if verfuegbare_vertraege:
+                for vid, vertrag in verfuegbare_vertraege:
+                    with st.container():
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**📄 {vertrag.titel}**")
+                            st.caption(f"Typ: {vertrag.vertrag_typ} | Erstellt: {vertrag.erstellt_am.strftime('%d.%m.%Y')}")
+                        with col2:
+                            if st.button("📖 Im Erklärungs-Modus öffnen", key=f"open_erk_{vid}"):
+                                st.session_state.aktiver_erklaerungsmodus_vertrag = vid
+                                st.rerun()
+                        st.markdown("---")
+
+                # Wenn ein Vertrag ausgewählt wurde, anzeigen
+                if st.session_state.get('aktiver_erklaerungsmodus_vertrag'):
+                    aktiver_vid = st.session_state.aktiver_erklaerungsmodus_vertrag
+                    if aktiver_vid in st.session_state.vertraege_mit_erklaerungen:
+                        if st.button("⬅️ Zurück zur Übersicht", key="back_from_erklaerung"):
+                            st.session_state.aktiver_erklaerungsmodus_vertrag = None
+                            st.rerun()
+                        st.markdown("---")
+                        render_erklaerungsmodus_splitview(aktiver_vid, "Käufer")
+            else:
+                # Demo-Vertrag erstellen, wenn keiner vorhanden
+                st.info("Noch keine Kaufverträge im Erklärungs-Modus verfügbar.")
+
+                if st.button("📄 Demo-Kaufvertrag laden", key="load_demo_vertrag_kaeufer"):
+                    if kaeufer_projekte:
+                        projekt_id = kaeufer_projekte[0].projekt_id
+                        vertrag_id = erstelle_demo_vertrag_mit_erklaerungen(projekt_id, "Kaufvertrag")
+                        st.session_state.aktiver_erklaerungsmodus_vertrag = vertrag_id
+                        st.success("Demo-Kaufvertrag wurde geladen!")
+                        st.rerun()
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    with dok_tabs[1]:
+        st.subheader("✅ Akzeptierte Dokumente")
+
+        if user.document_acceptances:
+            for acc in user.document_acceptances:
+                st.write(f"✅ {acc.document_type} (Version {acc.document_version}) - akzeptiert am {acc.accepted_at.strftime('%d.%m.%Y %H:%M')}")
+        else:
+            st.info("Noch keine Dokumente akzeptiert.")
 
 # ============================================================================
 # VERKÄUFER-BEREICH
@@ -20396,17 +21160,19 @@ def verkaeufer_dashboard():
 
     # Tab 3: Dokumente
     with tabs[3]:
-        dok_subtabs = st.tabs(["📄 Hochladen", "📋 Anforderungen", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
+        dok_subtabs = st.tabs(["📖 Verträge mit Erklärungen", "📄 Hochladen", "📋 Anforderungen", "🪪 Ausweis", "💬 Nachrichten", "🗑️ Papierkorb"])
         with dok_subtabs[0]:
-            verkaeufer_dokumente_view()
+            verkaeufer_erklaerungsmodus_view(user_id)
         with dok_subtabs[1]:
-            render_document_requests_view(user_id, UserRole.VERKAEUFER.value)
+            verkaeufer_dokumente_view()
         with dok_subtabs[2]:
+            render_document_requests_view(user_id, UserRole.VERKAEUFER.value)
+        with dok_subtabs[3]:
             st.subheader("🪪 Ausweisdaten erfassen")
             render_ausweis_upload(user_id, UserRole.VERKAEUFER.value)
-        with dok_subtabs[3]:
-            verkaeufer_nachrichten()
         with dok_subtabs[4]:
+            verkaeufer_nachrichten()
+        with dok_subtabs[5]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
     # Tab 4: Termine
@@ -21489,6 +22255,61 @@ def verkaeufer_projekte_view():
                 st.write(f"✅ {len(projekt_docs)} Dokument(e) hochgeladen")
             else:
                 st.info("Noch keine Dokumente hochgeladen. Gehen Sie zum Tab 'Dokumente hochladen'.")
+
+def verkaeufer_erklaerungsmodus_view(user_id: str):
+    """Erklärungs-Modus für Verkäufer - Kaufverträge mit Erklärungen lesen"""
+    st.subheader("📖 Kaufvertrag im Erklärungs-Modus")
+    st.markdown("""
+    Hier können Sie Kaufverträge und Grundschuldbestellungsurkunden mit verständlichen
+    Erklärungen zu jedem Abschnitt lesen.
+    """)
+
+    # Projekte des Verkäufers laden
+    verkaeufer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.verkaeufer_ids]
+
+    if verkaeufer_projekte:
+        # Vorhandene Verträge mit Erklärungen suchen
+        verfuegbare_vertraege = []
+        for vid, vertrag in st.session_state.vertraege_mit_erklaerungen.items():
+            if vertrag.projekt_id in [p.projekt_id for p in verkaeufer_projekte]:
+                verfuegbare_vertraege.append((vid, vertrag))
+
+        if verfuegbare_vertraege:
+            for vid, vertrag in verfuegbare_vertraege:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**📄 {vertrag.titel}**")
+                        st.caption(f"Typ: {vertrag.vertrag_typ} | Erstellt: {vertrag.erstellt_am.strftime('%d.%m.%Y')}")
+                    with col2:
+                        if st.button("📖 Im Erklärungs-Modus öffnen", key=f"open_erk_vk_{vid}"):
+                            st.session_state.aktiver_erklaerungsmodus_vertrag = vid
+                            st.rerun()
+                    st.markdown("---")
+
+            # Wenn ein Vertrag ausgewählt wurde, anzeigen
+            if st.session_state.get('aktiver_erklaerungsmodus_vertrag'):
+                aktiver_vid = st.session_state.aktiver_erklaerungsmodus_vertrag
+                if aktiver_vid in st.session_state.vertraege_mit_erklaerungen:
+                    if st.button("⬅️ Zurück zur Übersicht", key="back_from_erklaerung_vk"):
+                        st.session_state.aktiver_erklaerungsmodus_vertrag = None
+                        st.rerun()
+                    st.markdown("---")
+                    render_erklaerungsmodus_splitview(aktiver_vid, "Verkäufer")
+        else:
+            # Demo-Vertrag erstellen, wenn keiner vorhanden
+            st.info("Noch keine Kaufverträge im Erklärungs-Modus verfügbar.")
+
+            if st.button("📄 Demo-Kaufvertrag laden", key="load_demo_vertrag_verkaeufer"):
+                if verkaeufer_projekte:
+                    projekt_id = verkaeufer_projekte[0].projekt_id
+                    vertrag_id = erstelle_demo_vertrag_mit_erklaerungen(projekt_id, "Kaufvertrag")
+                    st.session_state.aktiver_erklaerungsmodus_vertrag = vertrag_id
+                    st.success("Demo-Kaufvertrag wurde geladen!")
+                    st.rerun()
+    else:
+        st.info("Sie sind noch keinem Projekt zugewiesen.")
+
 
 def verkaeufer_dokumente_view():
     """Dokumenten-Upload für Verkäufer"""
