@@ -5709,6 +5709,51 @@ class VertragsErklaerung:
     erstellt_von: str = ""  # User-ID (Notar) oder "KI"
     erstellt_am: datetime = field(default_factory=datetime.now)
 
+    # NEU: Erweiterte Felder für umfangreichere Erklärungen
+    erklaerung_detail: str = ""  # Sehr ausführliche Erklärung mit allen Details
+    gesetzesreferenzen: List[str] = field(default_factory=list)  # z.B. ["§ 433 BGB", "§ 311b BGB"]
+    beispiel_ausfuehrlich: str = ""  # Ausführliches Beispiel mit konkreten Zahlen/Szenarien
+
+    # NEU: Freigabe-Workflow durch Notar
+    bearbeitet_von: str = ""  # User-ID wer bearbeitet hat
+    bearbeitet_am: datetime = None
+    freigegeben: bool = False  # Vom Notar freigegeben
+    freigegeben_von: str = ""  # Notar User-ID
+    freigegeben_am: datetime = None
+    ist_individuell: bool = False  # True = vom Notar angepasst, False = Standard
+
+
+@dataclass
+class UrkundeAblaufErklaerung:
+    """Erklärung zum zeitlichen Ablauf und den Erfordernissen einer Urkunde"""
+    ablauf_id: str
+    vertrag_id: str  # Referenz zum Vertrag
+    urkunden_typ: str  # "Kaufvertrag", "Grundschuldbestellung", etc.
+
+    # Zeitlicher Ablauf
+    ablauf_uebersicht: str = ""  # Kurzübersicht des Ablaufs
+    ablauf_schritte: List[str] = field(default_factory=list)  # Chronologische Schritte
+    geschaetzte_dauer: str = ""  # z.B. "4-8 Wochen"
+
+    # Erfordernisse
+    erfordernisse_allgemein: List[str] = field(default_factory=list)  # Allgemeine Anforderungen
+    erfordernisse_spezifisch: List[str] = field(default_factory=list)  # Je nach Ausgestaltung
+
+    # Besonderheiten der Urkunde
+    besonderheiten: str = ""  # Spezielle Ausgestaltung dieser Urkunde
+    hinweise_kaeufer: str = ""  # Spezifische Hinweise für Käufer
+    hinweise_verkaeufer: str = ""  # Spezifische Hinweise für Verkäufer
+
+    # Metadaten
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    bearbeitet_von: str = ""
+    bearbeitet_am: datetime = None
+    freigegeben: bool = False
+    freigegeben_von: str = ""
+    freigegeben_am: datetime = None
+
+
 @dataclass
 class VertragMitErklaerungen:
     """Ein Vertragsdokument mit allen Abschnitten und Erklärungen"""
@@ -5788,14 +5833,265 @@ STANDARD_ERKLAERUNGEN = {
     }
 }
 
+# Erweiterte Standard-Erklärungen mit detaillierten Informationen und Gesetzesreferenzen
+STANDARD_ERKLAERUNGEN_DETAIL = {
+    VertragsAbschnittTyp.PRAEAMBEL.value: {
+        "detail": """Die Präambel ist der Einleitungsteil des notariellen Kaufvertrags und erfüllt mehrere wichtige Funktionen:
+
+**1. Identifikation der Vertragsparteien:**
+Alle Beteiligten werden mit vollständigen Personalien aufgeführt - Name, Geburtsdatum, Geburtsort, Anschrift. Der Notar prüft diese Angaben anhand der vorgelegten Ausweisdokumente und bestätigt die Identität.
+
+**2. Beschreibung des Vertragsgegenstands:**
+Das Kaufobjekt wird eindeutig bezeichnet durch:
+- Grundbuchbezirk und Grundbuchblatt
+- Gemarkung, Flur und Flurstück
+- Größe des Grundstücks
+- Art der Bebauung
+- Postalische Anschrift
+
+**3. Rechtliche Grundlage:**
+Die Präambel dokumentiert den Willen der Parteien, ein verbindliches Rechtsgeschäft abzuschließen. Sie ist Teil der notariellen Urkunde gemäß § 8 BeurkG.""",
+        "gesetzesreferenzen": ["§ 311b Abs. 1 BGB (Formpflicht)", "§ 8 BeurkG (Inhalt der Niederschrift)", "§ 10 BeurkG (Feststellung der Identität)"],
+        "beispiel_ausfuehrlich": """**Beispiel einer Präambel:**
+
+'Vor mir, Notar Dr. Max Mustermann in Berlin, erscheinen heute:
+
+1. Herr Thomas Verkäufer, geboren am 15.03.1965 in Hamburg, wohnhaft Musterstraße 1, 10115 Berlin, ausgewiesen durch Personalausweis Nr. L123456789
+   - nachfolgend "Verkäufer" genannt -
+
+2. Frau Anna Käufer, geboren am 22.08.1985 in München, wohnhaft Beispielweg 5, 10117 Berlin, ausgewiesen durch Reisepass Nr. C987654321
+   - nachfolgend "Käufer" genannt -
+
+Der Verkäufer ist als Eigentümer im Grundbuch von Berlin-Mitte, Blatt 12345, Flurstück 67/8, eingetragen. Das Grundstück ist bebaut mit einem Einfamilienhaus, gelegen Gartenstraße 10, 10115 Berlin.'"""
+    },
+    VertragsAbschnittTyp.KAUFPREIS.value: {
+        "detail": """Der Kaufpreis ist das zentrale Element des Kaufvertrags und hat weitreichende rechtliche und steuerliche Konsequenzen:
+
+**1. Festsetzung des Kaufpreises:**
+Der Kaufpreis wird als Festbetrag in Euro vereinbart. Er muss dem tatsächlich vereinbarten Wert entsprechen - Schwarzgeldabreden sind strafbar und machen den Vertrag anfechtbar.
+
+**2. Zusammensetzung:**
+Der Kaufpreis kann verschiedene Komponenten umfassen:
+- Grundstückswert
+- Gebäudewert
+- Mitverkaufte bewegliche Sachen (Einbauküche, Möbel)
+- Ggf. übernommene Belastungen
+
+**3. Steuerliche Auswirkungen:**
+- Grunderwerbsteuer: 3,5% - 6,5% je nach Bundesland
+- Notarkosten: ca. 1,5% des Kaufpreises
+- Grundbuchkosten: ca. 0,5% des Kaufpreises
+
+**4. Wichtig für die Finanzierung:**
+Der Kaufpreis ist die Grundlage für die Bankfinanzierung. Die Bank prüft, ob der Kaufpreis dem Verkehrswert entspricht.""",
+        "gesetzesreferenzen": ["§ 433 Abs. 2 BGB (Pflicht zur Kaufpreiszahlung)", "§ 1 GrEStG (Grunderwerbsteuer)", "§ 311b Abs. 1 BGB (Formerfordernis)"],
+        "beispiel_ausfuehrlich": """**Rechenbeispiel:**
+
+Kaufpreis: 450.000 €
+
+Nebenkosten in Berlin (Grunderwerbsteuer 6%):
+- Grunderwerbsteuer: 27.000 € (6%)
+- Notarkosten: ca. 6.750 € (1,5%)
+- Grundbuchkosten: ca. 2.250 € (0,5%)
+- Maklerprovision: 16.065 € (3,57% inkl. MwSt.)
+- **Gesamte Nebenkosten: ca. 52.065 € (11,57%)**
+
+Gesamtkosten: 502.065 €
+
+**Tipp:** Bei mitverkauften beweglichen Sachen (z.B. Einbauküche für 15.000 €) kann dieser Anteil im Vertrag separat ausgewiesen werden, um Grunderwerbsteuer zu sparen."""
+    },
+    VertragsAbschnittTyp.ZAHLUNG.value: {
+        "detail": """Die Zahlungsmodalitäten regeln den sicheren Ablauf der Kaufpreiszahlung:
+
+**1. Fälligkeitsvoraussetzungen:**
+Der Kaufpreis wird erst fällig, wenn alle Sicherungsmechanismen greifen:
+- Eintragung der Auflassungsvormerkung im Grundbuch
+- Vorliegen aller erforderlichen Genehmigungen
+- Verzichtserklärung der Gemeinde auf Vorkaufsrecht
+- Löschungsbewilligungen für bestehende Grundschulden des Verkäufers
+
+**2. Fälligkeitsmitteilung:**
+Der Notar prüft alle Voraussetzungen und stellt dann die Fälligkeitsmitteilung aus. Erst danach darf und muss der Käufer zahlen.
+
+**3. Zahlungsfrist:**
+Typischerweise 14 Tage nach Fälligkeitsmitteilung. Bei Verzug drohen Verzugszinsen.
+
+**4. Zahlungsweg:**
+Die Zahlung erfolgt direkt auf das Konto des Verkäufers (oder einer abzulösenden Bank). Ein Notaranderkonto wird nur noch selten genutzt.""",
+        "gesetzesreferenzen": ["§ 271 BGB (Leistungszeit)", "§ 286 BGB (Verzug des Schuldners)", "§ 288 BGB (Verzugszinsen)", "§ 320 BGB (Einrede des nicht erfüllten Vertrags)"],
+        "beispiel_ausfuehrlich": """**Typischer Ablauf der Kaufpreiszahlung:**
+
+Tag 0: Beurkundung des Kaufvertrags
+Tag 7: Notar beantragt Auflassungsvormerkung
+Tag 21: Auflassungsvormerkung im Grundbuch eingetragen
+Tag 25: Gemeinde verzichtet auf Vorkaufsrecht
+Tag 28: Alle Löschungsbewilligungen liegen vor
+Tag 30: Notar stellt Fälligkeitsmitteilung aus
+Tag 44: **Kaufpreis muss gezahlt sein** (14 Tage Frist)
+
+**Bei Verzug:**
+Kaufpreis: 450.000 €
+Verzugszinsen: 5% über Basiszins (aktuell ca. 8,12% p.a.)
+= 100,15 € pro Tag Verzug"""
+    },
+    VertragsAbschnittTyp.BESITZUEBERGANG.value: {
+        "detail": """Der Besitzübergang markiert den Zeitpunkt, ab dem der Käufer wirtschaftlich Eigentümer ist:
+
+**1. Unterschied: Besitz vs. Eigentum**
+- Besitz: Tatsächliche Sachherrschaft, Nutzung der Immobilie
+- Eigentum: Rechtliche Zuordnung, erst mit Grundbucheintragung
+
+**2. Übergangszeitpunkt:**
+Typischerweise mit vollständiger Kaufpreiszahlung. Ab diesem Moment:
+- Gehen Nutzungen auf den Käufer über (z.B. Mieteinnahmen)
+- Trägt der Käufer alle Lasten (Grundsteuer, Versicherung, Nebenkosten)
+- Liegt die Verkehrssicherungspflicht beim Käufer
+- Geht die Gefahr des zufälligen Untergangs über
+
+**3. Praktische Umsetzung:**
+- Schlüsselübergabe
+- Zählerstandsablesung (Strom, Gas, Wasser)
+- Übergabeprotokoll erstellen""",
+        "gesetzesreferenzen": ["§ 446 BGB (Gefahr- und Lastenübergang)", "§ 100 BGB (Nutzungen)", "§ 836 BGB (Verkehrssicherungspflicht)"],
+        "beispiel_ausfuehrlich": """**Beispiel Besitzübergang:**
+
+Kaufpreis vollständig gezahlt am: 15.03.2024
+= Besitzübergang am 15.03.2024
+
+Ab diesem Tag:
+- Käufer erhält die Miete von 1.200 €/Monat (anteilig ab 15.03.)
+- Käufer zahlt Grundsteuer (anteilig ab 15.03.)
+- Käufer muss Gebäudeversicherung abschließen
+- Käufer ist für Schneeräumpflicht verantwortlich
+
+Wichtig: Das Eigentum geht erst ca. 4-8 Wochen später über, wenn der Käufer im Grundbuch eingetragen wird!"""
+    },
+    VertragsAbschnittTyp.GRUNDSCHULD.value: {
+        "detail": """Die Grundschuldbestellung ist die häufigste Form der Kreditsicherung beim Immobilienkauf:
+
+**1. Was ist eine Grundschuld?**
+Ein Recht der Bank, die Immobilie zwangszuversteigern, wenn der Kreditnehmer nicht zahlt. Anders als die Hypothek ist sie nicht an ein bestimmtes Darlehen gebunden.
+
+**2. Arten der Grundschuld:**
+- Buchgrundschuld (häufiger): Nur im Grundbuch eingetragen
+- Briefgrundschuld: Zusätzlich Grundschuldbrief ausgestellt
+
+**3. Zweckerklärung:**
+Separat von der Grundschuld vereinbart der Kreditnehmer mit der Bank eine Zweckerklärung, die regelt, für welche Forderungen die Grundschuld haftet.
+
+**4. Nach Rückzahlung:**
+Die Grundschuld bleibt bestehen! Der Eigentümer sollte:
+- Löschung beantragen (Kosten ca. 0,2% des Betrags)
+- Oder als Eigentümergrundschuld behalten (kostenfrei)""",
+        "gesetzesreferenzen": ["§§ 1191-1198 BGB (Grundschuld)", "§ 800 ZPO (Vollstreckbare Urkunde)", "§ 1192 BGB (Anwendung der Hypothekenvorschriften)"],
+        "beispiel_ausfuehrlich": """**Beispiel Grundschuldbestellung:**
+
+Darlehen: 350.000 €
+Grundschuld: 350.000 € (oft etwas höher für Zinsen/Kosten)
+
+Inhalt der Grundschuldbestellungsurkunde:
+1. Bestellung der Grundschuld zu 350.000 €
+2. Zinsen 15% p.a. (Höchstzinsen für Vollstreckung)
+3. Unterwerfung unter sofortige Zwangsvollstreckung
+4. Übernahme der persönlichen Haftung
+
+**Nach 25 Jahren Tilgung:**
+Darlehen abbezahlt, aber Grundschuld steht noch im Grundbuch!
+→ Löschung beantragen mit Löschungsbewilligung der Bank
+→ Oder behalten für späteren Kredit (Modernisierung etc.)"""
+    }
+}
+
+# Standard-Ablauf-Erklärungen je nach Urkundentyp
+STANDARD_ABLAUF_ERKLAERUNGEN = {
+    "Kaufvertrag": {
+        "uebersicht": "Nach der Beurkundung des Kaufvertrags beginnt die Abwicklung, die typischerweise 4-8 Wochen dauert. Der Notar koordiniert alle Schritte und informiert die Parteien über den Fortschritt.",
+        "schritte": [
+            "1. **Beurkundung** - Käufer und Verkäufer unterzeichnen den Kaufvertrag beim Notar",
+            "2. **Anträge beim Grundbuchamt** - Notar beantragt Auflassungsvormerkung (Schutz des Käufers)",
+            "3. **Eintragung Auflassungsvormerkung** - ca. 1-2 Wochen nach Beurkundung",
+            "4. **Vorkaufsrechtsverzicht** - Gemeinde erklärt Verzicht (ca. 1-2 Wochen)",
+            "5. **Löschungsunterlagen** - Verkäufer-Bank stellt Löschungsbewilligung aus",
+            "6. **Finanzierungsbestätigung** - Käufer-Bank bestätigt Auszahlung",
+            "7. **Fälligkeitsmitteilung** - Notar bestätigt: Alle Voraussetzungen erfüllt",
+            "8. **Kaufpreiszahlung** - Käufer zahlt innerhalb von 14 Tagen",
+            "9. **Besitzübergang** - Schlüsselübergabe, Käufer kann einziehen",
+            "10. **Eigentumsumschreibung** - Notar beantragt Eintragung im Grundbuch (ca. 2-4 Wochen)"
+        ],
+        "dauer": "4-8 Wochen vom Beurkundungstermin bis zur Schlüsselübergabe",
+        "erfordernisse_allgemein": [
+            "Personalausweise oder Reisepässe aller Vertragsparteien",
+            "Steuer-Identifikationsnummern (Steuer-ID) aller Beteiligten",
+            "Aktuelle Grundbuchauszüge",
+            "Finanzierungsbestätigung der Bank (falls finanziert)",
+            "Energieausweis des Gebäudes"
+        ],
+        "erfordernisse_kaeufer": [
+            "Nachweis der Finanzierung oder Eigenkapital",
+            "Vollmacht falls nicht persönlich anwesend",
+            "Kontodaten für eventuelle Rückzahlungen"
+        ],
+        "erfordernisse_verkaeufer": [
+            "Nachweis der Lastenfreiheit oder Löschungsbewilligungen",
+            "Vollmacht falls nicht persönlich anwesend",
+            "Kontodaten für Kaufpreiszahlung"
+        ]
+    },
+    "Grundschuldbestellung": {
+        "uebersicht": "Die Grundschuldbestellung sichert das Bankdarlehen ab. Sie wird oft zusammen mit dem Kaufvertrag oder kurz danach beurkundet.",
+        "schritte": [
+            "1. **Finanzierungszusage** - Bank bestätigt das Darlehen",
+            "2. **Grundschuldformular** - Bank sendet Bestellungsformular an Notar",
+            "3. **Beurkundung** - Grundschuldbestellung wird notariell beurkundet",
+            "4. **Antrag Grundbuchamt** - Notar beantragt Eintragung der Grundschuld",
+            "5. **Eintragung** - Grundschuld wird im Grundbuch eingetragen (1-2 Wochen)",
+            "6. **Mitteilung an Bank** - Notar sendet beglaubigte Abschrift an Bank",
+            "7. **Valutierung** - Bank zahlt das Darlehen aus"
+        ],
+        "dauer": "1-3 Wochen von Beurkundung bis Darlehensauszahlung",
+        "erfordernisse_allgemein": [
+            "Grundschuldbestellungsformular der Bank",
+            "Personalausweis des Eigentümers/Käufers",
+            "Belastungsvollmacht (falls noch nicht Eigentümer)"
+        ],
+        "erfordernisse_kaeufer": [
+            "Unterschriebener Darlehensvertrag",
+            "Zweckerklärung (meist im Darlehensvertrag enthalten)"
+        ],
+        "erfordernisse_verkaeufer": []
+    },
+    "Löschungsbewilligung": {
+        "uebersicht": "Bei Verkauf einer Immobilie müssen bestehende Grundschulden des Verkäufers gelöscht werden.",
+        "schritte": [
+            "1. **Anfrage an Bank** - Notar/Verkäufer bittet um Löschungsbewilligung",
+            "2. **Ablöseberechnung** - Bank berechnet offene Darlehenssumme",
+            "3. **Löschungsbewilligung** - Bank erstellt notarielle Löschungsbewilligung",
+            "4. **Übersendung an Notar** - Bank sendet Unterlagen an beurkundenden Notar",
+            "5. **Treuhandauftrag** - Notar verwahrt Löschungsbewilligung bis Kaufpreiszahlung",
+            "6. **Verwendung** - Nach Kaufpreiszahlung beantragt Notar Löschung"
+        ],
+        "dauer": "1-3 Wochen für die Beschaffung der Löschungsbewilligung",
+        "erfordernisse_allgemein": [
+            "Schriftliche Anfrage an die Gläubigerbank",
+            "Darlehensnummer / Kontonummer",
+            "Grundbuchdaten"
+        ],
+        "erfordernisse_kaeufer": [],
+        "erfordernisse_verkaeufer": [
+            "Zustimmung zur Ablösung des Darlehens aus dem Kaufpreis"
+        ]
+    }
+}
+
 # ============================================================================
 # ERKLÄRUNGS-MODUS - UI-KOMPONENTEN
 # ============================================================================
 
-def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
+def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str, zeige_bearbeitung: bool = False):
     """
     Rendert die Split-View für den Erklärungs-Modus.
     Links: Vertragstext, Rechts: Erklärungen zum ausgewählten Abschnitt.
+    zeige_bearbeitung: True für Notar/Notarfachkraft um Erklärungen zu bearbeiten
     """
     if vertrag_id not in st.session_state.vertraege_mit_erklaerungen:
         st.warning("Vertrag nicht gefunden.")
@@ -5819,29 +6115,38 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
         font-size: 1.1rem;
         font-weight: 600;
     }
-    .vertragstext-abschnitt {
-        padding: 15px;
-        border-bottom: 1px solid #f0f0f0;
-        cursor: pointer;
-        transition: background 0.2s;
+    .ablauf-container {
+        background: linear-gradient(135deg, #f0f7ff 0%, #e8f4f8 100%);
+        border: 1px solid #b8daff;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
     }
-    .vertragstext-abschnitt:hover {
-        background: #f8f9fa;
-    }
-    .vertragstext-abschnitt.active {
-        background: #e8f4f8;
-        border-left: 4px solid #C9A227;
-    }
-    .abschnitt-titel {
-        font-weight: 600;
+    .ablauf-header {
         color: #1B2A4A;
-        margin-bottom: 8px;
-        font-size: 0.95rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    .abschnitt-text {
+    .ablauf-dauer {
+        background: #C9A227;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .ablauf-schritt {
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        font-size: 0.9rem;
         color: #333;
-        font-size: 0.85rem;
-        line-height: 1.6;
+    }
+    .ablauf-schritt:last-child {
+        border-bottom: none;
     }
     .erklaerung-box {
         background: #f8f9fa;
@@ -5878,6 +6183,14 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
         font-size: 0.85rem;
         color: #721c24;
     }
+    .gesetz-referenz {
+        background: #e7f3ff;
+        border-left: 3px solid #0066cc;
+        padding: 10px 15px;
+        margin-top: 10px;
+        font-size: 0.85rem;
+        color: #004085;
+    }
     .erklaerung-wichtig-badge {
         display: inline-block;
         padding: 4px 10px;
@@ -5886,17 +6199,16 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
         font-weight: 600;
         margin-top: 10px;
     }
-    .wichtig-kaeufer {
-        background: #d4edda;
-        color: #155724;
-    }
-    .wichtig-verkaeufer {
-        background: #cce5ff;
-        color: #004085;
-    }
-    .wichtig-beide {
-        background: #e2d5f0;
-        color: #5a2d82;
+    .wichtig-kaeufer { background: #d4edda; color: #155724; }
+    .wichtig-verkaeufer { background: #cce5ff; color: #004085; }
+    .wichtig-beide { background: #e2d5f0; color: #5a2d82; }
+    .notar-freigabe-badge {
+        background: #28a745;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        margin-left: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -5912,6 +6224,80 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
 
     st.write("")
 
+    # ========================================
+    # ABLAUF-ERKLÄRUNG AM ANFANG ANZEIGEN
+    # ========================================
+    ablauf_erklaerung = None
+
+    # Suche individuelle Ablauf-Erklärung für diesen Vertrag
+    for ablauf_id, ablauf in st.session_state.urkunde_ablauf_erklaerungen.items():
+        if ablauf.vertrag_id == vertrag_id:
+            ablauf_erklaerung = ablauf
+            break
+
+    # Falls keine individuelle, Standard-Ablauf verwenden
+    if ablauf_erklaerung is None and vertrag.vertrag_typ in STANDARD_ABLAUF_ERKLAERUNGEN:
+        std_ablauf = STANDARD_ABLAUF_ERKLAERUNGEN[vertrag.vertrag_typ]
+
+        with st.expander("📅 **Zeitlicher Ablauf dieser Urkunde**", expanded=True):
+            st.markdown(f"""
+            <div class="ablauf-container">
+                <div class="ablauf-header">
+                    🕐 Ablauf nach der Beurkundung
+                    <span class="ablauf-dauer">⏱️ {std_ablauf.get('dauer', '')}</span>
+                </div>
+                <p style="margin-bottom: 15px; color: #555;">{std_ablauf.get('uebersicht', '')}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Schritte anzeigen
+            st.markdown("**Die einzelnen Schritte:**")
+            for schritt in std_ablauf.get('schritte', []):
+                st.markdown(schritt)
+
+            # Erfordernisse
+            st.markdown("---")
+            col_erf1, col_erf2 = st.columns(2)
+            with col_erf1:
+                st.markdown("**📋 Allgemeine Erfordernisse:**")
+                for erf in std_ablauf.get('erfordernisse_allgemein', []):
+                    st.markdown(f"• {erf}")
+            with col_erf2:
+                if rolle == "Käufer" and std_ablauf.get('erfordernisse_kaeufer'):
+                    st.markdown("**🏠 Für Sie als Käufer:**")
+                    for erf in std_ablauf.get('erfordernisse_kaeufer', []):
+                        st.markdown(f"• {erf}")
+                elif rolle == "Verkäufer" and std_ablauf.get('erfordernisse_verkaeufer'):
+                    st.markdown("**🏡 Für Sie als Verkäufer:**")
+                    for erf in std_ablauf.get('erfordernisse_verkaeufer', []):
+                        st.markdown(f"• {erf}")
+
+    elif ablauf_erklaerung:
+        # Individuelle Ablauf-Erklärung anzeigen
+        with st.expander("📅 **Zeitlicher Ablauf dieser Urkunde**", expanded=True):
+            freigabe_badge = ""
+            if ablauf_erklaerung.freigegeben:
+                freigabe_badge = '<span class="notar-freigabe-badge">✓ Vom Notar freigegeben</span>'
+
+            st.markdown(f"""
+            <div class="ablauf-container">
+                <div class="ablauf-header">
+                    🕐 Ablauf nach der Beurkundung {freigabe_badge}
+                    <span class="ablauf-dauer">⏱️ {ablauf_erklaerung.geschaetzte_dauer}</span>
+                </div>
+                <p style="margin-bottom: 15px; color: #555;">{ablauf_erklaerung.ablauf_uebersicht}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("**Die einzelnen Schritte:**")
+            for schritt in ablauf_erklaerung.ablauf_schritte:
+                st.markdown(schritt)
+
+            if ablauf_erklaerung.besonderheiten:
+                st.info(f"**Besonderheiten dieser Urkunde:** {ablauf_erklaerung.besonderheiten}")
+
+    st.markdown("---")
+
     # Session State für ausgewählten Abschnitt
     if 'erklaerungsmodus_aktiver_abschnitt' not in st.session_state:
         st.session_state.erklaerungsmodus_aktiver_abschnitt = None
@@ -5926,10 +6312,8 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
         for abschnitt_id in vertrag.abschnitte:
             if abschnitt_id in st.session_state.vertrags_abschnitte:
                 abschnitt = st.session_state.vertrags_abschnitte[abschnitt_id]
-
                 is_active = st.session_state.erklaerungsmodus_aktiver_abschnitt == abschnitt_id
 
-                # Button für jeden Abschnitt
                 with st.container():
                     if st.button(
                         f"**{abschnitt.titel}**",
@@ -5940,7 +6324,6 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
                         st.session_state.erklaerungsmodus_aktiver_abschnitt = abschnitt_id
                         st.rerun()
 
-                    # Vertragstext anzeigen
                     with st.expander("Vollständiger Text anzeigen", expanded=is_active):
                         st.markdown(f"""
                         <div style="font-size: 0.85rem; line-height: 1.6; color: #333;">
@@ -5957,85 +6340,23 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
             if aktiver_abschnitt_id in st.session_state.vertrags_abschnitte:
                 abschnitt = st.session_state.vertrags_abschnitte[aktiver_abschnitt_id]
 
-                # Suche passende Erklärung
+                # Zuerst prüfen: Gibt es eine vom Notar freigegebene Erklärung?
+                notar_erklaerung = st.session_state.notar_freigegebene_erklaerungen.get(abschnitt.typ)
+
+                # Dann individuelle Erklärung für diesen Abschnitt
                 erklaerung = None
                 for erk_id, erk in st.session_state.vertrags_erklaerungen.items():
                     if erk.abschnitt_id == aktiver_abschnitt_id:
                         erklaerung = erk
                         break
 
-                # Falls keine individuelle Erklärung, Standard-Erklärung verwenden
-                if erklaerung is None and abschnitt.typ in STANDARD_ERKLAERUNGEN:
-                    std_erkl = STANDARD_ERKLAERUNGEN[abschnitt.typ]
-                    st.markdown(f"""
-                    <div class="erklaerung-box">
-                        <div class="erklaerung-kurz">{std_erkl.get('kurz', '')}</div>
-                        <div class="erklaerung-detail">{std_erkl.get('ausfuehrlich', '')}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    if std_erkl.get('beispiel'):
-                        st.markdown(f"""
-                        <div class="erklaerung-beispiel">
-                            💡 {std_erkl['beispiel']}
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    if std_erkl.get('hinweise'):
-                        st.markdown(f"""
-                        <div class="erklaerung-hinweis">
-                            {std_erkl['hinweise']}
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    wichtig = std_erkl.get('wichtig_fuer', 'Beide')
-                    badge_class = 'wichtig-beide'
-                    if wichtig == 'Käufer':
-                        badge_class = 'wichtig-kaeufer'
-                    elif wichtig == 'Verkäufer':
-                        badge_class = 'wichtig-verkaeufer'
-
-                    st.markdown(f"""
-                    <span class="erklaerung-wichtig-badge {badge_class}">
-                        Besonders wichtig für: {wichtig}
-                    </span>
-                    """, unsafe_allow_html=True)
-
+                # Priorisierung: 1. Notar-freigegeben, 2. Individuell, 3. Standard
+                if notar_erklaerung and notar_erklaerung.freigegeben:
+                    _render_erklaerung_inhalt(notar_erklaerung, abschnitt.typ, ist_freigegeben=True)
                 elif erklaerung:
-                    st.markdown(f"""
-                    <div class="erklaerung-box">
-                        <div class="erklaerung-kurz">{erklaerung.erklaerung_kurz}</div>
-                        <div class="erklaerung-detail">{erklaerung.erklaerung_ausfuehrlich}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    if erklaerung.beispiel:
-                        st.markdown(f"""
-                        <div class="erklaerung-beispiel">
-                            💡 {erklaerung.beispiel}
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    if erklaerung.hinweise:
-                        st.markdown(f"""
-                        <div class="erklaerung-hinweis">
-                            {erklaerung.hinweise}
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                    if erklaerung.wichtig_fuer:
-                        wichtig = erklaerung.wichtig_fuer
-                        badge_class = 'wichtig-beide'
-                        if wichtig == 'Käufer':
-                            badge_class = 'wichtig-kaeufer'
-                        elif wichtig == 'Verkäufer':
-                            badge_class = 'wichtig-verkaeufer'
-
-                        st.markdown(f"""
-                        <span class="erklaerung-wichtig-badge {badge_class}">
-                            Besonders wichtig für: {wichtig}
-                        </span>
-                        """, unsafe_allow_html=True)
+                    _render_erklaerung_inhalt(erklaerung, abschnitt.typ)
+                elif abschnitt.typ in STANDARD_ERKLAERUNGEN:
+                    _render_standard_erklaerung(abschnitt.typ)
                 else:
                     st.info("Für diesen Abschnitt ist noch keine Erklärung verfügbar.")
         else:
@@ -6045,6 +6366,124 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str):
                 <p>Wählen Sie links einen Vertragsabschnitt aus, um hier die Erklärung zu sehen.</p>
             </div>
             """, unsafe_allow_html=True)
+
+
+def _render_erklaerung_inhalt(erklaerung, abschnitt_typ: str, ist_freigegeben: bool = False):
+    """Hilfsfunktion: Rendert den Inhalt einer Erklärung"""
+    freigabe_html = ""
+    if ist_freigegeben:
+        freigabe_html = '<span class="notar-freigabe-badge">✓ Vom Notar freigegeben</span>'
+
+    st.markdown(f"""
+    <div class="erklaerung-box">
+        <div class="erklaerung-kurz">{erklaerung.erklaerung_kurz} {freigabe_html}</div>
+        <div class="erklaerung-detail">{erklaerung.erklaerung_ausfuehrlich}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if erklaerung.beispiel:
+        st.markdown(f"""
+        <div class="erklaerung-beispiel">
+            💡 {erklaerung.beispiel}
+        </div>
+        """, unsafe_allow_html=True)
+
+    if erklaerung.hinweise:
+        st.markdown(f"""
+        <div class="erklaerung-hinweis">
+            {erklaerung.hinweise}
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Wichtig-für Badge
+    if erklaerung.wichtig_fuer:
+        wichtig = erklaerung.wichtig_fuer
+        badge_class = 'wichtig-beide'
+        if wichtig == 'Käufer':
+            badge_class = 'wichtig-kaeufer'
+        elif wichtig == 'Verkäufer':
+            badge_class = 'wichtig-verkaeufer'
+        st.markdown(f'<span class="erklaerung-wichtig-badge {badge_class}">Besonders wichtig für: {wichtig}</span>', unsafe_allow_html=True)
+
+    # "Umfangreichere Erklärung" Expander
+    detail_erkl = erklaerung.erklaerung_detail if hasattr(erklaerung, 'erklaerung_detail') and erklaerung.erklaerung_detail else None
+    gesetz_refs = erklaerung.gesetzesreferenzen if hasattr(erklaerung, 'gesetzesreferenzen') and erklaerung.gesetzesreferenzen else []
+    beispiel_detail = erklaerung.beispiel_ausfuehrlich if hasattr(erklaerung, 'beispiel_ausfuehrlich') and erklaerung.beispiel_ausfuehrlich else None
+
+    # Fallback auf Standard-Detail wenn vorhanden
+    if not detail_erkl and abschnitt_typ in STANDARD_ERKLAERUNGEN_DETAIL:
+        std_detail = STANDARD_ERKLAERUNGEN_DETAIL[abschnitt_typ]
+        detail_erkl = std_detail.get('detail', '')
+        gesetz_refs = std_detail.get('gesetzesreferenzen', [])
+        beispiel_detail = std_detail.get('beispiel_ausfuehrlich', '')
+
+    if detail_erkl or gesetz_refs or beispiel_detail:
+        with st.expander("📚 **Umfangreichere Erklärung**"):
+            if detail_erkl:
+                st.markdown(detail_erkl)
+
+            if gesetz_refs:
+                st.markdown("---")
+                st.markdown("**⚖️ Rechtliche Grundlagen:**")
+                for ref in gesetz_refs:
+                    st.markdown(f'<div class="gesetz-referenz">📖 {ref}</div>', unsafe_allow_html=True)
+
+            if beispiel_detail:
+                st.markdown("---")
+                st.markdown("**📝 Ausführliches Beispiel:**")
+                st.markdown(beispiel_detail)
+
+
+def _render_standard_erklaerung(abschnitt_typ: str):
+    """Hilfsfunktion: Rendert eine Standard-Erklärung"""
+    std_erkl = STANDARD_ERKLAERUNGEN[abschnitt_typ]
+
+    st.markdown(f"""
+    <div class="erklaerung-box">
+        <div class="erklaerung-kurz">{std_erkl.get('kurz', '')}</div>
+        <div class="erklaerung-detail">{std_erkl.get('ausfuehrlich', '')}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if std_erkl.get('beispiel'):
+        st.markdown(f"""
+        <div class="erklaerung-beispiel">
+            💡 {std_erkl['beispiel']}
+        </div>
+        """, unsafe_allow_html=True)
+
+    if std_erkl.get('hinweise'):
+        st.markdown(f"""
+        <div class="erklaerung-hinweis">
+            {std_erkl['hinweise']}
+        </div>
+        """, unsafe_allow_html=True)
+
+    wichtig = std_erkl.get('wichtig_fuer', 'Beide')
+    badge_class = 'wichtig-beide'
+    if wichtig == 'Käufer':
+        badge_class = 'wichtig-kaeufer'
+    elif wichtig == 'Verkäufer':
+        badge_class = 'wichtig-verkaeufer'
+    st.markdown(f'<span class="erklaerung-wichtig-badge {badge_class}">Besonders wichtig für: {wichtig}</span>', unsafe_allow_html=True)
+
+    # "Umfangreichere Erklärung" für Standard-Erklärungen
+    if abschnitt_typ in STANDARD_ERKLAERUNGEN_DETAIL:
+        std_detail = STANDARD_ERKLAERUNGEN_DETAIL[abschnitt_typ]
+        with st.expander("📚 **Umfangreichere Erklärung**"):
+            if std_detail.get('detail'):
+                st.markdown(std_detail['detail'])
+
+            if std_detail.get('gesetzesreferenzen'):
+                st.markdown("---")
+                st.markdown("**⚖️ Rechtliche Grundlagen:**")
+                for ref in std_detail['gesetzesreferenzen']:
+                    st.markdown(f'<div class="gesetz-referenz">📖 {ref}</div>', unsafe_allow_html=True)
+
+            if std_detail.get('beispiel_ausfuehrlich'):
+                st.markdown("---")
+                st.markdown("**📝 Ausführliches Beispiel:**")
+                st.markdown(std_detail['beispiel_ausfuehrlich'])
 
 
 def render_erklaerungsmodus_toggle(rolle: str):
@@ -6062,6 +6501,316 @@ def render_erklaerungsmodus_toggle(rolle: str):
         erklaerungsmodus_aktiv = True
 
     return erklaerungsmodus_aktiv
+
+
+def render_notar_erklaerungen_bearbeitung(user_id: str, ist_notar: bool = True):
+    """
+    UI für Notar/Notarfachkraft zum Bearbeiten von Vertragserklärungen.
+    Der Notar kann Erklärungen anpassen und freigeben.
+    Freigegebene Erklärungen werden in allen Dashboards verwendet.
+    """
+    st.subheader("📝 Vertragserklärungen bearbeiten")
+
+    if ist_notar:
+        st.markdown("""
+        Als Notar können Sie die Standard-Erklärungen anpassen oder komplett neu formulieren.
+        **Freigegebene Erklärungen** werden automatisch in allen Käufer-, Verkäufer- und Makler-Dashboards angezeigt.
+        """)
+    else:
+        st.markdown("""
+        Als Notarfachkraft können Sie Erklärungen vorbereiten. Die finale Freigabe erfolgt durch den Notar.
+        """)
+
+    # Tabs für verschiedene Bereiche
+    edit_tabs = st.tabs(["📄 Abschnitts-Erklärungen", "📅 Ablauf-Erklärungen", "✅ Freigegebene Texte"])
+
+    with edit_tabs[0]:
+        _render_abschnitt_erklaerungen_editor(user_id, ist_notar)
+
+    with edit_tabs[1]:
+        _render_ablauf_erklaerungen_editor(user_id, ist_notar)
+
+    with edit_tabs[2]:
+        _render_freigegebene_erklaerungen_uebersicht(user_id)
+
+
+def _render_abschnitt_erklaerungen_editor(user_id: str, ist_notar: bool):
+    """Editor für Abschnitts-Erklärungen"""
+    st.markdown("### Erklärungen zu Vertragsabschnitten")
+
+    # Abschnittstyp auswählen
+    abschnitt_typen = [e.value for e in VertragsAbschnittTyp]
+    selected_typ = st.selectbox(
+        "Abschnittstyp auswählen",
+        abschnitt_typen,
+        key="notar_edit_abschnitt_typ"
+    )
+
+    # Prüfen ob bereits eine freigegebene Erklärung existiert
+    bestehende_erklaerung = st.session_state.notar_freigegebene_erklaerungen.get(selected_typ)
+
+    # Standard-Erklärung als Vorlage laden
+    std_erkl = STANDARD_ERKLAERUNGEN.get(selected_typ, {})
+    std_detail = STANDARD_ERKLAERUNGEN_DETAIL.get(selected_typ, {})
+
+    # Aktuelle Werte (bestehend oder Standard)
+    current_kurz = bestehende_erklaerung.erklaerung_kurz if bestehende_erklaerung else std_erkl.get('kurz', '')
+    current_ausfuehrlich = bestehende_erklaerung.erklaerung_ausfuehrlich if bestehende_erklaerung else std_erkl.get('ausfuehrlich', '')
+    current_beispiel = bestehende_erklaerung.beispiel if bestehende_erklaerung else std_erkl.get('beispiel', '')
+    current_hinweise = bestehende_erklaerung.hinweise if bestehende_erklaerung else std_erkl.get('hinweise', '')
+    current_wichtig = bestehende_erklaerung.wichtig_fuer if bestehende_erklaerung else std_erkl.get('wichtig_fuer', 'Beide')
+    current_detail = ""
+    current_gesetz = []
+    current_beispiel_detail = ""
+
+    if bestehende_erklaerung:
+        current_detail = getattr(bestehende_erklaerung, 'erklaerung_detail', '') or ''
+        current_gesetz = getattr(bestehende_erklaerung, 'gesetzesreferenzen', []) or []
+        current_beispiel_detail = getattr(bestehende_erklaerung, 'beispiel_ausfuehrlich', '') or ''
+    else:
+        current_detail = std_detail.get('detail', '')
+        current_gesetz = std_detail.get('gesetzesreferenzen', [])
+        current_beispiel_detail = std_detail.get('beispiel_ausfuehrlich', '')
+
+    # Status anzeigen
+    if bestehende_erklaerung and bestehende_erklaerung.freigegeben:
+        st.success(f"✅ Diese Erklärung wurde am {bestehende_erklaerung.freigegeben_am.strftime('%d.%m.%Y')} freigegeben und wird in allen Dashboards verwendet.")
+    elif bestehende_erklaerung:
+        st.warning("⏳ Diese Erklärung wurde bearbeitet, aber noch nicht freigegeben.")
+    else:
+        st.info("📝 Standard-Erklärung wird verwendet. Sie können diese anpassen.")
+
+    # Formular zum Bearbeiten
+    with st.form(f"edit_erklaerung_{selected_typ}"):
+        st.markdown("#### Kurzfassung (1-2 Sätze)")
+        new_kurz = st.text_area("Kurze Erklärung", value=current_kurz, height=80, key=f"edit_kurz_{selected_typ}")
+
+        st.markdown("#### Ausführliche Erklärung")
+        new_ausfuehrlich = st.text_area("Ausführliche Erklärung", value=current_ausfuehrlich, height=150, key=f"edit_ausf_{selected_typ}")
+
+        st.markdown("#### Beispiel")
+        new_beispiel = st.text_area("Praktisches Beispiel", value=current_beispiel, height=80, key=f"edit_bsp_{selected_typ}")
+
+        st.markdown("#### Hinweise/Warnungen")
+        new_hinweise = st.text_area("Besondere Hinweise", value=current_hinweise, height=80, key=f"edit_hinw_{selected_typ}")
+
+        new_wichtig = st.selectbox("Besonders wichtig für", ["Beide", "Käufer", "Verkäufer"],
+                                   index=["Beide", "Käufer", "Verkäufer"].index(current_wichtig) if current_wichtig in ["Beide", "Käufer", "Verkäufer"] else 0,
+                                   key=f"edit_wichtig_{selected_typ}")
+
+        st.markdown("---")
+        st.markdown("#### 📚 Umfangreichere Erklärung (für Details-Ansicht)")
+
+        new_detail = st.text_area("Sehr ausführliche Erklärung", value=current_detail, height=200, key=f"edit_detail_{selected_typ}")
+
+        st.markdown("#### ⚖️ Gesetzesreferenzen")
+        gesetz_text = "\n".join(current_gesetz) if current_gesetz else ""
+        new_gesetz_text = st.text_area("Gesetzesreferenzen (eine pro Zeile)", value=gesetz_text, height=100,
+                                       help="z.B. § 433 BGB (Vertragspflichten)", key=f"edit_gesetz_{selected_typ}")
+
+        new_beispiel_detail = st.text_area("Ausführliches Beispiel mit Zahlen", value=current_beispiel_detail, height=150, key=f"edit_bsp_detail_{selected_typ}")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            save_btn = st.form_submit_button("💾 Speichern", type="secondary")
+        with col2:
+            if ist_notar:
+                approve_btn = st.form_submit_button("✅ Speichern & Freigeben", type="primary")
+            else:
+                approve_btn = False
+        with col3:
+            reset_btn = st.form_submit_button("🔄 Auf Standard zurücksetzen")
+
+        if save_btn or approve_btn:
+            import uuid
+
+            # Gesetzesreferenzen parsen
+            new_gesetz = [g.strip() for g in new_gesetz_text.split("\n") if g.strip()]
+
+            # Erklärung erstellen/aktualisieren
+            erklaerung_id = bestehende_erklaerung.erklaerung_id if bestehende_erklaerung else str(uuid.uuid4())
+
+            neue_erklaerung = VertragsErklaerung(
+                erklaerung_id=erklaerung_id,
+                abschnitt_id="",  # Nicht an konkreten Abschnitt gebunden
+                erklaerung_kurz=new_kurz,
+                erklaerung_ausfuehrlich=new_ausfuehrlich,
+                beispiel=new_beispiel,
+                wichtig_fuer=new_wichtig,
+                hinweise=new_hinweise,
+                erstellt_von=user_id,
+                erklaerung_detail=new_detail,
+                gesetzesreferenzen=new_gesetz,
+                beispiel_ausfuehrlich=new_beispiel_detail,
+                bearbeitet_von=user_id,
+                bearbeitet_am=datetime.now(),
+                ist_individuell=True
+            )
+
+            if approve_btn and ist_notar:
+                neue_erklaerung.freigegeben = True
+                neue_erklaerung.freigegeben_von = user_id
+                neue_erklaerung.freigegeben_am = datetime.now()
+                st.session_state.notar_freigegebene_erklaerungen[selected_typ] = neue_erklaerung
+                st.success(f"✅ Erklärung für '{selected_typ}' wurde gespeichert und freigegeben!")
+            else:
+                st.session_state.notar_freigegebene_erklaerungen[selected_typ] = neue_erklaerung
+                st.success(f"💾 Erklärung für '{selected_typ}' wurde gespeichert.")
+
+            st.rerun()
+
+        if reset_btn:
+            if selected_typ in st.session_state.notar_freigegebene_erklaerungen:
+                del st.session_state.notar_freigegebene_erklaerungen[selected_typ]
+                st.success("Erklärung wurde auf Standard zurückgesetzt.")
+                st.rerun()
+
+
+def _render_ablauf_erklaerungen_editor(user_id: str, ist_notar: bool):
+    """Editor für Ablauf-Erklärungen"""
+    st.markdown("### Ablauf-Erklärungen bearbeiten")
+
+    # Urkundentyp auswählen
+    urkunden_typen = list(STANDARD_ABLAUF_ERKLAERUNGEN.keys())
+    selected_typ = st.selectbox("Urkundentyp auswählen", urkunden_typen, key="notar_edit_ablauf_typ")
+
+    # Vertrag auswählen (optional für spezifische Anpassung)
+    st.markdown("---")
+    st.markdown("**Optional: Für spezifische Urkunde anpassen**")
+
+    # Alle Verträge des ausgewählten Typs anzeigen
+    verfuegbare_vertraege = [(vid, v) for vid, v in st.session_state.vertraege_mit_erklaerungen.items()
+                             if v.vertrag_typ == selected_typ]
+
+    vertrag_auswahl = {"standard": "Standard-Ablauf (für alle Urkunden)"}
+    for vid, v in verfuegbare_vertraege:
+        vertrag_auswahl[vid] = f"{v.titel} ({v.erstellt_am.strftime('%d.%m.%Y')})"
+
+    selected_vertrag = st.selectbox("Anwenden auf", list(vertrag_auswahl.keys()),
+                                    format_func=lambda x: vertrag_auswahl[x],
+                                    key="notar_edit_ablauf_vertrag")
+
+    # Standard-Ablauf laden
+    std_ablauf = STANDARD_ABLAUF_ERKLAERUNGEN.get(selected_typ, {})
+
+    # Bestehende individuelle Ablauf-Erklärung?
+    bestehende_ablauf = None
+    if selected_vertrag != "standard":
+        for ablauf_id, ablauf in st.session_state.urkunde_ablauf_erklaerungen.items():
+            if ablauf.vertrag_id == selected_vertrag:
+                bestehende_ablauf = ablauf
+                break
+
+    # Aktuelle Werte
+    current_uebersicht = bestehende_ablauf.ablauf_uebersicht if bestehende_ablauf else std_ablauf.get('uebersicht', '')
+    current_dauer = bestehende_ablauf.geschaetzte_dauer if bestehende_ablauf else std_ablauf.get('dauer', '')
+    current_schritte = bestehende_ablauf.ablauf_schritte if bestehende_ablauf else std_ablauf.get('schritte', [])
+    current_erfordernisse = bestehende_ablauf.erfordernisse_allgemein if bestehende_ablauf else std_ablauf.get('erfordernisse_allgemein', [])
+    current_besonderheiten = bestehende_ablauf.besonderheiten if bestehende_ablauf else ""
+
+    with st.form(f"edit_ablauf_{selected_typ}_{selected_vertrag}"):
+        st.markdown("#### Übersicht")
+        new_uebersicht = st.text_area("Ablauf-Übersicht", value=current_uebersicht, height=80)
+
+        new_dauer = st.text_input("Geschätzte Dauer", value=current_dauer, placeholder="z.B. 4-8 Wochen")
+
+        st.markdown("#### Schritte (einer pro Zeile)")
+        schritte_text = "\n".join(current_schritte)
+        new_schritte_text = st.text_area("Ablauf-Schritte", value=schritte_text, height=200)
+
+        st.markdown("#### Erfordernisse (eine pro Zeile)")
+        erfordernisse_text = "\n".join(current_erfordernisse)
+        new_erfordernisse_text = st.text_area("Allgemeine Erfordernisse", value=erfordernisse_text, height=100)
+
+        st.markdown("#### Besonderheiten dieser Urkunde")
+        new_besonderheiten = st.text_area("Besonderheiten", value=current_besonderheiten, height=80,
+                                          placeholder="z.B. Bei dieser Urkunde ist eine Belastungsvollmacht enthalten...")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            save_ablauf_btn = st.form_submit_button("💾 Speichern", type="secondary")
+        with col2:
+            if ist_notar:
+                approve_ablauf_btn = st.form_submit_button("✅ Speichern & Freigeben", type="primary")
+            else:
+                approve_ablauf_btn = False
+
+        if save_ablauf_btn or approve_ablauf_btn:
+            import uuid
+
+            new_schritte = [s.strip() for s in new_schritte_text.split("\n") if s.strip()]
+            new_erfordernisse = [e.strip() for e in new_erfordernisse_text.split("\n") if e.strip()]
+
+            ablauf_id = bestehende_ablauf.ablauf_id if bestehende_ablauf else str(uuid.uuid4())
+            vertrag_id = selected_vertrag if selected_vertrag != "standard" else ""
+
+            neue_ablauf = UrkundeAblaufErklaerung(
+                ablauf_id=ablauf_id,
+                vertrag_id=vertrag_id,
+                urkunden_typ=selected_typ,
+                ablauf_uebersicht=new_uebersicht,
+                ablauf_schritte=new_schritte,
+                geschaetzte_dauer=new_dauer,
+                erfordernisse_allgemein=new_erfordernisse,
+                besonderheiten=new_besonderheiten,
+                erstellt_von=user_id,
+                bearbeitet_von=user_id,
+                bearbeitet_am=datetime.now()
+            )
+
+            if approve_ablauf_btn and ist_notar:
+                neue_ablauf.freigegeben = True
+                neue_ablauf.freigegeben_von = user_id
+                neue_ablauf.freigegeben_am = datetime.now()
+
+            st.session_state.urkunde_ablauf_erklaerungen[ablauf_id] = neue_ablauf
+
+            if approve_ablauf_btn:
+                st.success("✅ Ablauf-Erklärung wurde gespeichert und freigegeben!")
+            else:
+                st.success("💾 Ablauf-Erklärung wurde gespeichert.")
+
+            st.rerun()
+
+
+def _render_freigegebene_erklaerungen_uebersicht(user_id: str):
+    """Übersicht über alle freigegebenen Erklärungen"""
+    st.markdown("### ✅ Freigegebene Erklärungstexte")
+
+    # Abschnitts-Erklärungen
+    st.markdown("#### 📄 Abschnitts-Erklärungen")
+    freigegebene = [(typ, erkl) for typ, erkl in st.session_state.notar_freigegebene_erklaerungen.items()
+                    if erkl.freigegeben]
+
+    if freigegebene:
+        for typ, erkl in freigegebene:
+            with st.expander(f"✅ {typ}"):
+                st.markdown(f"**Kurz:** {erkl.erklaerung_kurz}")
+                st.markdown(f"**Freigegeben am:** {erkl.freigegeben_am.strftime('%d.%m.%Y %H:%M') if erkl.freigegeben_am else '-'}")
+                st.caption("Diese Erklärung wird in allen Käufer-, Verkäufer- und Makler-Dashboards angezeigt.")
+    else:
+        st.info("Noch keine Abschnitts-Erklärungen freigegeben.")
+
+    st.markdown("---")
+
+    # Ablauf-Erklärungen
+    st.markdown("#### 📅 Ablauf-Erklärungen")
+    freigegebene_ablauf = [(aid, abl) for aid, abl in st.session_state.urkunde_ablauf_erklaerungen.items()
+                           if abl.freigegeben]
+
+    if freigegebene_ablauf:
+        for aid, abl in freigegebene_ablauf:
+            vertrag_info = ""
+            if abl.vertrag_id and abl.vertrag_id in st.session_state.vertraege_mit_erklaerungen:
+                v = st.session_state.vertraege_mit_erklaerungen[abl.vertrag_id]
+                vertrag_info = f" - {v.titel}"
+
+            with st.expander(f"✅ {abl.urkunden_typ}{vertrag_info}"):
+                st.markdown(f"**Übersicht:** {abl.ablauf_uebersicht[:100]}...")
+                st.markdown(f"**Dauer:** {abl.geschaetzte_dauer}")
+                st.markdown(f"**Freigegeben am:** {abl.freigegeben_am.strftime('%d.%m.%Y %H:%M') if abl.freigegeben_am else '-'}")
+    else:
+        st.info("Noch keine Ablauf-Erklärungen freigegeben.")
 
 
 def erstelle_demo_vertrag_mit_erklaerungen(projekt_id: str, vertrag_typ: str = "Kaufvertrag"):
@@ -8356,6 +9105,8 @@ def init_session_state():
         st.session_state.vertrags_erklaerungen = {}  # erklaerung_id -> VertragsErklaerung
         st.session_state.vertraege_mit_erklaerungen = {}  # vertrag_id -> VertragMitErklaerungen
         st.session_state.aktiver_erklaerungsmodus_vertrag = None  # Aktuell angezeigter Vertrag im Erklärungs-Modus
+        st.session_state.urkunde_ablauf_erklaerungen = {}  # ablauf_id -> UrkundeAblaufErklaerung
+        st.session_state.notar_freigegebene_erklaerungen = {}  # abschnitt_typ -> freigegebene VertragsErklaerung
 
         # Käufer-Todos
         st.session_state.kaeufer_todos = {}  # ID -> KaeuferTodo
@@ -23085,6 +23836,7 @@ NOTAR_MENU_STRUKTUR = {
             {"name": "Grundbuchstand einfügen", "icon": "🏠", "key": "grundbuchstand_einfuegen"},
             {"name": "KI-Entwurf erstellen", "icon": "🤖", "key": "ki_entwurf"},
             {"name": "Entwurf bearbeiten", "icon": "✍️", "key": "kaufvertrag"},
+            {"name": "Vertragserklärungen", "icon": "📝", "key": "erklaerungen"},
             {"name": "An Parteien versenden", "icon": "📤", "key": "vertrag_versenden"},
         ]
     },
@@ -24303,6 +25055,10 @@ def render_notar_content(selection: str, user_id: str):
 
     elif selection == "kaufvertrag":
         notar_kaufvertrag_generator()
+
+    elif selection == "erklaerungen":
+        # Vertragserklärungen bearbeiten (Notar-spezifisch)
+        render_notar_erklaerungen_bearbeitung(user_id, ist_notar=True)
 
     elif selection == "vertragsvergleich":
         st.subheader("🔄 Vertragsversionen vergleichen")
@@ -34989,7 +35745,7 @@ def notarmitarbeiter_dashboard():
     render_benachrichtigungs_badge(mitarbeiter.user_id)
 
     # Tab-Liste basierend auf Berechtigungen
-    tab_labels = ["📊 Timeline", "📋 Projekte"]
+    tab_labels = ["📊 Timeline", "📋 Projekte", "📝 Vertragserklärungen"]
 
     if mitarbeiter.kann_checklisten_bearbeiten:
         tab_labels.append("📝 Checklisten")
@@ -35050,6 +35806,12 @@ def notarmitarbeiter_dashboard():
                                 verkaeufer = st.session_state.users.get(vid)
                                 if verkaeufer:
                                     st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+    tab_index += 1
+
+    # Vertragserklärungen (immer verfügbar - Bearbeitung möglich, Freigabe nur durch Notar)
+    with tabs[tab_index]:
+        # Notarfachkraft kann bearbeiten, aber nicht freigeben
+        render_notar_erklaerungen_bearbeitung(mitarbeiter.user_id, ist_notar=False)
     tab_index += 1
 
     # Checklisten (nur wenn berechtigt)
