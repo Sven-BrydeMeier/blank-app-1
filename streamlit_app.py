@@ -14778,6 +14778,84 @@ def logout():
 # MAKLER-BEREICH
 # ============================================================================
 
+def render_clickable_kpi_cards_makler(user_id: str, aktive_projekte: int, abgeschlossene: int, anstehende_termine: int):
+    """
+    Rendert klickbare KPI-Karten für das Makler-Dashboard.
+    Quadratisch, mit Schatten, ohne Icons.
+    """
+    # CSS für quadratische Karten mit Schatten
+    st.markdown("""
+    <style>
+    .makler-kpi-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 1.5rem;
+        text-align: center;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+        margin-bottom: 0.5rem;
+    }
+    .makler-kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+    .makler-kpi-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a365d;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    .makler-kpi-label {
+        font-size: 0.95rem;
+        color: #495057;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Klickbare Buttons in Spalten
+    cols = st.columns(3)
+
+    with cols[0]:
+        st.markdown(f"""
+        <div class="makler-kpi-card">
+            <div class="makler-kpi-value">{aktive_projekte}</div>
+            <div class="makler-kpi-label">Aktive Projekte</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Projekten", key="makler_kpi_projekte", use_container_width=True, type="secondary"):
+            st.session_state.makler_active_tab = 1  # Projekte-Tab
+            st.rerun()
+
+    with cols[1]:
+        st.markdown(f"""
+        <div class="makler-kpi-card">
+            <div class="makler-kpi-value">{abgeschlossene}</div>
+            <div class="makler-kpi-label">Abgeschlossen</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Abgeschlossenen", key="makler_kpi_abgeschlossen", use_container_width=True, type="secondary"):
+            st.session_state.makler_active_tab = 1
+            st.session_state.makler_filter_status = "abgeschlossen"
+            st.rerun()
+
+    with cols[2]:
+        st.markdown(f"""
+        <div class="makler-kpi-card">
+            <div class="makler-kpi-value">{anstehende_termine}</div>
+            <div class="makler-kpi-label">Anstehende Termine</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Terminen", key="makler_kpi_termine", use_container_width=True, type="secondary"):
+            st.session_state.makler_active_tab = 5  # Termine-Tab
+            st.rerun()
+
+
 def makler_dashboard():
     """Dashboard für Makler - Modernes, übersichtliches Design"""
 
@@ -14813,17 +14891,19 @@ def makler_dashboard():
     makler_projekte = [p for p in st.session_state.projekte.values() if p.makler_id == user_id]
     aktive_projekte = len([p for p in makler_projekte if p.status not in [ProjektStatus.ABGESCHLOSSEN.value, ProjektStatus.STORNIERT.value]])
     abgeschlossene = len([p for p in makler_projekte if p.status == ProjektStatus.ABGESCHLOSSEN.value])
-    offene_termine = len([t for t in st.session_state.get('termine', {}).values()
-                         if hasattr(t, 'teilnehmer_ids') and user_id in t.teilnehmer_ids
-                         and hasattr(t, 'datum') and t.datum >= datetime.now()])
 
-    # KPI-Karten
-    render_kpi_cards([
-        {'icon': '📁', 'value': str(aktive_projekte), 'label': 'Aktive Projekte', 'type': 'success'},
-        {'icon': '✅', 'value': str(abgeschlossene), 'label': 'Abgeschlossen', 'type': ''},
-        {'icon': '📅', 'value': str(offene_termine), 'label': 'Anstehende Termine', 'type': 'info'},
-        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
-    ])
+    # Anstehende Termine zählen
+    from datetime import date
+    heute = date.today()
+    anstehende_termine = 0
+    for projekt in makler_projekte:
+        for termin_id in projekt.termine:
+            termin = st.session_state.termine.get(termin_id)
+            if termin and hasattr(termin, 'datum') and termin.datum >= heute:
+                anstehende_termine += 1
+
+    # Klickbare KPI-Karten (quadratisch, mit Schatten, ohne Icons)
+    render_clickable_kpi_cards_makler(user_id, aktive_projekte, abgeschlossene, anstehende_termine)
 
     # Suchleiste
     search_term = render_dashboard_search("makler")
@@ -15291,216 +15371,297 @@ def makler_marktanalyse_view():
 
 
 def makler_projekte_view():
-    """Projekt-Verwaltung für Makler"""
+    """Projekt-Übersicht für Makler mit Status und klickbarer Timeline"""
     st.subheader("📁 Meine Projekte")
 
+    user_id = st.session_state.current_user.user_id
+
+    # Session State für ausgewähltes Projekt
+    if 'makler_selected_projekt' not in st.session_state:
+        st.session_state.makler_selected_projekt = None
+
     makler_projekte = [p for p in st.session_state.projekte.values()
-                       if p.makler_id == st.session_state.current_user.user_id]
+                       if p.makler_id == user_id]
 
-    if st.button("➕ Neues Projekt anlegen"):
-        st.session_state.show_new_projekt = True
+    # CSS für Projekt-Karten (gleich wie bei Notar)
+    st.markdown("""
+    <style>
+    .projekt-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        border-left: 4px solid #1a365d;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .projekt-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.18);
+    }
+    .projekt-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1a365d;
+        margin-bottom: 0.3rem;
+    }
+    .projekt-status {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .projekt-status.vorbereitung { background: #e3f2fd; color: #1565c0; }
+    .projekt-status.finanzierung { background: #fff3e0; color: #ef6c00; }
+    .projekt-status.beurkundung { background: #f3e5f5; color: #7b1fa2; }
+    .projekt-status.vollzug { background: #e8f5e9; color: #2e7d32; }
+    .projekt-status.abgeschlossen { background: #e0e0e0; color: #424242; }
+    .projekt-info {
+        color: #666;
+        font-size: 0.85rem;
+        margin-top: 0.3rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    if st.session_state.get("show_new_projekt", False):
-        with st.form("new_projekt_form"):
-            st.markdown("### Neues Projekt anlegen")
+    # Prüfen ob ein Projekt ausgewählt ist
+    selected_projekt = None
+    if st.session_state.makler_selected_projekt:
+        selected_projekt = st.session_state.projekte.get(st.session_state.makler_selected_projekt)
 
-            name = st.text_input("Projekt-Name*", placeholder="z.B. Eigentumswohnung München-Schwabing")
-            beschreibung = st.text_area("Beschreibung*", placeholder="Kurze Beschreibung der Immobilie")
-            adresse = st.text_input("Adresse", placeholder="Straße, PLZ Ort")
-            kaufpreis = st.number_input("Kaufpreis (€)", min_value=0.0, value=0.0, step=1000.0)
+    # Wenn ein Projekt ausgewählt ist, zeige Timeline und Details
+    if selected_projekt:
+        # Zurück-Button
+        if st.button("← Zurück zur Übersicht", key="makler_back_to_overview"):
+            st.session_state.makler_selected_projekt = None
+            st.rerun()
 
-            st.markdown("#### ⚙️ Projekt-Einstellungen")
-            rechtsdokumente_erforderlich = st.checkbox(
-                "📜 Käufer/Verkäufer müssen Datenschutz & AGB akzeptieren",
-                value=True,
-                help="Wenn aktiviert, müssen Käufer und Verkäufer die Rechtsdokumente des Notars akzeptieren, bevor sie auf ihr Dashboard zugreifen können."
-            )
-            preisverhandlung_erlaubt = st.checkbox(
-                "💰 Preisverhandlung zwischen Käufer und Verkäufer erlauben",
-                value=False,
-                help="Wenn aktiviert, können Käufer und Verkäufer direkt über den Preis verhandeln."
-            )
+        st.markdown("---")
 
-            col1, col2 = st.columns(2)
-            with col1:
-                submit = st.form_submit_button("💾 Projekt erstellen", type="primary")
-            with col2:
-                cancel = st.form_submit_button("❌ Abbrechen")
+        # Timeline des ausgewählten Projekts
+        st.markdown(f"### 📊 Timeline: {selected_projekt.name}")
+        _render_projekt_timeline_horizontal(selected_projekt)
 
-            if submit and name and beschreibung:
-                projekt_id = f"projekt_{len(st.session_state.projekte)}"
+        st.markdown("---")
 
-                projekt = Projekt(
-                    projekt_id=projekt_id,
-                    name=name,
-                    beschreibung=beschreibung,
-                    adresse=adresse,
-                    kaufpreis=kaufpreis,
-                    makler_id=st.session_state.current_user.user_id,
-                    rechtsdokumente_erforderlich=rechtsdokumente_erforderlich,
-                    preisverhandlung_erlaubt=preisverhandlung_erlaubt
-                )
+        # Details des Projekts
+        _render_makler_projekt_details(selected_projekt, user_id)
 
-                st.session_state.projekte[projekt_id] = projekt
+    else:
+        # Neues Projekt anlegen
+        if st.button("➕ Neues Projekt anlegen"):
+            st.session_state.show_new_projekt = True
 
-                # Timeline initialisieren
-                create_timeline_for_projekt(projekt_id)
+        if st.session_state.get("show_new_projekt", False):
+            with st.form("new_projekt_form"):
+                st.markdown("### Neues Projekt anlegen")
 
-                st.session_state.show_new_projekt = False
-                st.success(f"✅ Projekt '{name}' erfolgreich erstellt!")
-                st.rerun()
+                name = st.text_input("Projekt-Name*", placeholder="z.B. Eigentumswohnung München-Schwabing")
+                beschreibung = st.text_area("Beschreibung*", placeholder="Kurze Beschreibung der Immobilie")
+                adresse = st.text_input("Adresse", placeholder="Straße, PLZ Ort")
+                kaufpreis = st.number_input("Kaufpreis (€)", min_value=0.0, value=0.0, step=1000.0)
 
-            if cancel:
-                st.session_state.show_new_projekt = False
-                st.rerun()
-
-    st.markdown("---")
-
-    for projekt in makler_projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            col1, col2 = st.columns([2, 1])
-
-            with col1:
-                st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
-                if projekt.adresse:
-                    st.markdown(f"**Adresse:** {projekt.adresse}")
-                if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
-                st.markdown(f"**Status:** {projekt.status}")
-                st.markdown(f"**Erstellt:** {projekt.created_at.strftime('%d.%m.%Y')}")
-
-            with col2:
-                st.markdown("**Teilnehmer:**")
-                interessent_count = len(getattr(projekt, 'interessent_ids', []))
-                if interessent_count > 0:
-                    st.write(f"👀 Interessenten: {interessent_count}")
-                st.write(f"👥 Käufer: {len(projekt.kaeufer_ids)}")
-                st.write(f"👥 Verkäufer: {len(projekt.verkaeufer_ids)}")
-                st.write(f"💼 Finanzierer: {len(projekt.finanzierer_ids)}")
-                st.write(f"⚖️ Notar: {'Ja' if projekt.notar_id else 'Nein'}")
-
-            # Interessenten-Verwaltung (Als Käufer markieren)
-            if hasattr(projekt, 'interessent_ids') and projekt.interessent_ids:
-                with st.expander("👀 Interessenten verwalten", expanded=False):
-                    render_interessenten_verwaltung(projekt)
-
-            # Projekt-Einstellungen
-            with st.expander("⚙️ Projekt-Einstellungen", expanded=False):
-                rechtsdokumente_aktuell = getattr(projekt, 'rechtsdokumente_erforderlich', True)
-                preisverhandlung_aktuell = getattr(projekt, 'preisverhandlung_erlaubt', False)
-
-                rechtsdokumente_neu = st.checkbox(
+                st.markdown("#### ⚙️ Projekt-Einstellungen")
+                rechtsdokumente_erforderlich = st.checkbox(
                     "📜 Käufer/Verkäufer müssen Datenschutz & AGB akzeptieren",
-                    value=rechtsdokumente_aktuell,
-                    key=f"rechtsdok_{projekt.projekt_id}",
-                    help="Wenn deaktiviert, können Käufer und Verkäufer sofort auf ihr Dashboard zugreifen."
+                    value=True
                 )
-                preisverhandlung_neu = st.checkbox(
+                preisverhandlung_erlaubt = st.checkbox(
                     "💰 Preisverhandlung zwischen Käufer und Verkäufer erlauben",
-                    value=preisverhandlung_aktuell,
-                    key=f"preisverh_{projekt.projekt_id}",
-                    help="Wenn aktiviert, können Käufer und Verkäufer direkt über den Preis verhandeln."
+                    value=False
                 )
 
-                if st.button("💾 Einstellungen speichern", key=f"save_settings_{projekt.projekt_id}"):
-                    projekt.rechtsdokumente_erforderlich = rechtsdokumente_neu
-                    projekt.preisverhandlung_erlaubt = preisverhandlung_neu
-                    st.success("✅ Projekt-Einstellungen gespeichert!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    submit = st.form_submit_button("💾 Projekt erstellen", type="primary")
+                with col2:
+                    cancel = st.form_submit_button("❌ Abbrechen")
+
+                if submit and name and beschreibung:
+                    projekt_id = f"projekt_{len(st.session_state.projekte)}"
+
+                    projekt = Projekt(
+                        projekt_id=projekt_id,
+                        name=name,
+                        beschreibung=beschreibung,
+                        adresse=adresse,
+                        kaufpreis=kaufpreis,
+                        makler_id=user_id,
+                        rechtsdokumente_erforderlich=rechtsdokumente_erforderlich,
+                        preisverhandlung_erlaubt=preisverhandlung_erlaubt
+                    )
+
+                    st.session_state.projekte[projekt_id] = projekt
+                    create_timeline_for_projekt(projekt_id)
+
+                    st.session_state.show_new_projekt = False
+                    st.success(f"✅ Projekt '{name}' erfolgreich erstellt!")
                     st.rerun()
 
-            # NEU: Parteien-Verwaltung (Gesellschaften, Organe)
-            with st.expander("👥 Parteien & Gesellschaften", expanded=False):
-                render_parteien_verwaltung(projekt, UserRole.MAKLER.value)
+                if cancel:
+                    st.session_state.show_new_projekt = False
+                    st.rerun()
 
-            # NEU: Gating-Übersicht (Finanzierung & Legal)
-            with st.expander("🔐 Freigabe-Status", expanded=False):
-                render_gating_uebersicht(projekt.projekt_id, UserRole.MAKLER.value)
+        st.markdown("---")
 
-            # ===== VERBESSERUNG 3: MAKLER-EINSICHT PREISVERHANDLUNG =====
-            angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
-            if angebote:
-                with st.expander(f"💰 Preisverhandlung ({len(angebote)} Angebote)", expanded=False):
-                    # Aktueller Status
-                    letztes_angebot = angebote[0] if angebote else None
-                    angenommene = [a for a in angebote if a.status == PreisangebotStatus.ANGENOMMEN.value]
+        if not makler_projekte:
+            st.info("Noch keine Projekte vorhanden.")
+            return
 
-                    if angenommene:
-                        einigung = angenommene[0]
-                        st.success(f"✅ **Preiseinigung erzielt:** {format_euro(einigung.betrag)} € am {einigung.beantwortet_am.strftime('%d.%m.%Y') if einigung.beantwortet_am else einigung.erstellt_am.strftime('%d.%m.%Y')}")
-                    elif letztes_angebot and letztes_angebot.status == PreisangebotStatus.OFFEN.value:
-                        von_user = st.session_state.users.get(letztes_angebot.von_user_id)
-                        von_name = von_user.name if von_user else "Unbekannt"
-                        st.info(f"⏳ **Offenes Angebot:** {format_euro(letztes_angebot.betrag)} € von {von_name} ({letztes_angebot.von_rolle})")
+        # Projektübersicht als Liste mit Status
+        st.markdown("### Projekte nach Status")
 
-                    # Vollständiger Verlauf
-                    st.markdown("**Verhandlungsverlauf:**")
-                    for angebot in angebote:
-                        von_user = st.session_state.users.get(angebot.von_user_id)
-                        von_name = von_user.name if von_user else "Unbekannt"
-                        status_icon = {
-                            PreisangebotStatus.OFFEN.value: "⏳",
-                            PreisangebotStatus.ANGENOMMEN.value: "✅",
-                            PreisangebotStatus.ABGELEHNT.value: "❌",
-                            PreisangebotStatus.GEGENANGEBOT.value: "💬",
-                            PreisangebotStatus.ZURUECKGEZOGEN.value: "🔙"
-                        }.get(angebot.status, "❓")
+        for projekt in makler_projekte:
+            # Status-Klasse ermitteln
+            status = projekt.status if hasattr(projekt.status, 'value') else projekt.status
+            status_class = "vorbereitung"
+            if "FINANZIERUNG" in str(status).upper():
+                status_class = "finanzierung"
+            elif "BEURKUNDUNG" in str(status).upper() or "KAUFVERTRAG" in str(status).upper():
+                status_class = "beurkundung"
+            elif "VOLLZUG" in str(status).upper() or "NACH_KAUFVERTRAG" in str(status).upper():
+                status_class = "vollzug"
+            elif "ABGESCHLOSSEN" in str(status).upper():
+                status_class = "abgeschlossen"
 
-                        st.markdown(f"""
-                        {status_icon} **{format_euro(angebot.betrag)} €** - {von_name} ({angebot.von_rolle})
-                        - Status: {angebot.status} | {angebot.erstellt_am.strftime('%d.%m.%Y %H:%M')}
-                        {"- *" + angebot.nachricht + "*" if angebot.nachricht else ""}
-                        """)
+            # Teilnehmer zählen
+            interessent_count = len(getattr(projekt, 'interessent_ids', []))
+            kaeufer_count = len(projekt.kaeufer_ids)
+            verkaeufer_count = len(projekt.verkaeufer_ids)
 
-            st.markdown("---")
+            # Karte anzeigen
+            st.markdown(f"""
+            <div class="projekt-card">
+                <div class="projekt-name">{projekt.name}</div>
+                <span class="projekt-status {status_class}">{status}</span>
+                <div class="projekt-info">
+                    📍 {projekt.adresse if projekt.adresse else 'Keine Adresse'} |
+                    👥 {kaeufer_count} Käufer, {verkaeufer_count} Verkäufer
+                    {f', 👀 {interessent_count} Interessenten' if interessent_count > 0 else ''}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            # ===== EXPOSÉ-VERWALTUNG (DIREKT SICHTBAR) =====
-            st.markdown("#### 📄 Exposé-Daten")
+            # Klickbarer Button
+            if st.button(f"📂 Projekt öffnen", key=f"open_projekt_{projekt.projekt_id}", use_container_width=True):
+                st.session_state.makler_selected_projekt = projekt.projekt_id
+                st.rerun()
 
-            # Exposé-Status anzeigen
-            if projekt.expose_data_id:
-                expose = st.session_state.expose_data.get(projekt.expose_data_id)
-                if expose and expose.objekttitel:
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"**Objektart:** {expose.objektart}")
-                        st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
-                    with col2:
-                        st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
-                        st.write(f"**Kaufpreis:** {format_euro(expose.kaufpreis)} €")
-                    with col3:
-                        st.write(f"**Letzte Änderung:** {expose.updated_at.strftime('%d.%m.%Y %H:%M')}")
-                        if expose.adresse_validiert:
-                            st.success("✅ Adresse validiert")
 
-            # Exposé-Editor immer in einem Expander anzeigen (standardmäßig eingeklappt wenn Daten vorhanden)
-            expose_exists = bool(projekt.expose_data_id and
-                                st.session_state.expose_data.get(projekt.expose_data_id) and
-                                st.session_state.expose_data.get(projekt.expose_data_id).objekttitel)
+def _render_makler_projekt_details(projekt, user_id: str):
+    """Rendert die Details eines Makler-Projekts"""
+    st.markdown(f"### 📁 {projekt.name}")
 
-            with st.expander("📝 Exposé bearbeiten" if expose_exists else "📝 Exposé-Daten eingeben", expanded=not expose_exists):
-                render_expose_editor(projekt)
+    col1, col2 = st.columns([2, 1])
 
-            st.markdown("---")
+    with col1:
+        st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
+        if projekt.adresse:
+            st.markdown(f"**Adresse:** {projekt.adresse}")
+        if projekt.kaufpreis > 0:
+            st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
+        st.markdown(f"**Status:** {projekt.status}")
+        st.markdown(f"**Erstellt:** {projekt.created_at.strftime('%d.%m.%Y')}")
 
-            # ===== PREISFINDUNG MIT MARKTANALYSE =====
-            with st.expander("📊 Preisfindung mit Marktanalyse", expanded=False):
-                render_preisfindung_mit_marktanalyse(projekt, st.session_state.current_user.user_id)
+    with col2:
+        st.markdown("**Teilnehmer:**")
+        interessent_count = len(getattr(projekt, 'interessent_ids', []))
+        if interessent_count > 0:
+            st.write(f"👀 Interessenten: {interessent_count}")
+        st.write(f"👥 Käufer: {len(projekt.kaeufer_ids)}")
+        st.write(f"👥 Verkäufer: {len(projekt.verkaeufer_ids)}")
+        st.write(f"💼 Finanzierer: {len(projekt.finanzierer_ids)}")
+        st.write(f"⚖️ Notar: {'Ja' if projekt.notar_id else 'Nein'}")
 
-            st.markdown("---")
+    # Interessenten-Verwaltung
+    if hasattr(projekt, 'interessent_ids') and projekt.interessent_ids:
+        with st.expander("👀 Interessenten verwalten", expanded=False):
+            render_interessenten_verwaltung(projekt)
 
-            # ===== TERMIN-VERWALTUNG =====
-            with st.expander("📅 Terminverwaltung", expanded=False):
-                render_termin_verwaltung(projekt, UserRole.MAKLER.value, context="detail_view")
+    # Projekt-Einstellungen
+    with st.expander("⚙️ Projekt-Einstellungen", expanded=False):
+        rechtsdokumente_aktuell = getattr(projekt, 'rechtsdokumente_erforderlich', True)
+        preisverhandlung_aktuell = getattr(projekt, 'preisverhandlung_erlaubt', False)
 
-                # Bestätigte Beurkundungstermine hervorheben
-                beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
-                                       if st.session_state.termine.get(tid) and
-                                       st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value and
-                                       st.session_state.termine.get(tid).status == TerminStatus.BESTAETIGT.value]
+        rechtsdokumente_neu = st.checkbox(
+            "📜 Käufer/Verkäufer müssen Datenschutz & AGB akzeptieren",
+            value=rechtsdokumente_aktuell,
+            key=f"rechtsdok_{projekt.projekt_id}"
+        )
+        preisverhandlung_neu = st.checkbox(
+            "💰 Preisverhandlung erlauben",
+            value=preisverhandlung_aktuell,
+            key=f"preisverh_{projekt.projekt_id}"
+        )
 
-                if beurkundungstermine:
-                    for termin in beurkundungstermine:
-                        st.success(f"🟢 **Notartermin bestätigt:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
+        if st.button("💾 Einstellungen speichern", key=f"save_settings_{projekt.projekt_id}"):
+            projekt.rechtsdokumente_erforderlich = rechtsdokumente_neu
+            projekt.preisverhandlung_erlaubt = preisverhandlung_neu
+            st.success("✅ Projekt-Einstellungen gespeichert!")
+            st.rerun()
+
+    # Parteien-Verwaltung
+    with st.expander("👥 Parteien & Gesellschaften", expanded=False):
+        render_parteien_verwaltung(projekt, UserRole.MAKLER.value)
+
+    # Gating-Übersicht
+    with st.expander("🔐 Freigabe-Status", expanded=False):
+        render_gating_uebersicht(projekt.projekt_id, UserRole.MAKLER.value)
+
+    # Preisverhandlung
+    angebote = get_preisangebote_fuer_projekt(projekt.projekt_id)
+    if angebote:
+        with st.expander(f"💰 Preisverhandlung ({len(angebote)} Angebote)", expanded=False):
+            letztes_angebot = angebote[0] if angebote else None
+            angenommene = [a for a in angebote if a.status == PreisangebotStatus.ANGENOMMEN.value]
+
+            if angenommene:
+                einigung = angenommene[0]
+                st.success(f"✅ **Preiseinigung:** {format_euro(einigung.betrag)} €")
+            elif letztes_angebot and letztes_angebot.status == PreisangebotStatus.OFFEN.value:
+                von_user = st.session_state.users.get(letztes_angebot.von_user_id)
+                st.info(f"⏳ **Offenes Angebot:** {format_euro(letztes_angebot.betrag)} €")
+
+    # Exposé
+    st.markdown("---")
+    st.markdown("#### 📄 Exposé-Daten")
+    if projekt.expose_data_id:
+        expose = st.session_state.expose_data.get(projekt.expose_data_id)
+        if expose and expose.objekttitel:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**Objektart:** {expose.objektart}")
+            with col2:
+                st.write(f"**Wohnfläche:** {expose.wohnflaeche} m²")
+            with col3:
+                st.write(f"**Zimmer:** {expose.anzahl_zimmer}")
+
+    expose_exists = bool(projekt.expose_data_id and
+                        st.session_state.expose_data.get(projekt.expose_data_id) and
+                        st.session_state.expose_data.get(projekt.expose_data_id).objekttitel)
+
+    with st.expander("📝 Exposé bearbeiten" if expose_exists else "📝 Exposé-Daten eingeben", expanded=not expose_exists):
+        render_expose_editor(projekt)
+
+    # Preisfindung
+    st.markdown("---")
+    with st.expander("📊 Preisfindung mit Marktanalyse", expanded=False):
+        render_preisfindung_mit_marktanalyse(projekt, user_id)
+
+    # Termine
+    st.markdown("---")
+    with st.expander("📅 Terminverwaltung", expanded=False):
+        render_termin_verwaltung(projekt, UserRole.MAKLER.value, context="detail_view")
+
+        beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
+                               if st.session_state.termine.get(tid) and
+                               st.session_state.termine.get(tid).termin_typ == TerminTyp.BEURKUNDUNG.value and
+                               st.session_state.termine.get(tid).status == TerminStatus.BESTAETIGT.value]
+
+        if beurkundungstermine:
+            for termin in beurkundungstermine:
+                st.success(f"🟢 **Notartermin bestätigt:** {termin.datum.strftime('%d.%m.%Y')} um {termin.uhrzeit_start} Uhr")
 
 def create_timeline_for_projekt(projekt_id: str):
     """Erstellt Timeline-Events für ein neues Projekt"""
@@ -23740,6 +23901,88 @@ def render_notar_content(selection: str, user_id: str):
         st.warning(f"Unbekannter Menüpunkt: {selection}")
 
 
+def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundungen: int, anstehende_termine: int):
+    """
+    Rendert klickbare KPI-Karten für das Notar-Dashboard.
+    Quadratisch, mit Schatten, ohne Icons.
+    """
+    # CSS für quadratische Karten mit Schatten
+    st.markdown("""
+    <style>
+    .clickable-kpi-container {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .clickable-kpi-card {
+        flex: 1;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 1.5rem;
+        text-align: center;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .clickable-kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+    .clickable-kpi-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a365d;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    .clickable-kpi-label {
+        font-size: 0.95rem;
+        color: #495057;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Klickbare Buttons in Spalten
+    cols = st.columns(3)
+
+    with cols[0]:
+        st.markdown(f"""
+        <div class="clickable-kpi-card">
+            <div class="clickable-kpi-value">{aktive_akten}</div>
+            <div class="clickable-kpi-label">Aktive Akten</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Akten", key="kpi_aktive_akten", use_container_width=True, type="secondary"):
+            st.session_state.notar_menu_selection = "projekte"
+            st.rerun()
+
+    with cols[1]:
+        st.markdown(f"""
+        <div class="clickable-kpi-card">
+            <div class="clickable-kpi-value">{beurkundungen}</div>
+            <div class="clickable-kpi-label">Beurkundungen</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Beurkundungen", key="kpi_beurkundungen", use_container_width=True, type="secondary"):
+            st.session_state.notar_menu_selection = "beurkundung"
+            st.rerun()
+
+    with cols[2]:
+        st.markdown(f"""
+        <div class="clickable-kpi-card">
+            <div class="clickable-kpi-value">{anstehende_termine}</div>
+            <div class="clickable-kpi-label">Anstehende Termine</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Zu Terminen", key="kpi_termine", use_container_width=True, type="secondary"):
+            st.session_state.notar_menu_selection = "termine"
+            st.rerun()
+
+
 def notar_dashboard():
     """Dashboard für Notar mit verbesserter Navigation - Optimiert für Mobile"""
 
@@ -23789,7 +24032,7 @@ def notar_dashboard():
                         aktive_gruppe = gruppe_name
                         break
 
-    # Dashboard Header mit KPIs
+    # Dashboard Header
     render_dashboard_header("Notar", user_name, unread_count)
 
     # KPIs berechnen
@@ -23797,16 +24040,18 @@ def notar_dashboard():
     aktive_projekte = len([p for p in notar_projekte if p.status != ProjektStatus.ABGESCHLOSSEN.value])
     beurkundungen = len([p for p in notar_projekte if p.status == ProjektStatus.KAUFVERTRAG_UNTERZEICHNET.value])
 
-    # KPI-Karten
-    render_kpi_cards([
-        {'icon': '📋', 'value': str(aktive_projekte), 'label': 'Aktive Akten', 'type': 'success'},
-        {'icon': '✍️', 'value': str(beurkundungen), 'label': 'Beurkundungen', 'type': 'info'},
-        {'icon': '📅', 'value': '0', 'label': 'Anstehende Termine', 'type': ''},
-        {'icon': '🔔', 'value': str(unread_count), 'label': 'Neue Nachrichten', 'type': 'warning' if unread_count > 0 else ''}
-    ])
+    # Anstehende Termine zählen
+    from datetime import date
+    heute = date.today()
+    anstehende_termine = 0
+    for projekt in notar_projekte:
+        for termin_id in projekt.termine:
+            termin = st.session_state.termine.get(termin_id)
+            if termin and hasattr(termin, 'datum') and termin.datum >= heute:
+                anstehende_termine += 1
 
-    # === TIMELINE ÜBERSICHT (oberhalb der Suchleiste) ===
-    render_notar_timeline_kompakt(user_id)
+    # Klickbare KPI-Karten (quadratisch, mit Schatten, ohne Icons)
+    render_clickable_kpi_cards_notar(user_id, aktive_projekte, beurkundungen, anstehende_termine)
 
     # Hauptmenü-Leiste (5 Gruppen) - wird auf Mobile ausgeblendet via CSS
     st.markdown('<div class="hauptmenu-container">', unsafe_allow_html=True)
@@ -24131,11 +24376,15 @@ def notar_timeline_view():
 
 
 def notar_projekte_view():
-    """Projekt-Übersicht für Notar"""
-    st.subheader("📋 Meine Projekte")
+    """Akten-Übersicht für Notar mit Status und klickbarer Timeline"""
+    st.subheader("📋 Meine Akten")
 
     notar_id = st.session_state.current_user.user_id
     search_term = st.session_state.get('notar_search', '')
+
+    # Session State für ausgewählte Akte
+    if 'notar_selected_akte' not in st.session_state:
+        st.session_state.notar_selected_akte = None
 
     alle_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == notar_id]
     projekte = filter_projekte_by_search(alle_projekte, search_term)
@@ -24143,106 +24392,324 @@ def notar_projekte_view():
     display_search_results_info(len(alle_projekte), len(projekte), search_term)
 
     if not projekte:
-        st.info("Keine Projekte gefunden." if search_term else "Noch keine Projekte zugewiesen.")
+        st.info("Keine Akten gefunden." if search_term else "Noch keine Akten zugewiesen.")
         return
+
+    # CSS für Akten-Karten
+    st.markdown("""
+    <style>
+    .akte-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        border-left: 4px solid #1a365d;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .akte-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.18);
+    }
+    .akte-card.selected {
+        border-left-color: #c9a227;
+        background: #fffef5;
+    }
+    .akte-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1a365d;
+        margin-bottom: 0.3rem;
+    }
+    .akte-status {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .akte-status.vorbereitung { background: #e3f2fd; color: #1565c0; }
+    .akte-status.finanzierung { background: #fff3e0; color: #ef6c00; }
+    .akte-status.beurkundung { background: #f3e5f5; color: #7b1fa2; }
+    .akte-status.vollzug { background: #e8f5e9; color: #2e7d32; }
+    .akte-status.abgeschlossen { background: #e0e0e0; color: #424242; }
+    .akte-info {
+        color: #666;
+        font-size: 0.85rem;
+        margin-top: 0.3rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Prüfen ob eine Akte ausgewählt ist
+    selected_projekt = None
+    if st.session_state.notar_selected_akte:
+        selected_projekt = st.session_state.projekte.get(st.session_state.notar_selected_akte)
+
+    # Wenn eine Akte ausgewählt ist, zeige Timeline und Details
+    if selected_projekt:
+        # Zurück-Button
+        if st.button("← Zurück zur Übersicht", key="back_to_overview"):
+            st.session_state.notar_selected_akte = None
+            st.rerun()
+
+        st.markdown("---")
+
+        # Timeline der ausgewählten Akte
+        st.markdown(f"### 📊 Timeline: {selected_projekt.name}")
+        _render_projekt_timeline_horizontal(selected_projekt)
+
+        st.markdown("---")
+
+        # Details der Akte
+        _render_akte_details(selected_projekt, notar_id)
+
+    else:
+        # Aktenübersicht als Liste mit Status
+        st.markdown("### Akten nach Status")
+
+        for projekt in projekte:
+            # Status-Klasse ermitteln
+            status = projekt.status if hasattr(projekt.status, 'value') else projekt.status
+            status_class = "vorbereitung"
+            if "FINANZIERUNG" in str(status).upper():
+                status_class = "finanzierung"
+            elif "BEURKUNDUNG" in str(status).upper() or "KAUFVERTRAG" in str(status).upper():
+                status_class = "beurkundung"
+            elif "VOLLZUG" in str(status).upper() or "NACH_KAUFVERTRAG" in str(status).upper():
+                status_class = "vollzug"
+            elif "ABGESCHLOSSEN" in str(status).upper():
+                status_class = "abgeschlossen"
+
+            # Aktenzeichen
+            aktenzeichen = getattr(projekt, 'aktenzeichen', projekt.projekt_id[:8])
+
+            # Käufer/Verkäufer Namen
+            kaeufer_namen = []
+            for kid in projekt.kaeufer_ids:
+                k = st.session_state.users.get(kid)
+                if k:
+                    kaeufer_namen.append(k.name)
+
+            verkaeufer_namen = []
+            for vid in projekt.verkaeufer_ids:
+                v = st.session_state.users.get(vid)
+                if v:
+                    verkaeufer_namen.append(v.name)
+
+            # Karte anzeigen
+            st.markdown(f"""
+            <div class="akte-card">
+                <div class="akte-name">{projekt.name}</div>
+                <span class="akte-status {status_class}">{status}</span>
+                <div class="akte-info">
+                    📁 {aktenzeichen} |
+                    🏠 {', '.join(kaeufer_namen) if kaeufer_namen else 'Kein Käufer'} |
+                    🏡 {', '.join(verkaeufer_namen) if verkaeufer_namen else 'Kein Verkäufer'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Klickbarer Button
+            if st.button(f"📂 Akte öffnen", key=f"open_akte_{projekt.projekt_id}", use_container_width=True):
+                st.session_state.notar_selected_akte = projekt.projekt_id
+                st.rerun()
+
+
+def _render_projekt_timeline_horizontal(projekt):
+    """Rendert eine horizontale Timeline für ein Projekt/Akte"""
+    # Timeline-Phasen
+    phasen = [
+        ("Vorbereitung", ["VORBEREITUNG", "EXPOSE_ERSTELLT", "TEILNEHMER_EINGELADEN"]),
+        ("Finanzierung", ["FINANZIERUNG_ANGEFRAGT", "FINANZIERUNG_GESICHERT"]),
+        ("Beurkundung", ["NOTARTERMIN_VEREINBART", "KAUFVERTRAG_UNTERZEICHNET"]),
+        ("Vollzug", ["VOLLZUG", "NACH_KAUFVERTRAG"]),
+        ("Abgeschlossen", ["ABGESCHLOSSEN"])
+    ]
+
+    status = str(projekt.status.value if hasattr(projekt.status, 'value') else projekt.status).upper()
+
+    # Aktuelle Phase ermitteln
+    aktuelle_phase_idx = 0
+    for i, (_, status_list) in enumerate(phasen):
+        for s in status_list:
+            if s in status:
+                aktuelle_phase_idx = i
+                break
+
+    # CSS für horizontale Timeline
+    st.markdown("""
+    <style>
+    .timeline-horizontal {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 0;
+        position: relative;
+    }
+    .timeline-horizontal::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: #e0e0e0;
+        z-index: 1;
+    }
+    .timeline-phase {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 2;
+        background: white;
+        padding: 0 0.5rem;
+    }
+    .timeline-dot {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #e0e0e0;
+        border: 3px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        margin-bottom: 0.5rem;
+    }
+    .timeline-dot.completed {
+        background: #2e7d32;
+    }
+    .timeline-dot.current {
+        background: #c9a227;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.7); }
+        70% { box-shadow: 0 0 0 10px rgba(201, 162, 39, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0); }
+    }
+    .timeline-label {
+        font-size: 0.75rem;
+        color: #666;
+        text-align: center;
+        max-width: 80px;
+    }
+    .timeline-label.current {
+        color: #1a365d;
+        font-weight: 600;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Timeline rendern
+    html = '<div class="timeline-horizontal">'
+    for i, (phase_name, _) in enumerate(phasen):
+        dot_class = "completed" if i < aktuelle_phase_idx else ("current" if i == aktuelle_phase_idx else "")
+        label_class = "current" if i == aktuelle_phase_idx else ""
+        html += f'''
+        <div class="timeline-phase">
+            <div class="timeline-dot {dot_class}"></div>
+            <div class="timeline-label {label_class}">{phase_name}</div>
+        </div>
+        '''
+    html += '</div>'
+
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def _render_akte_details(projekt, notar_id: str):
+    """Rendert die Details einer Akte"""
+    st.markdown(f"### 📁 {projekt.name}")
 
     # Verfügbare Mitarbeiter für diesen Notar
     mitarbeiter = [m for m in st.session_state.notar_mitarbeiter.values() if m.notar_id == notar_id and m.aktiv]
 
-    for projekt in projekte:
-        with st.expander(f"🏘️ {projekt.name}", expanded=True):
-            col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-            with col1:
-                st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
-                if projekt.adresse:
-                    st.markdown(f"**Adresse:** {projekt.adresse}")
-                if projekt.kaufpreis > 0:
-                    st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
+    with col1:
+        st.markdown(f"**Beschreibung:** {projekt.beschreibung}")
+        if projekt.adresse:
+            st.markdown(f"**Adresse:** {projekt.adresse}")
+        if projekt.kaufpreis > 0:
+            st.markdown(f"**Kaufpreis:** {format_euro(projekt.kaufpreis)} €")
 
-            with col2:
-                st.markdown("**Parteien:**")
-                for kid in projekt.kaeufer_ids:
-                    kaeufer = st.session_state.users.get(kid)
-                    if kaeufer:
-                        st.write(f"🏠 Käufer: {kaeufer.name}")
+    with col2:
+        st.markdown("**Parteien:**")
+        for kid in projekt.kaeufer_ids:
+            kaeufer = st.session_state.users.get(kid)
+            if kaeufer:
+                st.write(f"🏠 Käufer: {kaeufer.name}")
 
-                for vid in projekt.verkaeufer_ids:
-                    verkaeufer = st.session_state.users.get(vid)
-                    if verkaeufer:
-                        st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+        for vid in projekt.verkaeufer_ids:
+            verkaeufer = st.session_state.users.get(vid)
+            if verkaeufer:
+                st.write(f"🏡 Verkäufer: {verkaeufer.name}")
 
-                # Makler anzeigen
-                if projekt.makler_id:
-                    makler = st.session_state.users.get(projekt.makler_id)
-                    if makler:
-                        st.write(f"👔 Makler: {makler.name}")
+        if projekt.makler_id:
+            makler = st.session_state.users.get(projekt.makler_id)
+            if makler:
+                st.write(f"👔 Makler: {makler.name}")
 
-                # Finanzierer anzeigen
-                for fid in projekt.finanzierer_ids:
-                    finanzierer = st.session_state.users.get(fid)
-                    if finanzierer:
-                        st.write(f"🏦 Finanzierer: {finanzierer.name}")
+        for fid in projekt.finanzierer_ids:
+            finanzierer = st.session_state.users.get(fid)
+            if finanzierer:
+                st.write(f"🏦 Finanzierer: {finanzierer.name}")
 
-            # Mitarbeiter-Zuweisung
-            st.markdown("---")
-            st.markdown("**👥 Zugewiesene Mitarbeiter:**")
+    # Mitarbeiter-Zuweisung
+    st.markdown("---")
+    st.markdown("**👥 Zugewiesene Mitarbeiter:**")
 
-            # Zeige aktuell zugewiesene Mitarbeiter
-            zugewiesene_ma = [m for m in mitarbeiter if projekt.projekt_id in m.projekt_ids]
-            if zugewiesene_ma:
-                for ma in zugewiesene_ma:
-                    col_ma1, col_ma2 = st.columns([3, 1])
-                    with col_ma1:
-                        st.write(f"👤 {ma.name} ({ma.rolle})")
-                    with col_ma2:
-                        if st.button("❌", key=f"remove_ma_{projekt.projekt_id}_{ma.mitarbeiter_id}", help="Zuweisung entfernen"):
-                            ma.projekt_ids.remove(projekt.projekt_id)
-                            st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
-                            st.success(f"{ma.name} wurde vom Projekt entfernt.")
-                            st.rerun()
-            else:
-                st.info("Noch keine Mitarbeiter zugewiesen.")
+    zugewiesene_ma = [m for m in mitarbeiter if projekt.projekt_id in m.projekt_ids]
+    if zugewiesene_ma:
+        for ma in zugewiesene_ma:
+            col_ma1, col_ma2 = st.columns([3, 1])
+            with col_ma1:
+                st.write(f"👤 {ma.name} ({ma.rolle})")
+            with col_ma2:
+                if st.button("❌", key=f"remove_ma_{projekt.projekt_id}_{ma.mitarbeiter_id}", help="Zuweisung entfernen"):
+                    ma.projekt_ids.remove(projekt.projekt_id)
+                    st.session_state.notar_mitarbeiter[ma.mitarbeiter_id] = ma
+                    st.success(f"{ma.name} wurde vom Projekt entfernt.")
+                    st.rerun()
+    else:
+        st.info("Noch keine Mitarbeiter zugewiesen.")
 
-            # Neue Zuweisung
-            if mitarbeiter:
-                nicht_zugewiesene = [m for m in mitarbeiter if projekt.projekt_id not in m.projekt_ids]
-                if nicht_zugewiesene:
-                    col_select, col_btn = st.columns([3, 1])
-                    with col_select:
-                        ma_options = {f"{m.name} ({m.rolle})": m.mitarbeiter_id for m in nicht_zugewiesene}
-                        selected_ma_label = st.selectbox(
-                            "Mitarbeiter hinzufügen:",
-                            list(ma_options.keys()),
-                            key=f"select_ma_{projekt.projekt_id}"
-                        )
-                    with col_btn:
-                        if st.button("➕ Zuweisen", key=f"assign_ma_{projekt.projekt_id}"):
-                            ma_id = ma_options[selected_ma_label]
-                            ma = st.session_state.notar_mitarbeiter[ma_id]
-                            ma.projekt_ids.append(projekt.projekt_id)
-                            st.session_state.notar_mitarbeiter[ma_id] = ma
-                            st.success(f"{ma.name} wurde dem Projekt zugewiesen.")
-                            st.rerun()
-            else:
-                st.info("💡 Legen Sie Mitarbeiter im Tab '👥 Mitarbeiter' an, um sie Projekten zuzuweisen.")
+    if mitarbeiter:
+        nicht_zugewiesene = [m for m in mitarbeiter if projekt.projekt_id not in m.projekt_ids]
+        if nicht_zugewiesene:
+            col_select, col_btn = st.columns([3, 1])
+            with col_select:
+                ma_options = {f"{m.name} ({m.rolle})": m.mitarbeiter_id for m in nicht_zugewiesene}
+                selected_ma_label = st.selectbox(
+                    "Mitarbeiter hinzufügen:",
+                    list(ma_options.keys()),
+                    key=f"select_ma_{projekt.projekt_id}"
+                )
+            with col_btn:
+                if st.button("➕ Zuweisen", key=f"assign_ma_{projekt.projekt_id}"):
+                    ma_id = ma_options[selected_ma_label]
+                    ma = st.session_state.notar_mitarbeiter[ma_id]
+                    ma.projekt_ids.append(projekt.projekt_id)
+                    st.session_state.notar_mitarbeiter[ma_id] = ma
+                    st.success(f"{ma.name} wurde dem Projekt zugewiesen.")
+                    st.rerun()
+    else:
+        st.info("💡 Legen Sie Mitarbeiter im Menü 'Mitarbeiter' an, um sie Akten zuzuweisen.")
 
-            # NEU: Parteien-Verwaltung (Gesellschaften, Organe, Handelsregister)
-            st.markdown("---")
-            with st.expander("👥 Parteien & Gesellschaften verwalten", expanded=False):
-                render_parteien_verwaltung(projekt, UserRole.NOTAR.value)
+    # Parteien-Verwaltung
+    st.markdown("---")
+    with st.expander("👥 Parteien & Gesellschaften verwalten", expanded=False):
+        render_parteien_verwaltung(projekt, UserRole.NOTAR.value)
 
-            # NEU: Gating-Übersicht (Finanzierung & Legal)
-            with st.expander("🔐 Freigabe-Status & Gating", expanded=False):
-                render_gating_uebersicht(projekt.projekt_id, UserRole.NOTAR.value)
+    # Gating-Übersicht
+    with st.expander("🔐 Freigabe-Status & Gating", expanded=False):
+        render_gating_uebersicht(projekt.projekt_id, UserRole.NOTAR.value)
 
-            # Aktenzeichen und verknüpfte Akte anzeigen
-            if projekt.aktenzeichen:
-                st.markdown("---")
-                st.markdown(f"**📁 Aktenzeichen:** {projekt.aktenzeichen}")
-                if projekt.akte_id and projekt.akte_id in st.session_state.importierte_akten:
-                    akte = st.session_state.importierte_akten[projekt.akte_id]
-                    st.info(f"Verknüpft mit Akte: {akte.bezeichnung}")
+    # Aktenzeichen
+    if projekt.aktenzeichen:
+        st.markdown("---")
+        st.markdown(f"**📁 Aktenzeichen:** {projekt.aktenzeichen}")
+        if projekt.akte_id and projekt.akte_id in st.session_state.importierte_akten:
+            akte = st.session_state.importierte_akten[projekt.akte_id]
+            st.info(f"Verknüpft mit Akte: {akte.bezeichnung}")
 
 
 def notar_aktenmanagement_view():
