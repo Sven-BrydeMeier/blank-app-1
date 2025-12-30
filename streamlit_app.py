@@ -1615,7 +1615,7 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
     Rendert einen kompakten Dashboard-Header mit User-Info, Einstellungen und Abmelden.
-    Header-Balken mit Buttons die visuell dazugehören.
+    Alles im dunklen Balken: Titel links, Username + Links rechts.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1628,66 +1628,83 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # CSS: Header-Block mit extra Platz unten für die Buttons
+    # Kompakter Header - alles in einem dunklen Block
     st.markdown(f"""
     <style>
-    .dark-header-block {{
+    .unified-header {{
         background: {config['color']};
-        border-radius: 8px 8px 0 0;
-        padding: 0.5rem 1rem 0.3rem 1rem;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        margin-bottom: 1rem;
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
     }}
-    .dark-header-title {{
+    .header-title {{
         color: white;
         font-weight: 600;
         font-size: 0.9rem;
     }}
-    .dark-header-user {{
+    .header-right-section {{
+        text-align: right;
+    }}
+    .header-username {{
         color: white;
         font-size: 0.8rem;
-        opacity: 0.9;
+        font-weight: 500;
     }}
-    .dark-header-buttons {{
-        background: {config['color']};
-        border-radius: 0 0 8px 8px;
-        padding: 0.2rem 1rem 0.4rem 1rem;
-        margin-top: -1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
+    .header-actions {{
+        margin-top: 0.2rem;
+        font-size: 0.7rem;
     }}
-    .dark-header-buttons .stButton > button {{
-        background: rgba(255,255,255,0.1) !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        color: rgba(255,255,255,0.9) !important;
-        font-size: 0.7rem !important;
-        padding: 0.15rem 0.5rem !important;
+    .header-actions a {{
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
+        margin-left: 0.75rem;
+    }}
+    .header-actions a:hover {{
+        color: white;
+    }}
+    /* Verstecke die echten Buttons, mache sie klein */
+    .header-action-buttons {{
+        margin-top: -0.5rem;
+        margin-bottom: 0.5rem;
+    }}
+    .header-action-buttons .stButton > button {{
+        background: transparent !important;
+        border: none !important;
+        color: #6c757d !important;
+        font-size: 0.65rem !important;
+        padding: 0 0.5rem !important;
         min-height: unset !important;
-        border-radius: 4px !important;
+        height: auto !important;
     }}
-    .dark-header-buttons .stButton > button:hover {{
-        background: rgba(255,255,255,0.2) !important;
-        color: white !important;
+    .header-action-buttons .stButton > button:hover {{
+        color: #343a40 !important;
+        text-decoration: underline !important;
     }}
     </style>
-    <div class="dark-header-block">
-        <span class="dark-header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
-        <span class="dark-header-user">{user_name}</span>
+    <div class="unified-header">
+        <span class="header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <div class="header-right-section">
+            <div class="header-username">{user_name}</div>
+            <div class="header-actions">
+                <a href="#" onclick="return false;">⚙️ Einstellungen</a>
+                <a href="#" onclick="return false;">🚪 Abmelden</a>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Button-Zeile die visuell zum Header gehört
-    st.markdown('<div class="dark-header-buttons">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([4, 1, 1])
+    # Kleine funktionale Buttons (dezent unter dem Header)
+    st.markdown('<div class="header-action-buttons">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([6, 1, 1])
     with col2:
-        if st.button("⚙️ Einstellungen", key="header_settings"):
+        if st.button("Einstellungen", key="header_settings"):
             st.session_state.notar_menu_selection = "einstellungen"
             st.rerun()
     with col3:
-        if st.button("🚪 Abmelden", key="header_logout"):
+        if st.button("Abmelden", key="header_logout"):
             logout()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -23984,54 +24001,69 @@ def render_notar_content(selection: str, user_id: str):
 def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundungen: int, anstehende_termine: int, posteingang: int = 0):
     """
     Rendert klickbare KPI-Karten für das Notar-Dashboard.
-    Vertikal angeordnet, kompakt, mit Schatten, ohne Icons.
+    Alle KPIs in einem gemeinsamen Feld/Container zusammengefasst.
     """
-    # CSS für kompakte vertikale Karten
+    # CSS für zusammengefasstes KPI-Feld
     st.markdown("""
     <style>
-    .kpi-vertical-container {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    .kpi-compact-card {
+    .kpi-unified-box {
         background: white;
         border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-        padding: 0.6rem 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #e9ecef;
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .kpi-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        transition: transform 0.2s, box-shadow 0.2s;
-        cursor: pointer;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid #f1f3f4;
+        transition: background 0.15s;
     }
-    .kpi-compact-card:hover {
-        transform: translateX(4px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    .kpi-row:last-child {
+        border-bottom: none;
     }
-    .kpi-compact-value {
-        font-size: 1.4rem;
+    .kpi-row:hover {
+        background: #f8f9fa;
+    }
+    .kpi-value {
+        font-size: 1.1rem;
         font-weight: 700;
         color: #1a365d;
-        min-width: 40px;
+        min-width: 30px;
         text-align: center;
     }
-    .kpi-compact-label {
-        font-size: 0.85rem;
+    .kpi-label {
+        font-size: 0.8rem;
         color: #495057;
-        font-weight: 500;
         flex: 1;
-        margin-left: 0.75rem;
+        margin-left: 0.6rem;
     }
-    .kpi-compact-arrow {
+    .kpi-arrow {
         color: #adb5bd;
-        font-size: 0.9rem;
+        font-size: 0.8rem;
+    }
+    /* Kompakte unsichtbare Buttons */
+    .kpi-buttons-hidden {
+        margin-top: -0.25rem;
+    }
+    .kpi-buttons-hidden .stButton > button {
+        background: transparent !important;
+        border: none !important;
+        color: #adb5bd !important;
+        font-size: 0.6rem !important;
+        padding: 0.1rem !important;
+        min-height: unset !important;
+        height: auto !important;
+    }
+    .kpi-buttons-hidden .stButton > button:hover {
+        color: #495057 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # Vertikale KPI-Karten
+    # KPI-Daten
     kpi_data = [
         (aktive_akten, "Aktive Akten", "kpi_aktive_akten", "projekte"),
         (beurkundungen, "Beurkundungen", "kpi_beurkundungen", "beurkundung"),
@@ -24039,20 +24071,30 @@ def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundun
         (posteingang, "Posteingang", "kpi_posteingang", "eingaenge"),
     ]
 
+    # Alle KPIs in einem HTML-Block
+    kpi_html = '<div class="kpi-unified-box">'
     for value, label, key, target in kpi_data:
-        st.markdown(f"""
-        <div class="kpi-compact-card">
-            <div class="kpi-compact-value">{value}</div>
-            <div class="kpi-compact-label">{label}</div>
-            <div class="kpi-compact-arrow">›</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(f"→ {label}", key=key, use_container_width=True, type="secondary"):
-            if target == "eingaenge":
-                st.session_state.show_eingaenge_center = True
-            else:
-                st.session_state.notar_menu_selection = target
-            st.rerun()
+        kpi_html += f'''
+        <div class="kpi-row">
+            <span class="kpi-value">{value}</span>
+            <span class="kpi-label">{label}</span>
+            <span class="kpi-arrow">›</span>
+        </div>'''
+    kpi_html += '</div>'
+    st.markdown(kpi_html, unsafe_allow_html=True)
+
+    # Kompakte Buttons für Funktionalität
+    st.markdown('<div class="kpi-buttons-hidden">', unsafe_allow_html=True)
+    cols = st.columns(4)
+    for i, (value, label, key, target) in enumerate(kpi_data):
+        with cols[i]:
+            if st.button(f"→", key=key, help=label):
+                if target == "eingaenge":
+                    st.session_state.show_eingaenge_center = True
+                else:
+                    st.session_state.notar_menu_selection = target
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def notar_dashboard():
