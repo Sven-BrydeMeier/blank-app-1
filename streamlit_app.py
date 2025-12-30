@@ -1614,8 +1614,8 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
-    Rendert einen kompakten Dashboard-Header.
-    Dunkler Balken mit Titel links, Username + Einstellungen/Abmelden rechts.
+    Rendert einen kompakten Dashboard-Header mit klickbaren Elementen.
+    Verwendet native Streamlit-Buttons, gestylt als dunkler Balken.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1628,77 +1628,58 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # Kompletter Header als ein HTML-Block mit allen Infos
+    # CSS für den Header-Container und die Buttons darin
     st.markdown(f"""
     <style>
-    .notar-header-bar {{
+    /* Header Container */
+    .header-container {{
         background: {config['color']};
         border-radius: 8px;
-        padding: 0.6rem 1rem;
-        margin-bottom: 0.75rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
+        padding: 0.5rem 0.75rem;
+        margin: -1rem -1rem 1rem -1rem;
     }}
-    .notar-header-title {{
-        color: white;
-        font-weight: 600;
-        font-size: 0.95rem;
+    /* Buttons im Header unsichtbar machen und als Links stylen */
+    .header-buttons .stButton > button {{
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255,255,255,0.8) !important;
+        font-size: 0.7rem !important;
+        padding: 0.1rem 0.3rem !important;
+        min-height: unset !important;
+        height: auto !important;
+        font-weight: normal !important;
     }}
-    .notar-header-right {{
-        text-align: right;
-    }}
-    .notar-header-user {{
-        color: white;
-        font-size: 0.85rem;
-        font-weight: 500;
-        margin-bottom: 0.15rem;
-    }}
-    .notar-header-links {{
-        font-size: 0.7rem;
-    }}
-    .notar-header-links span {{
-        color: rgba(255,255,255,0.75);
-        margin-left: 0.6rem;
-        cursor: default;
+    .header-buttons .stButton > button:hover {{
+        color: white !important;
+        background: rgba(255,255,255,0.1) !important;
+        text-decoration: underline !important;
     }}
     </style>
-    <div class="notar-header-bar">
-        <span class="notar-header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
-        <div class="notar-header-right">
-            <div class="notar-header-user">{user_name}</div>
-            <div class="notar-header-links">
-                <span>⚙️ Einstellungen</span>
-                <span>🚪 Abmelden</span>
-            </div>
-        </div>
+    """, unsafe_allow_html=True)
+
+    # Header-Zeile 1: Titel und Username
+    st.markdown(f"""
+    <div style="background: {config['color']}; border-radius: 8px 8px 0 0; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: white; font-weight: 600; font-size: 0.9rem;">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <span style="color: white; font-size: 0.8rem;">{user_name}</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Funktionale Buttons - komplett unsichtbar gemacht
-    st.markdown("""
-    <style>
-    div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):first-of-type {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-        height: 0;
-        overflow: hidden;
-    }
-    </style>
+    # Header-Zeile 2: Einstellungen und Abmelden Buttons (im dunklen Stil)
+    st.markdown(f"""
+    <div style="background: {config['color']}; border-radius: 0 0 8px 8px; padding: 0.2rem 0.75rem 0.4rem; margin-bottom: 0.75rem;">
     """, unsafe_allow_html=True)
 
-    # Die Buttons in der Sidebar platzieren für Funktionalität
-    with st.sidebar:
-        st.markdown("---")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("⚙️ Einstellungen", key="header_settings", use_container_width=True):
-                st.session_state.notar_menu_selection = "einstellungen"
-                st.rerun()
-        with col2:
-            if st.button("🚪 Abmelden", key="header_logout", use_container_width=True):
-                logout()
+    st.markdown('<div class="header-buttons">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([4, 1, 1])
+    with col2:
+        if st.button("⚙️ Einstellungen", key="header_settings"):
+            st.session_state.notar_menu_selection = "einstellungen"
+            st.rerun()
+    with col3:
+        if st.button("🚪 Abmelden", key="header_logout"):
+            logout()
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
@@ -23993,12 +23974,12 @@ def render_notar_content(selection: str, user_id: str):
 def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundungen: int, anstehende_termine: int, posteingang: int = 0):
     """
     Rendert KPI-Übersicht für das Notar-Dashboard.
-    Alle KPIs in einem gemeinsamen Feld/Container - klickbar über Sidebar-Buttons.
+    Alle KPIs in einem gemeinsamen Feld/Container mit klickbaren Buttons.
     """
-    # CSS für zusammengefasstes KPI-Feld
+    # CSS für KPI-Box mit klickbaren Buttons
     st.markdown("""
     <style>
-    .kpi-unified-box {
+    .kpi-box-container {
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -24006,27 +23987,26 @@ def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundun
         margin-bottom: 1rem;
         overflow: hidden;
     }
-    .kpi-row {
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 0.75rem;
-        border-bottom: 1px solid #f1f3f4;
+    /* Buttons als KPI-Zeilen stylen */
+    .kpi-clickable-row .stButton > button {
+        background: white !important;
+        border: none !important;
+        border-bottom: 1px solid #f1f3f4 !important;
+        border-radius: 0 !important;
+        color: #495057 !important;
+        font-size: 0.8rem !important;
+        padding: 0.5rem 0.75rem !important;
+        text-align: left !important;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: flex-start !important;
+        min-height: unset !important;
     }
-    .kpi-row:last-child {
-        border-bottom: none;
+    .kpi-clickable-row .stButton > button:hover {
+        background: #f8f9fa !important;
     }
-    .kpi-value {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: #1a365d;
-        min-width: 30px;
-        text-align: center;
-    }
-    .kpi-label {
-        font-size: 0.8rem;
-        color: #495057;
-        flex: 1;
-        margin-left: 0.6rem;
+    .kpi-clickable-row .stButton:last-child > button {
+        border-bottom: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -24039,27 +24019,20 @@ def render_clickable_kpi_cards_notar(user_id: str, aktive_akten: int, beurkundun
         (posteingang, "Posteingang", "kpi_posteingang", "eingaenge"),
     ]
 
-    # Alle KPIs in einem HTML-Block (nur Anzeige)
-    kpi_html = '<div class="kpi-unified-box">'
-    for value, label, key, target in kpi_data:
-        kpi_html += f'''
-        <div class="kpi-row">
-            <span class="kpi-value">{value}</span>
-            <span class="kpi-label">{label}</span>
-        </div>'''
-    kpi_html += '</div>'
-    st.markdown(kpi_html, unsafe_allow_html=True)
+    # KPI-Box Start
+    st.markdown('<div class="kpi-box-container"><div class="kpi-clickable-row">', unsafe_allow_html=True)
 
-    # Navigation über Sidebar-Buttons (Schnellzugriff)
-    with st.sidebar:
-        st.markdown("##### 📊 Schnellzugriff")
-        for value, label, key, target in kpi_data:
-            if st.button(f"{label} ({value})", key=key, use_container_width=True):
-                if target == "eingaenge":
-                    st.session_state.show_eingaenge_center = True
-                else:
-                    st.session_state.notar_menu_selection = target
-                st.rerun()
+    # Klickbare KPI-Buttons
+    for value, label, key, target in kpi_data:
+        button_label = f"**{value}**  {label}"
+        if st.button(button_label, key=key, use_container_width=True):
+            if target == "eingaenge":
+                st.session_state.show_eingaenge_center = True
+            else:
+                st.session_state.notar_menu_selection = target
+            st.rerun()
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 
 def notar_dashboard():
