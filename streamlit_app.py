@@ -1614,7 +1614,7 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
-    Rendert einen kompakten Dashboard-Header mit User-Info, Zahnrad (Einstellungen) und Abmelden rechts.
+    Rendert einen kompakten Dashboard-Header mit User-Info, Einstellungen und Abmelden im dunklen Balken.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1630,68 +1630,86 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     if unread_count > 0:
         notification_html = f'<span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">{unread_count}</span>'
 
-    # Kompakter Header mit flexbox Layout
+    # CSS für Header mit integrierten Buttons
     st.markdown(f"""
     <style>
-    .compact-header {{
+    .compact-header-container {{
+        background: {config['color']};
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        padding: 0.4rem 0.75rem;
+    }}
+    .compact-header-row {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: {config['color']};
         color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        margin-bottom: 1rem;
     }}
     .compact-header-left {{
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
         font-weight: 600;
-        font-size: 1rem;
+        font-size: 0.95rem;
     }}
     .compact-header-right {{
         display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 0.85rem;
+        flex-direction: column;
+        align-items: flex-end;
+        font-size: 0.8rem;
     }}
     .compact-header-user {{
-        opacity: 0.9;
+        font-weight: 500;
+        margin-bottom: 2px;
     }}
-    .compact-header-actions {{
+    .compact-header-links {{
         display: flex;
-        gap: 0.5rem;
+        gap: 0.75rem;
+        font-size: 0.7rem;
+        opacity: 0.85;
     }}
-    .compact-header-link {{
-        color: white;
-        opacity: 0.8;
-        text-decoration: none;
-        cursor: pointer;
+    /* Styling für die Buttons im Header-Bereich */
+    .header-buttons-row {{
+        background: {config['color']};
+        border-radius: 0 0 8px 8px;
+        margin-top: -0.5rem;
+        padding: 0 0.75rem 0.4rem 0.75rem;
+        margin-bottom: 1rem;
     }}
-    .compact-header-link:hover {{
-        opacity: 1;
+    .header-buttons-row .stButton > button {{
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255,255,255,0.85) !important;
+        font-size: 0.7rem !important;
+        padding: 0.1rem 0.5rem !important;
+        min-height: unset !important;
+        height: auto !important;
+    }}
+    .header-buttons-row .stButton > button:hover {{
+        color: white !important;
+        background: rgba(255,255,255,0.1) !important;
     }}
     </style>
-    <div class="compact-header">
-        <div class="compact-header-left">
-            {config['icon']} {rolle}-Dashboard {notification_html}
-        </div>
-        <div class="compact-header-right">
-            <span class="compact-header-user">{user_name}</span>
+    <div class="compact-header-container">
+        <div class="compact-header-row">
+            <div class="compact-header-left">
+                {config['icon']} {rolle}-Dashboard {notification_html}
+            </div>
+            <div class="compact-header-right">
+                <span class="compact-header-user">{user_name}</span>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Buttons für Einstellungen und Abmelden (native Streamlit buttons for functionality)
-    cols = st.columns([8, 1, 1])
+    # Buttons für Einstellungen und Abmelden (im Header-Stil)
+    st.markdown('<div class="header-buttons-row">', unsafe_allow_html=True)
+    cols = st.columns([6, 1, 1])
     with cols[1]:
-        if st.button("⚙️", key="header_settings", help="Einstellungen"):
+        if st.button("⚙️ Einstellungen", key="header_settings"):
             st.session_state.notar_menu_selection = "einstellungen"
             st.rerun()
     with cols[2]:
-        if st.button("🚪", key="header_logout", help="Abmelden"):
+        if st.button("🚪 Abmelden", key="header_logout"):
             logout()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
