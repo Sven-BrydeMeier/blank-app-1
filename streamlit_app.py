@@ -1614,7 +1614,8 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
-    Rendert einen kompakten Dashboard-Header mit User-Info, Einstellungen und Abmelden im dunklen Balken.
+    Rendert einen kompakten Dashboard-Header mit User-Info, Einstellungen und Abmelden.
+    Header-Balken mit Buttons die visuell dazugehören.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1625,88 +1626,67 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     }
 
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
+    notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    notification_html = ""
-    if unread_count > 0:
-        notification_html = f'<span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">{unread_count}</span>'
-
-    # CSS für Header mit integrierten Buttons
+    # CSS: Header-Block mit extra Platz unten für die Buttons
     st.markdown(f"""
     <style>
-    .compact-header-container {{
+    .dark-header-block {{
         background: {config['color']};
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        padding: 0.4rem 0.75rem;
-    }}
-    .compact-header-row {{
+        border-radius: 8px 8px 0 0;
+        padding: 0.5rem 1rem 0.3rem 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
+    }}
+    .dark-header-title {{
         color: white;
-    }}
-    .compact-header-left {{
         font-weight: 600;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
     }}
-    .compact-header-right {{
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
+    .dark-header-user {{
+        color: white;
         font-size: 0.8rem;
+        opacity: 0.9;
     }}
-    .compact-header-user {{
-        font-weight: 500;
-        margin-bottom: 2px;
-    }}
-    .compact-header-links {{
-        display: flex;
-        gap: 0.75rem;
-        font-size: 0.7rem;
-        opacity: 0.85;
-    }}
-    /* Styling für die Buttons im Header-Bereich */
-    .header-buttons-row {{
+    .dark-header-buttons {{
         background: {config['color']};
         border-radius: 0 0 8px 8px;
-        margin-top: -0.5rem;
-        padding: 0 0.75rem 0.4rem 0.75rem;
+        padding: 0.2rem 1rem 0.4rem 1rem;
+        margin-top: -1rem;
         margin-bottom: 1rem;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
     }}
-    .header-buttons-row .stButton > button {{
-        background: transparent !important;
-        border: none !important;
-        color: rgba(255,255,255,0.85) !important;
-        font-size: 0.7rem !important;
-        padding: 0.1rem 0.5rem !important;
-        min-height: unset !important;
-        height: auto !important;
-    }}
-    .header-buttons-row .stButton > button:hover {{
-        color: white !important;
+    .dark-header-buttons .stButton > button {{
         background: rgba(255,255,255,0.1) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        color: rgba(255,255,255,0.9) !important;
+        font-size: 0.7rem !important;
+        padding: 0.15rem 0.5rem !important;
+        min-height: unset !important;
+        border-radius: 4px !important;
+    }}
+    .dark-header-buttons .stButton > button:hover {{
+        background: rgba(255,255,255,0.2) !important;
+        color: white !important;
     }}
     </style>
-    <div class="compact-header-container">
-        <div class="compact-header-row">
-            <div class="compact-header-left">
-                {config['icon']} {rolle}-Dashboard {notification_html}
-            </div>
-            <div class="compact-header-right">
-                <span class="compact-header-user">{user_name}</span>
-            </div>
-        </div>
+    <div class="dark-header-block">
+        <span class="dark-header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <span class="dark-header-user">{user_name}</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Buttons für Einstellungen und Abmelden (im Header-Stil)
-    st.markdown('<div class="header-buttons-row">', unsafe_allow_html=True)
-    cols = st.columns([6, 1, 1])
-    with cols[1]:
+    # Button-Zeile die visuell zum Header gehört
+    st.markdown('<div class="dark-header-buttons">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([4, 1, 1])
+    with col2:
         if st.button("⚙️ Einstellungen", key="header_settings"):
             st.session_state.notar_menu_selection = "einstellungen"
             st.rerun()
-    with cols[2]:
+    with col3:
         if st.button("🚪 Abmelden", key="header_logout"):
             logout()
     st.markdown('</div>', unsafe_allow_html=True)
