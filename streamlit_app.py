@@ -12991,7 +12991,7 @@ def bestatige_termin(termin_id: str, user_id: str, rolle: str):
     return True
 
 
-def render_termin_verwaltung(projekt: 'Projekt', user_rolle: str):
+def render_termin_verwaltung(projekt: 'Projekt', user_rolle: str, context: str = ""):
     """Rendert die Termin-Verwaltung UI"""
 
     st.markdown("#### 📅 Terminverwaltung")
@@ -13000,19 +13000,19 @@ def render_termin_verwaltung(projekt: 'Projekt', user_rolle: str):
     termin_tabs = st.tabs(["🔍 Besichtigung", "🔑 Übergabe", "📜 Beurkundung", "📋 Alle Termine"])
 
     with termin_tabs[0]:
-        render_termin_section(projekt, TerminTyp.BESICHTIGUNG.value, user_rolle)
+        render_termin_section(projekt, TerminTyp.BESICHTIGUNG.value, user_rolle, context)
 
     with termin_tabs[1]:
-        render_termin_section(projekt, TerminTyp.UEBERGABE.value, user_rolle)
+        render_termin_section(projekt, TerminTyp.UEBERGABE.value, user_rolle, context)
 
     with termin_tabs[2]:
-        render_termin_section(projekt, TerminTyp.BEURKUNDUNG.value, user_rolle)
+        render_termin_section(projekt, TerminTyp.BEURKUNDUNG.value, user_rolle, context)
 
     with termin_tabs[3]:
         render_alle_termine(projekt, user_rolle)
 
 
-def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
+def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str, context: str = ""):
     """Rendert eine Termin-Sektion für einen bestimmten Termintyp"""
 
     # Bestehende Termine für diesen Typ anzeigen
@@ -13020,9 +13020,11 @@ def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
                       if st.session_state.termine.get(tid) and
                       st.session_state.termine.get(tid).termin_typ == termin_typ]
 
+    ctx = f"{context}_" if context else ""
+
     if projekt_termine:
         for termin in projekt_termine:
-            render_termin_card(termin, projekt, user_rolle, context=f"section_{termin_typ}")
+            render_termin_card(termin, projekt, user_rolle, context=f"{ctx}section_{termin_typ}")
     else:
         st.info(f"Noch keine {termin_typ}-Termine vorhanden.")
 
@@ -13035,12 +13037,12 @@ def render_termin_section(projekt: 'Projekt', termin_typ: str, user_rolle: str):
     if offene_vorschlaege:
         st.markdown("##### 📨 Offene Terminvorschläge")
         for vorschlag in offene_vorschlaege:
-            render_terminvorschlag_card(vorschlag, projekt, user_rolle)
+            render_terminvorschlag_card(vorschlag, projekt, user_rolle, context=ctx)
 
     # Neuen Termin anlegen (nur für bestimmte Rollen)
     if user_rolle in [UserRole.MAKLER.value, UserRole.NOTAR.value]:
         with st.expander(f"➕ Neuen {termin_typ}-Termin anlegen"):
-            render_neuer_termin_form(projekt, termin_typ, user_rolle)
+            render_neuer_termin_form(projekt, termin_typ, user_rolle, context=ctx)
 
 
 def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str, context: str = ""):
@@ -13107,7 +13109,7 @@ def render_termin_card(termin: 'Termin', projekt: 'Projekt', user_rolle: str, co
         st.markdown("---")
 
 
-def render_terminvorschlag_card(vorschlag: 'TerminVorschlag', projekt: 'Projekt', user_rolle: str):
+def render_terminvorschlag_card(vorschlag: 'TerminVorschlag', projekt: 'Projekt', user_rolle: str, context: str = ""):
     """Rendert eine Terminvorschlag-Karte"""
 
     st.markdown(f"**Terminvorschläge vom {vorschlag.erstellt_am.strftime('%d.%m.%Y %H:%M')}**")
@@ -13119,30 +13121,33 @@ def render_terminvorschlag_card(vorschlag: 'TerminVorschlag', projekt: 'Projekt'
             st.write(f"⏰ {slot['uhrzeit_start']} - {slot['uhrzeit_ende']} Uhr")
         with col2:
             if user_rolle in [UserRole.MAKLER.value, UserRole.KAEUFER.value, UserRole.VERKAEUFER.value]:
-                if st.button(f"Auswählen", key=f"select_{vorschlag.vorschlag_id}_{i}"):
+                if st.button(f"Auswählen", key=f"select_{context}{vorschlag.vorschlag_id}_{i}"):
                     termin = create_termin_from_vorschlag(vorschlag, i, projekt)
                     if termin:
                         st.success(f"Termin wurde erstellt! Bitte bestätigen Sie den Termin.")
                         st.rerun()
 
 
-def render_neuer_termin_form(projekt: 'Projekt', termin_typ: str, user_rolle: str):
+def render_neuer_termin_form(projekt: 'Projekt', termin_typ: str, user_rolle: str, context: str = ""):
     """Formular zum Anlegen eines neuen Termins"""
 
     col1, col2 = st.columns(2)
 
+    # Context für eindeutige Keys
+    ctx = f"{context}" if context else ""
+
     with col1:
-        datum = st.date_input("Datum", min_value=date.today(), key=f"new_termin_datum_{projekt.projekt_id}_{termin_typ}")
-        tageszeit = st.selectbox("Tageszeit", ["Vormittag", "Nachmittag"], key=f"new_termin_tageszeit_{projekt.projekt_id}_{termin_typ}")
+        datum = st.date_input("Datum", min_value=date.today(), key=f"new_termin_datum_{ctx}{projekt.projekt_id}_{termin_typ}")
+        tageszeit = st.selectbox("Tageszeit", ["Vormittag", "Nachmittag"], key=f"new_termin_tageszeit_{ctx}{projekt.projekt_id}_{termin_typ}")
 
     with col2:
-        uhrzeit_start = st.time_input("Beginn", value=datetime.strptime("10:00", "%H:%M").time(), key=f"new_termin_start_{projekt.projekt_id}_{termin_typ}")
-        uhrzeit_ende = st.time_input("Ende", value=datetime.strptime("11:00", "%H:%M").time(), key=f"new_termin_ende_{projekt.projekt_id}_{termin_typ}")
+        uhrzeit_start = st.time_input("Beginn", value=datetime.strptime("10:00", "%H:%M").time(), key=f"new_termin_start_{ctx}{projekt.projekt_id}_{termin_typ}")
+        uhrzeit_ende = st.time_input("Ende", value=datetime.strptime("11:00", "%H:%M").time(), key=f"new_termin_ende_{ctx}{projekt.projekt_id}_{termin_typ}")
 
-    ort = st.text_input("Ort/Adresse", value=projekt.adresse, key=f"new_termin_ort_{projekt.projekt_id}_{termin_typ}")
-    beschreibung = st.text_area("Beschreibung/Hinweise", key=f"new_termin_beschr_{projekt.projekt_id}_{termin_typ}")
+    ort = st.text_input("Ort/Adresse", value=projekt.adresse, key=f"new_termin_ort_{ctx}{projekt.projekt_id}_{termin_typ}")
+    beschreibung = st.text_area("Beschreibung/Hinweise", key=f"new_termin_beschr_{ctx}{projekt.projekt_id}_{termin_typ}")
 
-    if st.button(f"Termin erstellen", key=f"create_termin_{projekt.projekt_id}_{termin_typ}"):
+    if st.button(f"Termin erstellen", key=f"create_termin_{ctx}{projekt.projekt_id}_{termin_typ}"):
         # Kontakte sammeln
         kontakte = []
         if projekt.makler_id:
@@ -14911,7 +14916,7 @@ def makler_dashboard():
             if projekte:
                 for projekt in projekte:
                     with st.expander(f"🏘️ {projekt.name}", expanded=True):
-                        render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+                        render_termin_verwaltung(projekt, UserRole.MAKLER.value, context="tab_termine")
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
@@ -15485,7 +15490,7 @@ def makler_projekte_view():
 
             # ===== TERMIN-VERWALTUNG =====
             with st.expander("📅 Terminverwaltung", expanded=False):
-                render_termin_verwaltung(projekt, UserRole.MAKLER.value)
+                render_termin_verwaltung(projekt, UserRole.MAKLER.value, context="detail_view")
 
                 # Bestätigte Beurkundungstermine hervorheben
                 beurkundungstermine = [st.session_state.termine.get(tid) for tid in projekt.termine
@@ -28816,7 +28821,7 @@ def notar_termine():
         else:
             for projekt in projekte:
                 with st.expander(f"🏘️ {projekt.name} - Terminvorschläge"):
-                    render_termin_verwaltung(projekt, UserRole.NOTAR.value)
+                    render_termin_verwaltung(projekt, UserRole.NOTAR.value, context="notar_vorschlaege")
 
     with termin_tabs[2]:
         # Projekt-basierte Ansicht mit erweiterten Terminvorschlägen
@@ -28916,7 +28921,7 @@ def notar_termine():
 
                     # Alle Termine für dieses Projekt (alle Typen)
                     st.markdown("##### 📋 Alle Termine")
-                    render_termin_verwaltung(projekt, UserRole.NOTAR.value)
+                    render_termin_verwaltung(projekt, UserRole.NOTAR.value, context="notar_projekt_ansicht")
 
 def notar_makler_empfehlung_view():
     """Makler-Empfehlungen für Verkäufer verwalten"""
