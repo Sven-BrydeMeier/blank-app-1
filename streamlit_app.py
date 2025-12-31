@@ -1628,58 +1628,70 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # CSS für den Header-Container und die Buttons darin
+    # CSS für Header und Buttons
     st.markdown(f"""
     <style>
-    /* Header Container */
-    .header-container {{
+    /* Header Container als durchgehender Block */
+    .dashboard-header-box {{
         background: {config['color']};
         border-radius: 8px;
-        padding: 0.5rem 0.75rem;
-        margin: -1rem -1rem 1rem -1rem;
+        padding: 0.6rem 1rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }}
-    /* Buttons im Header unsichtbar machen und als Links stylen */
-    .header-buttons .stButton > button {{
+    .dashboard-header-left {{
+        color: white;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }}
+    .dashboard-header-right {{
+        color: white;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }}
+    /* Header-Buttons unsichtbar und als weiße Links stylen */
+    .header-action-buttons .stButton > button {{
         background: transparent !important;
-        border: none !important;
-        color: rgba(255,255,255,0.8) !important;
-        font-size: 0.7rem !important;
-        padding: 0.1rem 0.3rem !important;
+        border: 1px solid rgba(255,255,255,0.3) !important;
+        color: white !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
         min-height: unset !important;
         height: auto !important;
-        font-weight: normal !important;
+        border-radius: 4px !important;
     }}
-    .header-buttons .stButton > button:hover {{
-        color: white !important;
-        background: rgba(255,255,255,0.1) !important;
-        text-decoration: underline !important;
+    .header-action-buttons .stButton > button:hover {{
+        background: rgba(255,255,255,0.15) !important;
+        border-color: rgba(255,255,255,0.5) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Header-Zeile 1: Titel und Username
+    # Header HTML-Block: Titel links, Username rechts
     st.markdown(f"""
-    <div style="background: {config['color']}; border-radius: 8px 8px 0 0; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-        <span style="color: white; font-weight: 600; font-size: 0.9rem;">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
-        <span style="color: white; font-size: 0.8rem;">{user_name}</span>
+    <div class="dashboard-header-box">
+        <span class="dashboard-header-left">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <span class="dashboard-header-right">{user_name}</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Header-Zeile 2: Einstellungen und Abmelden Buttons (im dunklen Stil)
-    st.markdown(f"""
-    <div style="background: {config['color']}; border-radius: 0 0 8px 8px; padding: 0.2rem 0.75rem 0.4rem; margin-bottom: 0.75rem;">
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="header-buttons">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([4, 1, 1])
+    # Buttons darunter in einer Zeile (korrekt von Streamlit gerendert)
+    st.markdown('<div class="header-action-buttons">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([6, 1.5, 1.5])
     with col2:
-        if st.button("⚙️ Einstellungen", key="header_settings"):
+        if st.button("⚙️ Einstellungen", key="header_settings", use_container_width=True):
             st.session_state.notar_menu_selection = "einstellungen"
             st.rerun()
     with col3:
-        if st.button("🚪 Abmelden", key="header_logout"):
+        if st.button("🚪 Abmelden", key="header_logout", use_container_width=True):
             logout()
-    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
