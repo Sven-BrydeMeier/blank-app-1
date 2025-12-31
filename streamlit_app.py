@@ -1615,7 +1615,7 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
     Rendert einen kompakten Dashboard-Header mit klickbaren Buttons.
-    Alles in EINER Zeile: Titel | Buttons | Username
+    Verwendet eine ID-Markierung und CSS-Sibling-Selektor.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1628,58 +1628,54 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # CSS für den gesamten Header-Bereich
+    # Marker-Element + CSS das den NÄCHSTEN Block stylt
     st.markdown(f"""
     <style>
-    /* Header-Container (erste Horizontal-Block nach diesem Markdown) */
-    .header-row-style {{
-        background: {config['color']};
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        margin-bottom: 0.75rem;
+    /* Das nächste stHorizontalBlock nach dem Marker bekommt dunklen Hintergrund */
+    #header-marker + div[data-testid="stHorizontalBlock"] {{
+        background: {config['color']} !important;
+        border-radius: 8px !important;
+        padding: 0.6rem 1rem !important;
+        margin-bottom: 0.75rem !important;
     }}
-    .header-row-style [data-testid="column"] {{
-        display: flex;
-        align-items: center;
+    #header-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"] {{
+        display: flex !important;
+        align-items: center !important;
     }}
-    .header-row-style .stButton > button {{
+    #header-marker + div[data-testid="stHorizontalBlock"] .stButton > button {{
         background: transparent !important;
         border: 1px solid rgba(255,255,255,0.4) !important;
         color: white !important;
         font-size: 0.75rem !important;
         padding: 0.3rem 0.6rem !important;
         min-height: unset !important;
+        height: auto !important;
     }}
-    .header-row-style .stButton > button:hover {{
+    #header-marker + div[data-testid="stHorizontalBlock"] .stButton > button:hover {{
         background: rgba(255,255,255,0.15) !important;
+        border-color: white !important;
     }}
     </style>
+    <div id="header-marker"></div>
     """, unsafe_allow_html=True)
 
-    # Alles in einem dunklen Container
-    header_container = st.container()
-    with header_container:
-        # Dunkler Hintergrund als Wrapper
-        st.markdown(f'<div class="header-row-style">', unsafe_allow_html=True)
+    # Header-Zeile mit allen Elementen
+    col_title, col_btn1, col_btn2, col_user = st.columns([4, 1.2, 1.2, 2])
 
-        col_title, col_btn1, col_btn2, col_user = st.columns([4, 1.2, 1.2, 2])
+    with col_title:
+        st.markdown(f'<span style="color: white; font-weight: 600; font-size: 0.95rem;">{config["icon"]} {rolle}-Dashboard{notification_badge}</span>', unsafe_allow_html=True)
 
-        with col_title:
-            st.markdown(f'<span style="color: white; font-weight: 600; font-size: 0.95rem;">{config["icon"]} {rolle}-Dashboard{notification_badge}</span>', unsafe_allow_html=True)
+    with col_btn1:
+        if st.button("⚙️ Einstellungen", key="header_settings"):
+            st.session_state.notar_menu_selection = "einstellungen"
+            st.rerun()
 
-        with col_btn1:
-            if st.button("⚙️ Einstellungen", key="header_settings"):
-                st.session_state.notar_menu_selection = "einstellungen"
-                st.rerun()
+    with col_btn2:
+        if st.button("🚪 Abmelden", key="header_logout"):
+            logout()
 
-        with col_btn2:
-            if st.button("🚪 Abmelden", key="header_logout"):
-                logout()
-
-        with col_user:
-            st.markdown(f'<span style="color: white; font-size: 0.85rem; text-align: right; display: block;">{user_name}</span>', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
+    with col_user:
+        st.markdown(f'<span style="color: white; font-size: 0.85rem; text-align: right; display: block;">{user_name}</span>', unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
