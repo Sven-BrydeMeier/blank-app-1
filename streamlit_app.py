@@ -1615,7 +1615,7 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
     Rendert einen kompakten Dashboard-Header mit klickbaren Elementen.
-    Alles in einer dunklen Zeile: Titel links, Buttons und Username rechts.
+    Zweizeiliger Header: Titel+User oben, Buttons unten - alles im dunklen Kasten.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1628,68 +1628,66 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # Header als eine HTML-Zeile mit eingebetteten Links für Einstellungen/Abmelden
+    # CSS für zweizeiligen Header in einem Kasten
     st.markdown(f"""
     <style>
-    .unified-header {{
+    /* Erste Zeile: Titel und Username */
+    .header-top-row {{
         background: {config['color']};
-        border-radius: 8px;
-        padding: 0.6rem 1rem;
-        margin-bottom: 1rem;
+        border-radius: 8px 8px 0 0;
+        padding: 0.6rem 1rem 0.3rem 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
     }}
-    .unified-header-title {{
+    .header-title {{
         color: white;
         font-weight: 600;
         font-size: 0.95rem;
     }}
-    .unified-header-right {{
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }}
-    .unified-header-user {{
+    .header-user {{
         color: white;
         font-size: 0.85rem;
     }}
-    </style>
-    <div class="unified-header">
-        <span class="unified-header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
-        <div class="unified-header-right">
-            <span class="unified-header-user">{user_name}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Buttons als kompakte Zeile direkt darunter (Streamlit-nativ, aber sehr kompakt gestylt)
-    st.markdown("""
-    <style>
-    .header-btn-row {
-        margin-top: -0.75rem;
-        margin-bottom: 0.5rem;
-    }
-    .header-btn-row .stButton > button {
-        background: #495057 !important;
-        border: none !important;
+    /* Zweite Zeile: Buttons (Streamlit-Columns mit dunklem Hintergrund) */
+    .header-bottom-row {{
+        background: {config['color']};
+        border-radius: 0 0 8px 8px;
+        padding: 0.3rem 1rem 0.6rem 1rem;
+        margin-top: -1rem;
+        margin-bottom: 1rem;
+    }}
+    .header-bottom-row [data-testid="column"] {{
+        padding: 0 !important;
+    }}
+    .header-bottom-row .stButton > button {{
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.4) !important;
         color: white !important;
         font-size: 0.75rem !important;
-        padding: 0.3rem 0.75rem !important;
+        padding: 0.25rem 0.6rem !important;
         min-height: unset !important;
         height: auto !important;
         border-radius: 4px !important;
-    }
-    .header-btn-row .stButton > button:hover {
-        background: #343a40 !important;
-    }
+    }}
+    .header-bottom-row .stButton > button:hover {{
+        background: rgba(255,255,255,0.15) !important;
+        border-color: white !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="header-btn-row">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([7, 1.3, 1.3])
+    # Zeile 1: Titel links, Username rechts
+    st.markdown(f"""
+    <div class="header-top-row">
+        <span class="header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <span class="header-user">{user_name}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Zeile 2: Buttons rechts ausgerichtet
+    st.markdown(f'<div class="header-bottom-row">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([6, 1.5, 1.5])
     with col2:
         if st.button("⚙️ Einstellungen", key="header_settings"):
             st.session_state.notar_menu_selection = "einstellungen"
