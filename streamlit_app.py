@@ -1614,8 +1614,8 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
-    Rendert einen kompakten Dashboard-Header mit klickbaren Elementen.
-    Zweizeiliger Header: Titel+User oben, Buttons unten - alles im dunklen Kasten.
+    Rendert einen kompakten Dashboard-Header mit klickbaren Buttons.
+    Alles in einem dunklen Kasten: Titel+User oben, Buttons unten.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1628,66 +1628,46 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
 
-    # CSS für zweizeiligen Header in einem Kasten
+    # Header-Zeile 1 (HTML): Titel links, Username rechts - nur obere Ecken rund
+    st.markdown(f"""
+    <div style="background: {config['color']}; border-radius: 8px 8px 0 0; padding: 0.6rem 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: white; font-weight: 600; font-size: 0.95rem;">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
+        <span style="color: white; font-size: 0.85rem;">{user_name}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Header-Zeile 2 (Streamlit Buttons): Im dunklen Stil, untere Ecken rund
+    # CSS für diese spezifischen Buttons
     st.markdown(f"""
     <style>
-    /* Erste Zeile: Titel und Username */
-    .header-top-row {{
-        background: {config['color']};
-        border-radius: 8px 8px 0 0;
-        padding: 0.6rem 1rem 0.3rem 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    /* Container für Header-Buttons mit dunklem Hintergrund */
+    div[data-testid="stHorizontalBlock"]:has(button[key="header_settings"]),
+    div[data-testid="stHorizontalBlock"]:has(button[key="header_logout"]) {{
+        background: {config['color']} !important;
+        border-radius: 0 0 8px 8px !important;
+        padding: 0.3rem 1rem 0.6rem 1rem !important;
+        margin-top: -1rem !important;
+        margin-bottom: 0.75rem !important;
     }}
-    .header-title {{
-        color: white;
-        font-weight: 600;
-        font-size: 0.95rem;
-    }}
-    .header-user {{
-        color: white;
-        font-size: 0.85rem;
-    }}
-    /* Zweite Zeile: Buttons (Streamlit-Columns mit dunklem Hintergrund) */
-    .header-bottom-row {{
-        background: {config['color']};
-        border-radius: 0 0 8px 8px;
-        padding: 0.3rem 1rem 0.6rem 1rem;
-        margin-top: -1rem;
-        margin-bottom: 1rem;
-    }}
-    .header-bottom-row [data-testid="column"] {{
-        padding: 0 !important;
-    }}
-    .header-bottom-row .stButton > button {{
+    /* Buttons im Header */
+    button[kind="secondary"][key="header_settings"],
+    button[kind="secondary"][key="header_logout"],
+    div[data-testid="stHorizontalBlock"] button {{
         background: transparent !important;
         border: 1px solid rgba(255,255,255,0.4) !important;
         color: white !important;
         font-size: 0.75rem !important;
-        padding: 0.25rem 0.6rem !important;
-        min-height: unset !important;
-        height: auto !important;
-        border-radius: 4px !important;
+        padding: 0.3rem 0.6rem !important;
     }}
-    .header-bottom-row .stButton > button:hover {{
+    div[data-testid="stHorizontalBlock"] button:hover {{
         background: rgba(255,255,255,0.15) !important;
         border-color: white !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-    # Zeile 1: Titel links, Username rechts
-    st.markdown(f"""
-    <div class="header-top-row">
-        <span class="header-title">{config['icon']} {rolle}-Dashboard{notification_badge}</span>
-        <span class="header-user">{user_name}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Zeile 2: Buttons rechts ausgerichtet
-    st.markdown(f'<div class="header-bottom-row">', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([6, 1.5, 1.5])
+    # Buttons
+    col1, col2, col3 = st.columns([5, 1.5, 1.5])
     with col2:
         if st.button("⚙️ Einstellungen", key="header_settings"):
             st.session_state.notar_menu_selection = "einstellungen"
@@ -1695,7 +1675,6 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
     with col3:
         if st.button("🚪 Abmelden", key="header_logout"):
             logout()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
