@@ -36722,53 +36722,71 @@ def notar_einstellungen_view():
         st.markdown("---")
         st.markdown("### 📊 Status der API-Konfiguration")
 
+        # Hilfsfunktion um Quelle des API-Keys zu ermitteln
+        def get_api_key_source(key_name: str, secret_name: str) -> tuple:
+            """Ermittelt Quelle und Wert des API-Keys. Returns (source, key_value, is_configured)"""
+            import os
+
+            # 1. Prüfe Streamlit Secrets zuerst
+            try:
+                if hasattr(st, 'secrets') and secret_name in st.secrets:
+                    secret_key = st.secrets[secret_name]
+                    if secret_key:
+                        return ("secrets", secret_key, True)
+            except Exception:
+                pass
+
+            # 2. Prüfe Umgebungsvariablen
+            env_key = os.environ.get(secret_name)
+            if env_key:
+                return ("env", env_key, True)
+
+            # 3. Prüfe Session State (manuell eingegeben)
+            session_key = st.session_state.api_keys.get(key_name, '')
+            if session_key:
+                return ("manual", session_key, True)
+
+            return ("none", "", False)
+
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("**OpenAI:**")
-            if st.session_state.api_keys.get('openai'):
-                masked_key = st.session_state.api_keys['openai'][:10] + "..." + st.session_state.api_keys['openai'][-4:] if len(st.session_state.api_keys['openai']) > 14 else "****"
-                st.success(f"✅ Konfiguriert ({masked_key})")
-            else:
-                # Prüfe auch Secrets und Umgebungsvariablen
-                has_secret = False
-                try:
-                    if st.secrets.get("OPENAI_API_KEY"):
-                        has_secret = True
-                except:
-                    pass
+            source, key_value, is_configured = get_api_key_source('openai', 'OPENAI_API_KEY')
 
-                import os
-                if os.environ.get("OPENAI_API_KEY"):
-                    has_secret = True
-
-                if has_secret:
-                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+            if is_configured:
+                masked_key = key_value[:10] + "..." + key_value[-4:] if len(key_value) > 14 else "****"
+                if source == "secrets":
+                    st.success(f"✅ Aus Streamlit Secrets geladen ({masked_key})")
+                elif source == "env":
+                    st.success(f"✅ Aus Umgebungsvariable geladen ({masked_key})")
                 else:
-                    st.warning("⚠️ Nicht konfiguriert")
+                    st.success(f"✅ Manuell konfiguriert ({masked_key})")
+
+                # Key in Session State übernehmen falls noch nicht vorhanden
+                if not st.session_state.api_keys.get('openai') and key_value:
+                    st.session_state.api_keys['openai'] = key_value
+            else:
+                st.warning("⚠️ Nicht konfiguriert - Bitte API-Key eintragen")
 
         with col2:
             st.markdown("**Anthropic (Claude):**")
-            if st.session_state.api_keys.get('anthropic'):
-                masked_key = st.session_state.api_keys['anthropic'][:10] + "..." + st.session_state.api_keys['anthropic'][-4:] if len(st.session_state.api_keys['anthropic']) > 14 else "****"
-                st.success(f"✅ Konfiguriert ({masked_key})")
-            else:
-                # Prüfe auch Secrets und Umgebungsvariablen
-                has_secret = False
-                try:
-                    if st.secrets.get("ANTHROPIC_API_KEY"):
-                        has_secret = True
-                except:
-                    pass
+            source, key_value, is_configured = get_api_key_source('anthropic', 'ANTHROPIC_API_KEY')
 
-                import os
-                if os.environ.get("ANTHROPIC_API_KEY"):
-                    has_secret = True
-
-                if has_secret:
-                    st.info("📦 Über Secrets/Umgebungsvariable konfiguriert")
+            if is_configured:
+                masked_key = key_value[:10] + "..." + key_value[-4:] if len(key_value) > 14 else "****"
+                if source == "secrets":
+                    st.success(f"✅ Aus Streamlit Secrets geladen ({masked_key})")
+                elif source == "env":
+                    st.success(f"✅ Aus Umgebungsvariable geladen ({masked_key})")
                 else:
-                    st.warning("⚠️ Nicht konfiguriert")
+                    st.success(f"✅ Manuell konfiguriert ({masked_key})")
+
+                # Key in Session State übernehmen falls noch nicht vorhanden
+                if not st.session_state.api_keys.get('anthropic') and key_value:
+                    st.session_state.api_keys['anthropic'] = key_value
+            else:
+                st.warning("⚠️ Nicht konfiguriert - Bitte API-Key eintragen")
 
         # Hinweise
         st.markdown("---")
@@ -37151,7 +37169,7 @@ def notarmitarbeiter_dashboard():
     st.info(f"👤 {mitarbeiter.name} | Rolle: {mitarbeiter.rolle}")
 
     # Benachrichtigungs-Badge in der Sidebar
-    render_benachrichtigungs_badge(mitarbeiter.user_id)
+    render_benachrichtigungs_badge(mitarbeiter.mitarbeiter_id)
 
     # Tab-Liste basierend auf Berechtigungen
     tab_labels = ["📊 Timeline", "📋 Projekte", "📝 Vertragserklärungen"]
@@ -37220,7 +37238,7 @@ def notarmitarbeiter_dashboard():
     # Vertragserklärungen (immer verfügbar - Bearbeitung möglich, Freigabe nur durch Notar)
     with tabs[tab_index]:
         # Notarfachkraft kann bearbeiten, aber nicht freigeben
-        render_notar_erklaerungen_bearbeitung(mitarbeiter.user_id, ist_notar=False)
+        render_notar_erklaerungen_bearbeitung(mitarbeiter.mitarbeiter_id, ist_notar=False)
     tab_index += 1
 
     # Checklisten (nur wenn berechtigt)
