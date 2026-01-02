@@ -1614,8 +1614,8 @@ def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
 
 def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
     """
-    Rendert einen kompakten Dashboard-Header mit klickbaren Buttons.
-    Verwendet eine ID-Markierung und CSS-Sibling-Selektor.
+    Rendert einen kompakten Dashboard-Header als einheitlichen dunklen Balken.
+    Alle Elemente (Titel, Buttons, Username) sind in EINER Zeile innerhalb des Balkens.
     """
     rolle_config = {
         'Makler': {'icon': '📊', 'color': '#495057'},
@@ -1623,59 +1623,69 @@ def render_compact_dashboard_header(rolle: str, user_name: str, unread_count: in
         'Verkäufer': {'icon': '🏡', 'color': '#17a2b8'},
         'Finanzierer': {'icon': '💼', 'color': '#6f42c1'},
         'Notar': {'icon': '⚖️', 'color': '#343a40'},
+        'Notarfachkraft': {'icon': '📋', 'color': '#495057'},
+        'Interessent': {'icon': '👀', 'color': '#6c757d'},
     }
 
     config = rolle_config.get(rolle, {'icon': '📋', 'color': '#495057'})
     notification_badge = f" ({unread_count})" if unread_count > 0 else ""
+    bg_color = config['color']
 
-    # Marker-Element + CSS das den NÄCHSTEN Block stylt
+    # CSS für den einheitlichen Header-Balken
     st.markdown(f"""
     <style>
-    /* Das nächste stHorizontalBlock nach dem Marker bekommt dunklen Hintergrund */
-    #header-marker + div[data-testid="stHorizontalBlock"] {{
-        background: {config['color']} !important;
+    /* Header-Container Styling */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child > div > div > div.header-marker) {{
+        background: {bg_color} !important;
         border-radius: 8px !important;
-        padding: 0.6rem 1rem !important;
-        margin-bottom: 0.75rem !important;
+        padding: 0.5rem 1rem !important;
+        margin-bottom: 1rem !important;
     }}
-    #header-marker + div[data-testid="stHorizontalBlock"] [data-testid="column"] {{
-        display: flex !important;
-        align-items: center !important;
-    }}
-    #header-marker + div[data-testid="stHorizontalBlock"] .stButton > button {{
-        background: transparent !important;
-        border: 1px solid rgba(255,255,255,0.4) !important;
+
+    /* Alles in der Header-Zeile weiß färben */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child > div > div > div.header-marker) * {{
         color: white !important;
-        font-size: 0.75rem !important;
-        padding: 0.3rem 0.6rem !important;
-        min-height: unset !important;
-        height: auto !important;
     }}
-    #header-marker + div[data-testid="stHorizontalBlock"] .stButton > button:hover {{
-        background: rgba(255,255,255,0.15) !important;
-        border-color: white !important;
+
+    /* Buttons im Header stylen */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child > div > div > div.header-marker) button {{
+        background: rgba(255,255,255,0.2) !important;
+        border: 1px solid rgba(255,255,255,0.3) !important;
+        color: white !important;
+        padding: 0.3rem 0.8rem !important;
+        font-size: 0.85rem !important;
+    }}
+
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:first-child > div > div > div.header-marker) button:hover {{
+        background: rgba(255,255,255,0.3) !important;
+    }}
+
+    /* Marker verstecken */
+    .header-marker {{
+        display: none !important;
     }}
     </style>
-    <div id="header-marker"></div>
     """, unsafe_allow_html=True)
 
     # Header-Zeile mit allen Elementen
-    col_title, col_btn1, col_btn2, col_user = st.columns([4, 1.2, 1.2, 2])
+    col1, col2, col3, col4 = st.columns([4, 2, 2, 3])
 
-    with col_title:
-        st.markdown(f'<span style="color: white; font-weight: 600; font-size: 0.95rem;">{config["icon"]} {rolle}-Dashboard{notification_badge}</span>', unsafe_allow_html=True)
+    with col1:
+        # Marker für CSS-Selektor + Titel
+        st.markdown(f'<div class="header-marker"></div>', unsafe_allow_html=True)
+        st.markdown(f"**{config['icon']} {rolle}-Dashboard{notification_badge}**")
 
-    with col_btn1:
-        if st.button("⚙️ Einstellungen", key="header_settings"):
+    with col2:
+        if st.button("⚙️ Einstellungen", key="header_settings", use_container_width=True):
             st.session_state.notar_menu_selection = "einstellungen"
             st.rerun()
 
-    with col_btn2:
-        if st.button("🚪 Abmelden", key="header_logout"):
+    with col3:
+        if st.button("🚪 Abmelden", key="header_logout", use_container_width=True):
             logout()
 
-    with col_user:
-        st.markdown(f'<span style="color: white; font-size: 0.85rem; text-align: right; display: block;">{user_name}</span>', unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"<div style='text-align: right; padding-top: 0.4rem;'>{user_name}</div>", unsafe_allow_html=True)
 
 
 def render_kpi_cards(kpis: list):
@@ -3606,6 +3616,146 @@ class BankGrundschuldInfo:
     entwurf_angefordert: bool = False
     entwurf_erhalten_am: Optional[datetime] = None
     entwurf_dokument: Optional[bytes] = None
+    # Notizen
+    notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+class EigentuemerPruefungStatus(Enum):
+    """Status der Eigentümer-Prüfung"""
+    AUSSTEHEND = "Ausstehend"
+    IDENTISCH = "Eigentümer = Verkäufer"
+    ABWEICHEND = "Abweichung festgestellt"
+    NACHWEIS_ANGEFORDERT = "Berechtigungsnachweis angefordert"
+    NACHWEIS_HOCHGELADEN = "Nachweis hochgeladen"
+    GEPRUEFT_OK = "Geprüft - Berechtigung bestätigt"
+    GEPRUEFT_ABGELEHNT = "Geprüft - Berechtigung fehlt"
+
+
+class BerechtigungsNachweisTyp(Enum):
+    """Typen von Berechtigungsnachweisen"""
+    ERBSCHEIN = "Erbschein"
+    ERBVERTRAG = "Erbvertrag"
+    TESTAMENT = "Testament mit Eröffnungsprotokoll"
+    VOLLMACHT = "Notarielle Vollmacht"
+    GENERALVOLLMACHT = "Generalvollmacht"
+    BETREUUNGSBESCHLUSS = "Betreuungsbeschluss"
+    HANDELSREGISTERAUSZUG = "Handelsregisterauszug"
+    GESELLSCHAFTERBESCHLUSS = "Gesellschafterbeschluss"
+    NACHLASSGERICHT_BESCHLUSS = "Beschluss Nachlassgericht"
+    GRUNDBUCHBERICHTIGUNG = "Grundbuchberichtigungsantrag"
+    SONSTIGE = "Sonstiger Nachweis"
+
+
+@dataclass
+class GrundbuchEigentuemer:
+    """Eigentümer aus Abteilung I des Grundbuchs"""
+    eigentuemer_id: str
+    projekt_id: str
+    grundbuch_anfrage_id: str
+    # Personendaten
+    name: str
+    vorname: str = ""
+    geburtsname: str = ""
+    geburtsdatum: Optional[date] = None
+    # Bei juristischen Personen
+    ist_juristische_person: bool = False
+    firma_name: str = ""
+    handelsregister: str = ""
+    hr_nummer: str = ""
+    # Eigentumsanteil
+    anteil_zaehler: int = 1  # z.B. 1/2 -> zaehler=1, nenner=2
+    anteil_nenner: int = 1
+    anteil_text: str = ""  # z.B. "zu 1/2" oder "Alleineigentum"
+    # Erwerbsgrund
+    erwerbsgrund: str = ""  # z.B. "Auflassung vom...", "Erbfolge"
+    eingetragen_am: Optional[date] = None
+    # Ehegatten/Güterstand
+    gueterstand: str = ""  # z.B. "in Gütergemeinschaft"
+    ehegatte_name: str = ""
+    # Volltext aus OCR
+    volltext: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class GrundbuchBestandsverzeichnis:
+    """Bestandsverzeichnis-Eintrag aus dem Grundbuch"""
+    eintrag_id: str
+    projekt_id: str
+    grundbuch_anfrage_id: str
+    # Grundstücksdaten
+    lfd_nr: str  # Laufende Nummer
+    gemarkung: str
+    flur: str
+    flurstueck: str
+    wirtschaftsart: str = ""  # z.B. "Gebäude- und Freifläche"
+    lage: str = ""  # Straße, Hausnummer
+    groesse_qm: float = 0.0
+    # Zusätzliche Angaben
+    bemerkungen: str = ""
+    rechte_spalte: str = ""  # Angaben zu herrschenden Rechten
+    # Abschreibungen/Zuschreibungen
+    abgeschrieben_zu: str = ""  # Falls Flurstück abgeschrieben wurde
+    zugeschrieben_von: str = ""
+    # Volltext
+    volltext: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class EigentuemerPruefung:
+    """Prüfung ob Verkäufer = Eigentümer"""
+    pruefung_id: str
+    projekt_id: str
+    grundbuch_anfrage_id: str
+    # Zu prüfender Verkäufer
+    verkaeufer_id: str
+    verkaeufer_name: str
+    # Grundbuch-Eigentümer (kann mehrere geben)
+    eigentuemer_ids: List[str] = field(default_factory=list)
+    eigentuemer_namen: List[str] = field(default_factory=list)
+    # Prüfungsergebnis
+    status: str = EigentuemerPruefungStatus.AUSSTEHEND.value
+    uebereinstimmung: bool = False
+    abweichung_grund: str = ""  # z.B. "Name im Grundbuch weicht ab"
+    # Bei Abweichung: Erforderlicher Nachweis
+    erforderlicher_nachweis_typ: str = ""
+    nachweis_hinweis: str = ""  # Erklärung für den Nutzer
+    # Prüfung
+    geprueft_von: str = ""  # Notar/Mitarbeiter User-ID
+    geprueft_am: Optional[datetime] = None
+    pruefungs_notizen: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class BerechtigungsNachweis:
+    """Dokument das die Verkaufsberechtigung nachweist"""
+    nachweis_id: str
+    projekt_id: str
+    pruefung_id: str  # Referenz auf EigentuemerPruefung
+    verkaeufer_id: str
+    # Dokumenttyp
+    nachweis_typ: str  # BerechtigungsNachweisTyp.value
+    bezeichnung: str = ""  # z.B. "Erbschein vom 15.03.2024"
+    # Dokument
+    dokument: Optional[bytes] = None
+    dateiname: str = ""
+    hochgeladen_am: Optional[datetime] = None
+    hochgeladen_von: str = ""
+    # Prüfung durch Notar
+    geprueft: bool = False
+    geprueft_von: str = ""
+    geprueft_am: Optional[datetime] = None
+    pruefung_ok: bool = False
+    pruefungs_bemerkung: str = ""
+    # Bei Erbschein/Testament zusätzlich
+    nachlassgericht: str = ""
+    aktenzeichen: str = ""
+    ausgestellt_am: Optional[date] = None
+    # Gültigkeit
+    gueltig_bis: Optional[date] = None
     # Notizen
     notizen: str = ""
     erstellt_am: datetime = field(default_factory=datetime.now)
@@ -9096,6 +9246,12 @@ def init_session_state():
         st.session_state.mietverhaeltnis_infos = {}  # ID -> MietverhaeltnisInfo
         st.session_state.workflow_benachrichtigungen = {}  # ID -> WorkflowBenachrichtigung
 
+        # NEU: Erweiterte Grundbuch-Daten (alle Abteilungen)
+        st.session_state.grundbuch_eigentuemer = {}  # ID -> GrundbuchEigentuemer
+        st.session_state.grundbuch_bestandsverzeichnis = {}  # ID -> GrundbuchBestandsverzeichnis
+        st.session_state.eigentuemer_pruefungen = {}  # ID -> EigentuemerPruefung
+        st.session_state.berechtigungs_nachweise = {}  # ID -> BerechtigungsNachweis
+
         # NEU: Erklärungs-Modus für Verträge
         st.session_state.vertrags_abschnitte = {}  # abschnitt_id -> VertragsAbschnitt
         st.session_state.vertrags_erklaerungen = {}  # erklaerung_id -> VertragsErklaerung
@@ -12074,14 +12230,15 @@ Geschlecht: {geschlecht}
 
 def ocr_grundbuch_mit_ki(pdf_data: bytes, api_keys: Dict) -> Dict:
     """
-    Extrahiert Grundbuch-Abteilungen II und III aus einem PDF mittels KI.
+    Extrahiert ALLE Grundbuch-Daten aus einem PDF mittels KI.
+    Inkl. Bestandsverzeichnis, Abteilung I (Eigentümer), II und III.
 
     Args:
         pdf_data: PDF als Bytes
         api_keys: Dict mit 'openai' und/oder 'anthropic' Keys
 
     Returns:
-        Dict mit strukturierten Daten zu Abteilung II und III
+        Dict mit vollständigen strukturierten Grundbuch-Daten
     """
     import json
     import base64
@@ -12093,11 +12250,11 @@ def ocr_grundbuch_mit_ki(pdf_data: bytes, api_keys: Dict) -> Dict:
             "grundbuchbezirk": "",
             "blatt": "",
             "gemarkung": "",
-            "flur": "",
-            "flurstueck": "",
-            "groesse_qm": 0,
+            "stand_datum": "",
         },
-        "eigentuemer": [],  # Abteilung I
+        "bestandsverzeichnis": [],  # Flurstücke und Grundstücksdaten
+        "abteilung_1_eigentuemer": [],  # Eigentümer mit vollständigen Daten
+        "eigentuemer": [],  # Kompatibilität: Einfache Eigentümerliste
         "abteilung_2": [],  # Lasten und Beschränkungen
         "abteilung_3": [],  # Hypotheken, Grundschulden
         "raw_text": "",
@@ -12126,11 +12283,11 @@ def ocr_grundbuch_mit_ki(pdf_data: bytes, api_keys: Dict) -> Dict:
         ergebnis["fehler"] = f"PDF-Lesefehler: {str(e)}"
         return ergebnis
 
-    # KI-Prompt für Grundbuch-Analyse
-    prompt = f"""Analysiere den folgenden Grundbuchauszug-Text und extrahiere alle relevanten Informationen.
+    # KI-Prompt für Grundbuch-Analyse - ERWEITERT für alle Abteilungen
+    prompt = f"""Analysiere den folgenden Grundbuchauszug-Text und extrahiere ALLE relevanten Informationen.
 
 TEXT:
-{text[:8000]}
+{text[:10000]}
 
 Extrahiere die Daten im folgenden JSON-Format:
 {{
@@ -12139,21 +12296,50 @@ Extrahiere die Daten im folgenden JSON-Format:
         "grundbuchbezirk": "Bezirk/Gemeinde",
         "blatt": "Blattnummer",
         "gemarkung": "Gemarkung",
-        "flur": "Flurnummer",
-        "flurstueck": "Flurstücksnummer",
-        "groesse_qm": 0
+        "stand_datum": "Datum des Auszugs (TT.MM.JJJJ)"
     }},
-    "eigentuemer": [
-        {{"name": "Name", "anteil": "z.B. 1/2", "seit": "Datum der Eintragung"}}
+    "bestandsverzeichnis": [
+        {{
+            "lfd_nr": "1",
+            "gemarkung": "Gemarkung",
+            "flur": "Flurnummer",
+            "flurstueck": "Flurstücksnummer",
+            "wirtschaftsart": "z.B. Gebäude- und Freifläche, Landwirtschaftsfläche",
+            "lage": "Straße und Hausnummer",
+            "groesse_qm": 0,
+            "bemerkungen": "z.B. Zuschreibungen, Abschreibungen"
+        }}
+    ],
+    "abteilung_1_eigentuemer": [
+        {{
+            "lfd_nr": "1",
+            "name": "Nachname",
+            "vorname": "Vorname",
+            "geburtsname": "falls abweichend",
+            "geburtsdatum": "TT.MM.JJJJ oder leer",
+            "ist_firma": false,
+            "firma_name": "bei juristischen Personen",
+            "handelsregister": "z.B. AG Berlin HRB 12345",
+            "anteil_text": "z.B. zu 1/2, Alleineigentum, in Gütergemeinschaft",
+            "anteil_zaehler": 1,
+            "anteil_nenner": 1,
+            "erwerbsgrund": "z.B. Auflassung vom TT.MM.JJJJ, Erbfolge, Zuschlag",
+            "eingetragen_am": "TT.MM.JJJJ",
+            "gueterstand": "z.B. in Gütergemeinschaft, in Errungenschaftsgemeinschaft",
+            "bemerkungen": "weitere Angaben"
+        }}
     ],
     "abteilung_2": [
         {{
             "lfd_nr": "1",
             "typ": "Wegerecht|Leitungsrecht|Wohnrecht|Nießbrauch|Vorkaufsrecht|Reallast|Dienstbarkeit|Auflassungsvormerkung|Sonstige",
             "bezeichnung": "Vollständige Beschreibung der Eintragung",
-            "rechteinhaber": "Name des Berechtigten",
+            "rechteinhaber": "Name des Berechtigten (Person oder Flurstück)",
+            "rechteinhaber_geburtsdatum": "falls Person",
             "eingetragen_am": "TT.MM.JJJJ oder leer",
-            "bezug": "z.B. zu Gunsten von Flurstück xyz",
+            "bezug": "z.B. zu Gunsten von Flurstück xyz, lastend auf Flurstück abc",
+            "befristung": "falls befristet",
+            "geloescht": false,
             "bemerkungen": "Zusätzliche Hinweise"
         }}
     ],
@@ -12163,20 +12349,35 @@ Extrahiere die Daten im folgenden JSON-Format:
             "typ": "Grundschuld|Hypothek|Rentenschuld|Sicherungshypothek",
             "betrag": 0.0,
             "waehrung": "EUR",
-            "zinsen": "z.B. 15% Zinsen",
+            "zinsen": "z.B. 15% Zinsen jährlich",
             "glaeubiger": "Name der Bank/Gläubiger",
+            "glaeubiger_adresse": "falls angegeben",
             "mit_brief": true,
+            "rang": "z.B. im Range nach lfd. Nr. 1",
             "eingetragen_am": "TT.MM.JJJJ oder leer",
-            "bemerkungen": "Zusätzliche Hinweise wie 'zur Zeit kein Eigentümer'"
+            "geloescht": false,
+            "bemerkungen": "z.B. Abtretung, Löschungsvormerkung"
         }}
     ]
 }}
 
-WICHTIG:
-- Bei Abteilung II: Unterscheide zwischen löschungsfähigen Rechten (z.B. alte Grundschulden) und dauerhaften Rechten (z.B. Leitungsrechte)
-- Bei Abteilung III: Extrahiere ALLE eingetragenen Grundschulden/Hypotheken mit Beträgen
-- Beträge immer als Zahl in EUR (auch wenn DM angegeben, dann in EUR umrechnen: 1 EUR = 1.95583 DM)
-- Falls "gelöscht" oder "gerötet" bei einem Eintrag steht, vermerke das in bemerkungen
+WICHTIGE HINWEISE:
+1. ABTEILUNG I (Eigentümer): Extrahiere ALLE eingetragenen Eigentümer mit vollständigen Personalien
+   - Bei Ehepaaren: Jeden Ehepartner einzeln mit Anteil
+   - Geburtsdatum ist besonders wichtig für die Identitätsprüfung
+   - Erwerbsgrund (Auflassung, Erbfolge, Zuschlag) ist wichtig
+
+2. BESTANDSVERZEICHNIS: Alle Flurstücke mit Größe und Nutzungsart
+
+3. ABTEILUNG II: Unterscheide zwischen:
+   - Dauerhaften Rechten (Wegerecht, Leitungsrecht) -> diese bleiben bestehen
+   - Persönlichen Rechten (Wohnrecht, Nießbrauch) -> auf Lebenszeit des Berechtigten
+   - Merke ob Rechte bereits gelöscht (gerötet) sind
+
+4. ABTEILUNG III:
+   - ALLE Grundschulden/Hypotheken mit Beträgen
+   - Beträge in EUR (DM umrechnen: 1 EUR = 1.95583 DM)
+   - Gelöschte Einträge kennzeichnen
 
 Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
 
@@ -12190,7 +12391,7 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=3000
+                max_tokens=4000
             )
 
             antwort = response.choices[0].message.content.strip()
@@ -12205,7 +12406,9 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
 
             ergebnis["erfolg"] = True
             ergebnis["grundbuch_daten"] = daten.get("grundbuch_daten", ergebnis["grundbuch_daten"])
-            ergebnis["eigentuemer"] = daten.get("eigentuemer", [])
+            ergebnis["bestandsverzeichnis"] = daten.get("bestandsverzeichnis", [])
+            ergebnis["abteilung_1_eigentuemer"] = daten.get("abteilung_1_eigentuemer", [])
+            ergebnis["eigentuemer"] = daten.get("eigentuemer", daten.get("abteilung_1_eigentuemer", []))
             ergebnis["abteilung_2"] = daten.get("abteilung_2", [])
             ergebnis["abteilung_3"] = daten.get("abteilung_3", [])
             ergebnis["ki_verwendet"] = "OpenAI GPT-4o-mini"
@@ -12223,7 +12426,7 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
 
             response = client.messages.create(
                 model="claude-3-haiku-20240307",
-                max_tokens=3000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
 
@@ -12238,7 +12441,9 @@ Antworte NUR mit dem JSON, ohne zusätzlichen Text."""
 
             ergebnis["erfolg"] = True
             ergebnis["grundbuch_daten"] = daten.get("grundbuch_daten", ergebnis["grundbuch_daten"])
-            ergebnis["eigentuemer"] = daten.get("eigentuemer", [])
+            ergebnis["bestandsverzeichnis"] = daten.get("bestandsverzeichnis", [])
+            ergebnis["abteilung_1_eigentuemer"] = daten.get("abteilung_1_eigentuemer", [])
+            ergebnis["eigentuemer"] = daten.get("eigentuemer", daten.get("abteilung_1_eigentuemer", []))
             ergebnis["abteilung_2"] = daten.get("abteilung_2", [])
             ergebnis["abteilung_3"] = daten.get("abteilung_3", [])
             ergebnis["ki_verwendet"] = "Anthropic Claude-3-Haiku"
