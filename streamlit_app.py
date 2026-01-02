@@ -12735,6 +12735,586 @@ beseitigt. Die Kosten der Löschung trägt der Verkäufer.
     return text
 
 
+def erstelle_eigentuemer_aus_ocr(projekt_id: str, grundbuch_anfrage_id: str, ocr_ergebnis: Dict) -> List[GrundbuchEigentuemer]:
+    """
+    Erstellt GrundbuchEigentuemer-Objekte aus dem OCR-Ergebnis.
+
+    Args:
+        projekt_id: ID des Projekts
+        grundbuch_anfrage_id: ID der GrundbuchAnfrage
+        ocr_ergebnis: Ergebnis von ocr_grundbuch_mit_ki()
+
+    Returns:
+        Liste von GrundbuchEigentuemer-Objekten
+    """
+    eigentuemer_liste = []
+
+    for idx, eintrag in enumerate(ocr_ergebnis.get("abteilung_1_eigentuemer", [])):
+        eigentuemer_id = f"EIGENT-{datetime.now().strftime('%Y%m%d%H%M%S')}-{idx}"
+
+        # Geburtsdatum parsen
+        geburtsdatum = None
+        if eintrag.get("geburtsdatum"):
+            try:
+                geburtsdatum = datetime.strptime(eintrag["geburtsdatum"], "%d.%m.%Y").date()
+            except:
+                pass
+
+        # Eintragungsdatum parsen
+        eingetragen_am = None
+        if eintrag.get("eingetragen_am"):
+            try:
+                eingetragen_am = datetime.strptime(eintrag["eingetragen_am"], "%d.%m.%Y").date()
+            except:
+                pass
+
+        eigentuemer = GrundbuchEigentuemer(
+            eigentuemer_id=eigentuemer_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            name=eintrag.get("name", ""),
+            vorname=eintrag.get("vorname", ""),
+            geburtsname=eintrag.get("geburtsname", ""),
+            geburtsdatum=geburtsdatum,
+            ist_juristische_person=eintrag.get("ist_firma", False),
+            firma_name=eintrag.get("firma_name", ""),
+            handelsregister=eintrag.get("handelsregister", ""),
+            anteil_zaehler=int(eintrag.get("anteil_zaehler", 1) or 1),
+            anteil_nenner=int(eintrag.get("anteil_nenner", 1) or 1),
+            anteil_text=eintrag.get("anteil_text", ""),
+            erwerbsgrund=eintrag.get("erwerbsgrund", ""),
+            eingetragen_am=eingetragen_am,
+            gueterstand=eintrag.get("gueterstand", ""),
+            volltext=str(eintrag)
+        )
+        eigentuemer_liste.append(eigentuemer)
+
+    return eigentuemer_liste
+
+
+def erstelle_bestandsverzeichnis_aus_ocr(projekt_id: str, grundbuch_anfrage_id: str, ocr_ergebnis: Dict) -> List[GrundbuchBestandsverzeichnis]:
+    """
+    Erstellt GrundbuchBestandsverzeichnis-Objekte aus dem OCR-Ergebnis.
+
+    Args:
+        projekt_id: ID des Projekts
+        grundbuch_anfrage_id: ID der GrundbuchAnfrage
+        ocr_ergebnis: Ergebnis von ocr_grundbuch_mit_ki()
+
+    Returns:
+        Liste von GrundbuchBestandsverzeichnis-Objekten
+    """
+    eintraege = []
+
+    for idx, eintrag in enumerate(ocr_ergebnis.get("bestandsverzeichnis", [])):
+        eintrag_id = f"BV-{datetime.now().strftime('%Y%m%d%H%M%S')}-{idx}"
+
+        # Größe parsen
+        groesse_qm = 0.0
+        try:
+            groesse_qm = float(eintrag.get("groesse_qm", 0) or 0)
+        except:
+            pass
+
+        bv_eintrag = GrundbuchBestandsverzeichnis(
+            eintrag_id=eintrag_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            lfd_nr=str(eintrag.get("lfd_nr", "")),
+            gemarkung=eintrag.get("gemarkung", ""),
+            flur=str(eintrag.get("flur", "")),
+            flurstueck=str(eintrag.get("flurstueck", "")),
+            wirtschaftsart=eintrag.get("wirtschaftsart", ""),
+            lage=eintrag.get("lage", ""),
+            groesse_qm=groesse_qm,
+            bemerkungen=eintrag.get("bemerkungen", ""),
+            volltext=str(eintrag)
+        )
+        eintraege.append(bv_eintrag)
+
+    return eintraege
+
+
+def pruefe_eigentuemer_verkaeufer_abgleich(projekt_id: str, grundbuch_anfrage_id: str) -> EigentuemerPruefung:
+    """
+    Prüft, ob der Verkäufer mit dem Eigentümer im Grundbuch übereinstimmt.
+
+    Args:
+        projekt_id: ID des Projekts
+        grundbuch_anfrage_id: ID der GrundbuchAnfrage
+
+    Returns:
+        EigentuemerPruefung-Objekt mit dem Prüfungsergebnis
+    """
+    import re
+
+    # Projekt und Verkäufer holen
+    projekt = st.session_state.projekte.get(projekt_id)
+    if not projekt:
+        return None
+
+    verkaeufer_id = projekt.verkaeufer_id
+    verkaeufer = st.session_state.users.get(verkaeufer_id)
+    if not verkaeufer:
+        return None
+
+    verkaeufer_name = verkaeufer.name.strip().lower()
+
+    # Eigentümer aus Grundbuch holen
+    eigentuemer_liste = [e for e in st.session_state.grundbuch_eigentuemer.values()
+                         if e.projekt_id == projekt_id and e.grundbuch_anfrage_id == grundbuch_anfrage_id]
+
+    if not eigentuemer_liste:
+        # Keine Eigentümerdaten vorhanden
+        pruefung_id = f"PRUEF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        return EigentuemerPruefung(
+            pruefung_id=pruefung_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            verkaeufer_id=verkaeufer_id,
+            verkaeufer_name=verkaeufer.name,
+            status=EigentuemerPruefungStatus.AUSSTEHEND.value,
+            abweichung_grund="Keine Eigentümerdaten aus Grundbuch extrahiert."
+        )
+
+    # Namen normalisieren für Vergleich
+    def normalisiere_name(name: str) -> str:
+        """Normalisiert Namen für Vergleich (Kleinbuchstaben, ohne Sonderzeichen)"""
+        name = name.lower().strip()
+        name = re.sub(r'[^a-zäöüß\s]', '', name)
+        return ' '.join(name.split())
+
+    verkaeufer_normalisiert = normalisiere_name(verkaeufer_name)
+
+    # Prüfe jeden Eigentümer
+    eigentuemer_ids = []
+    eigentuemer_namen = []
+    uebereinstimmung_gefunden = False
+
+    for eigent in eigentuemer_liste:
+        if eigent.ist_juristische_person:
+            eigent_name = eigent.firma_name
+        else:
+            eigent_name = f"{eigent.vorname} {eigent.name}".strip()
+            if not eigent_name:
+                eigent_name = eigent.name
+
+        eigentuemer_ids.append(eigent.eigentuemer_id)
+        eigentuemer_namen.append(eigent_name)
+
+        eigent_normalisiert = normalisiere_name(eigent_name)
+
+        # Verschiedene Vergleichsmethoden
+        if verkaeufer_normalisiert == eigent_normalisiert:
+            uebereinstimmung_gefunden = True
+        elif verkaeufer_normalisiert in eigent_normalisiert or eigent_normalisiert in verkaeufer_normalisiert:
+            uebereinstimmung_gefunden = True
+        else:
+            # Teile des Namens vergleichen (Nachname)
+            verkaeufer_teile = verkaeufer_normalisiert.split()
+            eigent_teile = eigent_normalisiert.split()
+            if verkaeufer_teile and eigent_teile:
+                if verkaeufer_teile[-1] == eigent_teile[-1]:  # Nachname stimmt überein
+                    uebereinstimmung_gefunden = True
+
+    pruefung_id = f"PRUEF-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    if uebereinstimmung_gefunden:
+        return EigentuemerPruefung(
+            pruefung_id=pruefung_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            verkaeufer_id=verkaeufer_id,
+            verkaeufer_name=verkaeufer.name,
+            eigentuemer_ids=eigentuemer_ids,
+            eigentuemer_namen=eigentuemer_namen,
+            status=EigentuemerPruefungStatus.IDENTISCH.value,
+            uebereinstimmung=True
+        )
+    else:
+        # Abweichung festgestellt - Berechtigungsnachweis erforderlich
+        # Automatisch einen passenden Nachweis-Typ vorschlagen
+        nachweis_typ = BerechtigungsNachweisTyp.SONSTIGE.value
+        nachweis_hinweis = "Bitte laden Sie einen Nachweis hoch, der die Verkaufsberechtigung belegt."
+
+        # Prüfe ob Erbfolge vorliegt
+        for eigent in eigentuemer_liste:
+            if "erb" in eigent.erwerbsgrund.lower():
+                nachweis_typ = BerechtigungsNachweisTyp.ERBSCHEIN.value
+                nachweis_hinweis = "Der Eigentümer hat durch Erbfolge erworben. Bitte laden Sie einen Erbschein oder ein eröffnetes Testament hoch."
+                break
+
+        return EigentuemerPruefung(
+            pruefung_id=pruefung_id,
+            projekt_id=projekt_id,
+            grundbuch_anfrage_id=grundbuch_anfrage_id,
+            verkaeufer_id=verkaeufer_id,
+            verkaeufer_name=verkaeufer.name,
+            eigentuemer_ids=eigentuemer_ids,
+            eigentuemer_namen=eigentuemer_namen,
+            status=EigentuemerPruefungStatus.ABWEICHEND.value,
+            uebereinstimmung=False,
+            abweichung_grund=f"Der Verkäufer '{verkaeufer.name}' stimmt nicht mit den Grundbuch-Eigentümern überein: {', '.join(eigentuemer_namen)}",
+            erforderlicher_nachweis_typ=nachweis_typ,
+            nachweis_hinweis=nachweis_hinweis
+        )
+
+
+def verarbeite_grundbuch_ocr_vollstaendig(projekt_id: str, grundbuch_anfrage_id: str, ocr_ergebnis: Dict) -> Dict:
+    """
+    Verarbeitet OCR-Ergebnis vollständig: Erstellt alle Objekte und prüft Eigentümer.
+
+    Args:
+        projekt_id: ID des Projekts
+        grundbuch_anfrage_id: ID der GrundbuchAnfrage
+        ocr_ergebnis: Ergebnis von ocr_grundbuch_mit_ki()
+
+    Returns:
+        Dict mit Zusammenfassung der erstellten Objekte
+    """
+    ergebnis = {
+        "bestandsverzeichnis": [],
+        "eigentuemer": [],
+        "belastungen": [],
+        "loeschungs_todos": [],
+        "eigentuemer_pruefung": None,
+        "nachweis_erforderlich": False
+    }
+
+    # 1. Bestandsverzeichnis erstellen
+    bv_eintraege = erstelle_bestandsverzeichnis_aus_ocr(projekt_id, grundbuch_anfrage_id, ocr_ergebnis)
+    for bv in bv_eintraege:
+        st.session_state.grundbuch_bestandsverzeichnis[bv.eintrag_id] = bv
+    ergebnis["bestandsverzeichnis"] = bv_eintraege
+
+    # 2. Eigentümer erstellen
+    eigentuemer = erstelle_eigentuemer_aus_ocr(projekt_id, grundbuch_anfrage_id, ocr_ergebnis)
+    for e in eigentuemer:
+        st.session_state.grundbuch_eigentuemer[e.eigentuemer_id] = e
+    ergebnis["eigentuemer"] = eigentuemer
+
+    # 3. Belastungen erstellen (Abt. II und III)
+    belastungen = erstelle_belastungen_aus_ocr(projekt_id, grundbuch_anfrage_id, ocr_ergebnis)
+    for b in belastungen:
+        st.session_state.grundbuch_belastungen[b.belastung_id] = b
+    ergebnis["belastungen"] = belastungen
+
+    # 4. Löschungs-ToDos erstellen
+    todos = erstelle_loeschungs_todos_aus_belastungen(projekt_id, belastungen)
+    for t in todos:
+        st.session_state.loeschungs_anforderungen[t.anforderung_id] = t
+    ergebnis["loeschungs_todos"] = todos
+
+    # 5. Eigentümer-Verkäufer-Abgleich
+    pruefung = pruefe_eigentuemer_verkaeufer_abgleich(projekt_id, grundbuch_anfrage_id)
+    if pruefung:
+        st.session_state.eigentuemer_pruefungen[pruefung.pruefung_id] = pruefung
+        ergebnis["eigentuemer_pruefung"] = pruefung
+        ergebnis["nachweis_erforderlich"] = (pruefung.status == EigentuemerPruefungStatus.ABWEICHEND.value)
+
+    return ergebnis
+
+
+def render_eigentuemer_pruefung_widget(projekt_id: str):
+    """
+    Rendert ein Widget zur Anzeige des Eigentümer-Verkäufer-Abgleichs.
+
+    Args:
+        projekt_id: ID des Projekts
+    """
+    # Prüfungen für dieses Projekt holen
+    pruefungen = [p for p in st.session_state.eigentuemer_pruefungen.values()
+                  if p.projekt_id == projekt_id]
+
+    if not pruefungen:
+        st.info("Noch keine Eigentümer-Prüfung durchgeführt. Bitte laden Sie zuerst einen Grundbuchauszug hoch.")
+        return
+
+    pruefung = pruefungen[-1]  # Neueste Prüfung
+
+    # Status-Anzeige
+    if pruefung.status == EigentuemerPruefungStatus.IDENTISCH.value:
+        st.success("✅ **Eigentümer-Prüfung bestanden**")
+        st.write(f"Der Verkäufer **{pruefung.verkaeufer_name}** ist als Eigentümer im Grundbuch eingetragen.")
+
+    elif pruefung.status == EigentuemerPruefungStatus.ABWEICHEND.value:
+        st.error("⚠️ **Abweichung festgestellt**")
+        st.write(f"**Verkäufer:** {pruefung.verkaeufer_name}")
+        st.write(f"**Grundbuch-Eigentümer:** {', '.join(pruefung.eigentuemer_namen)}")
+        st.warning(pruefung.abweichung_grund)
+
+        # Berechtigungsnachweis anfordern
+        st.markdown("---")
+        st.subheader("📄 Berechtigungsnachweis erforderlich")
+        st.info(pruefung.nachweis_hinweis)
+
+        # Nachweis-Upload
+        render_berechtigungsnachweis_upload(pruefung)
+
+    elif pruefung.status == EigentuemerPruefungStatus.NACHWEIS_HOCHGELADEN.value:
+        st.warning("📄 **Nachweis hochgeladen - Prüfung ausstehend**")
+        st.write("Der Berechtigungsnachweis wurde hochgeladen und wartet auf Prüfung durch den Notar.")
+
+        # Hochgeladene Nachweise anzeigen
+        render_berechtigungsnachweise_liste(pruefung)
+
+    elif pruefung.status == EigentuemerPruefungStatus.GEPRUEFT_OK.value:
+        st.success("✅ **Berechtigung bestätigt**")
+        st.write("Der Notar hat die Verkaufsberechtigung geprüft und bestätigt.")
+
+    elif pruefung.status == EigentuemerPruefungStatus.GEPRUEFT_ABGELEHNT.value:
+        st.error("❌ **Berechtigung nicht nachgewiesen**")
+        st.write("Der eingereichte Nachweis wurde abgelehnt. Bitte laden Sie einen gültigen Berechtigungsnachweis hoch.")
+        render_berechtigungsnachweis_upload(pruefung)
+
+
+def render_berechtigungsnachweis_upload(pruefung: EigentuemerPruefung):
+    """
+    Rendert das Upload-Formular für Berechtigungsnachweise.
+
+    Args:
+        pruefung: Die EigentuemerPruefung
+    """
+    with st.form(key=f"nachweis_upload_{pruefung.pruefung_id}"):
+        st.markdown("##### Nachweis hochladen")
+
+        # Nachweis-Typ auswählen
+        nachweis_typen = [e.value for e in BerechtigungsNachweisTyp]
+        default_idx = 0
+        if pruefung.erforderlicher_nachweis_typ in nachweis_typen:
+            default_idx = nachweis_typen.index(pruefung.erforderlicher_nachweis_typ)
+
+        nachweis_typ = st.selectbox(
+            "Art des Nachweises",
+            nachweis_typen,
+            index=default_idx
+        )
+
+        bezeichnung = st.text_input(
+            "Bezeichnung",
+            placeholder="z.B. Erbschein vom 15.03.2024"
+        )
+
+        # Zusätzliche Felder je nach Typ
+        nachlassgericht = ""
+        aktenzeichen = ""
+        ausgestellt_am = None
+
+        if nachweis_typ in [BerechtigungsNachweisTyp.ERBSCHEIN.value,
+                            BerechtigungsNachweisTyp.TESTAMENT.value,
+                            BerechtigungsNachweisTyp.NACHLASSGERICHT_BESCHLUSS.value]:
+            col1, col2 = st.columns(2)
+            with col1:
+                nachlassgericht = st.text_input("Nachlassgericht")
+            with col2:
+                aktenzeichen = st.text_input("Aktenzeichen")
+            ausgestellt_am = st.date_input("Ausgestellt am", value=None)
+
+        uploaded_file = st.file_uploader(
+            "Dokument hochladen (PDF)",
+            type=["pdf"],
+            key=f"nachweis_file_{pruefung.pruefung_id}"
+        )
+
+        notizen = st.text_area("Anmerkungen (optional)")
+
+        submitted = st.form_submit_button("📤 Nachweis hochladen", use_container_width=True)
+
+        if submitted and uploaded_file:
+            # Nachweis erstellen
+            nachweis_id = f"NACHW-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+            nachweis = BerechtigungsNachweis(
+                nachweis_id=nachweis_id,
+                projekt_id=pruefung.projekt_id,
+                pruefung_id=pruefung.pruefung_id,
+                verkaeufer_id=pruefung.verkaeufer_id,
+                nachweis_typ=nachweis_typ,
+                bezeichnung=bezeichnung or f"{nachweis_typ} - {datetime.now().strftime('%d.%m.%Y')}",
+                dokument=uploaded_file.read(),
+                dateiname=uploaded_file.name,
+                hochgeladen_am=datetime.now(),
+                hochgeladen_von=st.session_state.current_user.user_id,
+                nachlassgericht=nachlassgericht,
+                aktenzeichen=aktenzeichen,
+                ausgestellt_am=ausgestellt_am,
+                notizen=notizen
+            )
+
+            st.session_state.berechtigungs_nachweise[nachweis_id] = nachweis
+
+            # Status der Prüfung aktualisieren
+            pruefung.status = EigentuemerPruefungStatus.NACHWEIS_HOCHGELADEN.value
+            st.session_state.eigentuemer_pruefungen[pruefung.pruefung_id] = pruefung
+
+            st.success("✅ Nachweis erfolgreich hochgeladen!")
+            st.rerun()
+
+
+def render_berechtigungsnachweise_liste(pruefung: EigentuemerPruefung):
+    """
+    Zeigt die Liste der hochgeladenen Berechtigungsnachweise an.
+
+    Args:
+        pruefung: Die EigentuemerPruefung
+    """
+    nachweise = [n for n in st.session_state.berechtigungs_nachweise.values()
+                 if n.pruefung_id == pruefung.pruefung_id]
+
+    if not nachweise:
+        st.info("Noch keine Nachweise hochgeladen.")
+        return
+
+    for nachweis in nachweise:
+        with st.expander(f"📄 {nachweis.bezeichnung}", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Typ:** {nachweis.nachweis_typ}")
+                st.write(f"**Datei:** {nachweis.dateiname}")
+                if nachweis.hochgeladen_am:
+                    st.write(f"**Hochgeladen:** {nachweis.hochgeladen_am.strftime('%d.%m.%Y %H:%M')}")
+            with col2:
+                if nachweis.geprueft:
+                    if nachweis.pruefung_ok:
+                        st.success("✅ Geprüft - OK")
+                    else:
+                        st.error("❌ Geprüft - Abgelehnt")
+                    if nachweis.pruefungs_bemerkung:
+                        st.write(f"*{nachweis.pruefungs_bemerkung}*")
+                else:
+                    st.warning("⏳ Prüfung ausstehend")
+
+            # Download-Button
+            if nachweis.dokument:
+                st.download_button(
+                    "📥 Herunterladen",
+                    data=nachweis.dokument,
+                    file_name=nachweis.dateiname,
+                    mime="application/pdf"
+                )
+
+
+def render_notar_berechtigungsnachweis_pruefung(projekt_id: str):
+    """
+    Rendert die Notar-Ansicht zur Prüfung von Berechtigungsnachweisen.
+
+    Args:
+        projekt_id: ID des Projekts
+    """
+    st.subheader("📋 Berechtigungsnachweise prüfen")
+
+    # Prüfungen für dieses Projekt
+    pruefungen = [p for p in st.session_state.eigentuemer_pruefungen.values()
+                  if p.projekt_id == projekt_id]
+
+    if not pruefungen:
+        st.info("Keine Eigentümer-Prüfungen für dieses Projekt vorhanden.")
+        return
+
+    for pruefung in pruefungen:
+        with st.expander(f"🔍 Prüfung: {pruefung.verkaeufer_name}", expanded=True):
+            # Status anzeigen
+            status_colors = {
+                EigentuemerPruefungStatus.IDENTISCH.value: "✅",
+                EigentuemerPruefungStatus.ABWEICHEND.value: "⚠️",
+                EigentuemerPruefungStatus.NACHWEIS_HOCHGELADEN.value: "📄",
+                EigentuemerPruefungStatus.GEPRUEFT_OK.value: "✅",
+                EigentuemerPruefungStatus.GEPRUEFT_ABGELEHNT.value: "❌",
+            }
+            status_icon = status_colors.get(pruefung.status, "❓")
+            st.write(f"**Status:** {status_icon} {pruefung.status}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Verkäufer:** {pruefung.verkaeufer_name}")
+            with col2:
+                st.write(f"**Eigentümer lt. Grundbuch:** {', '.join(pruefung.eigentuemer_namen) or 'N/A'}")
+
+            if pruefung.abweichung_grund:
+                st.warning(pruefung.abweichung_grund)
+
+            # Hochgeladene Nachweise anzeigen und prüfen
+            nachweise = [n for n in st.session_state.berechtigungs_nachweise.values()
+                         if n.pruefung_id == pruefung.pruefung_id]
+
+            if nachweise:
+                st.markdown("---")
+                st.markdown("##### Eingereichte Nachweise")
+
+                for nachweis in nachweise:
+                    with st.container():
+                        st.markdown(f"**📄 {nachweis.bezeichnung}**")
+                        col1, col2, col3 = st.columns([2, 1, 1])
+
+                        with col1:
+                            st.write(f"Typ: {nachweis.nachweis_typ}")
+                            if nachweis.nachlassgericht:
+                                st.write(f"Nachlassgericht: {nachweis.nachlassgericht}")
+                            if nachweis.aktenzeichen:
+                                st.write(f"Aktenzeichen: {nachweis.aktenzeichen}")
+
+                        with col2:
+                            if nachweis.dokument:
+                                st.download_button(
+                                    "📥 Öffnen",
+                                    data=nachweis.dokument,
+                                    file_name=nachweis.dateiname,
+                                    mime="application/pdf",
+                                    key=f"dl_{nachweis.nachweis_id}"
+                                )
+
+                        with col3:
+                            if not nachweis.geprueft:
+                                # Prüfungs-Buttons
+                                if st.button("✅ OK", key=f"ok_{nachweis.nachweis_id}"):
+                                    nachweis.geprueft = True
+                                    nachweis.pruefung_ok = True
+                                    nachweis.geprueft_von = st.session_state.current_user.user_id
+                                    nachweis.geprueft_am = datetime.now()
+                                    st.session_state.berechtigungs_nachweise[nachweis.nachweis_id] = nachweis
+
+                                    # Prüfung-Status aktualisieren
+                                    pruefung.status = EigentuemerPruefungStatus.GEPRUEFT_OK.value
+                                    pruefung.geprueft_von = st.session_state.current_user.user_id
+                                    pruefung.geprueft_am = datetime.now()
+                                    st.session_state.eigentuemer_pruefungen[pruefung.pruefung_id] = pruefung
+
+                                    st.success("Nachweis als gültig markiert!")
+                                    st.rerun()
+
+                                if st.button("❌ Ablehnen", key=f"reject_{nachweis.nachweis_id}"):
+                                    nachweis.geprueft = True
+                                    nachweis.pruefung_ok = False
+                                    nachweis.geprueft_von = st.session_state.current_user.user_id
+                                    nachweis.geprueft_am = datetime.now()
+                                    st.session_state.berechtigungs_nachweise[nachweis.nachweis_id] = nachweis
+
+                                    # Prüfung-Status aktualisieren
+                                    pruefung.status = EigentuemerPruefungStatus.GEPRUEFT_ABGELEHNT.value
+                                    st.session_state.eigentuemer_pruefungen[pruefung.pruefung_id] = pruefung
+
+                                    st.warning("Nachweis abgelehnt.")
+                                    st.rerun()
+                            else:
+                                if nachweis.pruefung_ok:
+                                    st.success("✅ Bestätigt")
+                                else:
+                                    st.error("❌ Abgelehnt")
+
+                        # Bemerkungsfeld
+                        if not nachweis.geprueft:
+                            bemerkung = st.text_input(
+                                "Bemerkung",
+                                value=nachweis.pruefungs_bemerkung,
+                                key=f"bem_{nachweis.nachweis_id}"
+                            )
+                            if bemerkung != nachweis.pruefungs_bemerkung:
+                                nachweis.pruefungs_bemerkung = bemerkung
+                                st.session_state.berechtigungs_nachweise[nachweis.nachweis_id] = nachweis
+
+                        st.markdown("---")
+
+
 def sende_workflow_benachrichtigung(
     projekt_id: str,
     workflow_schritt: str,
@@ -32044,14 +32624,14 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
 
 
 def _run_grundbuch_ocr(anfrage: GrundbuchAnfrage, projekt_id: str):
-    """Führt die OCR-Analyse für einen Grundbuchauszug durch"""
+    """Führt die OCR-Analyse für einen Grundbuchauszug durch - VOLLSTÄNDIG inkl. Eigentümer-Prüfung"""
     if not anfrage.grundbuchauszug_pdf:
         st.error("Kein PDF vorhanden.")
         return
 
     api_keys = st.session_state.get('api_keys', {})
 
-    with st.spinner("🔍 Analysiere Grundbuchauszug mit KI..."):
+    with st.spinner("🔍 Analysiere Grundbuchauszug mit KI (Bestandsverzeichnis, Abt. I, II, III)..."):
         ocr_ergebnis = ocr_grundbuch_mit_ki(anfrage.grundbuchauszug_pdf, api_keys)
 
     if ocr_ergebnis.get("erfolg"):
@@ -32066,53 +32646,87 @@ def _run_grundbuch_ocr(anfrage: GrundbuchAnfrage, projekt_id: str):
         if gb_daten.get("blatt"):
             anfrage.grundbuchblatt = gb_daten["blatt"]
 
-        # Eigentümer speichern
-        eigentuemer = ocr_ergebnis.get("eigentuemer", [])
-        if eigentuemer:
-            anfrage.abteilung_1 = ", ".join([e.get("name", "") for e in eigentuemer])
+        # Eigentümer speichern (alte Kompatibilität)
+        eigentuemer_roh = ocr_ergebnis.get("abteilung_1_eigentuemer", ocr_ergebnis.get("eigentuemer", []))
+        if eigentuemer_roh:
+            namen_liste = []
+            for e in eigentuemer_roh:
+                if e.get("ist_firma"):
+                    namen_liste.append(e.get("firma_name", ""))
+                else:
+                    name = f"{e.get('vorname', '')} {e.get('name', '')}".strip()
+                    if e.get("anteil_text"):
+                        name += f" ({e.get('anteil_text')})"
+                    namen_liste.append(name)
+            anfrage.abteilung_1 = ", ".join(namen_liste)
 
         # Abteilung II/III Texte
         abt2 = ocr_ergebnis.get("abteilung_2", [])
         abt3 = ocr_ergebnis.get("abteilung_3", [])
+        bestandsverzeichnis = ocr_ergebnis.get("bestandsverzeichnis", [])
         anfrage.abteilung_2 = str(abt2)
         anfrage.abteilung_3 = str(abt3)
 
         st.session_state.grundbuch_anfragen[anfrage.anfrage_id] = anfrage
 
-        # Belastungen erstellen
-        belastungen = erstelle_belastungen_aus_ocr(projekt_id, anfrage.anfrage_id, ocr_ergebnis)
-
-        for belastung in belastungen:
-            st.session_state.grundbuch_belastungen[belastung.belastung_id] = belastung
-
-        # Löschungs-ToDos erstellen
-        todos = erstelle_loeschungs_todos_aus_belastungen(projekt_id, belastungen)
-
-        for todo in todos:
-            st.session_state.loeschungs_anforderungen[todo.anforderung_id] = todo
+        # VOLLSTÄNDIGE Verarbeitung: Alle Objekte erstellen + Eigentümer-Prüfung
+        verarbeitung = verarbeite_grundbuch_ocr_vollstaendig(projekt_id, anfrage.anfrage_id, ocr_ergebnis)
 
         # Zusammenfassung anzeigen
-        st.markdown("### 📊 Extrahierte Daten")
+        st.markdown("### 📊 Vollständig extrahierte Daten")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Eigentümer", len(eigentuemer))
+            st.metric("Flurstücke", len(verarbeitung["bestandsverzeichnis"]))
         with col2:
-            st.metric("Abt. II Einträge", len(abt2))
+            st.metric("Eigentümer", len(verarbeitung["eigentuemer"]))
         with col3:
-            st.metric("Abt. III Einträge", len(abt3))
+            st.metric("Abt. II", len([b for b in verarbeitung["belastungen"] if b.abteilung == 2]))
+        with col4:
+            st.metric("Abt. III", len([b for b in verarbeitung["belastungen"] if b.abteilung == 3]))
 
-        if eigentuemer:
+        # Bestandsverzeichnis
+        if bestandsverzeichnis:
+            with st.expander("🏠 Bestandsverzeichnis (Flurstücke)"):
+                for bv in bestandsverzeichnis:
+                    st.write(f"**Nr. {bv.get('lfd_nr', '?')}:** Gemarkung {bv.get('gemarkung', '?')}, "
+                             f"Flur {bv.get('flur', '?')}, Flurstück {bv.get('flurstueck', '?')}")
+                    details = []
+                    if bv.get('wirtschaftsart'):
+                        details.append(bv['wirtschaftsart'])
+                    if bv.get('groesse_qm'):
+                        details.append(f"{bv['groesse_qm']:,.0f} m²")
+                    if bv.get('lage'):
+                        details.append(bv['lage'])
+                    if details:
+                        st.caption(" | ".join(details))
+
+        # Eigentümer (Abt. I)
+        if verarbeitung["eigentuemer"]:
             with st.expander("👤 Eigentümer (Abt. I)"):
-                for e in eigentuemer:
-                    st.write(f"- {e.get('name', 'Unbekannt')} ({e.get('anteil', 'Anteil unbekannt')})")
+                for e in verarbeitung["eigentuemer"]:
+                    if e.ist_juristische_person:
+                        name = e.firma_name
+                        if e.handelsregister:
+                            name += f" ({e.handelsregister})"
+                    else:
+                        name = f"{e.vorname} {e.name}".strip()
+                        if e.geburtsdatum:
+                            name += f", geb. {e.geburtsdatum.strftime('%d.%m.%Y')}"
+                    st.write(f"- **{name}** {e.anteil_text}")
+                    if e.erwerbsgrund:
+                        st.caption(f"   Erwerbsgrund: {e.erwerbsgrund}")
 
+        # Abteilung II
         if abt2:
             with st.expander(f"📋 Lasten & Beschränkungen (Abt. II) - {len(abt2)} Einträge"):
                 for eintrag in abt2:
                     st.write(f"**Nr. {eintrag.get('lfd_nr', '?')}:** {eintrag.get('typ', 'Unbekannt')}")
                     st.caption(eintrag.get('bezeichnung', ''))
+                    if eintrag.get('rechteinhaber'):
+                        st.caption(f"Berechtigter: {eintrag['rechteinhaber']}")
 
+        # Abteilung III
         if abt3:
             with st.expander(f"💰 Hypotheken/Grundschulden (Abt. III) - {len(abt3)} Einträge"):
                 for eintrag in abt3:
@@ -32120,17 +32734,51 @@ def _run_grundbuch_ocr(anfrage: GrundbuchAnfrage, projekt_id: str):
                     st.write(f"**Nr. {eintrag.get('lfd_nr', '?')}:** {eintrag.get('typ', 'Unbekannt')} - {betrag:,.2f} EUR")
                     if eintrag.get('glaeubiger'):
                         st.caption(f"Gläubiger: {eintrag['glaeubiger']}")
+                    if eintrag.get('zinsen'):
+                        st.caption(f"Zinsen: {eintrag['zinsen']}")
 
-        if todos:
-            st.warning(f"⚠️ {len(todos)} Löschungs-ToDos wurden automatisch erstellt!")
+        # Löschungs-ToDos
+        if verarbeitung["loeschungs_todos"]:
+            st.warning(f"⚠️ {len(verarbeitung['loeschungs_todos'])} Löschungs-ToDos wurden automatisch erstellt!")
+
+        # EIGENTÜMER-VERKÄUFER-PRÜFUNG ANZEIGEN
+        st.markdown("---")
+        st.markdown("### 🔍 Eigentümer-Verkäufer-Prüfung")
+
+        pruefung = verarbeitung.get("eigentuemer_pruefung")
+        if pruefung:
+            if pruefung.uebereinstimmung:
+                st.success(f"✅ **Prüfung bestanden:** Der Verkäufer '{pruefung.verkaeufer_name}' ist als Eigentümer eingetragen.")
+            else:
+                st.error(f"⚠️ **Abweichung festgestellt!**")
+                st.write(f"**Verkäufer:** {pruefung.verkaeufer_name}")
+                st.write(f"**Grundbuch-Eigentümer:** {', '.join(pruefung.eigentuemer_namen)}")
+                st.warning(pruefung.abweichung_grund)
+                st.info(f"📄 **Erforderlich:** {pruefung.nachweis_hinweis}")
+
+                # Benachrichtigung an Verkäufer senden
+                sende_workflow_benachrichtigung(
+                    projekt_id=projekt_id,
+                    workflow_schritt="Berechtigungsnachweis erforderlich",
+                    betreff="Berechtigungsnachweis erforderlich",
+                    nachricht=f"Bei der Prüfung des Grundbuchs wurde festgestellt, dass Sie nicht als Eigentümer "
+                              f"eingetragen sind. Bitte laden Sie einen Berechtigungsnachweis hoch.\n\n{pruefung.nachweis_hinweis}",
+                    empfaenger_typ="Verkäufer"
+                )
+        else:
+            st.info("Keine Eigentümer-Prüfung möglich (Verkäufer oder Eigentümerdaten fehlen).")
 
         # Workflow-Benachrichtigung senden
         sende_workflow_benachrichtigung(
             projekt_id=projekt_id,
-            workflow_schritt="Grundbuch analysiert",
-            betreff="Grundbuchauszug wurde analysiert",
-            nachricht=f"Der Grundbuchauszug für Blatt {anfrage.grundbuchblatt} wurde analysiert. "
-                      f"Es wurden {len(abt2)} Einträge in Abt. II und {len(abt3)} Einträge in Abt. III gefunden.",
+            workflow_schritt="Grundbuch vollständig analysiert",
+            betreff="Grundbuchauszug wurde vollständig analysiert",
+            nachricht=f"Der Grundbuchauszug für Blatt {anfrage.grundbuchblatt} wurde vollständig analysiert.\n\n"
+                      f"• {len(bestandsverzeichnis)} Flurstücke im Bestandsverzeichnis\n"
+                      f"• {len(verarbeitung['eigentuemer'])} Eigentümer in Abt. I\n"
+                      f"• {len(abt2)} Einträge in Abt. II\n"
+                      f"• {len(abt3)} Einträge in Abt. III\n"
+                      f"• {len(verarbeitung['loeschungs_todos'])} Löschungs-ToDos erstellt",
             empfaenger_typ="Alle"
         )
 
