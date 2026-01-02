@@ -36177,13 +36177,466 @@ def notar_aktenimport_view():
     """Haupt-View für Aktenimport und -verwaltung im Notar-Dashboard."""
 
     # Sub-Tabs für Import und Verwaltung
-    sub_tabs = st.tabs(["📥 Neue Akte importieren", "📂 Akten verwalten"])
+    sub_tabs = st.tabs(["📚 Grundbuch-Import", "📥 Akte importieren", "📂 Akten verwalten"])
 
     with sub_tabs[0]:
-        render_akten_import()
+        render_grundbuch_import_mit_zuordnung()
 
     with sub_tabs[1]:
+        render_akten_import()
+
+    with sub_tabs[2]:
         render_akten_verwaltung()
+
+
+def render_grundbuch_import_mit_zuordnung():
+    """
+    Grundbuch-PDF Import mit automatischer Akten-Zuordnung.
+    - Lädt PDF und extrahiert alle Daten per OCR
+    - Schlägt passende Akten vor (Verkäufer = Eigentümer)
+    - Ermöglicht Suche nach Akten
+    - Kann neue Akte aus OCR-Daten erstellen
+    """
+    st.subheader("📚 Grundbuchauszug importieren")
+
+    st.info("""
+    **Grundbuch-Import mit automatischer Akten-Zuordnung**
+
+    1. Laden Sie einen Grundbuchauszug als PDF hoch
+    2. Alle Daten werden automatisch extrahiert (Eigentümer, Abteilungen, Flurstücke)
+    3. Das System schlägt passende Akten vor (Verkäufer = Eigentümer)
+    4. Sie können nach Akten suchen oder eine neue Akte anlegen
+    """)
+
+    notar_id = st.session_state.current_user.user_id
+
+    # Session State für Grundbuch-Import
+    if 'grundbuch_import_state' not in st.session_state:
+        st.session_state.grundbuch_import_state = {
+            'ocr_ergebnis': None,
+            'pdf_bytes': None,
+            'dateiname': None,
+            'zugeordnet': False
+        }
+
+    # === SCHRITT 1: PDF HOCHLADEN ===
+    st.markdown("### 1️⃣ Grundbuchauszug hochladen")
+
+    uploaded_pdf = st.file_uploader(
+        "Grundbuchauszug (PDF)",
+        type=["pdf"],
+        key="grundbuch_import_uploader",
+        help="Laden Sie den Grundbuchauszug als PDF hoch. Alle Daten werden automatisch extrahiert."
+    )
+
+    if uploaded_pdf:
+        # Prüfen ob neue Datei
+        if st.session_state.grundbuch_import_state.get('dateiname') != uploaded_pdf.name:
+            st.session_state.grundbuch_import_state = {
+                'ocr_ergebnis': None,
+                'pdf_bytes': None,
+                'dateiname': uploaded_pdf.name,
+                'zugeordnet': False
+            }
+
+        pdf_bytes = uploaded_pdf.read()
+        st.session_state.grundbuch_import_state['pdf_bytes'] = pdf_bytes
+        st.success(f"📄 {uploaded_pdf.name} hochgeladen ({len(pdf_bytes)/1024:.1f} KB)")
+
+        # OCR durchführen wenn noch nicht geschehen
+        if not st.session_state.grundbuch_import_state.get('ocr_ergebnis'):
+            if st.button("🤖 OCR-Analyse starten", type="primary", key="start_gb_import_ocr"):
+                api_keys = st.session_state.get('api_keys', {})
+
+                with st.spinner("🔍 Analysiere Grundbuchauszug mit KI..."):
+                    ocr_ergebnis = ocr_grundbuch_mit_ki(pdf_bytes, api_keys)
+
+                if ocr_ergebnis.get("erfolg"):
+                    st.session_state.grundbuch_import_state['ocr_ergebnis'] = ocr_ergebnis
+                    st.success(f"✅ OCR erfolgreich! (via {ocr_ergebnis.get('ki_verwendet', 'unbekannt')})")
+                    st.rerun()
+                else:
+                    st.error(f"❌ OCR fehlgeschlagen: {ocr_ergebnis.get('fehler', 'Unbekannter Fehler')}")
+
+        # === SCHRITT 2: EXTRAHIERTE DATEN ANZEIGEN ===
+        ocr_ergebnis = st.session_state.grundbuch_import_state.get('ocr_ergebnis')
+
+        if ocr_ergebnis and ocr_ergebnis.get("erfolg"):
+            st.markdown("---")
+            st.markdown("### 2️⃣ Extrahierte Grundbuch-Daten")
+
+            # Grundbuch-Basisdaten
+            gb_daten = ocr_ergebnis.get("grundbuch_daten", {})
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**Amtsgericht:** {gb_daten.get('amtsgericht', 'N/A')}")
+            with col2:
+                st.write(f"**Grundbuchbezirk:** {gb_daten.get('grundbuchbezirk', 'N/A')}")
+            with col3:
+                st.write(f"**Blatt:** {gb_daten.get('blatt', 'N/A')}")
+
+            # Eigentümer extrahieren
+            eigentuemer_liste = ocr_ergebnis.get("abteilung_1_eigentuemer", [])
+            eigentuemer_namen = []
+            for e in eigentuemer_liste:
+                if e.get("ist_firma"):
+                    eigentuemer_namen.append(e.get("firma_name", "Unbekannt"))
+                else:
+                    name = f"{e.get('vorname', '')} {e.get('name', '')}".strip()
+                    eigentuemer_namen.append(name or "Unbekannt")
+
+            # Metriken
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            with col_m1:
+                st.metric("Eigentümer", len(eigentuemer_liste))
+            with col_m2:
+                st.metric("Flurstücke", len(ocr_ergebnis.get("bestandsverzeichnis", [])))
+            with col_m3:
+                st.metric("Abt. II", len(ocr_ergebnis.get("abteilung_2", [])))
+            with col_m4:
+                st.metric("Abt. III", len(ocr_ergebnis.get("abteilung_3", [])))
+
+            # Eigentümer anzeigen
+            if eigentuemer_namen:
+                with st.expander("👤 Eigentümer (Abt. I)", expanded=True):
+                    for idx, e in enumerate(eigentuemer_liste):
+                        if e.get("ist_firma"):
+                            name = e.get("firma_name", "")
+                            st.write(f"**{idx+1}. {name}** (Firma)")
+                        else:
+                            name = f"{e.get('vorname', '')} {e.get('name', '')}".strip()
+                            geb = e.get("geburtsdatum", "")
+                            anteil = e.get("anteil_text", "")
+                            st.write(f"**{idx+1}. {name}** {f'(geb. {geb})' if geb else ''} {f'- {anteil}' if anteil else ''}")
+                            if e.get("erwerbsgrund"):
+                                st.caption(f"   Erwerbsgrund: {e['erwerbsgrund']}")
+
+            # === SCHRITT 3: AKTE ZUORDNEN ===
+            st.markdown("---")
+            st.markdown("### 3️⃣ Akte zuordnen")
+
+            # Passende Akten finden (Verkäufer = Eigentümer)
+            passende_akten = _finde_passende_akten_fuer_eigentuemer(eigentuemer_namen, notar_id)
+
+            if passende_akten:
+                st.success(f"✅ {len(passende_akten)} passende Akte(n) gefunden (Verkäufer = Eigentümer)")
+
+                for projekt in passende_akten:
+                    with st.expander(f"📁 {projekt.name} - {projekt.adresse or 'Keine Adresse'}", expanded=True):
+                        col_p1, col_p2 = st.columns([2, 1])
+                        with col_p1:
+                            verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+                            verkaeufer_name = verkaeufer.name if verkaeufer else "Unbekannt"
+                            st.write(f"**Verkäufer:** {verkaeufer_name}")
+
+                            kaeufer_namen = []
+                            for k_id in projekt.kaeufer_ids:
+                                k = st.session_state.users.get(k_id)
+                                if k:
+                                    kaeufer_namen.append(k.name)
+                            st.write(f"**Käufer:** {', '.join(kaeufer_namen) if kaeufer_namen else 'Noch gesucht'}")
+
+                            if projekt.kaufpreis > 0:
+                                st.write(f"**Kaufpreis:** {projekt.kaufpreis:,.2f} €")
+
+                        with col_p2:
+                            if st.button("✅ Dieser Akte zuordnen", key=f"zuordnen_{projekt.projekt_id}", type="primary"):
+                                _ordne_grundbuch_zu_akte(
+                                    projekt.projekt_id,
+                                    notar_id,
+                                    ocr_ergebnis,
+                                    st.session_state.grundbuch_import_state['pdf_bytes'],
+                                    st.session_state.grundbuch_import_state['dateiname']
+                                )
+                                st.session_state.grundbuch_import_state['zugeordnet'] = True
+                                st.success(f"✅ Grundbuch wurde der Akte '{projekt.name}' zugeordnet!")
+                                st.rerun()
+            else:
+                st.warning("⚠️ Keine passende Akte gefunden (kein Verkäufer mit diesem Eigentümer-Namen)")
+
+            st.markdown("---")
+
+            # Aktensuche
+            st.markdown("#### 🔍 Nach Akte suchen")
+            such_text = st.text_input("Aktenname, Adresse oder Verkäufer suchen", key="akte_suche_gb")
+
+            if such_text:
+                gefundene_akten = _suche_akten(such_text, notar_id)
+                if gefundene_akten:
+                    st.write(f"**{len(gefundene_akten)} Akte(n) gefunden:**")
+                    for projekt in gefundene_akten:
+                        col_s1, col_s2 = st.columns([3, 1])
+                        with col_s1:
+                            verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+                            st.write(f"📁 **{projekt.name}** - {projekt.adresse or ''}")
+                            st.caption(f"Verkäufer: {verkaeufer.name if verkaeufer else 'N/A'}")
+                        with col_s2:
+                            if st.button("Zuordnen", key=f"zuord_such_{projekt.projekt_id}"):
+                                _ordne_grundbuch_zu_akte(
+                                    projekt.projekt_id,
+                                    notar_id,
+                                    ocr_ergebnis,
+                                    st.session_state.grundbuch_import_state['pdf_bytes'],
+                                    st.session_state.grundbuch_import_state['dateiname']
+                                )
+                                st.success(f"✅ Zugeordnet zu '{projekt.name}'!")
+                                st.rerun()
+                else:
+                    st.info("Keine Akten gefunden.")
+
+            st.markdown("---")
+
+            # Neue Akte erstellen
+            st.markdown("#### ➕ Neue Akte aus Grundbuch-Daten erstellen")
+
+            with st.form("neue_akte_aus_grundbuch"):
+                # Aktenname vorschlagen
+                vorgeschlagener_name = ""
+                if eigentuemer_namen:
+                    vorgeschlagener_name = f"Verkauf {eigentuemer_namen[0]}"
+                    bv = ocr_ergebnis.get("bestandsverzeichnis", [])
+                    if bv and bv[0].get("lage"):
+                        vorgeschlagener_name = f"{bv[0]['lage']}"
+
+                akte_name = st.text_input("Aktenname", value=vorgeschlagener_name)
+
+                # Adresse aus Bestandsverzeichnis
+                adresse = ""
+                bv = ocr_ergebnis.get("bestandsverzeichnis", [])
+                if bv:
+                    adresse = bv[0].get("lage", "")
+                adresse_input = st.text_input("Adresse", value=adresse)
+
+                # Eigentümer als Verkäufer anlegen
+                st.markdown("**Verkäufer (aus Eigentümer):**")
+                if eigentuemer_namen:
+                    for name in eigentuemer_namen:
+                        st.write(f"• {name}")
+                else:
+                    st.write("*Keine Eigentümer extrahiert*")
+
+                # Käufer
+                st.markdown("**Käufer:**")
+                st.caption("Käufer noch nicht bekannt - wird als 'noch gesucht' eingetragen")
+
+                if st.form_submit_button("📁 Neue Akte anlegen", type="primary"):
+                    if akte_name:
+                        neue_akte = _erstelle_akte_aus_grundbuch(
+                            akte_name,
+                            adresse_input,
+                            eigentuemer_namen,
+                            ocr_ergebnis,
+                            notar_id,
+                            st.session_state.grundbuch_import_state['pdf_bytes'],
+                            st.session_state.grundbuch_import_state['dateiname']
+                        )
+                        st.success(f"✅ Neue Akte '{akte_name}' erstellt und Grundbuch zugeordnet!")
+                        st.session_state.grundbuch_import_state = {
+                            'ocr_ergebnis': None,
+                            'pdf_bytes': None,
+                            'dateiname': None,
+                            'zugeordnet': False
+                        }
+                        st.rerun()
+                    else:
+                        st.error("Bitte einen Aktennamen eingeben.")
+
+
+def _finde_passende_akten_fuer_eigentuemer(eigentuemer_namen: List[str], notar_id: str) -> List:
+    """
+    Findet Akten, bei denen der Verkäufer-Name mit einem Eigentümer-Namen übereinstimmt.
+    """
+    import re
+
+    def normalisiere_name(name: str) -> str:
+        name = name.lower().strip()
+        name = re.sub(r'[^a-zäöüß\s]', '', name)
+        return ' '.join(name.split())
+
+    eigentuemer_normalisiert = [normalisiere_name(n) for n in eigentuemer_namen]
+
+    passende_akten = []
+
+    for projekt in st.session_state.projekte.values():
+        # Nur Akten dieses Notars
+        if projekt.notar_id != notar_id:
+            continue
+
+        # Verkäufer-Name holen
+        verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+        if not verkaeufer:
+            continue
+
+        verkaeufer_normalisiert = normalisiere_name(verkaeufer.name)
+
+        # Vergleiche mit Eigentümern
+        for eigent in eigentuemer_normalisiert:
+            if not eigent:
+                continue
+
+            # Exakte Übereinstimmung oder Teilübereinstimmung
+            if verkaeufer_normalisiert == eigent:
+                passende_akten.append(projekt)
+                break
+            elif verkaeufer_normalisiert in eigent or eigent in verkaeufer_normalisiert:
+                passende_akten.append(projekt)
+                break
+            else:
+                # Nachname-Vergleich
+                verk_teile = verkaeufer_normalisiert.split()
+                eigent_teile = eigent.split()
+                if verk_teile and eigent_teile and verk_teile[-1] == eigent_teile[-1]:
+                    passende_akten.append(projekt)
+                    break
+
+    return passende_akten
+
+
+def _suche_akten(suchbegriff: str, notar_id: str) -> List:
+    """
+    Sucht Akten nach Name, Adresse oder Verkäufer.
+    """
+    suchbegriff = suchbegriff.lower().strip()
+    gefunden = []
+
+    for projekt in st.session_state.projekte.values():
+        if projekt.notar_id != notar_id:
+            continue
+
+        # Suche in Name
+        if suchbegriff in projekt.name.lower():
+            gefunden.append(projekt)
+            continue
+
+        # Suche in Adresse
+        if projekt.adresse and suchbegriff in projekt.adresse.lower():
+            gefunden.append(projekt)
+            continue
+
+        # Suche in Verkäufer-Name
+        verkaeufer = st.session_state.users.get(projekt.verkaeufer_id)
+        if verkaeufer and suchbegriff in verkaeufer.name.lower():
+            gefunden.append(projekt)
+            continue
+
+        # Suche in Käufer-Namen
+        for k_id in projekt.kaeufer_ids:
+            kaeufer = st.session_state.users.get(k_id)
+            if kaeufer and suchbegriff in kaeufer.name.lower():
+                gefunden.append(projekt)
+                break
+
+    return gefunden
+
+
+def _ordne_grundbuch_zu_akte(projekt_id: str, notar_id: str, ocr_ergebnis: Dict, pdf_bytes: bytes, dateiname: str):
+    """
+    Ordnet das Grundbuch einer bestehenden Akte zu.
+    Erstellt alle Objekte und speichert das PDF.
+    """
+    gb_daten = ocr_ergebnis.get("grundbuch_daten", {})
+
+    # GrundbuchAnfrage erstellen
+    anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt_id[:8]}"
+    anfrage = GrundbuchAnfrage(
+        anfrage_id=anfrage_id,
+        projekt_id=projekt_id,
+        notar_id=notar_id,
+        amtsgericht=gb_daten.get("amtsgericht", ""),
+        grundbuchbezirk=gb_daten.get("grundbuchbezirk", ""),
+        grundbuchblatt=gb_daten.get("blatt", ""),
+        grundbuchauszug_pdf=pdf_bytes,
+        grundbuchauszug_dateiname=dateiname,
+        status=DatenermittlungStatus.ERHALTEN.value,
+        erhalten_am=datetime.now()
+    )
+
+    # Eigentümer-Text für Abteilung I
+    eigentuemer_liste = ocr_ergebnis.get("abteilung_1_eigentuemer", [])
+    if eigentuemer_liste:
+        namen = []
+        for e in eigentuemer_liste:
+            if e.get("ist_firma"):
+                namen.append(e.get("firma_name", ""))
+            else:
+                namen.append(f"{e.get('vorname', '')} {e.get('name', '')}".strip())
+        anfrage.abteilung_1 = ", ".join(namen)
+
+    st.session_state.grundbuch_anfragen[anfrage_id] = anfrage
+
+    # Vollständige Verarbeitung (Eigentümer, Belastungen, ToDos, Prüfung)
+    verarbeite_grundbuch_ocr_vollstaendig(projekt_id, anfrage_id, ocr_ergebnis)
+
+
+def _erstelle_akte_aus_grundbuch(akte_name: str, adresse: str, eigentuemer_namen: List[str],
+                                  ocr_ergebnis: Dict, notar_id: str, pdf_bytes: bytes, dateiname: str):
+    """
+    Erstellt eine neue Akte aus den Grundbuch-Daten.
+    Eigentümer werden als Verkäufer angelegt, Käufer als "noch gesucht".
+    """
+    from uuid import uuid4
+
+    # Verkäufer-User anlegen (aus Eigentümern)
+    verkaeufer_ids = []
+    for i, name in enumerate(eigentuemer_namen):
+        if not name:
+            continue
+        user_id = f"vk_{uuid4().hex[:8]}"
+        # Einfachen User anlegen
+        neuer_user = User(
+            user_id=user_id,
+            name=name,
+            email=f"verkaeufer{i+1}@platzhalter.de",
+            password_hash="",  # Kein Login möglich
+            role=UserRole.VERKAEUFER.value,
+            firma=""
+        )
+        st.session_state.users[user_id] = neuer_user
+        verkaeufer_ids.append(user_id)
+
+    # Haupt-Verkäufer (erster Eigentümer)
+    haupt_verkaeufer_id = verkaeufer_ids[0] if verkaeufer_ids else ""
+
+    # Käufer-Platzhalter "noch gesucht"
+    kaeufer_id = f"kf_noch_gesucht_{uuid4().hex[:8]}"
+    kaeufer_user = User(
+        user_id=kaeufer_id,
+        name="Käufer noch gesucht",
+        email="",
+        password_hash="",
+        role=UserRole.KAEUFER.value,
+        firma=""
+    )
+    st.session_state.users[kaeufer_id] = kaeufer_user
+
+    # Projekt erstellen
+    projekt_id = f"PRJ-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}"
+    neues_projekt = Projekt(
+        projekt_id=projekt_id,
+        name=akte_name,
+        adresse=adresse,
+        status=ProjektStatus.INTERESSENT_PHASE.value,
+        kaeufer_ids=[kaeufer_id],
+        verkaeufer_id=haupt_verkaeufer_id,
+        verkaeufer_ids=verkaeufer_ids,
+        makler_id="",
+        notar_id=notar_id,
+        bank_id="",
+        timeline=[],
+        dokumente=[],
+        checkliste=[],
+        nachrichten=[],
+        termine=[],
+        kaufpreis=0.0,
+        aktenzeichen=f"AZ-{datetime.now().strftime('%Y')}-{len(st.session_state.projekte) + 1:04d}"
+    )
+
+    st.session_state.projekte[projekt_id] = neues_projekt
+
+    # Grundbuch zuordnen
+    _ordne_grundbuch_zu_akte(projekt_id, notar_id, ocr_ergebnis, pdf_bytes, dateiname)
+
+    return neues_projekt
 
 
 def notar_einstellungen_view():
