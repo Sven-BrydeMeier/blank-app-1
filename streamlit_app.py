@@ -12632,104 +12632,199 @@ def erstelle_loeschungs_todos_aus_belastungen(projekt_id: str, belastungen: List
 
 def generiere_grundbuchstand_text(projekt_id: str) -> str:
     """
-    Generiert den Grundbuchstand-Abschnitt für den Kaufvertrag.
+    Generiert den VOLLSTÄNDIGEN Grundbuchstand-Abschnitt für den Kaufvertrag.
+    Alle Daten exakt mit laufender Nummer und Nummer der Eintragung.
 
     Args:
         projekt_id: ID des Projekts
 
     Returns:
-        Formatierter Text für den Kaufvertrag
+        Formatierter Text für den Kaufvertrag mit allen Abteilungen
     """
     # Hole Grundbuch-Daten
     anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
                 if a.projekt_id == projekt_id]
 
     if not anfragen:
-        return """I. Grundbuchstand
+        return """§ X Grundbuchstand
 
-Im Grundbuch des Amtsgerichts [___] von [___] Blatt [___] ist folgender Grundbesitz eingetragen
-unter lfd.-Nr. [___] des Bestandsverzeichnisses:
+Im Grundbuch des Amtsgerichts [___] von [___] Blatt [___] ist folgender Grundbesitz eingetragen:
 
-Gemarkung [___] Flur [___] Flurstück [___]
-Gebäude- und Freifläche [___] qm.
+BESTANDSVERZEICHNIS:
+Lfd.-Nr. [___]: Gemarkung [___], Flur [___], Flurstück [___]
+              [Wirtschaftsart], [___] m²
 
-Eigentümer: [___]
+ABTEILUNG I (Eigentümer):
+[Eigentümer wird ergänzt]
 
-Der Grundbesitz ist im Grundbuch wie folgt belastet:
-
-Abteilung II:
+ABTEILUNG II (Lasten und Beschränkungen):
 [Keine Eintragungen / Eintragungen sind vom Notar zu ergänzen]
 
-Abteilung III:
+ABTEILUNG III (Hypotheken, Grundschulden, Rentenschulden):
 [Keine Eintragungen / Eintragungen sind vom Notar zu ergänzen]
 """
 
     anfrage = anfragen[-1]  # Neueste Anfrage
 
-    # Grunddaten
+    # Grunddaten aus OCR
     amtsgericht = anfrage.amtsgericht or "[___]"
     bezirk = anfrage.grundbuchbezirk or "[___]"
     blatt = anfrage.grundbuchblatt or "[___]"
+
+    # Bestandsverzeichnis-Einträge holen
+    bestandsverzeichnis = [bv for bv in st.session_state.grundbuch_bestandsverzeichnis.values()
+                           if bv.projekt_id == projekt_id]
+
+    # Eigentümer holen
+    eigentuemer = [e for e in st.session_state.grundbuch_eigentuemer.values()
+                   if e.projekt_id == projekt_id]
 
     # Belastungen für dieses Projekt
     belastungen = [b for b in st.session_state.grundbuch_belastungen.values()
                    if b.projekt_id == projekt_id]
 
-    abt2_eintraege = [b for b in belastungen if b.abteilung == 2]
-    abt3_eintraege = [b for b in belastungen if b.abteilung == 3]
+    abt2_eintraege = sorted([b for b in belastungen if b.abteilung == 2], key=lambda x: x.lfd_nr)
+    abt3_eintraege = sorted([b for b in belastungen if b.abteilung == 3], key=lambda x: x.lfd_nr)
 
-    # Text zusammenstellen
-    text = f"""I. Grundbuchstand
+    # === TEXT ZUSAMMENSTELLEN ===
+    text = f"""§ X Grundbuchstand
 
 Im Grundbuch des Amtsgerichts {amtsgericht} von {bezirk} Blatt {blatt} ist folgender Grundbesitz eingetragen:
 
-Eigentümer: {anfrage.abteilung_1 or "[wird ergänzt]"}
-
-Der Grundbesitz ist im Grundbuch wie folgt belastet:
-
-Abteilung II (Lasten und Beschränkungen):
 """
 
+    # === BESTANDSVERZEICHNIS ===
+    text += "BESTANDSVERZEICHNIS:\n"
+    if bestandsverzeichnis:
+        for bv in sorted(bestandsverzeichnis, key=lambda x: x.lfd_nr):
+            text += f"Lfd.-Nr. {bv.lfd_nr}: Gemarkung {bv.gemarkung}, Flur {bv.flur}, Flurstück {bv.flurstueck}\n"
+            details = []
+            if bv.wirtschaftsart:
+                details.append(bv.wirtschaftsart)
+            if bv.groesse_qm > 0:
+                details.append(f"{bv.groesse_qm:,.0f} m²")
+            if bv.lage:
+                details.append(bv.lage)
+            if details:
+                text += f"              {', '.join(details)}\n"
+            if bv.bemerkungen:
+                text += f"              Bemerkung: {bv.bemerkungen}\n"
+    else:
+        text += "[Bestandsverzeichnis wird ergänzt]\n"
+
+    # === ABTEILUNG I (EIGENTÜMER) ===
+    text += "\nABTEILUNG I (Eigentümer):\n"
+    if eigentuemer:
+        for idx, e in enumerate(eigentuemer, 1):
+            if e.ist_juristische_person:
+                name = e.firma_name
+                if e.handelsregister:
+                    name += f", {e.handelsregister}"
+                if e.hr_nummer:
+                    name += f" {e.hr_nummer}"
+            else:
+                name = f"{e.vorname} {e.name}".strip()
+                if e.geburtsname:
+                    name += f", geb. {e.geburtsname}"
+                if e.geburtsdatum:
+                    name += f", geboren am {e.geburtsdatum.strftime('%d.%m.%Y')}"
+
+            anteil = e.anteil_text or ""
+            if not anteil and e.anteil_nenner > 1:
+                anteil = f"zu {e.anteil_zaehler}/{e.anteil_nenner}"
+
+            text += f"Lfd.-Nr. {idx}: {name}"
+            if anteil:
+                text += f" ({anteil})"
+            text += "\n"
+
+            if e.gueterstand:
+                text += f"              Güterstand: {e.gueterstand}\n"
+            if e.erwerbsgrund:
+                text += f"              Erwerbsgrund: {e.erwerbsgrund}\n"
+            if e.eingetragen_am:
+                text += f"              Eingetragen am: {e.eingetragen_am.strftime('%d.%m.%Y')}\n"
+    elif anfrage.abteilung_1:
+        text += f"{anfrage.abteilung_1}\n"
+    else:
+        text += "[Eigentümer wird ergänzt]\n"
+
+    # === ABTEILUNG II (LASTEN UND BESCHRÄNKUNGEN) ===
+    text += "\nABTEILUNG II (Lasten und Beschränkungen):\n"
     if abt2_eintraege:
         for eintrag in abt2_eintraege:
+            # Status für Kaufvertrag
             status = ""
-            if eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
-                status = " [wird vom Käufer übernommen]"
-            elif eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.LOESCHEN.value:
-                status = " [zur Löschung vorgesehen]"
+            if hasattr(eintrag, 'kaeufer_entscheidung'):
+                if eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
+                    status = " → [wird vom Käufer übernommen]"
+                elif eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.LOESCHEN.value:
+                    status = " → [zur Löschung vorgesehen]"
 
-            text += f"  Lfd. Nr. {eintrag.lfd_nr}: {eintrag.bezeichnung}"
+            text += f"Lfd.-Nr. {eintrag.lfd_nr}: {eintrag.belastung_typ}\n"
+            text += f"              {eintrag.bezeichnung}\n"
             if eintrag.rechteinhaber:
-                text += f" zugunsten {eintrag.rechteinhaber}"
-            text += f"{status}\n"
+                if eintrag.rechteinhaber_geburtsdatum:
+                    text += f"              Berechtigter: {eintrag.rechteinhaber}, geb. {eintrag.rechteinhaber_geburtsdatum}\n"
+                else:
+                    text += f"              Berechtigter: {eintrag.rechteinhaber}\n"
+            if eintrag.bezug:
+                text += f"              {eintrag.bezug}\n"
+            if eintrag.eingetragen_am:
+                text += f"              Eingetragen am: {eintrag.eingetragen_am.strftime('%d.%m.%Y')}\n"
+            if status:
+                text += f"              {status}\n"
     else:
-        text += "  Keine Eintragungen.\n"
+        text += "Keine Eintragungen vorhanden.\n"
 
-    text += "\nAbteilung III (Hypotheken, Grundschulden, Rentenschulden):\n"
-
+    # === ABTEILUNG III (HYPOTHEKEN, GRUNDSCHULDEN) ===
+    text += "\nABTEILUNG III (Hypotheken, Grundschulden, Rentenschulden):\n"
     if abt3_eintraege:
         for eintrag in abt3_eintraege:
+            # Status für Kaufvertrag
             status = ""
-            if eintrag.loeschung_status == LoeschungsStatus.GELOESCHT.value:
-                status = " [bereits gelöscht]"
-            elif eintrag.loeschung_status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value]:
-                status = " [Löschung in Vorbereitung]"
-            elif eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
-                status = " [wird vom Käufer übernommen]"
+            if hasattr(eintrag, 'loeschung_status'):
+                if eintrag.loeschung_status == LoeschungsStatus.GELOESCHT.value:
+                    status = " → [bereits gelöscht]"
+                elif eintrag.loeschung_status in [LoeschungsStatus.ANGEFRAGT.value, LoeschungsStatus.BEWILLIGUNG_ERHALTEN.value]:
+                    status = " → [Löschung in Vorbereitung]"
+            if hasattr(eintrag, 'kaeufer_entscheidung'):
+                if eintrag.kaeufer_entscheidung == KaeuferEntscheidungStatus.UEBERNEHMEN.value:
+                    status = " → [wird vom Käufer übernommen]"
 
-            text += f"  Lfd. Nr. {eintrag.lfd_nr}: {eintrag.belastung_typ}"
+            text += f"Lfd.-Nr. {eintrag.lfd_nr}: {eintrag.belastung_typ}\n"
             if eintrag.betrag > 0:
-                text += f" über {eintrag.betrag:,.2f} {eintrag.waehrung}"
+                text += f"              Betrag: {eintrag.betrag:,.2f} {eintrag.waehrung}\n"
+            if hasattr(eintrag, 'zinsen') and eintrag.zinsen:
+                text += f"              Zinsen: {eintrag.zinsen}\n"
             if eintrag.glaeubiger:
-                text += f" zugunsten {eintrag.glaeubiger}"
-            text += f"{status}\n"
+                text += f"              Gläubiger: {eintrag.glaeubiger}\n"
+            if hasattr(eintrag, 'mit_brief'):
+                briefart = "Briefgrundschuld" if eintrag.mit_brief else "Buchgrundschuld"
+                text += f"              Art: {briefart}\n"
+            if hasattr(eintrag, 'rang') and eintrag.rang:
+                text += f"              Rang: {eintrag.rang}\n"
+            if eintrag.eingetragen_am:
+                text += f"              Eingetragen am: {eintrag.eingetragen_am.strftime('%d.%m.%Y')}\n"
+            if eintrag.bemerkungen:
+                text += f"              Bemerkung: {eintrag.bemerkungen}\n"
+            if status:
+                text += f"              {status}\n"
     else:
-        text += "  Keine Eintragungen.\n"
+        text += "Keine Eintragungen vorhanden.\n"
 
+    # === RECHTLICHE HINWEISE ===
     text += """
+─────────────────────────────────────────────────────────────────────
+
+Der Verkäufer versichert, dass ihm keine weiteren Belastungen des Grundstücks bekannt sind,
+die nicht aus dem Grundbuch ersichtlich sind.
+
 Der Verkäufer verpflichtet sich, den Kaufgegenstand lastenfrei zu übergeben, soweit vorstehend
-nicht anders vereinbart. Die zur Löschung vorgesehenen Belastungen werden durch den Verkäufer
-beseitigt. Die Kosten der Löschung trägt der Verkäufer.
+nicht ausdrücklich anders vereinbart. Die zur Löschung vorgesehenen Belastungen werden durch
+den Verkäufer bis zum Vollzug des Kaufvertrages beseitigt.
+
+Die Kosten der Löschung bestehender Belastungen trägt der Verkäufer.
 """
 
     return text
@@ -13378,7 +13473,7 @@ def sende_workflow_benachrichtigung(
                 user_id=emp_id,
                 title=betreff,
                 message=nachricht,
-                notification_type=NotificationType.STATUS_UPDATE.value
+                notification_type=NotificationType.INFO.value
             )
 
     return benachrichtigung
@@ -32448,7 +32543,7 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
     # === TAB 1: PDF-Import & OCR ===
     with gb_tabs[0]:
         st.markdown("#### 📤 Grundbuchauszug hochladen & analysieren")
-        st.info("Laden Sie einen Grundbuchauszug als PDF hoch. Die Abteilungen II und III werden automatisch per KI extrahiert.")
+        st.info("Laden Sie einen Grundbuchauszug als PDF hoch. **ALLE Daten** (Amtsgericht, Blatt, Eigentümer, Abt. I-III) werden automatisch per KI extrahiert - keine manuelle Eingabe erforderlich!")
 
         # Bestehende Anfragen mit PDFs
         anfragen = [a for a in st.session_state.grundbuch_anfragen.values()
@@ -32458,14 +32553,35 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
             st.markdown("##### Vorhandene Grundbuchauszüge")
             for anfrage in anfragen:
                 status_icon = _get_datenermittlung_status_icon(anfrage.status)
-                with st.expander(f"{status_icon} {anfrage.amtsgericht or anfrage.grundbuchamt} - Blatt {anfrage.grundbuchblatt}"):
+                with st.expander(f"{status_icon} {anfrage.amtsgericht or 'Amtsgericht'} - Blatt {anfrage.grundbuchblatt or '(wird extrahiert)'}"):
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk}")
+                        st.write(f"**Amtsgericht:** {anfrage.amtsgericht or 'N/A'}")
+                        st.write(f"**Grundbuchbezirk:** {anfrage.grundbuchbezirk or 'N/A'}")
+                        st.write(f"**Blatt:** {anfrage.grundbuchblatt or 'N/A'}")
                         st.write(f"**Status:** {anfrage.status}")
                     with col2:
                         if anfrage.abteilung_1:
-                            st.write(f"**Eigentümer:** {anfrage.abteilung_1[:100]}...")
+                            st.write(f"**Eigentümer (Abt. I):** {anfrage.abteilung_1[:100]}...")
+
+                    # Extrahierte Daten anzeigen
+                    eigentuemer = [e for e in st.session_state.grundbuch_eigentuemer.values()
+                                   if e.grundbuch_anfrage_id == anfrage.anfrage_id]
+                    bv = [b for b in st.session_state.grundbuch_bestandsverzeichnis.values()
+                          if b.grundbuch_anfrage_id == anfrage.anfrage_id]
+                    belastungen = [b for b in st.session_state.grundbuch_belastungen.values()
+                                   if b.projekt_id == projekt.projekt_id]
+
+                    if eigentuemer or bv or belastungen:
+                        st.markdown("---")
+                        st.markdown("**Extrahierte Daten:**")
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Flurstücke", len(bv))
+                        with col_b:
+                            st.metric("Eigentümer", len(eigentuemer))
+                        with col_c:
+                            st.metric("Belastungen", len(belastungen))
 
                     if anfrage.grundbuchauszug_pdf:
                         col_dl, col_ocr = st.columns(2)
@@ -32473,7 +32589,7 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
                             st.download_button(
                                 "📥 PDF herunterladen",
                                 data=anfrage.grundbuchauszug_pdf,
-                                file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt}.pdf",
+                                file_name=f"Grundbuchauszug_{anfrage.grundbuchblatt or 'unbekannt'}.pdf",
                                 mime="application/pdf",
                                 key=f"dl_grundbuch_{anfrage.anfrage_id}"
                             )
@@ -32483,50 +32599,41 @@ def _render_grundbuch_bereich(projekt, notar_id: str):
 
         st.markdown("---")
 
-        # Neues PDF hochladen
+        # Neues PDF hochladen - VEREINFACHT ohne manuelle Eingaben
         st.markdown("##### Neuen Grundbuchauszug hochladen")
+        st.caption("Einfach PDF hochladen - alle Daten werden automatisch extrahiert!")
+
         uploaded_pdf = st.file_uploader(
             "Grundbuchauszug (PDF)",
             type=["pdf"],
             key=f"gb_upload_{projekt.projekt_id}",
-            help="Laden Sie den Grundbuchauszug als PDF hoch. OCR-Analyse erfolgt automatisch."
+            help="Laden Sie den Grundbuchauszug als PDF hoch. Amtsgericht, Blatt, Eigentümer und alle Abteilungen werden automatisch per KI extrahiert."
         )
 
         if uploaded_pdf:
             pdf_bytes = uploaded_pdf.read()
             st.success(f"📄 {uploaded_pdf.name} hochgeladen ({len(pdf_bytes)/1024:.1f} KB)")
 
-            # Grunddaten eingeben
-            col1, col2 = st.columns(2)
-            with col1:
-                amtsgericht = st.text_input("Amtsgericht", value=projekt_daten.get('grundbuchamt', ''), key=f"gb_ag_{projekt.projekt_id}")
-                grundbuchbezirk = st.text_input("Grundbuchbezirk", value=projekt_daten.get('grundbuchbezirk', ''), key=f"gb_bezirk_{projekt.projekt_id}")
-            with col2:
-                grundbuchblatt = st.text_input("Grundbuchblatt", value=projekt_daten.get('grundbuchblatt', ''), key=f"gb_blatt_{projekt.projekt_id}")
+            if st.button("🤖 OCR-Analyse starten - Alle Daten automatisch extrahieren", type="primary", key=f"start_ocr_{projekt.projekt_id}"):
+                # Neue Anfrage erstellen - OHNE manuelle Eingaben
+                anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
+                neue_anfrage = GrundbuchAnfrage(
+                    anfrage_id=anfrage_id,
+                    projekt_id=projekt.projekt_id,
+                    notar_id=notar_id,
+                    bundesland=bundesland or "",
+                    amtsgericht="",  # Wird aus OCR extrahiert
+                    grundbuchbezirk="",  # Wird aus OCR extrahiert
+                    grundbuchblatt="",  # Wird aus OCR extrahiert
+                    grundbuchauszug_pdf=pdf_bytes,
+                    grundbuchauszug_dateiname=uploaded_pdf.name,
+                    status=DatenermittlungStatus.ERHALTEN.value,
+                    erhalten_am=datetime.now()
+                )
+                st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
 
-            if st.button("🤖 PDF hochladen & OCR-Analyse starten", type="primary", key=f"start_ocr_{projekt.projekt_id}"):
-                if amtsgericht and grundbuchblatt:
-                    # Neue Anfrage erstellen
-                    anfrage_id = f"GB-{datetime.now().strftime('%Y%m%d%H%M%S')}-{projekt.projekt_id[:8]}"
-                    neue_anfrage = GrundbuchAnfrage(
-                        anfrage_id=anfrage_id,
-                        projekt_id=projekt.projekt_id,
-                        notar_id=notar_id,
-                        bundesland=bundesland or "",
-                        amtsgericht=amtsgericht,
-                        grundbuchbezirk=grundbuchbezirk,
-                        grundbuchblatt=grundbuchblatt,
-                        grundbuchauszug_pdf=pdf_bytes,
-                        grundbuchauszug_dateiname=uploaded_pdf.name,
-                        status=DatenermittlungStatus.ERHALTEN.value,
-                        erhalten_am=datetime.now()
-                    )
-                    st.session_state.grundbuch_anfragen[anfrage_id] = neue_anfrage
-
-                    # OCR-Analyse durchführen
-                    _run_grundbuch_ocr(neue_anfrage, projekt.projekt_id)
-                else:
-                    st.error("Bitte Amtsgericht und Grundbuchblatt angeben.")
+                # OCR-Analyse durchführen - extrahiert ALLE Daten automatisch
+                _run_grundbuch_ocr(neue_anfrage, projekt.projekt_id)
 
     # === TAB 2: Belastungen Abt. II/III ===
     with gb_tabs[1]:
