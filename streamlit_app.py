@@ -7857,6 +7857,226 @@ class AktenOrdner:
     # Automatische Zuordnung
     auto_zuordnung_typen: List[str] = field(default_factory=list)  # Dokumenttypen die automatisch hier landen
 
+# ============================================================================
+# DOKUMENTEN-CHAT SYSTEM
+# ============================================================================
+
+class SchreibenTyp(Enum):
+    """Typen von generierten Schreiben"""
+    ANSCHREIBEN_BEHOERDE = "Anschreiben Behörde"
+    ANSCHREIBEN_FINANZAMT = "Anschreiben Finanzamt"
+    ANSCHREIBEN_GUTACHTERAUSSCHUSS = "Anschreiben Gutachterausschuss"
+    ANSCHREIBEN_VERWALTER = "Anschreiben Verwalter"
+    ANSCHREIBEN_HAUSVERWALTUNG = "Anschreiben Hausverwaltung"
+    ANSCHREIBEN_ERBEN = "Anschreiben Erben/Erbengemeinschaft"
+    ANSCHREIBEN_MAKLER = "Anschreiben Makler"
+    ANSCHREIBEN_KAEUFER = "Anschreiben Käufer"
+    ANSCHREIBEN_VERKAEUFER = "Anschreiben Verkäufer"
+    ANSCHREIBEN_BANK = "Anschreiben Bank"
+    ANSCHREIBEN_GRUNDBUCHAMT = "Anschreiben Grundbuchamt"
+    ANSCHREIBEN_SONSTIGE = "Anschreiben Sonstige"
+    EMAIL = "E-Mail"
+    INTERNES_MEMO = "Internes Memo"
+
+class SchreibenStatus(Enum):
+    """Status eines Schreibens"""
+    ENTWURF = "Entwurf"
+    ZUR_PRUEFUNG = "Zur Prüfung"
+    FREIGEGEBEN = "Freigegeben"
+    VERSENDET = "Versendet"
+    GEDRUCKT = "Gedruckt"
+    GETEILT = "Geteilt"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class ChatNachricht:
+    """Eine Nachricht im Dokumenten-Chat"""
+    nachricht_id: str
+    chat_session_id: str
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+    user_id: str = ""
+    user_rolle: str = ""
+
+    # Inhalt
+    rolle: str = "user"  # "user", "assistant", "system"
+    inhalt: str = ""
+
+    # Kontext-Dokumente für diese Nachricht
+    dokument_ids: List[str] = field(default_factory=list)
+    dokument_referenzen: List[Dict] = field(default_factory=list)  # [{name, seite, zitat}]
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    tokens_verwendet: int = 0
+    ki_modell: str = ""
+
+@dataclass
+class ChatSession:
+    """Eine Chat-Session mit Dokumenten"""
+    session_id: str
+    user_id: str
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Geladene Dokumente
+    dokument_ids: List[str] = field(default_factory=list)
+    dokument_inhalte: Dict[str, str] = field(default_factory=dict)  # ID -> extrahierter Text
+
+    # Chat-Verlauf
+    nachrichten_ids: List[str] = field(default_factory=list)
+
+    # Einstellungen
+    system_prompt: str = ""
+    max_kontext_tokens: int = 8000
+
+    # Status
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    zuletzt_aktiv: datetime = field(default_factory=datetime.now)
+    ist_aktiv: bool = True
+
+@dataclass
+class GeneriertesSchreiben:
+    """Ein durch KI generiertes Schreiben"""
+    schreiben_id: str
+    chat_session_id: str = ""  # Ursprungs-Chat-Session
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+    erstellt_von: str = ""
+
+    # Inhalt
+    schreiben_typ: str = SchreibenTyp.ANSCHREIBEN_SONSTIGE.value
+    betreff: str = ""
+    inhalt: str = ""  # HTML/Markdown
+    inhalt_plaintext: str = ""
+
+    # Empfänger
+    empfaenger_name: str = ""
+    empfaenger_adresse: str = ""
+    empfaenger_email: str = ""
+    empfaenger_typ: str = ""  # "behoerde", "partei", "beteiligte"
+
+    # Formatierung
+    briefkopf_verwendet: bool = True
+    signatur_id: str = ""
+
+    # Status
+    status: str = SchreibenStatus.ENTWURF.value
+
+    # Versand-Tracking
+    versendet_am: datetime = None
+    versandart: str = ""  # "email", "druck", "plattform"
+    versand_empfaenger: List[str] = field(default_factory=list)
+
+    # Archivierung
+    archiviert_am: datetime = None
+    archiviert_in_ordner: str = "/05_Korrespondenz/Ausgehend"
+    archiviert_dokument_id: str = ""
+
+    # Metadaten
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    aktualisiert_am: datetime = field(default_factory=datetime.now)
+
+    # KI-Generierung
+    ki_prompt_verwendet: str = ""
+    ki_modell: str = ""
+    basiert_auf_dokumente: List[str] = field(default_factory=list)
+
+@dataclass
+class SchreibenVorlage:
+    """Vorlage für Schreiben"""
+    vorlage_id: str
+    notar_id: str
+
+    # Inhalt
+    name: str = ""
+    schreiben_typ: str = ""
+    betreff_template: str = ""  # Mit Platzhaltern
+    inhalt_template: str = ""  # Mit Platzhaltern
+
+    # Platzhalter-Definition
+    verfuegbare_platzhalter: List[str] = field(default_factory=list)
+    # z.B. ["{{aktenzeichen}}", "{{kaeufer_name}}", "{{verkaeufer_name}}"]
+
+    # Empfänger-Typ
+    standard_empfaenger_typ: str = ""
+
+    # Status
+    ist_aktiv: bool = True
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class WorkflowVorschlag:
+    """KI-generierter Vorschlag für nächste Schritte"""
+    vorschlag_id: str
+    chat_session_id: str = ""
+
+    # Kontext
+    projekt_id: str = ""
+    akte_id: str = ""
+
+    # Vorschlag
+    titel: str = ""
+    beschreibung: str = ""
+    prioritaet: str = "normal"  # "hoch", "normal", "niedrig"
+    kategorie: str = ""  # "dokument_anfordern", "schreiben_senden", "termin_planen"
+
+    # Verknüpfte Aktion
+    aktion_typ: str = ""  # "schreiben_generieren", "dokument_anfordern", "termin"
+    aktion_parameter: Dict = field(default_factory=dict)
+
+    # Status
+    status: str = "offen"  # "offen", "akzeptiert", "abgelehnt", "erledigt"
+    bearbeitet_von: str = ""
+    bearbeitet_am: datetime = None
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+# Mapping: Welche Schreiben sind bei welchem Workflow-Schritt sinnvoll?
+SCHREIBEN_VORSCHLAEGE_MAPPING = {
+    "GRUNDBUCH_ANFORDERN": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_GRUNDBUCHAMT.value, "empfaenger": "Grundbuchamt", "anlass": "Grundbuchauszug anfordern"},
+    ],
+    "FINANZIERUNG_OFFEN": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_KAEUFER.value, "empfaenger": "Käufer", "anlass": "Finanzierungsbestätigung anfordern"},
+        {"typ": SchreibenTyp.ANSCHREIBEN_BANK.value, "empfaenger": "Bank", "anlass": "Status Finanzierung erfragen"},
+    ],
+    "LOESCHUNGSBEWILLIGUNG_OFFEN": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_BANK.value, "empfaenger": "Gläubiger/Bank", "anlass": "Löschungsbewilligung anfordern"},
+    ],
+    "KAUFVERTRAG_VERSENDEN": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_KAEUFER.value, "empfaenger": "Käufer", "anlass": "Kaufvertragsentwurf übersenden"},
+        {"typ": SchreibenTyp.ANSCHREIBEN_VERKAEUFER.value, "empfaenger": "Verkäufer", "anlass": "Kaufvertragsentwurf übersenden"},
+        {"typ": SchreibenTyp.ANSCHREIBEN_MAKLER.value, "empfaenger": "Makler", "anlass": "Kaufvertragsentwurf zur Kenntnis"},
+    ],
+    "TERMIN_EINLADEN": [
+        {"typ": SchreibenTyp.EMAIL.value, "empfaenger": "Alle Parteien", "anlass": "Beurkundungstermin einladen"},
+    ],
+    "KAUFPREIS_FAELLIG": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_KAEUFER.value, "empfaenger": "Käufer", "anlass": "Kaufpreisfälligkeit mitteilen"},
+        {"typ": SchreibenTyp.ANSCHREIBEN_BANK.value, "empfaenger": "Bank", "anlass": "Auszahlungsaufforderung"},
+    ],
+    "GRUNDERWERBSTEUER": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_FINANZAMT.value, "empfaenger": "Finanzamt", "anlass": "Unbedenklichkeitsbescheinigung anfordern"},
+    ],
+    "EIGENTUMSUMSCHREIBUNG": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_GRUNDBUCHAMT.value, "empfaenger": "Grundbuchamt", "anlass": "Eigentumsumschreibung beantragen"},
+    ],
+    "ERBFALL": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_ERBEN.value, "empfaenger": "Erben/Erbengemeinschaft", "anlass": "Nachlassangelegenheit"},
+    ],
+    "HAUSVERWALTUNG": [
+        {"typ": SchreibenTyp.ANSCHREIBEN_HAUSVERWALTUNG.value, "empfaenger": "Hausverwaltung", "anlass": "Verwalterzustimmung anfordern"},
+        {"typ": SchreibenTyp.ANSCHREIBEN_VERWALTER.value, "empfaenger": "Verwalter", "anlass": "Verwalterauskunft anfordern"},
+    ],
+}
+
 @dataclass
 class GespeicherteSuche:
     """Gespeicherte Suchanfrage"""
@@ -9392,6 +9612,16 @@ def init_session_state():
         st.session_state.notar_kuerzel = {}  # notar_id -> kuerzel (z.B. "SQ")
         st.session_state.mitarbeiter_kuerzel = {}  # mitarbeiter_id -> kuerzel (z.B. "Go")
         st.session_state.letzte_aktennummer = {}  # notar_id -> {jahr: nummer}
+
+        # ============================================================
+        # DOKUMENTEN-CHAT
+        # ============================================================
+        st.session_state.chat_sessions = {}  # session_id -> ChatSession
+        st.session_state.chat_nachrichten = {}  # nachricht_id -> ChatNachricht
+        st.session_state.generierte_schreiben = {}  # schreiben_id -> GeneriertesSchreiben
+        st.session_state.schreiben_vorlagen = {}  # vorlage_id -> SchreibenVorlage
+        st.session_state.workflow_vorschlaege = {}  # vorschlag_id -> WorkflowVorschlag
+        st.session_state.aktive_chat_session_id = None
 
         # Datenbank-Status
         st.session_state.database_connected = False
@@ -17188,6 +17418,7 @@ def makler_dashboard():
         "📊 Analyse",
         "👥 Kontakte",
         "📄 Dokumente",
+        "💬 Dokumenten-Chat",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -17256,8 +17487,14 @@ def makler_dashboard():
         with dok_subtabs[3]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
-    # Tab 5: Termine - Kalender und Terminverwaltung
+    # Tab 5: Dokumenten-Chat
     with tabs[5]:
+        # Vereinfachte Chat-Version für Makler (keine Schreiben-Generierung)
+        projekt_id = makler_projekte[0].projekt_id if makler_projekte else None
+        render_dokumenten_chat_einfach(user_id, projekt_id)
+
+    # Tab 6: Termine - Kalender und Terminverwaltung
+    with tabs[6]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -17271,8 +17508,8 @@ def makler_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 6: Einstellungen - Profil, TTS, DSGVO
-    with tabs[6]:
+    # Tab 7: Einstellungen - Profil, TTS, DSGVO
+    with tabs[7]:
         einst_subtabs = st.tabs(["👤 Profil", "🔊 Vorlesen", "🔒 DSGVO"])
         with einst_subtabs[0]:
             makler_profil_view()
@@ -19098,6 +19335,7 @@ def kaeufer_dashboard():
         "📋 Mein Kauf",
         "💰 Finanzierung",
         "📄 Dokumente",
+        "💬 Dokumenten-Chat",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -19151,8 +19389,14 @@ def kaeufer_dashboard():
         with dok_subtabs[3]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
-    # Tab 4: Termine
+    # Tab 4: Dokumenten-Chat
     with tabs[4]:
+        # Vereinfachte Chat-Version für Käufer (keine Schreiben-Generierung)
+        projekt_id = kaeufer_projekte[0].projekt_id if kaeufer_projekte else None
+        render_dokumenten_chat_einfach(user_id, projekt_id)
+
+    # Tab 5: Termine
+    with tabs[5]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -19166,8 +19410,8 @@ def kaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 5: Einstellungen
-    with tabs[5]:
+    # Tab 6: Einstellungen
+    with tabs[6]:
         einst_subtabs = st.tabs(["🔊 Vorlesen"])
         with einst_subtabs[0]:
             st.subheader("🔊 Dokumente vorlesen")
@@ -22747,6 +22991,7 @@ def verkaeufer_dashboard():
         "📋 Mein Verkauf",
         "📈 Preisfindung",
         "📄 Dokumente",
+        "💬 Dokumenten-Chat",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -22802,8 +23047,14 @@ def verkaeufer_dashboard():
         with dok_subtabs[5]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
-    # Tab 4: Termine
+    # Tab 4: Dokumenten-Chat
     with tabs[4]:
+        # Vereinfachte Chat-Version für Verkäufer (keine Schreiben-Generierung)
+        projekt_id = verkaeufer_projekte[0].projekt_id if verkaeufer_projekte else None
+        render_dokumenten_chat_einfach(user_id, projekt_id)
+
+    # Tab 5: Termine
+    with tabs[5]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -22817,8 +23068,8 @@ def verkaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 5: Einstellungen
-    with tabs[5]:
+    # Tab 6: Einstellungen
+    with tabs[6]:
         einst_subtabs = st.tabs(["🔊 Vorlesen"])
         with einst_subtabs[0]:
             st.subheader("🔊 Dokumente vorlesen")
@@ -24738,6 +24989,7 @@ NOTAR_MENU_STRUKTUR = {
     "Kommunikation": {
         "icon": "📬",
         "items": [
+            {"name": "Dokumenten-Chat", "icon": "💬", "key": "dokumenten_chat"},
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
             {"name": "Benachrichtigungen", "icon": "🔔", "key": "benachrichtigungen"},
             {"name": "Dokumentenfreigaben", "icon": "📋", "key": "dokumentenfreigaben"},
@@ -25997,6 +26249,9 @@ def render_notar_content(selection: str, user_id: str):
 
     elif selection == "nachrichten":
         render_kommunikationszentrale(user_id)
+
+    elif selection == "dokumenten_chat":
+        render_dokumenten_chat(user_id, ist_notar_bereich=True)
 
     elif selection == "einstellungen":
         notar_einstellungen_view()
@@ -37172,7 +37427,7 @@ def notarmitarbeiter_dashboard():
     render_benachrichtigungs_badge(mitarbeiter.mitarbeiter_id)
 
     # Tab-Liste basierend auf Berechtigungen
-    tab_labels = ["📊 Timeline", "📋 Projekte", "📝 Vertragserklärungen"]
+    tab_labels = ["📊 Timeline", "📋 Projekte", "💬 Dokumenten-Chat", "📝 Vertragserklärungen"]
 
     if mitarbeiter.kann_checklisten_bearbeiten:
         tab_labels.append("📝 Checklisten")
@@ -37233,6 +37488,11 @@ def notarmitarbeiter_dashboard():
                                 verkaeufer = st.session_state.users.get(vid)
                                 if verkaeufer:
                                     st.write(f"🏡 Verkäufer: {verkaeufer.name}")
+    tab_index += 1
+
+    # Dokumenten-Chat (immer verfügbar)
+    with tabs[tab_index]:
+        render_dokumenten_chat(mitarbeiter.mitarbeiter_id, ist_notar_bereich=True)
     tab_index += 1
 
     # Vertragserklärungen (immer verfügbar - Bearbeitung möglich, Freigabe nur durch Notar)
@@ -38103,6 +38363,885 @@ def render_makler_mitarbeiter_verwaltung(makler_id: str):
                             ma.projekt_ids.remove(selected_projekt.projekt_id)
                         st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
                         st.rerun()
+
+
+# ============================================================================
+# DOKUMENTEN-CHAT FUNKTIONEN
+# ============================================================================
+
+def generiere_chat_system_prompt(user_rolle: str, akte_info: Dict = None, ist_notar_bereich: bool = False) -> str:
+    """Generiert den System-Prompt basierend auf Benutzerrolle."""
+
+    basis_prompt = """Du bist ein KI-Assistent für Immobilientransaktionen.
+Du hilfst bei der Analyse von Dokumenten und beantwortest Fragen präzise und fachlich korrekt.
+Antworte immer auf Deutsch. Beziehe dich auf die bereitgestellten Dokumente."""
+
+    if ist_notar_bereich:
+        notar_prompt = """
+
+Du bist ein Assistent im Notariat und unterstützt bei:
+- Analyse von Grundbuchauszügen, Kaufverträgen und anderen notariellen Dokumenten
+- Identifikation von fehlenden Unterlagen und nächsten Schritten im Workflow
+- Generierung von Schreiben an Behörden, Parteien und Beteiligte
+- Rechtliche Hinweise (aber KEINE Rechtsberatung - nur Hinweise zur Prüfung)
+
+Wenn nach Schreiben gefragt wird, schlage konkrete Formulierungen vor.
+Wenn nach nächsten Schritten gefragt wird, gib priorisierte Empfehlungen.
+"""
+        basis_prompt += notar_prompt
+
+    if akte_info:
+        akte_prompt = f"""
+
+Aktuelle Akte:
+- Aktenzeichen: {akte_info.get('aktenzeichen', 'N/A')}
+- Objekt: {akte_info.get('objekt_bezeichnung', 'N/A')}
+- Status: {akte_info.get('status', 'N/A')}
+"""
+        if akte_info.get('kaeufer'):
+            akte_prompt += f"- Käufer: {akte_info.get('kaeufer')}\n"
+        if akte_info.get('verkaeufer'):
+            akte_prompt += f"- Verkäufer: {akte_info.get('verkaeufer')}\n"
+        if akte_info.get('kaufpreis'):
+            akte_prompt += f"- Kaufpreis: {akte_info.get('kaufpreis')} €\n"
+
+        basis_prompt += akte_prompt
+
+    rolle_spezifisch = {
+        "Makler": "\nDu unterstützt einen Immobilienmakler bei der Transaktion.",
+        "Käufer": "\nDu unterstützt einen Käufer und erklärst Dokumente verständlich.",
+        "Verkäufer": "\nDu unterstützt einen Verkäufer und erklärst Dokumente verständlich.",
+        "Notar": "\nDu unterstützt einen Notar bei der Beurkundung.",
+        "Notarfachkraft": "\nDu unterstützt eine Notarfachkraft bei der Sachbearbeitung.",
+        "Finanzierer": "\nDu unterstützt einen Finanzierer bei der Kreditprüfung.",
+    }
+
+    basis_prompt += rolle_spezifisch.get(user_rolle, "")
+
+    return basis_prompt
+
+
+def extrahiere_dokument_text(dokument_bytes: bytes, dateityp: str) -> str:
+    """Extrahiert Text aus einem Dokument (PDF, DOCX, TXT)."""
+
+    try:
+        if dateityp.lower() == 'pdf':
+            # PDF-Text-Extraktion
+            try:
+                import io
+                # Versuche pdfplumber
+                try:
+                    import pdfplumber
+                    with pdfplumber.open(io.BytesIO(dokument_bytes)) as pdf:
+                        text_parts = []
+                        for page in pdf.pages:
+                            text = page.extract_text()
+                            if text:
+                                text_parts.append(text)
+                        return "\n\n".join(text_parts)
+                except ImportError:
+                    pass
+
+                # Fallback: PyPDF2
+                try:
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(io.BytesIO(dokument_bytes))
+                    text_parts = []
+                    for page in reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            text_parts.append(text)
+                    return "\n\n".join(text_parts)
+                except ImportError:
+                    pass
+
+                return "[PDF-Text konnte nicht extrahiert werden - keine PDF-Bibliothek verfügbar]"
+            except Exception as e:
+                return f"[PDF-Extraktionsfehler: {str(e)}]"
+
+        elif dateityp.lower() in ['docx', 'doc']:
+            try:
+                import io
+                from docx import Document
+                doc = Document(io.BytesIO(dokument_bytes))
+                text_parts = [para.text for para in doc.paragraphs if para.text.strip()]
+                return "\n\n".join(text_parts)
+            except ImportError:
+                return "[DOCX-Text konnte nicht extrahiert werden - python-docx nicht installiert]"
+            except Exception as e:
+                return f"[DOCX-Extraktionsfehler: {str(e)}]"
+
+        elif dateityp.lower() == 'txt':
+            try:
+                return dokument_bytes.decode('utf-8')
+            except:
+                return dokument_bytes.decode('latin-1', errors='ignore')
+
+        else:
+            return f"[Dateityp {dateityp} wird für Textextraktion nicht unterstützt]"
+
+    except Exception as e:
+        return f"[Fehler bei Dokumentenverarbeitung: {str(e)}]"
+
+
+def erstelle_chat_kontext(session: ChatSession, max_tokens: int = 8000) -> str:
+    """Erstellt den Kontext-String aus Dokumenten und Chat-Verlauf."""
+
+    kontext_teile = []
+
+    # Dokument-Inhalte hinzufügen
+    if session.dokument_inhalte:
+        kontext_teile.append("=== DOKUMENTE ===\n")
+        for dok_id, inhalt in session.dokument_inhalte.items():
+            # Dokumentname aus Session State holen
+            dok_name = dok_id
+            if dok_id in st.session_state.get('akten_dokumente', {}):
+                dok = st.session_state.akten_dokumente[dok_id]
+                dok_name = dok.dateiname
+
+            # Text kürzen wenn zu lang
+            max_dok_len = max_tokens // max(1, len(session.dokument_inhalte))
+            inhalt_gekuerzt = inhalt[:max_dok_len] if len(inhalt) > max_dok_len else inhalt
+
+            kontext_teile.append(f"\n--- {dok_name} ---\n{inhalt_gekuerzt}\n")
+
+    # Chat-Verlauf hinzufügen
+    if session.nachrichten_ids:
+        kontext_teile.append("\n=== BISHERIGER CHAT ===\n")
+        for msg_id in session.nachrichten_ids[-10:]:  # Letzte 10 Nachrichten
+            msg = st.session_state.chat_nachrichten.get(msg_id)
+            if msg:
+                rolle_label = "Benutzer" if msg.rolle == "user" else "Assistent"
+                kontext_teile.append(f"\n{rolle_label}: {msg.inhalt}\n")
+
+    return "".join(kontext_teile)
+
+
+def chat_mit_dokumenten(
+    session: ChatSession,
+    nachricht: str,
+    api_keys: Dict,
+    ist_notar_bereich: bool = False
+) -> Tuple[str, List[Dict]]:
+    """
+    Hauptfunktion für Chat mit Dokumenten.
+
+    Returns:
+        Tuple von (Antwort-Text, Dokument-Referenzen)
+    """
+
+    # Akte-Info laden falls vorhanden
+    akte_info = None
+    if session.akte_id:
+        akte = st.session_state.akten.get(session.akte_id)
+        if akte:
+            akte_info = {
+                'aktenzeichen': akte.aktenzeichen,
+                'objekt_bezeichnung': akte.objekt_bezeichnung,
+                'status': akte.status,
+            }
+            # Parteien hinzufügen
+            if akte.kaeufer_ids:
+                kaeufer_namen = []
+                for kid in akte.kaeufer_ids:
+                    user = st.session_state.users.get(kid)
+                    if user:
+                        kaeufer_namen.append(user.name)
+                akte_info['kaeufer'] = ", ".join(kaeufer_namen)
+            if akte.verkaeufer_ids:
+                verkaeufer_namen = []
+                for vid in akte.verkaeufer_ids:
+                    user = st.session_state.users.get(vid)
+                    if user:
+                        verkaeufer_namen.append(user.name)
+                akte_info['verkaeufer'] = ", ".join(verkaeufer_namen)
+
+    # System-Prompt generieren
+    user = st.session_state.users.get(session.user_id)
+    user_rolle = user.rolle if user else "Unbekannt"
+    system_prompt = generiere_chat_system_prompt(user_rolle, akte_info, ist_notar_bereich)
+
+    # Dokument-Kontext erstellen
+    kontext = erstelle_chat_kontext(session)
+
+    # Vollständige Nachricht zusammenstellen
+    vollstaendige_nachricht = f"{kontext}\n\n=== AKTUELLE FRAGE ===\n{nachricht}"
+
+    antwort = ""
+    referenzen = []
+    ki_modell = ""
+
+    # OpenAI API versuchen
+    if api_keys.get('openai'):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_keys['openai'])
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": vollstaendige_nachricht}
+                ],
+                max_tokens=2000,
+                temperature=0.7
+            )
+
+            antwort = response.choices[0].message.content
+            ki_modell = "gpt-4o-mini"
+
+        except Exception as e:
+            antwort = f"[OpenAI-Fehler: {str(e)}]"
+
+    # Fallback: Anthropic API
+    elif api_keys.get('anthropic'):
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_keys['anthropic'])
+
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=2000,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": vollstaendige_nachricht}
+                ]
+            )
+
+            antwort = response.content[0].text
+            ki_modell = "claude-3-haiku"
+
+        except Exception as e:
+            antwort = f"[Anthropic-Fehler: {str(e)}]"
+
+    else:
+        antwort = "⚠️ Kein API-Key konfiguriert. Bitte hinterlegen Sie einen OpenAI oder Anthropic API-Key in den Einstellungen."
+
+    # Chat-Nachricht speichern
+    if antwort and not antwort.startswith("[") and not antwort.startswith("⚠️"):
+        # User-Nachricht speichern
+        user_msg_id = str(uuid.uuid4())[:8]
+        user_msg = ChatNachricht(
+            nachricht_id=user_msg_id,
+            chat_session_id=session.session_id,
+            projekt_id=session.projekt_id,
+            akte_id=session.akte_id,
+            user_id=session.user_id,
+            user_rolle=user_rolle,
+            rolle="user",
+            inhalt=nachricht,
+            dokument_ids=session.dokument_ids
+        )
+        st.session_state.chat_nachrichten[user_msg_id] = user_msg
+        session.nachrichten_ids.append(user_msg_id)
+
+        # Assistenten-Nachricht speichern
+        asst_msg_id = str(uuid.uuid4())[:8]
+        asst_msg = ChatNachricht(
+            nachricht_id=asst_msg_id,
+            chat_session_id=session.session_id,
+            projekt_id=session.projekt_id,
+            akte_id=session.akte_id,
+            user_id=session.user_id,
+            user_rolle=user_rolle,
+            rolle="assistant",
+            inhalt=antwort,
+            ki_modell=ki_modell,
+            dokument_referenzen=referenzen
+        )
+        st.session_state.chat_nachrichten[asst_msg_id] = asst_msg
+        session.nachrichten_ids.append(asst_msg_id)
+
+        # Session aktualisieren
+        session.zuletzt_aktiv = datetime.now()
+        st.session_state.chat_sessions[session.session_id] = session
+
+    return antwort, referenzen
+
+
+def generiere_schreiben_mit_ki(
+    schreiben_typ: str,
+    empfaenger_info: Dict,
+    akte_id: str,
+    zusaetzliche_anweisungen: str = "",
+    api_keys: Dict = None
+) -> GeneriertesSchreiben:
+    """
+    Generiert ein Schreiben basierend auf Typ und Kontext.
+    """
+
+    if api_keys is None:
+        api_keys = st.session_state.get('api_keys', {})
+
+    # Akte-Informationen laden
+    akte = st.session_state.akten.get(akte_id)
+    if not akte:
+        # Fallback: Projekt laden
+        projekt = st.session_state.projekte.get(akte_id)
+        akte_info = {
+            'aktenzeichen': projekt.projekt_id if projekt else 'N/A',
+            'objekt': projekt.name if projekt else 'N/A',
+        }
+    else:
+        akte_info = {
+            'aktenzeichen': akte.aktenzeichen,
+            'objekt': akte.objekt_bezeichnung,
+            'kaeufer': [],
+            'verkaeufer': [],
+        }
+        for kid in akte.kaeufer_ids:
+            user = st.session_state.users.get(kid)
+            if user:
+                akte_info['kaeufer'].append(user.name)
+        for vid in akte.verkaeufer_ids:
+            user = st.session_state.users.get(vid)
+            if user:
+                akte_info['verkaeufer'].append(user.name)
+
+    # Prompt für Schreiben-Generierung
+    prompt = f"""Erstelle ein professionelles {schreiben_typ} für ein Notariat.
+
+EMPFÄNGER:
+- Name: {empfaenger_info.get('name', 'N/A')}
+- Typ: {empfaenger_info.get('typ', 'N/A')}
+- Anlass: {empfaenger_info.get('anlass', 'N/A')}
+
+AKTEN-INFORMATIONEN:
+- Aktenzeichen: {akte_info.get('aktenzeichen', 'N/A')}
+- Objekt: {akte_info.get('objekt', 'N/A')}
+- Käufer: {', '.join(akte_info.get('kaeufer', [])) or 'N/A'}
+- Verkäufer: {', '.join(akte_info.get('verkaeufer', [])) or 'N/A'}
+
+{f'ZUSÄTZLICHE ANWEISUNGEN: {zusaetzliche_anweisungen}' if zusaetzliche_anweisungen else ''}
+
+Erstelle das Schreiben im folgenden Format:
+1. Betreff (eine Zeile)
+2. Anrede
+3. Haupttext (professionell, präzise, höflich)
+4. Grußformel
+
+Schreibe NUR den Briefinhalt, keine Erklärungen.
+"""
+
+    betreff = ""
+    inhalt = ""
+
+    # OpenAI API
+    if api_keys.get('openai'):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_keys['openai'])
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Du bist ein erfahrener Notariatsassistent und erstellst professionelle Geschäftskorrespondenz."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1500,
+                temperature=0.5
+            )
+
+            inhalt = response.choices[0].message.content
+            ki_modell = "gpt-4o-mini"
+
+            # Betreff extrahieren
+            lines = inhalt.split('\n')
+            for line in lines:
+                if line.strip().lower().startswith('betreff:'):
+                    betreff = line.replace('Betreff:', '').replace('betreff:', '').strip()
+                    break
+            if not betreff and lines:
+                betreff = lines[0].strip()
+
+        except Exception as e:
+            inhalt = f"[Fehler bei Generierung: {str(e)}]"
+            ki_modell = ""
+
+    elif api_keys.get('anthropic'):
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_keys['anthropic'])
+
+            response = client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=1500,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+
+            inhalt = response.content[0].text
+            ki_modell = "claude-3-haiku"
+
+            # Betreff extrahieren
+            lines = inhalt.split('\n')
+            for line in lines:
+                if line.strip().lower().startswith('betreff:'):
+                    betreff = line.replace('Betreff:', '').replace('betreff:', '').strip()
+                    break
+            if not betreff and lines:
+                betreff = lines[0].strip()
+
+        except Exception as e:
+            inhalt = f"[Fehler bei Generierung: {str(e)}]"
+            ki_modell = ""
+    else:
+        inhalt = "⚠️ Kein API-Key konfiguriert."
+        ki_modell = ""
+
+    # Schreiben-Objekt erstellen
+    schreiben = GeneriertesSchreiben(
+        schreiben_id=str(uuid.uuid4())[:8],
+        akte_id=akte_id,
+        erstellt_von=st.session_state.current_user.user_id if hasattr(st.session_state, 'current_user') else "",
+        schreiben_typ=schreiben_typ,
+        betreff=betreff,
+        inhalt=inhalt,
+        inhalt_plaintext=inhalt,
+        empfaenger_name=empfaenger_info.get('name', ''),
+        empfaenger_adresse=empfaenger_info.get('adresse', ''),
+        empfaenger_email=empfaenger_info.get('email', ''),
+        empfaenger_typ=empfaenger_info.get('typ', ''),
+        ki_prompt_verwendet=prompt,
+        ki_modell=ki_modell
+    )
+
+    # Speichern
+    st.session_state.generierte_schreiben[schreiben.schreiben_id] = schreiben
+
+    return schreiben
+
+
+def archiviere_schreiben_in_akte(schreiben_id: str, aktion: str = "gespeichert") -> bool:
+    """
+    Archiviert ein Schreiben in der zugehörigen Akte.
+    Wird bei Versand/Druck/Teilen automatisch aufgerufen.
+
+    Args:
+        schreiben_id: ID des Schreibens
+        aktion: "email", "druck", "plattform", "gespeichert"
+
+    Returns:
+        True wenn erfolgreich
+    """
+
+    schreiben = st.session_state.generierte_schreiben.get(schreiben_id)
+    if not schreiben:
+        return False
+
+    # Prüfen ob Akte existiert
+    akte = st.session_state.akten.get(schreiben.akte_id)
+    if not akte:
+        # Fallback: Projekt-basiert speichern
+        return True  # Schreiben bleibt in generierte_schreiben
+
+    # Datum für Dateinamen
+    datum = datetime.now().strftime("%Y-%m-%d")
+
+    # Dateiname generieren
+    empfaenger_kurz = schreiben.empfaenger_name.replace(" ", "_")[:20] if schreiben.empfaenger_name else "Unbekannt"
+    dateiname = f"{datum}_{schreiben.schreiben_typ.replace(' ', '_')}_{empfaenger_kurz}.txt"
+
+    # Dokument in Akte speichern
+    if 'akten_dokumente' not in st.session_state:
+        st.session_state.akten_dokumente = {}
+
+    dok_id = str(uuid.uuid4())[:8]
+
+    # Wir speichern den Textinhalt als Dokument
+    dokument = {
+        'dokument_id': dok_id,
+        'akte_id': schreiben.akte_id,
+        'dateiname': dateiname,
+        'dokument_typ': 'Korrespondenz',
+        'ordner_pfad': schreiben.archiviert_in_ordner,
+        'erstellt_von': schreiben.erstellt_von,
+        'erstellt_am': datetime.now(),
+        'inhalt_text': schreiben.inhalt,
+        'schreiben_id': schreiben_id
+    }
+
+    st.session_state.akten_dokumente[dok_id] = dokument
+
+    # Schreiben-Status aktualisieren
+    schreiben.archiviert_am = datetime.now()
+    schreiben.archiviert_dokument_id = dok_id
+    schreiben.versandart = aktion
+
+    if aktion == "email":
+        schreiben.status = SchreibenStatus.VERSENDET.value
+        schreiben.versendet_am = datetime.now()
+    elif aktion == "druck":
+        schreiben.status = SchreibenStatus.GEDRUCKT.value
+    elif aktion == "plattform":
+        schreiben.status = SchreibenStatus.GETEILT.value
+    else:
+        schreiben.status = SchreibenStatus.ARCHIVIERT.value
+
+    st.session_state.generierte_schreiben[schreiben_id] = schreiben
+
+    return True
+
+
+def hole_workflow_vorschlaege(akte_id: str) -> List[Dict]:
+    """
+    Gibt Vorschläge für Schreiben basierend auf Akten-Status.
+    """
+
+    vorschlaege = []
+
+    akte = st.session_state.akten.get(akte_id)
+    if not akte:
+        return vorschlaege
+
+    # Status-basierte Vorschläge aus Mapping
+    status = akte.status if hasattr(akte, 'status') else ""
+
+    # Mapping durchgehen
+    for workflow_key, schreiben_liste in SCHREIBEN_VORSCHLAEGE_MAPPING.items():
+        if workflow_key.lower() in status.lower():
+            for schreiben_info in schreiben_liste:
+                vorschlaege.append({
+                    'typ': schreiben_info['typ'],
+                    'empfaenger': schreiben_info['empfaenger'],
+                    'anlass': schreiben_info['anlass'],
+                    'prioritaet': 'normal'
+                })
+
+    # Standard-Vorschläge wenn keine spezifischen
+    if not vorschlaege:
+        vorschlaege = [
+            {'typ': SchreibenTyp.EMAIL.value, 'empfaenger': 'Käufer', 'anlass': 'Status-Update', 'prioritaet': 'niedrig'},
+            {'typ': SchreibenTyp.EMAIL.value, 'empfaenger': 'Verkäufer', 'anlass': 'Status-Update', 'prioritaet': 'niedrig'},
+        ]
+
+    return vorschlaege
+
+
+# ============================================================================
+# DOKUMENTEN-CHAT UI
+# ============================================================================
+
+def render_dokumenten_chat(user_id: str, projekt_id: str = None, akte_id: str = None, ist_notar_bereich: bool = False):
+    """
+    Rendert die Dokumenten-Chat-Komponente.
+
+    Args:
+        user_id: ID des aktuellen Benutzers
+        projekt_id: Optional - Projekt-Kontext
+        akte_id: Optional - Akten-Kontext
+        ist_notar_bereich: True für erweiterte Notar-Funktionen
+    """
+
+    st.subheader("💬 Dokumenten-Chat")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # API-Keys prüfen
+    api_keys = st.session_state.get('api_keys', {})
+    if not api_keys.get('openai') and not api_keys.get('anthropic'):
+        st.warning("⚠️ Kein API-Key konfiguriert. Bitte in den Einstellungen einen OpenAI oder Anthropic API-Key hinterlegen.")
+
+    # Session State für Chat initialisieren
+    if 'current_chat_session' not in st.session_state:
+        st.session_state.current_chat_session = None
+    if 'chat_input_key' not in st.session_state:
+        st.session_state.chat_input_key = 0
+
+    # Akte/Projekt-Auswahl wenn nicht vorgegeben
+    selected_akte_id = akte_id
+    selected_projekt_id = projekt_id
+
+    if not akte_id and not projekt_id:
+        # Auswahl ermöglichen
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Akten-Auswahl (für Notare)
+            if ist_notar_bereich and st.session_state.akten:
+                akten_options = {"-- Keine Akte --": None}
+                for a_id, akte in st.session_state.akten.items():
+                    akten_options[f"{akte.aktenzeichen} - {akte.objekt_bezeichnung}"] = a_id
+                selected_akte_label = st.selectbox("📁 Akte auswählen:", list(akten_options.keys()), key="chat_akte_select")
+                selected_akte_id = akten_options[selected_akte_label]
+
+        with col2:
+            # Projekt-Auswahl
+            if st.session_state.projekte:
+                projekt_options = {"-- Kein Projekt --": None}
+                for p_id, projekt in st.session_state.projekte.items():
+                    projekt_options[f"{projekt.name}"] = p_id
+                selected_projekt_label = st.selectbox("🏠 Projekt auswählen:", list(projekt_options.keys()), key="chat_projekt_select")
+                selected_projekt_id = projekt_options[selected_projekt_label]
+
+    # Chat-Session erstellen oder laden
+    session = st.session_state.current_chat_session
+
+    if session is None or (session.akte_id != selected_akte_id and session.projekt_id != selected_projekt_id):
+        # Neue Session erstellen
+        session_id = str(uuid.uuid4())[:8]
+        session = ChatSession(
+            session_id=session_id,
+            user_id=user_id,
+            projekt_id=selected_projekt_id or "",
+            akte_id=selected_akte_id or ""
+        )
+        st.session_state.current_chat_session = session
+        st.session_state.chat_sessions[session_id] = session
+
+    # Layout: Dokumente | Chat | Aktionen (nur Notar)
+    if ist_notar_bereich:
+        col_docs, col_chat, col_actions = st.columns([1, 2, 1])
+    else:
+        col_docs, col_chat = st.columns([1, 3])
+        col_actions = None
+
+    # Dokument-Auswahl
+    with col_docs:
+        st.markdown("##### 📄 Dokumente")
+
+        # Dokumente aus Akte/Projekt laden
+        verfuegbare_dokumente = []
+
+        if selected_akte_id and 'akten_dokumente' in st.session_state:
+            for dok_id, dok in st.session_state.akten_dokumente.items():
+                if isinstance(dok, dict) and dok.get('akte_id') == selected_akte_id:
+                    verfuegbare_dokumente.append({
+                        'id': dok_id,
+                        'name': dok.get('dateiname', 'Unbekannt'),
+                        'typ': dok.get('dokument_typ', 'Dokument')
+                    })
+                elif hasattr(dok, 'akte_id') and dok.akte_id == selected_akte_id:
+                    verfuegbare_dokumente.append({
+                        'id': dok_id,
+                        'name': dok.dateiname,
+                        'typ': dok.dokument_typ if hasattr(dok, 'dokument_typ') else 'Dokument'
+                    })
+
+        if selected_projekt_id:
+            for dok_id, dok in st.session_state.get('dokumente', {}).items():
+                if hasattr(dok, 'projekt_id') and dok.projekt_id == selected_projekt_id:
+                    verfuegbare_dokumente.append({
+                        'id': dok_id,
+                        'name': dok.dateiname if hasattr(dok, 'dateiname') else dok_id,
+                        'typ': 'Dokument'
+                    })
+
+        if verfuegbare_dokumente:
+            st.caption(f"{len(verfuegbare_dokumente)} Dokumente verfügbar")
+
+            # Checkboxen für Dokumente
+            for dok in verfuegbare_dokumente:
+                ist_geladen = dok['id'] in session.dokument_ids
+                if st.checkbox(f"📄 {dok['name'][:25]}...", value=ist_geladen, key=f"dok_{dok['id']}"):
+                    if dok['id'] not in session.dokument_ids:
+                        session.dokument_ids.append(dok['id'])
+                        # Text extrahieren (vereinfacht - in Produktion mit echten Bytes)
+                        session.dokument_inhalte[dok['id']] = f"[Inhalt von {dok['name']}]"
+                else:
+                    if dok['id'] in session.dokument_ids:
+                        session.dokument_ids.remove(dok['id'])
+                        if dok['id'] in session.dokument_inhalte:
+                            del session.dokument_inhalte[dok['id']]
+
+            if session.dokument_ids:
+                st.success(f"✅ {len(session.dokument_ids)} Dokument(e) geladen")
+        else:
+            st.info("Keine Dokumente verfügbar. Wählen Sie eine Akte oder ein Projekt.")
+
+        # Neues Dokument hochladen
+        st.markdown("---")
+        uploaded = st.file_uploader("📤 Dokument hochladen", type=['pdf', 'docx', 'txt'], key="chat_upload")
+        if uploaded:
+            # Text extrahieren
+            dateityp = uploaded.name.split('.')[-1]
+            text = extrahiere_dokument_text(uploaded.read(), dateityp)
+
+            # Temporäres Dokument hinzufügen
+            temp_id = f"upload_{str(uuid.uuid4())[:4]}"
+            session.dokument_ids.append(temp_id)
+            session.dokument_inhalte[temp_id] = text
+            st.success(f"✅ {uploaded.name} geladen")
+
+    # Chat-Bereich
+    with col_chat:
+        st.markdown("##### 💬 Chat")
+
+        # Chat-Verlauf anzeigen
+        chat_container = st.container()
+        with chat_container:
+            if session.nachrichten_ids:
+                for msg_id in session.nachrichten_ids:
+                    msg = st.session_state.chat_nachrichten.get(msg_id)
+                    if msg:
+                        if msg.rolle == "user":
+                            st.markdown(f"""
+                            <div style="background: #e3f2fd; padding: 10px; border-radius: 10px; margin: 5px 0; margin-left: 20%;">
+                                <strong>🧑 Sie:</strong><br>{msg.inhalt}
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style="background: #f5f5f5; padding: 10px; border-radius: 10px; margin: 5px 0; margin-right: 20%;">
+                                <strong>🤖 Assistent:</strong><br>{msg.inhalt}
+                            </div>
+                            """, unsafe_allow_html=True)
+            else:
+                st.info("Stellen Sie eine Frage zu den geladenen Dokumenten oder zur Akte.")
+
+        # Chat-Eingabe
+        st.markdown("---")
+
+        # Schnell-Aktionen
+        if ist_notar_bereich:
+            quick_cols = st.columns(4)
+            with quick_cols[0]:
+                if st.button("📋 Status?", key="quick_status"):
+                    st.session_state.chat_quick_msg = "Was ist der aktuelle Status dieser Akte und welche Schritte stehen als nächstes an?"
+            with quick_cols[1]:
+                if st.button("📄 Fehlende Docs?", key="quick_docs"):
+                    st.session_state.chat_quick_msg = "Welche Dokumente fehlen noch für die Beurkundung?"
+            with quick_cols[2]:
+                if st.button("✉️ Schreiben", key="quick_letter"):
+                    st.session_state.chat_quick_msg = "Erstelle einen Entwurf für ein Anschreiben an die Parteien."
+            with quick_cols[3]:
+                if st.button("⚠️ Risiken?", key="quick_risks"):
+                    st.session_state.chat_quick_msg = "Gibt es rechtliche Risiken oder Besonderheiten zu beachten?"
+
+        # Schnell-Nachricht einsetzen
+        default_msg = st.session_state.get('chat_quick_msg', '')
+        if default_msg:
+            del st.session_state.chat_quick_msg
+
+        # Chat-Eingabefeld
+        chat_input = st.text_area(
+            "Ihre Frage:",
+            value=default_msg,
+            height=80,
+            key=f"chat_input_{st.session_state.chat_input_key}",
+            placeholder="Stellen Sie eine Frage zu den Dokumenten..."
+        )
+
+        col_send, col_clear = st.columns([3, 1])
+        with col_send:
+            if st.button("📤 Senden", type="primary", key="chat_send"):
+                if chat_input.strip():
+                    with st.spinner("🤖 Analysiere..."):
+                        antwort, refs = chat_mit_dokumenten(
+                            session,
+                            chat_input,
+                            api_keys,
+                            ist_notar_bereich
+                        )
+                    st.session_state.chat_input_key += 1
+                    st.rerun()
+                else:
+                    st.warning("Bitte geben Sie eine Frage ein.")
+
+        with col_clear:
+            if st.button("🗑️ Chat löschen", key="chat_clear"):
+                session.nachrichten_ids = []
+                st.session_state.current_chat_session = None
+                st.rerun()
+
+    # Aktionen-Panel (nur Notar)
+    if col_actions and ist_notar_bereich:
+        with col_actions:
+            st.markdown("##### ⚡ Aktionen")
+
+            # Workflow-Vorschläge
+            if selected_akte_id:
+                vorschlaege = hole_workflow_vorschlaege(selected_akte_id)
+                if vorschlaege:
+                    st.markdown("**Empfohlene Schreiben:**")
+                    for i, v in enumerate(vorschlaege[:3]):
+                        if st.button(f"✉️ {v['empfaenger']}", key=f"vorschlag_{i}"):
+                            st.session_state.schreiben_generator_data = {
+                                'typ': v['typ'],
+                                'empfaenger': v['empfaenger'],
+                                'anlass': v['anlass'],
+                                'akte_id': selected_akte_id
+                            }
+                            st.rerun()
+
+            st.markdown("---")
+
+            # Schreiben-Generator
+            st.markdown("**📝 Schreiben erstellen:**")
+
+            schreiben_typ = st.selectbox(
+                "Typ:",
+                [t.value for t in SchreibenTyp],
+                key="schreiben_typ_select"
+            )
+
+            empfaenger_name = st.text_input("Empfänger:", key="schreiben_empfaenger")
+            anlass = st.text_input("Anlass:", key="schreiben_anlass")
+
+            if st.button("🤖 Schreiben generieren", type="primary", key="gen_schreiben"):
+                if empfaenger_name and anlass:
+                    with st.spinner("Generiere Schreiben..."):
+                        schreiben = generiere_schreiben_mit_ki(
+                            schreiben_typ=schreiben_typ,
+                            empfaenger_info={
+                                'name': empfaenger_name,
+                                'anlass': anlass,
+                                'typ': schreiben_typ
+                            },
+                            akte_id=selected_akte_id or selected_projekt_id or "",
+                            api_keys=api_keys
+                        )
+                        st.session_state.aktuelles_schreiben_id = schreiben.schreiben_id
+                    st.success("✅ Schreiben erstellt!")
+                    st.rerun()
+                else:
+                    st.warning("Bitte Empfänger und Anlass eingeben.")
+
+            # Generiertes Schreiben anzeigen
+            if 'aktuelles_schreiben_id' in st.session_state:
+                schreiben = st.session_state.generierte_schreiben.get(st.session_state.aktuelles_schreiben_id)
+                if schreiben:
+                    st.markdown("---")
+                    st.markdown("**Generiertes Schreiben:**")
+                    with st.expander(f"📄 {schreiben.betreff[:30]}...", expanded=True):
+                        st.text_area("Inhalt:", value=schreiben.inhalt, height=200, key="schreiben_preview")
+
+                        # Aktionen
+                        action_cols = st.columns(3)
+                        with action_cols[0]:
+                            if st.button("📧 E-Mail", key="schreiben_email"):
+                                archiviere_schreiben_in_akte(schreiben.schreiben_id, "email")
+                                st.success("✅ Als E-Mail versendet und archiviert!")
+                        with action_cols[1]:
+                            if st.button("🖨️ Druck", key="schreiben_print"):
+                                archiviere_schreiben_in_akte(schreiben.schreiben_id, "druck")
+                                st.success("✅ Zum Druck vorbereitet und archiviert!")
+                        with action_cols[2]:
+                            if st.button("📤 Teilen", key="schreiben_share"):
+                                archiviere_schreiben_in_akte(schreiben.schreiben_id, "plattform")
+                                st.success("✅ Geteilt und archiviert!")
+
+
+def render_dokumenten_chat_einfach(user_id: str, projekt_id: str):
+    """
+    Vereinfachte Chat-Variante für Nicht-Notar-Rollen (Käufer, Verkäufer, Makler).
+    Fokus auf Fragen zu Dokumenten, keine Schreiben-Generierung.
+    """
+
+    st.subheader("💬 Dokumente verstehen")
+    st.caption("Stellen Sie Fragen zu Ihren Dokumenten - wir erklären sie verständlich.")
+
+    # Vereinfachte Version ohne Notar-Funktionen
+    render_dokumenten_chat(
+        user_id=user_id,
+        projekt_id=projekt_id,
+        akte_id=None,
+        ist_notar_bereich=False
+    )
 
 
 def render_kommunikationszentrale(user_id: str, projekt_id: str = None):
