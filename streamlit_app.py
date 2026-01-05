@@ -6471,9 +6471,11 @@ def render_erklaerungsmodus_splitview(vertrag_id: str, rolle: str, zeige_bearbei
                         st.rerun()
 
                     with st.expander("Vollständiger Text anzeigen", expanded=is_active):
+                        # Gesetzes-Links automatisch hinzufügen
+                        text_mit_links = text_mit_gesetzes_links(abschnitt.originaltext, "prominent")
                         st.markdown(f"""
                         <div style="font-size: 0.85rem; line-height: 1.6; color: #333;">
-                        {abschnitt.originaltext}
+                        {text_mit_links}
                         </div>
                         """, unsafe_allow_html=True)
 
@@ -31909,6 +31911,13 @@ Verhandelt zu _____________ am ______________
         key="download_vertrag"
     )
 
+    # Vorschau mit Gesetzes-Links
+    st.markdown("---")
+    with st.expander("👁️ Vorschau mit verlinkten Gesetzesverweisen", expanded=False):
+        render_gesetzes_link_legende()
+        st.markdown("---")
+        render_vertrag_mit_gesetzes_links(neuer_text, titel="Vertragsvorschau")
+
 
 def render_vertrag_versenden(projekt):
     """Vertrag an Parteien versenden"""
@@ -38363,6 +38372,355 @@ def render_makler_mitarbeiter_verwaltung(makler_id: str):
                             ma.projekt_ids.remove(selected_projekt.projekt_id)
                         st.session_state.makler_mitarbeiter[ma.mitarbeiter_id] = ma
                         st.rerun()
+
+
+# ============================================================================
+# GESETZES-VERLINKUNG - Automatische Links zu gesetze-im-internet.de
+# ============================================================================
+
+# Mapping von Gesetzesabkürzungen zu URL-Codes auf gesetze-im-internet.de
+GESETZE_URL_MAPPING = {
+    # Zivilrecht
+    "BGB": "bgb",
+    "BGBEG": "bgbeg",
+    "HGB": "hgb",
+    "ZPO": "zpo",
+    "FamFG": "famfg",
+
+    # Immobilien- und Grundstücksrecht
+    "GBO": "gbo",
+    "GrEStG": "grestg_1983",
+    "ErbbauRG": "erbbauv",
+    "WEG": "woeigg",
+    "BauGB": "baugb",
+    "WoEigG": "woeigg",
+
+    # Notarrecht
+    "BeurkG": "beurkg",
+    "BNotO": "bnoto",
+    "GNotKG": "gnotkg",
+    "NotAktVV": "notaktvv",
+
+    # Gesellschaftsrecht
+    "GmbHG": "gmbhg",
+    "AktG": "aktg",
+    "GenG": "geng",
+    "PartGG": "partgg",
+    "UmwG": "umwg",
+
+    # Erbrecht (Teil des BGB, aber spezielle Verweise)
+    "BGB-Erbrecht": "bgb",
+
+    # Steuerrecht
+    "EStG": "estg",
+    "ErbStG": "erbstg",
+    "GrStG": "grstg",
+    "UStG": "ustg",
+    "AO": "ao_1977",
+
+    # Sonstiges
+    "InsO": "inso",
+    "StGB": "stgb",
+    "GVG": "gvg",
+    "EGBGB": "bgbeg",
+    "VwVfG": "vwvfg",
+    "GewO": "gewo",
+    "MaBV": "makam_am-bv",
+
+    # Kostenrecht
+    "KostO": "kosto",
+    "GKG": "gkg_2004",
+    "RVG": "rvg",
+}
+
+def parse_gesetzes_referenz(text: str) -> List[Dict]:
+    """
+    Erkennt Gesetzesverweise in einem Text und gibt strukturierte Daten zurück.
+
+    Erkannte Formate:
+    - § 433 BGB
+    - §§ 433, 434 BGB
+    - § 311b Abs. 1 BGB
+    - §§ 311b ff. BGB
+    - Art. 14 GG
+
+    Returns:
+        Liste von Dicts mit: original_text, paragraph, absatz, gesetz, url
+    """
+    import re
+
+    referenzen = []
+
+    # Pattern für verschiedene Formate
+    # Einzelner Paragraph: § 433 BGB oder § 311b Abs. 1 S. 2 BGB
+    pattern_single = r'(§\s*(\d+[a-z]?)\s*(?:Abs\.\s*(\d+))?\s*(?:S\.\s*(\d+))?\s*(?:Nr\.\s*(\d+))?\s*([A-Za-z]{2,10}))'
+
+    # Mehrere Paragraphen: §§ 433, 434, 435 BGB
+    pattern_multi = r'(§§\s*([\d,\s]+[a-z]?(?:\s*(?:ff\.?|f\.)?)?)\s*([A-Za-z]{2,10}))'
+
+    # Artikel (für GG etc.): Art. 14 GG
+    pattern_artikel = r'(Art\.\s*(\d+[a-z]?)\s*(?:Abs\.\s*(\d+))?\s*([A-Za-z]{2,10}))'
+
+    # Einzelne Paragraphen finden
+    for match in re.finditer(pattern_single, text, re.IGNORECASE):
+        full_match = match.group(1)
+        paragraph = match.group(2)
+        absatz = match.group(3)
+        gesetz = match.group(6).upper()
+
+        # URL generieren
+        url = generiere_gesetzes_url(gesetz, paragraph)
+
+        if url:
+            referenzen.append({
+                'original_text': full_match,
+                'paragraph': paragraph,
+                'absatz': absatz,
+                'gesetz': gesetz,
+                'url': url,
+                'typ': 'paragraph'
+            })
+
+    # Mehrere Paragraphen finden
+    for match in re.finditer(pattern_multi, text, re.IGNORECASE):
+        full_match = match.group(1)
+        paragraphen_str = match.group(2)
+        gesetz = match.group(3).upper()
+
+        # Ersten Paragraphen für Link extrahieren
+        first_para = re.search(r'(\d+[a-z]?)', paragraphen_str)
+        if first_para:
+            paragraph = first_para.group(1)
+            url = generiere_gesetzes_url(gesetz, paragraph)
+
+            if url:
+                referenzen.append({
+                    'original_text': full_match,
+                    'paragraph': paragraph,
+                    'absatz': None,
+                    'gesetz': gesetz,
+                    'url': url,
+                    'typ': 'paragraphen_mehrere'
+                })
+
+    # Artikel finden
+    for match in re.finditer(pattern_artikel, text, re.IGNORECASE):
+        full_match = match.group(1)
+        artikel = match.group(2)
+        absatz = match.group(3)
+        gesetz = match.group(4).upper()
+
+        # URL generieren (Artikel verwenden auch __)
+        url = generiere_gesetzes_url(gesetz, artikel)
+
+        if url:
+            referenzen.append({
+                'original_text': full_match,
+                'paragraph': artikel,
+                'absatz': absatz,
+                'gesetz': gesetz,
+                'url': url,
+                'typ': 'artikel'
+            })
+
+    return referenzen
+
+
+def generiere_gesetzes_url(gesetz: str, paragraph: str) -> str:
+    """
+    Generiert die URL zu einem Paragraphen auf gesetze-im-internet.de
+
+    Args:
+        gesetz: Gesetzesabkürzung (z.B. "BGB", "GBO")
+        paragraph: Paragraphennummer (z.B. "433", "311b")
+
+    Returns:
+        Vollständige URL oder None wenn Gesetz nicht bekannt
+    """
+    gesetz_upper = gesetz.upper()
+
+    # Gesetz im Mapping suchen
+    url_code = GESETZE_URL_MAPPING.get(gesetz_upper)
+
+    if not url_code:
+        # Fallback: Gesetzname lowercase als URL versuchen
+        url_code = gesetz.lower()
+
+    # URL zusammenbauen
+    # Format: https://www.gesetze-im-internet.de/{gesetz}/__{paragraph}.html
+    base_url = "https://www.gesetze-im-internet.de"
+
+    # Paragraph normalisieren (z.B. "311b" bleibt "311b")
+    para_normalized = paragraph.lower()
+
+    url = f"{base_url}/{url_code}/__{para_normalized}.html"
+
+    return url
+
+
+def text_mit_gesetzes_links(text: str, link_style: str = "default") -> str:
+    """
+    Wandelt Gesetzesverweise in einem Text in klickbare HTML-Links um.
+
+    Args:
+        text: Der Text mit Gesetzesverweisen
+        link_style: "default", "subtle", "prominent"
+
+    Returns:
+        HTML-String mit klickbaren Links
+    """
+    import re
+
+    # CSS-Styles je nach Stil
+    styles = {
+        "default": "color: #1a73e8; text-decoration: underline; cursor: pointer;",
+        "subtle": "color: #5f6368; text-decoration: none; border-bottom: 1px dotted #5f6368; cursor: pointer;",
+        "prominent": "color: #1a73e8; text-decoration: none; background: #e8f0fe; padding: 2px 4px; border-radius: 3px; cursor: pointer;"
+    }
+    style = styles.get(link_style, styles["default"])
+
+    # Referenzen finden
+    referenzen = parse_gesetzes_referenz(text)
+
+    # Sortieren nach Position im Text (rückwärts, um Ersetzungen nicht zu stören)
+    # und nach Länge (längere zuerst, um Teilmatches zu vermeiden)
+    referenzen_sorted = sorted(referenzen, key=lambda x: (-len(x['original_text']), text.find(x['original_text'])))
+
+    result = text
+    ersetzt = set()  # Bereits ersetzte Texte tracken
+
+    for ref in referenzen_sorted:
+        original = ref['original_text']
+
+        # Nur ersetzen wenn noch nicht ersetzt
+        if original in ersetzt:
+            continue
+
+        # Link erstellen
+        tooltip = f"Öffnet {ref['gesetz']} § {ref['paragraph']} auf gesetze-im-internet.de"
+        link_html = f'<a href="{ref["url"]}" target="_blank" rel="noopener noreferrer" style="{style}" title="{tooltip}">{original}</a>'
+
+        # Ersetzen (nur erste Vorkommen, dann tracken)
+        result = result.replace(original, link_html, 1)
+        ersetzt.add(original)
+
+    return result
+
+
+def render_text_mit_gesetzes_links(text: str, container=None, link_style: str = "default"):
+    """
+    Rendert Text mit klickbaren Gesetzesverweisen in Streamlit.
+
+    Args:
+        text: Der Text mit Gesetzesverweisen
+        container: Optional - Streamlit-Container (st oder column)
+        link_style: "default", "subtle", "prominent"
+    """
+    if container is None:
+        container = st
+
+    html_text = text_mit_gesetzes_links(text, link_style)
+
+    # HTML rendern
+    container.markdown(html_text, unsafe_allow_html=True)
+
+
+def render_vertrag_mit_gesetzes_links(vertrag_text: str, titel: str = "Vertrag"):
+    """
+    Rendert einen Vertragstext mit automatisch verlinkten Gesetzesverweisen.
+
+    Features:
+    - Alle Gesetzesverweise werden zu gesetze-im-internet.de verlinkt
+    - Info-Box zeigt erkannte Gesetze
+    - Vertragsabschnitte werden strukturiert dargestellt
+    """
+
+    st.subheader(f"📜 {titel}")
+
+    # Erkannte Gesetze anzeigen
+    referenzen = parse_gesetzes_referenz(vertrag_text)
+
+    if referenzen:
+        # Eindeutige Gesetze sammeln
+        gesetze_set = set((ref['gesetz'], ref['paragraph']) for ref in referenzen)
+
+        with st.expander(f"📚 {len(referenzen)} Gesetzesverweise erkannt - Klicken zum Anzeigen", expanded=False):
+            st.caption("Klicken Sie auf einen Verweis im Text, um das Gesetz auf gesetze-im-internet.de zu öffnen.")
+
+            # Nach Gesetz gruppieren
+            gesetze_gruppiert = {}
+            for ref in referenzen:
+                gesetz = ref['gesetz']
+                if gesetz not in gesetze_gruppiert:
+                    gesetze_gruppiert[gesetz] = []
+                gesetze_gruppiert[gesetz].append(ref)
+
+            cols = st.columns(min(len(gesetze_gruppiert), 4))
+            for i, (gesetz, refs) in enumerate(gesetze_gruppiert.items()):
+                with cols[i % 4]:
+                    st.markdown(f"**{gesetz}**")
+                    for ref in refs:
+                        para_text = f"§ {ref['paragraph']}"
+                        if ref.get('absatz'):
+                            para_text += f" Abs. {ref['absatz']}"
+                        st.markdown(f"- [{para_text}]({ref['url']})")
+
+    st.markdown("---")
+
+    # Vertragstext mit Links rendern
+    html_content = text_mit_gesetzes_links(vertrag_text, "prominent")
+
+    # In scrollbarem Container
+    st.markdown(f"""
+    <div style="
+        max-height: 600px;
+        overflow-y: auto;
+        padding: 20px;
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        line-height: 1.8;
+        font-size: 14px;
+    ">
+        {html_content}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_gesetzes_link_legende():
+    """Rendert eine Legende/Hilfe für die Gesetzes-Links."""
+
+    with st.expander("ℹ️ Über Gesetzes-Links", expanded=False):
+        st.markdown("""
+        **Automatische Gesetzesverweise**
+
+        Verweise auf Gesetzesparagraphen (z.B. *§ 433 BGB*, *§ 311b Abs. 1 BGB*) werden
+        automatisch zu **gesetze-im-internet.de** verlinkt.
+
+        **Unterstützte Gesetze:**
+        """)
+
+        # Gesetze in Kategorien
+        kategorien = {
+            "Zivilrecht": ["BGB", "HGB", "ZPO", "FamFG"],
+            "Immobilienrecht": ["GBO", "GrEStG", "ErbbauRG", "WEG", "BauGB"],
+            "Notarrecht": ["BeurkG", "BNotO", "GNotKG"],
+            "Gesellschaftsrecht": ["GmbHG", "AktG", "GenG", "UmwG"],
+            "Steuerrecht": ["EStG", "ErbStG", "GrStG", "UStG", "AO"],
+        }
+
+        cols = st.columns(len(kategorien))
+        for i, (kategorie, gesetze) in enumerate(kategorien.items()):
+            with cols[i]:
+                st.markdown(f"**{kategorie}**")
+                for g in gesetze:
+                    st.markdown(f"- {g}")
+
+        st.markdown("""
+        ---
+        **Hinweis:** Die Links führen zu den offiziellen Gesetzestexten des
+        Bundesministeriums der Justiz auf gesetze-im-internet.de.
+        """)
 
 
 # ============================================================================
