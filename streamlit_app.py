@@ -8238,9 +8238,125 @@ STANDARD_AKTEN_ORDNER = [
     {"name": "Personalien Verkäufer", "beschreibung": "Ausweise, Vollmachten Verkäufer"},
     {"name": "Behördliche Unterlagen", "beschreibung": "Vorkaufsrecht, Unbedenklichkeit, etc."},
     {"name": "Korrespondenz", "beschreibung": "Schriftverkehr und E-Mails"},
+    {"name": "Emailverkehr", "beschreibung": "Importierte E-Mails (intelligenter Ordner)", "ist_smart_ordner": True},
     {"name": "Abrechnung", "beschreibung": "Kostenrechnungen und Zahlungsnachweise"},
     {"name": "Sonstiges", "beschreibung": "Weitere Unterlagen"},
 ]
+
+# ============================================================================
+# EMAIL-IMPORT SYSTEM
+# ============================================================================
+
+class EmailRichtung(Enum):
+    """Richtung einer E-Mail"""
+    EINGEHEND = "Eingehend"
+    AUSGEHEND = "Ausgehend"
+
+class EmailStatus(Enum):
+    """Status einer importierten E-Mail"""
+    IMPORTIERT = "Importiert"
+    ZUGEORDNET = "Zugeordnet"
+    BEARBEITET = "Bearbeitet"
+    ARCHIVIERT = "Archiviert"
+
+@dataclass
+class EmailAnhang:
+    """Anhang einer E-Mail"""
+    anhang_id: str
+    email_id: str
+
+    dateiname: str = ""
+    dateityp: str = ""  # pdf, docx, jpg, etc.
+    dateigroesse: int = 0
+    datei_bytes: Optional[bytes] = None
+
+    # Falls als Dokument gespeichert
+    dokument_id: str = ""  # Verweis auf AktenDokument
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class ImportierteEmail:
+    """Eine importierte E-Mail aus .eml oder .msg Datei"""
+    email_id: str
+    user_id: str  # Wer hat importiert
+
+    # E-Mail Header
+    absender_name: str = ""
+    absender_email: str = ""
+    empfaenger_liste: List[str] = field(default_factory=list)  # ["name <email>", ...]
+    cc_liste: List[str] = field(default_factory=list)
+    bcc_liste: List[str] = field(default_factory=list)
+    betreff: str = ""
+
+    # E-Mail Inhalt
+    inhalt_text: str = ""  # Plain text
+    inhalt_html: str = ""  # HTML falls vorhanden
+
+    # Metadaten
+    gesendet_am: Optional[datetime] = None
+    empfangen_am: Optional[datetime] = None
+    richtung: str = EmailRichtung.EINGEHEND.value
+
+    # Original-Datei
+    original_dateiname: str = ""
+    original_dateityp: str = ""  # "eml" oder "msg"
+    original_groesse: int = 0
+    original_bytes: Optional[bytes] = None
+
+    # Anhänge
+    anhang_ids: List[str] = field(default_factory=list)
+    anzahl_anhaenge: int = 0
+
+    # Zuordnung
+    akte_id: str = ""
+    projekt_id: str = ""
+    ordner_id: str = ""  # Zugewiesener Ordner in der Akte
+
+    # Automatische Zuordnung
+    zuordnung_vorschlag_akte: str = ""  # KI-Vorschlag für Akte
+    zuordnung_konfidenz: float = 0.0
+    erkannte_aktenzeichen: List[str] = field(default_factory=list)
+    erkannte_namen: List[str] = field(default_factory=list)
+
+    # Status
+    status: str = EmailStatus.IMPORTIERT.value
+    gelesen: bool = False
+    wichtig: bool = False
+
+    # Tags/Labels
+    tags: List[str] = field(default_factory=list)
+
+    # Timestamps
+    importiert_am: datetime = field(default_factory=datetime.now)
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class EmailFilter:
+    """Filter für Email-Suche"""
+    filter_id: str
+    user_id: str
+    name: str = ""
+
+    # Filterkriterien
+    suchbegriff: str = ""
+    von_email: str = ""
+    an_email: str = ""
+    betreff_enthaelt: str = ""
+    akte_id: str = ""
+    richtung: str = ""  # EmailRichtung
+    status: str = ""
+    nur_mit_anhaengen: bool = False
+    nur_ungelesen: bool = False
+    datum_von: Optional[date] = None
+    datum_bis: Optional[date] = None
+    tags: List[str] = field(default_factory=list)
+
+    # Sortierung
+    sortierung: str = "datum_desc"  # datum_desc, datum_asc, absender, betreff
+
+    ist_gespeichert: bool = False
+    erstellt_am: datetime = field(default_factory=datetime.now)
 
 # ============================================================================
 # AKTENTASCHE - MOBILER DOKUMENTENORDNER
@@ -9624,6 +9740,14 @@ def init_session_state():
         st.session_state.schreiben_vorlagen = {}  # vorlage_id -> SchreibenVorlage
         st.session_state.workflow_vorschlaege = {}  # vorschlag_id -> WorkflowVorschlag
         st.session_state.aktive_chat_session_id = None
+
+        # ============================================================
+        # EMAIL-IMPORT
+        # ============================================================
+        st.session_state.importierte_emails = {}  # email_id -> ImportierteEmail
+        st.session_state.email_anhaenge = {}  # anhang_id -> EmailAnhang
+        st.session_state.email_filter = {}  # filter_id -> EmailFilter
+        st.session_state.verarbeitete_email_dateien = set()  # Set für Duplikaterkennung
 
         # Datenbank-Status
         st.session_state.database_connected = False
@@ -24992,6 +25116,7 @@ NOTAR_MENU_STRUKTUR = {
         "icon": "📬",
         "items": [
             {"name": "Dokumenten-Chat", "icon": "💬", "key": "dokumenten_chat"},
+            {"name": "Email-Import", "icon": "📧", "key": "email_import"},
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
             {"name": "Benachrichtigungen", "icon": "🔔", "key": "benachrichtigungen"},
             {"name": "Dokumentenfreigaben", "icon": "📋", "key": "dokumentenfreigaben"},
@@ -26254,6 +26379,9 @@ def render_notar_content(selection: str, user_id: str):
 
     elif selection == "dokumenten_chat":
         render_dokumenten_chat(user_id, ist_notar_bereich=True)
+
+    elif selection == "email_import":
+        render_notar_email_import_view(user_id)
 
     elif selection == "einstellungen":
         notar_einstellungen_view()
@@ -44727,6 +44855,935 @@ def render_dsgvo_tab_makler(user_id: str):
     st.info("Als Makler können Sie nur Daten verwalten, die Sie selbst erfasst haben oder die zu Ihren Projekten gehören.")
 
     render_dsgvo_admin_ui(user_id, ist_notar=False)
+
+
+# ============================================================================
+# EMAIL-IMPORT FUNKTIONEN
+# ============================================================================
+
+def parse_eml_datei(datei_bytes: bytes, dateiname: str) -> Dict[str, Any]:
+    """
+    Parst eine .eml Datei und extrahiert alle relevanten Informationen.
+    Verwendet die Python email Library.
+    """
+    import email
+    from email import policy
+    from email.utils import parseaddr, parsedate_to_datetime
+
+    result = {
+        'success': False,
+        'fehler': None,
+        'absender_name': '',
+        'absender_email': '',
+        'empfaenger_liste': [],
+        'cc_liste': [],
+        'bcc_liste': [],
+        'betreff': '',
+        'inhalt_text': '',
+        'inhalt_html': '',
+        'gesendet_am': None,
+        'anhaenge': []
+    }
+
+    try:
+        # E-Mail parsen
+        msg = email.message_from_bytes(datei_bytes, policy=policy.default)
+
+        # Absender
+        from_header = msg.get('From', '')
+        name, addr = parseaddr(from_header)
+        result['absender_name'] = name or addr.split('@')[0] if addr else ''
+        result['absender_email'] = addr
+
+        # Empfänger
+        to_header = msg.get('To', '')
+        if to_header:
+            result['empfaenger_liste'] = [e.strip() for e in to_header.split(',') if e.strip()]
+
+        # CC
+        cc_header = msg.get('Cc', '')
+        if cc_header:
+            result['cc_liste'] = [e.strip() for e in cc_header.split(',') if e.strip()]
+
+        # BCC (meist nicht in eingehenden Mails)
+        bcc_header = msg.get('Bcc', '')
+        if bcc_header:
+            result['bcc_liste'] = [e.strip() for e in bcc_header.split(',') if e.strip()]
+
+        # Betreff
+        result['betreff'] = msg.get('Subject', '(Kein Betreff)')
+
+        # Datum
+        date_header = msg.get('Date')
+        if date_header:
+            try:
+                result['gesendet_am'] = parsedate_to_datetime(date_header)
+            except Exception:
+                result['gesendet_am'] = datetime.now()
+
+        # Body extrahieren
+        if msg.is_multipart():
+            for part in msg.walk():
+                content_type = part.get_content_type()
+                content_disposition = str(part.get('Content-Disposition', ''))
+
+                # Anhänge erkennen
+                if 'attachment' in content_disposition or part.get_filename():
+                    anhang_name = part.get_filename() or 'Unbenannt'
+                    anhang_data = part.get_payload(decode=True)
+                    if anhang_data:
+                        result['anhaenge'].append({
+                            'dateiname': anhang_name,
+                            'dateityp': anhang_name.split('.')[-1].lower() if '.' in anhang_name else '',
+                            'dateigroesse': len(anhang_data),
+                            'datei_bytes': anhang_data
+                        })
+                # Text-Content
+                elif content_type == 'text/plain' and not result['inhalt_text']:
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        charset = part.get_content_charset() or 'utf-8'
+                        try:
+                            result['inhalt_text'] = payload.decode(charset, errors='replace')
+                        except Exception:
+                            result['inhalt_text'] = payload.decode('utf-8', errors='replace')
+                elif content_type == 'text/html' and not result['inhalt_html']:
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        charset = part.get_content_charset() or 'utf-8'
+                        try:
+                            result['inhalt_html'] = payload.decode(charset, errors='replace')
+                        except Exception:
+                            result['inhalt_html'] = payload.decode('utf-8', errors='replace')
+        else:
+            # Einfache E-Mail ohne Multipart
+            content_type = msg.get_content_type()
+            payload = msg.get_payload(decode=True)
+            if payload:
+                charset = msg.get_content_charset() or 'utf-8'
+                try:
+                    text = payload.decode(charset, errors='replace')
+                except Exception:
+                    text = payload.decode('utf-8', errors='replace')
+
+                if content_type == 'text/html':
+                    result['inhalt_html'] = text
+                else:
+                    result['inhalt_text'] = text
+
+        result['success'] = True
+
+    except Exception as e:
+        result['fehler'] = str(e)
+
+    return result
+
+
+def parse_msg_datei(datei_bytes: bytes, dateiname: str) -> Dict[str, Any]:
+    """
+    Parst eine .msg Datei (Outlook-Format).
+    Versucht verschiedene Parser-Bibliotheken.
+    """
+    result = {
+        'success': False,
+        'fehler': None,
+        'absender_name': '',
+        'absender_email': '',
+        'empfaenger_liste': [],
+        'cc_liste': [],
+        'bcc_liste': [],
+        'betreff': '',
+        'inhalt_text': '',
+        'inhalt_html': '',
+        'gesendet_am': None,
+        'anhaenge': []
+    }
+
+    # Versuche extract-msg Library
+    try:
+        import extract_msg
+        import io
+
+        msg = extract_msg.Message(io.BytesIO(datei_bytes))
+
+        result['absender_name'] = msg.senderName or ''
+        result['absender_email'] = msg.senderEmail or msg.sender or ''
+        result['betreff'] = msg.subject or '(Kein Betreff)'
+        result['inhalt_text'] = msg.body or ''
+        result['inhalt_html'] = msg.htmlBody or ''
+
+        # Empfänger
+        if msg.to:
+            result['empfaenger_liste'] = [e.strip() for e in msg.to.split(';') if e.strip()]
+        if msg.cc:
+            result['cc_liste'] = [e.strip() for e in msg.cc.split(';') if e.strip()]
+        if msg.bcc:
+            result['bcc_liste'] = [e.strip() for e in msg.bcc.split(';') if e.strip()]
+
+        # Datum
+        if msg.date:
+            try:
+                result['gesendet_am'] = msg.date
+            except Exception:
+                result['gesendet_am'] = datetime.now()
+
+        # Anhänge
+        for attachment in msg.attachments:
+            if hasattr(attachment, 'data') and attachment.data:
+                anhang_name = attachment.longFilename or attachment.shortFilename or 'Unbenannt'
+                result['anhaenge'].append({
+                    'dateiname': anhang_name,
+                    'dateityp': anhang_name.split('.')[-1].lower() if '.' in anhang_name else '',
+                    'dateigroesse': len(attachment.data),
+                    'datei_bytes': attachment.data
+                })
+
+        msg.close()
+        result['success'] = True
+
+    except ImportError:
+        # extract_msg nicht installiert - Fallback
+        result['fehler'] = "MSG-Dateien werden nur unterstützt, wenn 'extract-msg' installiert ist. Bitte verwenden Sie .eml Dateien."
+    except Exception as e:
+        result['fehler'] = f"Fehler beim Parsen der MSG-Datei: {str(e)}"
+
+    return result
+
+
+def importiere_email(datei_bytes: bytes, dateiname: str, user_id: str,
+                     akte_id: str = "", projekt_id: str = "") -> Tuple[Optional[ImportierteEmail], str]:
+    """
+    Importiert eine E-Mail aus einer .eml oder .msg Datei.
+    Gibt (ImportierteEmail, Fehlermeldung) zurück.
+    """
+    dateityp = dateiname.lower().split('.')[-1] if '.' in dateiname else ''
+
+    # Duplikat-Check
+    datei_hash = f"{dateiname}_{len(datei_bytes)}"
+    if datei_hash in st.session_state.verarbeitete_email_dateien:
+        return None, "Diese E-Mail wurde bereits importiert."
+
+    # Parsen
+    if dateityp == 'eml':
+        parse_result = parse_eml_datei(datei_bytes, dateiname)
+    elif dateityp == 'msg':
+        parse_result = parse_msg_datei(datei_bytes, dateiname)
+    else:
+        return None, f"Nicht unterstütztes Dateiformat: .{dateityp}. Bitte .eml oder .msg verwenden."
+
+    if not parse_result['success']:
+        return None, parse_result['fehler'] or "Unbekannter Fehler beim Parsen"
+
+    # Email-Objekt erstellen
+    email_id = str(uuid.uuid4())[:12]
+
+    email_obj = ImportierteEmail(
+        email_id=email_id,
+        user_id=user_id,
+        absender_name=parse_result['absender_name'],
+        absender_email=parse_result['absender_email'],
+        empfaenger_liste=parse_result['empfaenger_liste'],
+        cc_liste=parse_result['cc_liste'],
+        bcc_liste=parse_result['bcc_liste'],
+        betreff=parse_result['betreff'],
+        inhalt_text=parse_result['inhalt_text'],
+        inhalt_html=parse_result['inhalt_html'],
+        gesendet_am=parse_result['gesendet_am'],
+        empfangen_am=datetime.now(),
+        original_dateiname=dateiname,
+        original_dateityp=dateityp,
+        original_groesse=len(datei_bytes),
+        original_bytes=datei_bytes,
+        anzahl_anhaenge=len(parse_result['anhaenge']),
+        akte_id=akte_id,
+        projekt_id=projekt_id
+    )
+
+    # Anhänge speichern
+    for anhang_data in parse_result['anhaenge']:
+        anhang_id = str(uuid.uuid4())[:12]
+        anhang = EmailAnhang(
+            anhang_id=anhang_id,
+            email_id=email_id,
+            dateiname=anhang_data['dateiname'],
+            dateityp=anhang_data['dateityp'],
+            dateigroesse=anhang_data['dateigroesse'],
+            datei_bytes=anhang_data['datei_bytes']
+        )
+        st.session_state.email_anhaenge[anhang_id] = anhang
+        email_obj.anhang_ids.append(anhang_id)
+
+    # Automatische Zuordnung versuchen
+    email_obj = _versuche_email_zuordnung(email_obj)
+
+    # Speichern
+    st.session_state.importierte_emails[email_id] = email_obj
+    st.session_state.verarbeitete_email_dateien.add(datei_hash)
+
+    return email_obj, ""
+
+
+def _versuche_email_zuordnung(email_obj: ImportierteEmail) -> ImportierteEmail:
+    """
+    Versucht, eine E-Mail automatisch einer Akte zuzuordnen.
+    Analysiert Betreff, Absender/Empfänger und Inhalt.
+    """
+    # Sammle Text für Analyse
+    such_text = f"{email_obj.betreff} {email_obj.inhalt_text} {email_obj.absender_email}".lower()
+
+    beste_akte_id = ""
+    beste_konfidenz = 0.0
+    erkannte_aktenzeichen = []
+    erkannte_namen = []
+
+    # Aktenzeichen-Pattern suchen (z.B. "UR-2025-0123", "123/2025")
+    import re
+    aktenzeichen_patterns = [
+        r'UR[-/]?\d{4}[-/]?\d{3,4}',  # UR-2025-0123
+        r'\d{2,4}[-/]\d{4}',  # 123/2025
+        r'Az\.?\s*:?\s*([A-Z0-9/-]+)',  # Az.: ABC-123
+    ]
+
+    for pattern in aktenzeichen_patterns:
+        matches = re.findall(pattern, such_text, re.IGNORECASE)
+        erkannte_aktenzeichen.extend(matches)
+
+    # Durch alle Akten iterieren und Übereinstimmungen prüfen
+    for akte_id, akte in st.session_state.get('importierte_akten', {}).items():
+        konfidenz = 0.0
+
+        # Aktenzeichen-Match
+        if akte.aktenzeichen and akte.aktenzeichen.lower() in such_text:
+            konfidenz += 0.5
+            erkannte_aktenzeichen.append(akte.aktenzeichen)
+
+        # Namen der Beteiligten
+        for name in akte.kaeufer_namen + akte.verkaeufer_namen:
+            if name and len(name) > 3 and name.lower() in such_text:
+                konfidenz += 0.2
+                erkannte_namen.append(name)
+
+        # Objekt-Adresse
+        if akte.objekt_adresse and len(akte.objekt_adresse) > 5:
+            adress_teile = akte.objekt_adresse.lower().split()
+            for teil in adress_teile:
+                if len(teil) > 4 and teil in such_text:
+                    konfidenz += 0.1
+
+        if konfidenz > beste_konfidenz:
+            beste_konfidenz = konfidenz
+            beste_akte_id = akte_id
+
+    # Auch Projekte durchsuchen
+    for projekt_id, projekt in st.session_state.get('projekte', {}).items():
+        konfidenz = 0.0
+
+        if projekt.name and projekt.name.lower() in such_text:
+            konfidenz += 0.3
+
+        if projekt.adresse and len(projekt.adresse) > 5:
+            adress_teile = projekt.adresse.lower().split()
+            for teil in adress_teile:
+                if len(teil) > 4 and teil in such_text:
+                    konfidenz += 0.1
+
+        if konfidenz > beste_konfidenz and not beste_akte_id:
+            beste_konfidenz = konfidenz
+            email_obj.projekt_id = projekt_id
+
+    # Ergebnisse speichern
+    email_obj.zuordnung_vorschlag_akte = beste_akte_id
+    email_obj.zuordnung_konfidenz = beste_konfidenz
+    email_obj.erkannte_aktenzeichen = list(set(erkannte_aktenzeichen))
+    email_obj.erkannte_namen = list(set(erkannte_namen))
+
+    # Bei hoher Konfidenz automatisch zuordnen
+    if beste_konfidenz >= 0.5 and beste_akte_id:
+        email_obj.akte_id = beste_akte_id
+        email_obj.status = EmailStatus.ZUGEORDNET.value
+
+    return email_obj
+
+
+def get_emails_fuer_akte(akte_id: str, filter_obj: EmailFilter = None) -> List[ImportierteEmail]:
+    """
+    Gibt alle E-Mails für eine bestimmte Akte zurück.
+    Dies ist der 'intelligente Ordner' Emailverkehr.
+    """
+    emails = []
+
+    for email_obj in st.session_state.importierte_emails.values():
+        if email_obj.akte_id == akte_id:
+            # Filter anwenden falls vorhanden
+            if filter_obj:
+                if filter_obj.suchbegriff:
+                    such = filter_obj.suchbegriff.lower()
+                    if not (such in email_obj.betreff.lower() or
+                            such in email_obj.inhalt_text.lower() or
+                            such in email_obj.absender_email.lower()):
+                        continue
+
+                if filter_obj.von_email and filter_obj.von_email.lower() not in email_obj.absender_email.lower():
+                    continue
+
+                if filter_obj.nur_mit_anhaengen and email_obj.anzahl_anhaenge == 0:
+                    continue
+
+                if filter_obj.nur_ungelesen and email_obj.gelesen:
+                    continue
+
+                if filter_obj.richtung and email_obj.richtung != filter_obj.richtung:
+                    continue
+
+                if filter_obj.datum_von and email_obj.gesendet_am:
+                    if email_obj.gesendet_am.date() < filter_obj.datum_von:
+                        continue
+
+                if filter_obj.datum_bis and email_obj.gesendet_am:
+                    if email_obj.gesendet_am.date() > filter_obj.datum_bis:
+                        continue
+
+            emails.append(email_obj)
+
+    # Sortieren
+    sortierung = filter_obj.sortierung if filter_obj else "datum_desc"
+    if sortierung == "datum_desc":
+        emails.sort(key=lambda e: e.gesendet_am or e.importiert_am, reverse=True)
+    elif sortierung == "datum_asc":
+        emails.sort(key=lambda e: e.gesendet_am or e.importiert_am)
+    elif sortierung == "absender":
+        emails.sort(key=lambda e: e.absender_email.lower())
+    elif sortierung == "betreff":
+        emails.sort(key=lambda e: e.betreff.lower())
+
+    return emails
+
+
+def suche_emails(suchbegriff: str, user_id: str, nur_eigene: bool = True) -> List[ImportierteEmail]:
+    """
+    Durchsucht alle E-Mails nach einem Suchbegriff.
+    Durchsucht: Betreff, Absender, Empfänger, Inhalt.
+    """
+    ergebnisse = []
+    such = suchbegriff.lower()
+
+    for email_obj in st.session_state.importierte_emails.values():
+        # Nur eigene E-Mails oder alle
+        if nur_eigene and email_obj.user_id != user_id:
+            continue
+
+        # Durchsuche alle relevanten Felder
+        if (such in email_obj.betreff.lower() or
+            such in email_obj.absender_email.lower() or
+            such in email_obj.absender_name.lower() or
+            such in email_obj.inhalt_text.lower() or
+            any(such in e.lower() for e in email_obj.empfaenger_liste) or
+            any(such in t.lower() for t in email_obj.tags)):
+            ergebnisse.append(email_obj)
+
+    # Nach Datum sortieren (neueste zuerst)
+    ergebnisse.sort(key=lambda e: e.gesendet_am or e.importiert_am, reverse=True)
+
+    return ergebnisse
+
+
+def render_email_import_dropzone(user_id: str, akte_id: str = "", projekt_id: str = ""):
+    """
+    Rendert eine Drag-and-Drop Zone für E-Mail-Import.
+    Unterstützt .eml und .msg Dateien.
+    """
+    st.markdown("""
+    <style>
+    .email-dropzone {
+        border: 2px dashed #1a365d;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        margin: 1rem 0;
+        transition: all 0.3s ease;
+    }
+    .email-dropzone:hover {
+        border-color: #c9a227;
+        background: linear-gradient(135deg, #fff9e6 0%, #f5f0e1 100%);
+    }
+    .email-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    .email-info {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="email-dropzone">
+        <div class="email-icon">📧</div>
+        <p><strong>E-Mails hier ablegen oder hochladen</strong></p>
+        <p class="email-info">Unterstützte Formate: .eml, .msg (Outlook)</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded_files = st.file_uploader(
+        "E-Mail-Dateien auswählen",
+        type=['eml', 'msg'],
+        accept_multiple_files=True,
+        key=f"email_upload_{akte_id or projekt_id or 'global'}",
+        label_visibility="collapsed"
+    )
+
+    if uploaded_files:
+        erfolge = []
+        fehler = []
+
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        for i, uploaded_file in enumerate(uploaded_files):
+            status_text.text(f"Importiere {uploaded_file.name}...")
+            progress_bar.progress((i + 1) / len(uploaded_files))
+
+            datei_bytes = uploaded_file.read()
+            email_obj, fehler_msg = importiere_email(
+                datei_bytes=datei_bytes,
+                dateiname=uploaded_file.name,
+                user_id=user_id,
+                akte_id=akte_id,
+                projekt_id=projekt_id
+            )
+
+            if email_obj:
+                erfolge.append(email_obj)
+            else:
+                fehler.append(f"{uploaded_file.name}: {fehler_msg}")
+
+        progress_bar.empty()
+        status_text.empty()
+
+        # Ergebnis anzeigen
+        if erfolge:
+            st.success(f"✅ {len(erfolge)} E-Mail(s) erfolgreich importiert!")
+
+            # Zuordnungs-Vorschläge anzeigen
+            for email_obj in erfolge:
+                if email_obj.zuordnung_vorschlag_akte and not email_obj.akte_id:
+                    akte = st.session_state.importierte_akten.get(email_obj.zuordnung_vorschlag_akte)
+                    if akte:
+                        st.info(f"💡 '{email_obj.betreff}' könnte zu Akte '{akte.bezeichnung}' gehören (Konfidenz: {email_obj.zuordnung_konfidenz:.0%})")
+
+        if fehler:
+            st.error(f"❌ {len(fehler)} Fehler beim Import:")
+            for f in fehler:
+                st.caption(f"• {f}")
+
+        st.rerun()
+
+
+def render_emailverkehr_smart_folder(akte_id: str, user_id: str):
+    """
+    Rendert den intelligenten Emailverkehr-Ordner für eine Akte.
+    Zeigt alle E-Mails, die dieser Akte zugeordnet sind.
+    """
+    st.markdown("### 📧 Emailverkehr")
+
+    akte = st.session_state.importierte_akten.get(akte_id)
+    if not akte:
+        st.error("Akte nicht gefunden")
+        return
+
+    # Tabs für verschiedene Ansichten
+    tab_alle, tab_import, tab_suche = st.tabs(["📬 Alle E-Mails", "📥 Import", "🔍 Suche"])
+
+    with tab_alle:
+        # Filter-Optionen
+        col1, col2, col3 = st.columns([2, 1, 1])
+
+        with col1:
+            sortierung = st.selectbox(
+                "Sortierung",
+                options=["datum_desc", "datum_asc", "absender", "betreff"],
+                format_func=lambda x: {
+                    "datum_desc": "📅 Neueste zuerst",
+                    "datum_asc": "📅 Älteste zuerst",
+                    "absender": "👤 Nach Absender",
+                    "betreff": "📝 Nach Betreff"
+                }.get(x, x),
+                key=f"email_sort_{akte_id}"
+            )
+
+        with col2:
+            nur_ungelesen = st.checkbox("Nur ungelesene", key=f"email_unread_{akte_id}")
+
+        with col3:
+            nur_mit_anhaengen = st.checkbox("Mit Anhängen", key=f"email_attach_{akte_id}")
+
+        # Filter erstellen
+        filter_obj = EmailFilter(
+            filter_id="temp",
+            user_id=user_id,
+            sortierung=sortierung,
+            nur_ungelesen=nur_ungelesen,
+            nur_mit_anhaengen=nur_mit_anhaengen
+        )
+
+        # E-Mails laden
+        emails = get_emails_fuer_akte(akte_id, filter_obj)
+
+        if not emails:
+            st.info("📭 Noch keine E-Mails in dieser Akte. Importieren Sie E-Mails im Tab 'Import'.")
+        else:
+            st.caption(f"{len(emails)} E-Mail(s) gefunden")
+
+            for email_obj in emails:
+                _render_email_card(email_obj, akte_id, user_id)
+
+    with tab_import:
+        st.markdown("#### 📥 E-Mails importieren")
+        st.caption("Ziehen Sie .eml oder .msg Dateien hierher oder klicken Sie zum Auswählen.")
+
+        render_email_import_dropzone(user_id, akte_id=akte_id)
+
+        # Nicht zugeordnete E-Mails anzeigen
+        nicht_zugeordnet = [e for e in st.session_state.importierte_emails.values()
+                           if not e.akte_id and e.user_id == user_id]
+
+        if nicht_zugeordnet:
+            st.markdown("---")
+            st.markdown("#### 📋 Nicht zugeordnete E-Mails")
+
+            for email_obj in nicht_zugeordnet:
+                col1, col2 = st.columns([4, 1])
+
+                with col1:
+                    st.markdown(f"**{email_obj.betreff}**")
+                    st.caption(f"Von: {email_obj.absender_email} | {email_obj.gesendet_am.strftime('%d.%m.%Y %H:%M') if email_obj.gesendet_am else 'Unbekannt'}")
+
+                with col2:
+                    if st.button("➕ Zuordnen", key=f"assign_{email_obj.email_id}"):
+                        email_obj.akte_id = akte_id
+                        email_obj.status = EmailStatus.ZUGEORDNET.value
+                        st.success("✅ Zugeordnet!")
+                        st.rerun()
+
+    with tab_suche:
+        st.markdown("#### 🔍 E-Mails durchsuchen")
+
+        suchbegriff = st.text_input(
+            "Suchbegriff",
+            placeholder="Betreff, Absender, Inhalt...",
+            key=f"email_search_{akte_id}"
+        )
+
+        if suchbegriff:
+            # Suche in Akte durchführen
+            alle_emails = get_emails_fuer_akte(akte_id)
+            gefunden = [e for e in alle_emails
+                       if suchbegriff.lower() in e.betreff.lower()
+                       or suchbegriff.lower() in e.absender_email.lower()
+                       or suchbegriff.lower() in e.inhalt_text.lower()]
+
+            if gefunden:
+                st.success(f"🎯 {len(gefunden)} Treffer gefunden")
+                for email_obj in gefunden:
+                    _render_email_card(email_obj, akte_id, user_id)
+            else:
+                st.info("Keine E-Mails gefunden.")
+
+
+def _render_email_card(email_obj: ImportierteEmail, akte_id: str, user_id: str):
+    """Rendert eine einzelne E-Mail als Karte."""
+    # Status-Icon
+    status_icon = "📩" if not email_obj.gelesen else "📧"
+    anhang_icon = f" 📎{email_obj.anzahl_anhaenge}" if email_obj.anzahl_anhaenge > 0 else ""
+    wichtig_icon = " ⭐" if email_obj.wichtig else ""
+
+    with st.expander(
+        f"{status_icon}{wichtig_icon} {email_obj.betreff}{anhang_icon}",
+        expanded=False
+    ):
+        # Header
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"**Von:** {email_obj.absender_name} <{email_obj.absender_email}>")
+            if email_obj.empfaenger_liste:
+                st.markdown(f"**An:** {', '.join(email_obj.empfaenger_liste[:3])}{'...' if len(email_obj.empfaenger_liste) > 3 else ''}")
+            if email_obj.gesendet_am:
+                st.markdown(f"**Datum:** {email_obj.gesendet_am.strftime('%d.%m.%Y %H:%M')}")
+
+        with col2:
+            # Aktionen
+            if not email_obj.gelesen:
+                if st.button("✓ Gelesen", key=f"read_{email_obj.email_id}"):
+                    email_obj.gelesen = True
+                    st.rerun()
+
+            if st.button("⭐" if not email_obj.wichtig else "☆", key=f"star_{email_obj.email_id}"):
+                email_obj.wichtig = not email_obj.wichtig
+                st.rerun()
+
+        st.markdown("---")
+
+        # Inhalt
+        if email_obj.inhalt_text:
+            st.markdown(email_obj.inhalt_text[:2000] + ("..." if len(email_obj.inhalt_text) > 2000 else ""))
+        elif email_obj.inhalt_html:
+            # HTML zu Text konvertieren für einfache Anzeige
+            import re
+            text = re.sub('<[^<]+?>', '', email_obj.inhalt_html)
+            st.markdown(text[:2000] + ("..." if len(text) > 2000 else ""))
+
+        # Anhänge
+        if email_obj.anhang_ids:
+            st.markdown("---")
+            st.markdown("**📎 Anhänge:**")
+
+            for anhang_id in email_obj.anhang_ids:
+                anhang = st.session_state.email_anhaenge.get(anhang_id)
+                if anhang:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.caption(f"📄 {anhang.dateiname} ({anhang.dateigroesse / 1024:.1f} KB)")
+                    with col2:
+                        if anhang.datei_bytes:
+                            st.download_button(
+                                "⬇️",
+                                data=anhang.datei_bytes,
+                                file_name=anhang.dateiname,
+                                key=f"dl_{anhang_id}"
+                            )
+
+        # Tags
+        st.markdown("---")
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            neuer_tag = st.text_input(
+                "Tag hinzufügen",
+                placeholder="z.B. Wichtig, Finanzierung...",
+                key=f"tag_input_{email_obj.email_id}",
+                label_visibility="collapsed"
+            )
+            if neuer_tag and st.button("➕", key=f"add_tag_{email_obj.email_id}"):
+                if neuer_tag not in email_obj.tags:
+                    email_obj.tags.append(neuer_tag)
+                    st.rerun()
+
+        with col2:
+            if email_obj.tags:
+                for tag in email_obj.tags:
+                    st.caption(f"🏷️ {tag}")
+
+        # Markiere als gelesen bei Öffnen
+        if not email_obj.gelesen:
+            email_obj.gelesen = True
+
+
+def render_notar_email_import_view(user_id: str):
+    """
+    Haupt-View für den Email-Import im Notar-Dashboard.
+    Ermöglicht Import, Zuordnung und Suche von E-Mails.
+    """
+    st.subheader("📧 Email-Import & Verwaltung")
+
+    # Info-Box
+    st.info("""
+    **Email-Import:** Importieren Sie E-Mails per Drag & Drop (.eml oder .msg Dateien).
+    Die E-Mails werden automatisch analysiert und passenden Akten zugeordnet.
+    Der 'Emailverkehr'-Ordner jeder Akte zeigt alle zugehörigen E-Mails.
+    """)
+
+    # Tabs für verschiedene Funktionen
+    tab_import, tab_nicht_zugeordnet, tab_suche, tab_statistik = st.tabs([
+        "📥 Import",
+        "📋 Nicht zugeordnet",
+        "🔍 Suche",
+        "📊 Statistik"
+    ])
+
+    with tab_import:
+        st.markdown("### 📥 E-Mails importieren")
+        st.caption("Ziehen Sie .eml oder .msg Dateien hierher oder klicken Sie zum Auswählen.")
+
+        # Akten-Auswahl für direkte Zuordnung
+        akten = list(st.session_state.importierte_akten.values())
+        akten_optionen = {"": "--- Später zuordnen ---"}
+        akten_optionen.update({a.akte_id: f"{a.aktenzeichen} - {a.bezeichnung}" for a in akten})
+
+        selected_akte = st.selectbox(
+            "Direkt einer Akte zuordnen (optional)",
+            options=list(akten_optionen.keys()),
+            format_func=lambda x: akten_optionen[x],
+            key="email_import_akte_auswahl"
+        )
+
+        render_email_import_dropzone(user_id, akte_id=selected_akte)
+
+    with tab_nicht_zugeordnet:
+        st.markdown("### 📋 Nicht zugeordnete E-Mails")
+
+        nicht_zugeordnet = [e for e in st.session_state.importierte_emails.values()
+                           if not e.akte_id and e.user_id == user_id]
+
+        if nicht_zugeordnet:
+            st.warning(f"⚠️ {len(nicht_zugeordnet)} E-Mail(s) ohne Aktenzuordnung")
+
+            # Bulk-Aktionen
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                bulk_akte = st.selectbox(
+                    "Akte für Bulk-Zuordnung",
+                    options=list(akten_optionen.keys()),
+                    format_func=lambda x: akten_optionen[x],
+                    key="email_bulk_akte"
+                )
+            with col2:
+                if bulk_akte and st.button("➕ Alle zuordnen", key="bulk_assign"):
+                    for email_obj in nicht_zugeordnet:
+                        email_obj.akte_id = bulk_akte
+                        email_obj.status = EmailStatus.ZUGEORDNET.value
+                    st.success(f"✅ {len(nicht_zugeordnet)} E-Mails zugeordnet!")
+                    st.rerun()
+
+            st.markdown("---")
+
+            for email_obj in nicht_zugeordnet:
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 2, 1])
+
+                    with col1:
+                        st.markdown(f"**{email_obj.betreff}**")
+                        st.caption(f"Von: {email_obj.absender_email}")
+                        if email_obj.gesendet_am:
+                            st.caption(f"Datum: {email_obj.gesendet_am.strftime('%d.%m.%Y %H:%M')}")
+
+                    with col2:
+                        # Zuordnungs-Vorschlag anzeigen
+                        if email_obj.zuordnung_vorschlag_akte:
+                            akte = st.session_state.importierte_akten.get(email_obj.zuordnung_vorschlag_akte)
+                            if akte:
+                                st.info(f"💡 Vorschlag: {akte.bezeichnung} ({email_obj.zuordnung_konfidenz:.0%})")
+                                if st.button("✓ Übernehmen", key=f"accept_{email_obj.email_id}"):
+                                    email_obj.akte_id = email_obj.zuordnung_vorschlag_akte
+                                    email_obj.status = EmailStatus.ZUGEORDNET.value
+                                    st.rerun()
+
+                    with col3:
+                        # Manuelle Zuordnung
+                        single_akte = st.selectbox(
+                            "Zuordnen",
+                            options=[k for k in akten_optionen.keys() if k],
+                            format_func=lambda x: akten_optionen.get(x, x)[:20] + "...",
+                            key=f"single_akte_{email_obj.email_id}",
+                            label_visibility="collapsed"
+                        )
+                        if st.button("➕", key=f"assign_single_{email_obj.email_id}"):
+                            if single_akte:
+                                email_obj.akte_id = single_akte
+                                email_obj.status = EmailStatus.ZUGEORDNET.value
+                                st.success("✅ Zugeordnet!")
+                                st.rerun()
+
+                    st.markdown("---")
+        else:
+            st.success("✅ Alle E-Mails sind Akten zugeordnet!")
+
+    with tab_suche:
+        render_globale_email_suche(user_id)
+
+    with tab_statistik:
+        st.markdown("### 📊 Email-Statistik")
+
+        alle_emails = list(st.session_state.importierte_emails.values())
+        eigene_emails = [e for e in alle_emails if e.user_id == user_id]
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("📧 Gesamt", len(eigene_emails))
+
+        with col2:
+            zugeordnet = len([e for e in eigene_emails if e.akte_id])
+            st.metric("✅ Zugeordnet", zugeordnet)
+
+        with col3:
+            ungelesen = len([e for e in eigene_emails if not e.gelesen])
+            st.metric("📩 Ungelesen", ungelesen)
+
+        with col4:
+            mit_anhaengen = len([e for e in eigene_emails if e.anzahl_anhaenge > 0])
+            st.metric("📎 Mit Anhängen", mit_anhaengen)
+
+        # Top-Akten nach E-Mail-Anzahl
+        if eigene_emails:
+            st.markdown("---")
+            st.markdown("#### 📁 E-Mails pro Akte")
+
+            akte_counts = {}
+            for email_obj in eigene_emails:
+                if email_obj.akte_id:
+                    akte = st.session_state.importierte_akten.get(email_obj.akte_id)
+                    name = akte.bezeichnung if akte else email_obj.akte_id
+                    akte_counts[name] = akte_counts.get(name, 0) + 1
+
+            for akte_name, count in sorted(akte_counts.items(), key=lambda x: -x[1])[:10]:
+                st.progress(count / max(akte_counts.values()) if akte_counts else 0)
+                st.caption(f"{akte_name}: {count} E-Mails")
+
+
+def render_globale_email_suche(user_id: str):
+    """
+    Rendert eine globale E-Mail-Suche über alle Akten.
+    """
+    st.markdown("### 🔍 E-Mail-Suche")
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        suchbegriff = st.text_input(
+            "Suchbegriff",
+            placeholder="Betreff, Absender, Inhalt durchsuchen...",
+            key="global_email_search"
+        )
+
+    with col2:
+        nur_eigene = st.checkbox("Nur meine E-Mails", value=True, key="email_search_own")
+
+    if suchbegriff:
+        ergebnisse = suche_emails(suchbegriff, user_id, nur_eigene)
+
+        if ergebnisse:
+            st.success(f"🎯 {len(ergebnisse)} Treffer gefunden")
+
+            # Nach Akte gruppieren
+            nach_akte = {}
+            ohne_akte = []
+
+            for email_obj in ergebnisse:
+                if email_obj.akte_id:
+                    if email_obj.akte_id not in nach_akte:
+                        nach_akte[email_obj.akte_id] = []
+                    nach_akte[email_obj.akte_id].append(email_obj)
+                else:
+                    ohne_akte.append(email_obj)
+
+            # Gruppiert anzeigen
+            for akte_id, emails in nach_akte.items():
+                akte = st.session_state.importierte_akten.get(akte_id)
+                akte_name = akte.bezeichnung if akte else akte_id
+
+                with st.expander(f"📁 {akte_name} ({len(emails)} E-Mails)", expanded=True):
+                    for email_obj in emails:
+                        _render_email_card(email_obj, akte_id, user_id)
+
+            if ohne_akte:
+                with st.expander(f"📋 Nicht zugeordnet ({len(ohne_akte)} E-Mails)", expanded=True):
+                    for email_obj in ohne_akte:
+                        _render_email_card(email_obj, "", user_id)
+        else:
+            st.info("Keine E-Mails gefunden.")
 
 
 def main():
