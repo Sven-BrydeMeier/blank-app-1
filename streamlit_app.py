@@ -40023,7 +40023,7 @@ def _get_moegliche_empfaenger(user_id: str, projekt_id: str = None) -> dict:
 
 
 def render_akten_ordner_struktur(akte_id: str, user_id: str):
-    """Rendert die Ordnerstruktur einer Akte"""
+    """Rendert die Ordnerstruktur einer Akte mit intelligentem Emailverkehr-Ordner"""
     akte = st.session_state.importierte_akten.get(akte_id)
     if not akte:
         st.error("Akte nicht gefunden")
@@ -40031,12 +40031,23 @@ def render_akten_ordner_struktur(akte_id: str, user_id: str):
 
     st.markdown(f"### 📁 {akte.aktenzeichen}")
 
+    # Session State für ausgewählten Ordner initialisieren
+    if 'akten_ordner_auswahl' not in st.session_state:
+        st.session_state.akten_ordner_auswahl = {}
+
+    # Aktuell ausgewählter Ordner für diese Akte
+    current_ordner = st.session_state.akten_ordner_auswahl.get(akte_id, "uebersicht")
+
     # Ordner für diese Akte laden
     ordner_liste = [o for o in st.session_state.akten_ordner.values() if o.akte_id == akte_id]
     ordner_liste.sort(key=lambda o: o.pfad)
 
     # Dokumente in dieser Akte
     dokumente = [d for d in st.session_state.akten_dokumente.values() if d.akte_id == akte_id] if hasattr(st.session_state, 'akten_dokumente') else []
+
+    # E-Mails in dieser Akte zählen
+    email_count = len([e for e in st.session_state.importierte_emails.values() if e.akte_id == akte_id])
+    ungelesene_emails = len([e for e in st.session_state.importierte_emails.values() if e.akte_id == akte_id and not e.gelesen])
 
     if not ordner_liste:
         # Ordner aus Template erstellen
@@ -40049,21 +40060,128 @@ def render_akten_ordner_struktur(akte_id: str, user_id: str):
             st.success("Ordnerstruktur erstellt!")
             st.rerun()
     else:
-        # Ordner als Baum anzeigen
-        for ordner in ordner_liste:
-            tiefe = ordner.pfad.count('/') - 1
-            einzug = "  " * tiefe
-            ordner_name = ordner.pfad.split('/')[-1]
+        # Zwei-Spalten-Layout: Links Ordner, Rechts Inhalt
+        col_ordner, col_inhalt = st.columns([1, 3])
 
-            # Dokumente in diesem Ordner zählen
-            dok_count = len([d for d in dokumente if d.ordner_name == ordner.pfad])
+        with col_ordner:
+            st.markdown("#### Ordner")
 
-            if dok_count > 0:
-                with st.expander(f"{einzug}📂 {ordner_name} ({dok_count} Dokumente)"):
-                    for dok in [d for d in dokumente if d.ordner_name == ordner.pfad]:
-                        st.markdown(f"📄 {dok.titel}")
+            # Übersicht-Button
+            if st.button("📋 Übersicht", key=f"ordner_uebersicht_{akte_id}",
+                        use_container_width=True,
+                        type="primary" if current_ordner == "uebersicht" else "secondary"):
+                st.session_state.akten_ordner_auswahl[akte_id] = "uebersicht"
+                st.rerun()
+
+            # Emailverkehr Smart-Folder (immer oben, prominent)
+            email_badge = f" ({ungelesene_emails} neu)" if ungelesene_emails > 0 else f" ({email_count})" if email_count > 0 else ""
+            email_btn_type = "primary" if current_ordner == "emailverkehr" else "secondary"
+            if st.button(f"📧 Emailverkehr{email_badge}", key=f"ordner_emailverkehr_{akte_id}",
+                        use_container_width=True, type=email_btn_type):
+                st.session_state.akten_ordner_auswahl[akte_id] = "emailverkehr"
+                st.rerun()
+
+            st.markdown("---")
+
+            # Normale Ordner anzeigen
+            for ordner in ordner_liste:
+                ordner_name = ordner.pfad.split('/')[-1]
+
+                # Emailverkehr überspringen (wird oben separat angezeigt)
+                if ordner_name.lower() == "emailverkehr":
+                    continue
+
+                # Dokumente in diesem Ordner zählen
+                dok_count = len([d for d in dokumente if d.ordner_name == ordner.pfad])
+
+                badge = f" ({dok_count})" if dok_count > 0 else ""
+                icon = "📂" if dok_count > 0 else "📁"
+                btn_type = "primary" if current_ordner == ordner.ordner_id else "secondary"
+
+                if st.button(f"{icon} {ordner_name}{badge}", key=f"ordner_{ordner.ordner_id}_{akte_id}",
+                            use_container_width=True, type=btn_type):
+                    st.session_state.akten_ordner_auswahl[akte_id] = ordner.ordner_id
+                    st.rerun()
+
+        with col_inhalt:
+            # Inhalt basierend auf Auswahl rendern
+            if current_ordner == "emailverkehr":
+                render_emailverkehr_smart_folder(akte_id, user_id)
+            elif current_ordner == "uebersicht":
+                _render_akte_dokumente_uebersicht(akte_id, user_id, dokumente, email_count)
             else:
-                st.markdown(f"{einzug}📁 {ordner_name}")
+                # Spezifischer Ordner ausgewählt
+                ordner = st.session_state.akten_ordner.get(current_ordner)
+                if ordner:
+                    _render_ordner_inhalt(akte_id, user_id, ordner, dokumente)
+                else:
+                    st.info("Ordner nicht gefunden")
+
+
+def _render_akte_dokumente_uebersicht(akte_id: str, user_id: str, dokumente: list, email_count: int):
+    """Rendert die Übersicht aller Dokumente und E-Mails einer Akte"""
+    st.markdown("### 📋 Dokumenten-Übersicht")
+
+    # Statistik-Karten
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("📄 Dokumente", len(dokumente))
+    with col2:
+        st.metric("📧 E-Mails", email_count)
+    with col3:
+        anhang_count = sum(e.anzahl_anhaenge for e in st.session_state.importierte_emails.values() if e.akte_id == akte_id)
+        st.metric("📎 Anhänge", anhang_count)
+
+    st.markdown("---")
+
+    # E-Mail Import Dropzone
+    with st.expander("📧 E-Mails per Drag & Drop importieren", expanded=False):
+        render_email_import_dropzone(user_id, akte_id=akte_id)
+
+    # Dokument-Upload
+    with st.expander("📄 Dokument hochladen", expanded=False):
+        render_dokument_upload_mit_scanner(user_id, projekt_id="", akte_id=akte_id)
+
+    # Letzte Dokumente
+    if dokumente:
+        st.markdown("#### 📄 Letzte Dokumente")
+        for dok in sorted(dokumente, key=lambda d: d.erstellt_am, reverse=True)[:5]:
+            st.markdown(f"• {dok.titel} ({dok.ordner_name})")
+
+    # Letzte E-Mails
+    emails = [e for e in st.session_state.importierte_emails.values() if e.akte_id == akte_id]
+    if emails:
+        st.markdown("#### 📧 Letzte E-Mails")
+        for email in sorted(emails, key=lambda e: e.gesendet_am or e.importiert_am, reverse=True)[:5]:
+            status_icon = "📩" if not email.gelesen else "📧"
+            datum = email.gesendet_am.strftime('%d.%m.%Y') if email.gesendet_am else "Unbekannt"
+            st.markdown(f"• {status_icon} {email.betreff} ({datum})")
+
+
+def _render_ordner_inhalt(akte_id: str, user_id: str, ordner, dokumente: list):
+    """Rendert den Inhalt eines spezifischen Ordners"""
+    st.markdown(f"### 📂 {ordner.name}")
+
+    if ordner.beschreibung:
+        st.caption(ordner.beschreibung)
+
+    # Dokumente in diesem Ordner
+    ordner_docs = [d for d in dokumente if d.ordner_name == ordner.pfad]
+
+    if ordner_docs:
+        for dok in ordner_docs:
+            with st.expander(f"📄 {dok.titel}", expanded=False):
+                st.markdown(f"**Typ:** {dok.dokument_typ}")
+                st.markdown(f"**Erstellt:** {dok.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
+                if dok.notizen:
+                    st.markdown(f"**Notizen:** {dok.notizen}")
+    else:
+        st.info("Keine Dokumente in diesem Ordner.")
+
+    # Dokument hochladen in diesen Ordner
+    st.markdown("---")
+    with st.expander("📄 Dokument in diesen Ordner hochladen", expanded=False):
+        render_dokument_upload_mit_scanner(user_id, projekt_id="", akte_id=akte_id, ziel_ordner=ordner.pfad)
 
 
 def _erstelle_ordner_struktur(akte_id: str, akten_typ: str, user_id: str):
@@ -45287,6 +45405,99 @@ def suche_emails(suchbegriff: str, user_id: str, nur_eigene: bool = True) -> Lis
     return ergebnisse
 
 
+def speichere_email_anhang_als_dokument(anhang, akte_id: str, email_obj, user_id: str) -> str:
+    """
+    Speichert einen E-Mail-Anhang als Dokument in der Akte.
+
+    Args:
+        anhang: EmailAnhang Objekt
+        akte_id: ID der Akte
+        email_obj: ImportierteEmail Objekt
+        user_id: ID des Benutzers
+
+    Returns:
+        dokument_id wenn erfolgreich, sonst leerer String
+    """
+    if not anhang.datei_bytes:
+        return ""
+
+    # Dokument-ID generieren
+    dok_id = str(uuid.uuid4())[:8]
+
+    # Dateityp ermitteln
+    dateityp = anhang.dateityp or anhang.dateiname.split('.')[-1].lower() if '.' in anhang.dateiname else "unknown"
+
+    # Dokumenttyp basierend auf Dateityp zuordnen
+    dok_typ_mapping = {
+        'pdf': AktenDokumentTyp.KORRESPONDENZ.value,
+        'doc': AktenDokumentTyp.KORRESPONDENZ.value,
+        'docx': AktenDokumentTyp.KORRESPONDENZ.value,
+        'jpg': AktenDokumentTyp.SONSTIGES.value,
+        'jpeg': AktenDokumentTyp.SONSTIGES.value,
+        'png': AktenDokumentTyp.SONSTIGES.value,
+        'xlsx': AktenDokumentTyp.SONSTIGES.value,
+        'xls': AktenDokumentTyp.SONSTIGES.value,
+    }
+    dok_typ = dok_typ_mapping.get(dateityp, AktenDokumentTyp.KORRESPONDENZ.value)
+
+    # Ziel-Ordner bestimmen (Korrespondenz oder Email-Anhänge)
+    ziel_ordner = "/Korrespondenz"
+
+    # AktenDokument erstellen
+    if 'akten_dokumente' not in st.session_state:
+        st.session_state.akten_dokumente = {}
+
+    neues_dok = AktenDokument(
+        dokument_id=dok_id,
+        akte_id=akte_id,
+        ordner_name=ziel_ordner,
+        titel=f"{anhang.dateiname} (aus E-Mail: {email_obj.betreff[:30]}...)" if len(email_obj.betreff) > 30 else f"{anhang.dateiname} (aus E-Mail: {email_obj.betreff})",
+        dokument_typ=dok_typ,
+        dateiname=anhang.dateiname,
+        notizen=f"Importiert aus E-Mail von {email_obj.absender_email} am {email_obj.gesendet_am.strftime('%d.%m.%Y') if email_obj.gesendet_am else 'unbekannt'}",
+        erstellt_von=user_id,
+    )
+
+    # Dokument speichern
+    st.session_state.akten_dokumente[dok_id] = neues_dok
+
+    # Anhang-Referenz aktualisieren
+    anhang.dokument_id = dok_id
+
+    # Audit-Log erstellen
+    if 'audit_log_eintrag' in dir():
+        audit_log_eintrag(
+            user_id=user_id,
+            aktion="EMAIL_ANHANG_GESPEICHERT",
+            objekt_typ="Dokument",
+            objekt_id=dok_id,
+            objekt_name=anhang.dateiname,
+            akte_id=akte_id,
+            details=f"E-Mail-Anhang '{anhang.dateiname}' als Dokument gespeichert"
+        )
+
+    return dok_id
+
+
+def speichere_alle_email_anhaenge(email_obj, akte_id: str, user_id: str) -> int:
+    """
+    Speichert alle Anhänge einer E-Mail als Dokumente.
+
+    Returns:
+        Anzahl der gespeicherten Anhänge
+    """
+    gespeichert = 0
+
+    for anhang_id in email_obj.anhang_ids:
+        anhang = st.session_state.email_anhaenge.get(anhang_id)
+        if anhang and not anhang.dokument_id and anhang.datei_bytes:
+            dok_id = speichere_email_anhang_als_dokument(anhang, akte_id, email_obj, user_id)
+            if dok_id:
+                gespeichert += 1
+
+    return gespeichert
+
+
 def render_email_import_dropzone(user_id: str, akte_id: str = "", projekt_id: str = ""):
     """
     Rendert eine Drag-and-Drop Zone für E-Mail-Import.
@@ -45538,14 +45749,33 @@ def _render_email_card(email_obj: ImportierteEmail, akte_id: str, user_id: str):
         # Anhänge
         if email_obj.anhang_ids:
             st.markdown("---")
-            st.markdown("**📎 Anhänge:**")
+
+            # Header mit "Alle speichern" Button
+            col_header, col_btn = st.columns([3, 1])
+            with col_header:
+                st.markdown("**📎 Anhänge:**")
+            with col_btn:
+                # Prüfen ob es ungespeicherte Anhänge gibt
+                ungespeicherte = sum(1 for aid in email_obj.anhang_ids
+                                    if st.session_state.email_anhaenge.get(aid) and
+                                    not st.session_state.email_anhaenge.get(aid).dokument_id)
+                if ungespeicherte > 1 and akte_id:
+                    if st.button(f"📁 Alle ({ungespeicherte})", key=f"save_all_{email_obj.email_id}",
+                                help="Alle Anhänge als Dokumente speichern"):
+                        gespeichert = speichere_alle_email_anhaenge(email_obj, akte_id, user_id)
+                        if gespeichert > 0:
+                            st.success(f"✅ {gespeichert} Anhänge gespeichert!")
+                            st.rerun()
 
             for anhang_id in email_obj.anhang_ids:
                 anhang = st.session_state.email_anhaenge.get(anhang_id)
                 if anhang:
-                    col1, col2 = st.columns([3, 1])
+                    col1, col2, col3 = st.columns([3, 1, 1])
                     with col1:
-                        st.caption(f"📄 {anhang.dateiname} ({anhang.dateigroesse / 1024:.1f} KB)")
+                        # Prüfen ob bereits als Dokument gespeichert
+                        ist_gespeichert = anhang.dokument_id != ""
+                        icon = "✅" if ist_gespeichert else "📄"
+                        st.caption(f"{icon} {anhang.dateiname} ({anhang.dateigroesse / 1024:.1f} KB)")
                     with col2:
                         if anhang.datei_bytes:
                             st.download_button(
@@ -45554,6 +45784,16 @@ def _render_email_card(email_obj: ImportierteEmail, akte_id: str, user_id: str):
                                 file_name=anhang.dateiname,
                                 key=f"dl_{anhang_id}"
                             )
+                    with col3:
+                        # Button zum Speichern als Dokument
+                        if not ist_gespeichert and akte_id and anhang.datei_bytes:
+                            if st.button("📁", key=f"save_doc_{anhang_id}", help="Als Dokument speichern"):
+                                dok_id = speichere_email_anhang_als_dokument(anhang, akte_id, email_obj, user_id)
+                                if dok_id:
+                                    st.success(f"✅ Gespeichert!")
+                                    st.rerun()
+                        elif ist_gespeichert:
+                            st.caption("✅")
 
         # Tags
         st.markdown("---")

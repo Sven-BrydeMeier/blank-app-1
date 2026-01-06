@@ -369,6 +369,66 @@ Der Erklärungs-Modus ermöglicht es Käufern, Verkäufern und Maklern, Kaufvert
 - `st.session_state.vertraege_mit_erklaerungen` - Verträge mit Erklärungen
 - `st.session_state.aktiver_erklaerungsmodus_vertrag` - Aktuell angezeigter Vertrag
 
+## Email-Import & Emailverkehr Smart-Folder
+
+### Übersicht
+Das Email-Import-System ermöglicht das Hochladen von E-Mails per Drag & Drop und automatische Zuordnung zu Akten.
+
+### Funktionen
+
+**Email-Import:**
+- Drag & Drop für `.eml` und `.msg` (Outlook) Dateien
+- Automatische Akten-Zuordnung basierend auf:
+  - Aktenzeichen-Erkennung (Pattern Matching)
+  - Namen-Erkennung der Beteiligten
+  - Objekt-Adresse Matching
+  - Konfidenz-Score für automatische Zuordnung
+
+**Emailverkehr Smart-Folder:**
+- Intelligenter Ordner in jeder Akte
+- Zeigt alle E-Mails der Akte an
+- Tabs: Alle E-Mails, Import, Suche
+- Filter: Sortierung, nur ungelesene, mit Anhängen
+- Badge mit Anzahl ungelesener E-Mails
+
+**E-Mail-Anhänge als Dokumente:**
+- Einzelne Anhänge als Dokumente speichern
+- "Alle Anhänge speichern" Button für Bulk-Speicherung
+- Automatische Ordner-Zuordnung (Korrespondenz)
+- Referenz-Verknüpfung zwischen Anhang und Dokument
+
+**Globale E-Mail-Suche:**
+- Suche über alle Akten
+- Gruppierung nach Akten
+- Suche in Betreff, Absender, Inhalt
+
+### Akten-Ordnerstruktur (erweitert)
+
+Die Akten-Ordnerstruktur zeigt nun:
+- **Übersicht** - Alle Dokumente und E-Mails
+- **Emailverkehr** (Smart-Folder) - Prominent oben mit Badge
+- Normale Ordner darunter
+
+### Neue Funktionen
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `render_akten_ordner_struktur()` | Zwei-Spalten-Layout mit klickbaren Ordnern |
+| `render_emailverkehr_smart_folder()` | Intelligenter E-Mail-Ordner |
+| `render_email_import_dropzone()` | Drag & Drop Zone |
+| `speichere_email_anhang_als_dokument()` | Einzelnen Anhang speichern |
+| `speichere_alle_email_anhaenge()` | Alle Anhänge einer E-Mail speichern |
+| `render_globale_email_suche()` | Globale E-Mail-Suche |
+| `_render_email_card()` | E-Mail-Anzeige mit Aktionen |
+
+### Session State
+
+```python
+st.session_state.importierte_emails = {}        # email_id -> ImportierteEmail
+st.session_state.email_anhaenge = {}           # anhang_id -> EmailAnhang
+st.session_state.akten_ordner_auswahl = {}     # akte_id -> ausgewählter_ordner
+```
+
 ## Letzte Änderungen
 
 1. **Grundbuch-OCR mit KI** - Automatische Extraktion von Abt. II und III aus PDFs
@@ -382,3 +442,4 @@ Der Erklärungs-Modus ermöglicht es Käufern, Verkäufern und Maklern, Kaufvert
 9. **Sidebar-Suche funktional** - Echtzeit-Suche mit klickbaren Ergebnissen
 10. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
 11. **Erklärungs-Modus für Verträge** - Split-View mit verständlichen Erklärungen für Käufer/Verkäufer/Makler
+12. **Email-Import per Drag & Drop** - Erweiterte Ordnerstruktur mit intelligentem Emailverkehr-Ordner
