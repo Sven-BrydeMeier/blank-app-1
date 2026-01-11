@@ -8359,6 +8359,514 @@ class EmailFilter:
     erstellt_am: datetime = field(default_factory=datetime.now)
 
 # ============================================================================
+# DUE DILIGENCE DATENRAUM (VDR) - VIRTUAL DATA ROOM
+# ============================================================================
+
+class VDRRolle(Enum):
+    """Rollen im Due-Diligence-Datenraum"""
+    ADMIN = "Admin"  # Deal/Policy/User/Export/Global Settings
+    UPLOADER = "Uploader"  # Upload, Versionierung, Metadaten
+    EDITOR = "Editor"  # Bearbeiten von Metadaten
+    REVIEWER = "Reviewer"  # Lesen/Viewer; Download abhängig von Policy
+    QA_MODERATOR = "QA Moderator"  # Q&A triage/assign/approve/publish
+
+class VDRGruppenTyp(Enum):
+    """Gruppentypen im VDR (aus LOI Ziff. 7)"""
+    # Verkäuferseite
+    SELLER_ADMIN = "Verkäufer Admin"
+    SELLER_UPLOADER = "Verkäufer Uploader"
+    # Käuferseite & zulässige Dritte
+    BUYER_CORE = "Käufer Kernteam"
+    BUYER_LEGAL = "Käufer Rechtsberatung"
+    BUYER_TAX = "Käufer Steuerberatung"
+    BUYER_TECH = "Käufer Techn. Gutachter"
+    BUYER_FINANCE = "Käufer Finanzierung"
+    BUYER_PARTNERS = "Käufer Projektpartner"
+    # Moderation
+    QA_MODERATOR = "Q&A Moderator"
+
+class VDRBerechtigung(Enum):
+    """Permission Sets für VDR"""
+    VIEW = "Ansehen"
+    DOWNLOAD = "Download"
+    PRINT = "Drucken"
+    UPLOAD = "Upload"
+    MANAGE_METADATA = "Metadaten verwalten"
+    MANAGE_PERMISSIONS = "Berechtigungen verwalten"
+    QA_ASK = "Fragen stellen"
+    QA_ANSWER = "Fragen beantworten"
+    QA_PUBLISH = "Antworten veröffentlichen"
+    EXPORT_REPORTS = "Reports exportieren"
+
+class VDRAuditAktion(Enum):
+    """Audit-Aktionen für lückenloses Logging"""
+    LOGIN = "Login"
+    LOGOUT = "Logout"
+    VIEW_DOC = "Dokument angesehen"
+    VIEW_DOC_PAGE = "Seite angesehen"
+    DOWNLOAD_DOC = "Dokument heruntergeladen"
+    SEARCH = "Suche durchgeführt"
+    UPLOAD_DOC = "Dokument hochgeladen"
+    NEW_VERSION = "Neue Version erstellt"
+    RENAME = "Umbenannt"
+    MOVE = "Verschoben"
+    TAG_UPDATE = "Tags aktualisiert"
+    POLICY_PROPOSED = "Policy vorgeschlagen"
+    POLICY_APPLIED = "Policy angewendet"
+    POLICY_CHANGED = "Policy geändert"
+    QA_ASK = "Frage gestellt"
+    QA_ANSWER_DRAFT = "Antwortentwurf erstellt"
+    QA_PUBLISHED = "Antwort veröffentlicht"
+    EXPORT_INDEX = "Index exportiert"
+    EXPORT_AUDIT = "Audit exportiert"
+    EXPORT_QA = "Q&A exportiert"
+    NDA_ACCEPTED = "NDA akzeptiert"
+    NDA_UPLOADED = "NDA hochgeladen"
+    ACCESS_DENIED = "Zugriff verweigert"
+
+class VDRDokumentStatus(Enum):
+    """Status eines VDR-Dokuments"""
+    DRAFT = "Entwurf"
+    PENDING_REVIEW = "Prüfung ausstehend"
+    APPROVED = "Freigegeben"
+    ARCHIVED = "Archiviert"
+
+class VDRVertraulichkeit(Enum):
+    """Vertraulichkeitsstufen für Dokumente"""
+    PUBLIC = "Öffentlich"
+    INTERNAL = "Intern"
+    CONFIDENTIAL = "Vertraulich"
+    STRICTLY_CONFIDENTIAL = "Streng Vertraulich"
+
+class VDRNDAStatus(Enum):
+    """Status einer NDA/Vertraulichkeitserklärung"""
+    PENDING = "Ausstehend"
+    ACCEPTED = "Akzeptiert"
+    REJECTED = "Abgelehnt"
+    EXPIRED = "Abgelaufen"
+
+class VDRQAStatus(Enum):
+    """Status eines Q&A-Threads"""
+    OPEN = "Offen"
+    IN_PROGRESS = "In Bearbeitung"
+    ANSWERED = "Beantwortet"
+    PUBLISHED = "Veröffentlicht"
+    CLOSED = "Geschlossen"
+
+class VDRQAKategorie(Enum):
+    """Q&A Kategorien (aus LOI Anlage 1)"""
+    GRUNDBUCH = "01 Grundbuch / Baulasten"
+    KATASTER = "02 Kataster / Vermessung"
+    BAU = "03 Bau & Genehmigungen"
+    PLAENE = "04 Pläne / Flächen"
+    MIETVERTRAEGE = "05 Mietverträge / Nutzung"
+    BETRIEBSKOSTEN = "06 Betriebskosten / Wartung"
+    INSTANDHALTUNG = "07 Instandhaltung / Capex"
+    ENERGIE = "08 Energie / Verbrauch / TGA"
+    UMWELT = "09 Umwelt / Altlasten"
+    VERSICHERUNGEN = "10 Versicherungen"
+    OEFFENTLICH = "11 Öffentlich-rechtlich"
+    STEUERN = "12 Steuern"
+    SONSTIGES = "13 Sonstiges / Gutachten"
+
+@dataclass
+class VDRDeal:
+    """Ein Due-Diligence-Vorgang/Deal"""
+    deal_id: str
+    name: str
+    beschreibung: str = ""
+
+    # Projekt-Verknüpfung
+    projekt_id: str = ""
+
+    # Template und Status
+    template: str = "immobilie_logistik"  # Standard-Ordnerstruktur
+    status: str = "aktiv"  # aktiv, abgeschlossen, archiviert
+
+    # Phasenmodell (optional)
+    aktuelle_phase: int = 0  # 0=Vorbereitung, 1=Due Diligence, 2=Verhandlung
+
+    # Zeitplan
+    datenraum_eroeffnung: Optional[datetime] = None
+    dd_ende_geplant: Optional[datetime] = None
+
+    # Ersteller
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+    # LOI-Referenz
+    loi_dokument_id: str = ""
+    vertraulichkeit_bis: Optional[date] = None  # 24 Monate ab LOI
+
+@dataclass
+class VDRMitgliedschaft:
+    """Deal-Mitgliedschaft eines Benutzers"""
+    mitgliedschaft_id: str
+    deal_id: str
+    user_id: str
+    rolle: str  # VDRRolle
+
+    # Berechtigungen
+    berechtigungen: List[str] = field(default_factory=list)  # VDRBerechtigung values
+
+    hinzugefuegt_am: datetime = field(default_factory=datetime.now)
+    hinzugefuegt_von: str = ""
+
+@dataclass
+class VDRGruppe:
+    """Gruppe im VDR (z.B. BUYER_LEGAL)"""
+    gruppe_id: str
+    deal_id: str
+    name: str
+    typ: str  # VDRGruppenTyp
+    beschreibung: str = ""
+
+    # Standard-Berechtigungen für Gruppenmitglieder
+    standard_berechtigungen: List[str] = field(default_factory=list)
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDRGruppenmitgliedschaft:
+    """Zuordnung User zu Gruppe"""
+    id: str
+    gruppe_id: str
+    user_id: str
+    hinzugefuegt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDROrdner:
+    """Ordner im Datenraum"""
+    ordner_id: str
+    deal_id: str
+    parent_id: str = ""  # Leer für Root-Ordner
+
+    name: str = ""
+    pfad: str = ""  # z.B. "/01 Grundbuch/Auszüge"
+    sort_order: int = 0
+
+    # Phase-basierte Freigabe
+    freigabe_ab_phase: int = 0
+
+    # Berechtigungs-Override (optional)
+    eingeschraenkte_gruppen: List[str] = field(default_factory=list)  # Nur diese Gruppen haben Zugriff
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+
+@dataclass
+class VDRDokument:
+    """Dokument im Datenraum"""
+    dokument_id: str
+    deal_id: str
+    ordner_id: str
+
+    titel: str = ""
+    beschreibung: str = ""
+    doc_type: str = ""  # z.B. "Grundbuchauszug", "Mietvertrag"
+
+    # Vertraulichkeit
+    vertraulichkeit: str = VDRVertraulichkeit.CONFIDENTIAL.value
+
+    # Status
+    status: str = VDRDokumentStatus.DRAFT.value
+
+    # Tags für Suche
+    tags: List[str] = field(default_factory=list)
+
+    # Aktuelle Version
+    aktuelle_version_id: str = ""
+    version_count: int = 0
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+    zuletzt_geaendert: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDRDokumentVersion:
+    """Version eines Dokuments"""
+    version_id: str
+    dokument_id: str
+    version_no: int
+
+    # Datei-Informationen
+    dateiname: str = ""
+    mime_type: str = ""
+    dateigroesse: int = 0
+    sha256_hash: str = ""
+
+    # Speicherort (Supabase Storage Key)
+    storage_key: str = ""
+
+    # PDF-Konvertierung
+    pdf_storage_key: str = ""  # Falls konvertiert
+
+    # Inhalt (für Demo ohne Supabase)
+    datei_bytes: Optional[bytes] = None
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+
+    # Änderungsnotiz
+    aenderungsnotiz: str = ""
+
+@dataclass
+class VDRExtrahierterText:
+    """Extrahierter Text aus Dokument (für Suche/LLM)"""
+    id: str
+    version_id: str
+
+    text: str = ""
+    segmente_json: str = ""  # JSON Array mit Abschnitten + Offsets
+    ocr_verwendet: bool = False
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDRPolicy:
+    """Berechtigungs-Policy für einen Deal"""
+    policy_id: str
+    deal_id: str
+    version_no: int
+
+    # Status
+    ist_aktiv: bool = False
+
+    # Quellen (LOI, NDA, etc.)
+    quellen_refs: List[str] = field(default_factory=list)  # Dokument-IDs
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+    erstellt_von: str = ""
+
+@dataclass
+class VDRPolicyRegel:
+    """Einzelne Regel innerhalb einer Policy"""
+    regel_id: str
+    policy_id: str
+
+    # Subject: Wer
+    subject_type: str = "gruppe"  # "user" oder "gruppe"
+    subject_id: str = ""
+
+    # Object: Worauf
+    object_type: str = "deal"  # "deal", "ordner", "dokument", "doc_type"
+    object_id: str = ""
+
+    # Berechtigungen
+    berechtigungen: List[str] = field(default_factory=list)  # VDRBerechtigung values
+
+    # Constraints
+    constraints_json: str = ""  # z.B. {"nda_required": true, "phase_min": 1}
+
+    # Evidence (Belegstellen)
+    hat_evidence: bool = False
+
+@dataclass
+class VDRPolicyEvidence:
+    """Belegstelle für eine Policy-Regel"""
+    evidence_id: str
+    regel_id: str
+
+    # Quell-Dokument
+    dokument_id: str = ""
+
+    # Position im Text
+    section_id: str = ""
+    start_offset: int = 0
+    end_offset: int = 0
+
+    # Zitat
+    excerpt: str = ""
+
+    # Verifiziert?
+    verifiziert: bool = False
+
+@dataclass
+class VDRPolicyQuelle:
+    """Quelle für Policy-Extraktion (LOI, NDA, etc.)"""
+    quelle_id: str
+    deal_id: str
+    dokument_id: str
+
+    art: str = "LOI"  # LOI, NDA, EMAIL, OTHER
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDRNDAAnerkennung:
+    """NDA/Vertraulichkeitserklärung eines Nutzers"""
+    id: str
+    deal_id: str
+    user_id: str
+    gruppe_id: str = ""
+
+    # Art der Anerkennung
+    typ: str = "CONFIRMATION"  # NDA, CONFIRMATION, UPLOAD
+
+    # Status
+    status: str = VDRNDAStatus.PENDING.value
+
+    # Bei Upload: Dokument-Referenz
+    dokument_version_id: str = ""
+
+    # Zeitstempel
+    akzeptiert_am: Optional[datetime] = None
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+    notizen: str = ""
+
+@dataclass
+class VDRAuditEvent:
+    """Audit-Ereignis (append-only!)"""
+    event_id: str
+    deal_id: str
+
+    # Actor
+    actor_user_id: str
+    actor_gruppen_snapshot: List[str] = field(default_factory=list)  # Gruppen-IDs zum Zeitpunkt
+
+    # Zeitstempel
+    ts_utc: datetime = field(default_factory=datetime.now)
+
+    # Request-Info
+    ip_adresse: str = ""
+    user_agent: str = ""
+
+    # Aktion
+    aktion: str = ""  # VDRAuditAktion
+
+    # Objekt
+    objekt_typ: str = ""  # "dokument", "ordner", "qa_thread", etc.
+    objekt_id: str = ""
+
+    # Meta-Daten (JSON)
+    meta_json: str = ""  # z.B. {"query": "...", "file_size": 1234, "page": 1}
+
+@dataclass
+class VDRQAThread:
+    """Q&A Thread/Frage"""
+    thread_id: str
+    deal_id: str
+
+    # Kategorie
+    kategorie: str = VDRQAKategorie.SONSTIGES.value
+
+    # Bezug zu Dokument (optional)
+    dokument_id: str = ""
+
+    # Status
+    status: str = VDRQAStatus.OPEN.value
+
+    # Zuständigkeit
+    zugewiesen_an: str = ""  # User-ID
+
+    # Priorität
+    prioritaet: str = "normal"  # niedrig, normal, hoch, dringend
+
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+    zuletzt_aktualisiert: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDRQANachricht:
+    """Nachricht in einem Q&A-Thread"""
+    nachricht_id: str
+    thread_id: str
+
+    # Autor
+    autor_user_id: str
+
+    # Art
+    art: str = "question"  # question, answer, note
+
+    # Inhalt
+    inhalt: str = ""
+
+    # Veröffentlichungsstatus (für Antworten)
+    ist_veroeffentlicht: bool = False
+    veroeffentlicht_am: Optional[datetime] = None
+    veroeffentlicht_von: str = ""
+
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+@dataclass
+class VDREntwurf:
+    """Entwurf für Antwort/Brief/Email"""
+    entwurf_id: str
+    deal_id: str
+
+    typ: str = "email"  # email, letter, qa_answer
+    titel: str = ""
+    inhalt: str = ""
+
+    # Quellen-Referenzen
+    quellen_refs: List[str] = field(default_factory=list)
+
+    version_no: int = 1
+
+    erstellt_von: str = ""
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+# Standard-Ordnerstruktur für Immobilien-Due-Diligence (LOI Anlage 1)
+VDR_STANDARD_ORDNER_IMMOBILIE = [
+    {"name": "01 Grundbuch / Baulasten", "beschreibung": "Grundbuchauszüge, Baulasten, Dienstbarkeiten"},
+    {"name": "02 Kataster / Vermessung", "beschreibung": "Flurkarten, Vermessungsunterlagen"},
+    {"name": "03 Bau & Genehmigungen", "beschreibung": "Baugenehmigungen, Bauanträge, Abnahmen"},
+    {"name": "04 Pläne / Flächen", "beschreibung": "Grundrisse, Schnitte, Flächenberechnungen"},
+    {"name": "05 Mietverträge / Nutzung / Kautionen", "beschreibung": "Mietverträge, Nachträge, Kautionen"},
+    {"name": "06 Betriebskosten / Wartung / Service", "beschreibung": "Nebenkostenabrechnungen, Wartungsverträge"},
+    {"name": "07 Instandhaltung / Capex / Mängel", "beschreibung": "Instandhaltungsplan, Investitionen, Mängelliste"},
+    {"name": "08 Energie / Verbrauch / TGA", "beschreibung": "Energieausweise, Verbrauchsdaten, TGA-Dokumentation"},
+    {"name": "09 Umwelt / Altlasten", "beschreibung": "Altlastengutachten, Bodengutachten, Umweltberichte"},
+    {"name": "10 Versicherungen", "beschreibung": "Gebäudeversicherung, Haftpflicht"},
+    {"name": "11 Öffentlich-rechtlich / Planung", "beschreibung": "B-Plan, Bebauungsplan, Vorkaufsrecht"},
+    {"name": "12 Steuern", "beschreibung": "Grundsteuerbescheide, steuerliche Unterlagen"},
+    {"name": "13 Sonstiges / Gutachten / Rechtsstreitigkeiten", "beschreibung": "Weitere Unterlagen, Bewertungsgutachten"},
+]
+
+# Standard-Berechtigungen je Gruppe (LOI-konform)
+VDR_STANDARD_BERECHTIGUNGEN = {
+    VDRGruppenTyp.SELLER_ADMIN.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value, VDRBerechtigung.PRINT.value,
+        VDRBerechtigung.UPLOAD.value, VDRBerechtigung.MANAGE_METADATA.value,
+        VDRBerechtigung.MANAGE_PERMISSIONS.value, VDRBerechtigung.QA_ANSWER.value,
+        VDRBerechtigung.QA_PUBLISH.value, VDRBerechtigung.EXPORT_REPORTS.value
+    ],
+    VDRGruppenTyp.SELLER_UPLOADER.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.UPLOAD.value, VDRBerechtigung.MANAGE_METADATA.value
+    ],
+    VDRGruppenTyp.BUYER_CORE.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.BUYER_LEGAL.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.BUYER_TAX.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.BUYER_TECH.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.BUYER_FINANCE.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.DOWNLOAD.value,
+        VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.BUYER_PARTNERS.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.QA_ASK.value
+    ],
+    VDRGruppenTyp.QA_MODERATOR.value: [
+        VDRBerechtigung.VIEW.value, VDRBerechtigung.QA_ANSWER.value,
+        VDRBerechtigung.QA_PUBLISH.value
+    ],
+}
+
+# ============================================================================
 # AKTENTASCHE - MOBILER DOKUMENTENORDNER
 # ============================================================================
 
@@ -9682,6 +10190,25 @@ def init_session_state():
         st.session_state.dsgvo_einwilligungen = {}  # Einwilligung-ID -> DSGVOEinwilligung
         st.session_state.daten_herkunft_log = []  # Liste von Datenerfassungs-Events
         st.session_state.dsgvo_nachweisdokumente = {}  # Dokument-ID -> DSGVONachweisdokument
+
+        # ===== DUE DILIGENCE DATENRAUM (VDR) =====
+        st.session_state.vdr_deals = {}  # Deal-ID -> VDRDeal
+        st.session_state.vdr_mitgliedschaften = {}  # Mitgliedschaft-ID -> VDRMitgliedschaft
+        st.session_state.vdr_gruppen = {}  # Gruppe-ID -> VDRGruppe
+        st.session_state.vdr_gruppenmitgliedschaften = {}  # ID -> VDRGruppenmitgliedschaft
+        st.session_state.vdr_ordner = {}  # Ordner-ID -> VDROrdner
+        st.session_state.vdr_dokumente = {}  # Dokument-ID -> VDRDokument
+        st.session_state.vdr_dokument_versionen = {}  # Version-ID -> VDRDokumentVersion
+        st.session_state.vdr_extrahierter_text = {}  # ID -> VDRExtrahierterText
+        st.session_state.vdr_policies = {}  # Policy-ID -> VDRPolicy
+        st.session_state.vdr_policy_regeln = {}  # Regel-ID -> VDRPolicyRegel
+        st.session_state.vdr_policy_evidence = {}  # Evidence-ID -> VDRPolicyEvidence
+        st.session_state.vdr_policy_quellen = {}  # Quelle-ID -> VDRPolicyQuelle
+        st.session_state.vdr_nda_anerkennungen = {}  # ID -> VDRNDAAnerkennung
+        st.session_state.vdr_audit_events = []  # Liste von VDRAuditEvent (append-only!)
+        st.session_state.vdr_qa_threads = {}  # Thread-ID -> VDRQAThread
+        st.session_state.vdr_qa_nachrichten = {}  # Nachricht-ID -> VDRQANachricht
+        st.session_state.vdr_entwuerfe = {}  # Entwurf-ID -> VDREntwurf
 
         # System-Antwortvorlagen initialisieren
         _initialisiere_system_antwortvorlagen()
@@ -17545,6 +18072,7 @@ def makler_dashboard():
         "👥 Kontakte",
         "📄 Dokumente",
         "💬 Dokumenten-Chat",
+        "🔒 Due Diligence",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -17619,8 +18147,24 @@ def makler_dashboard():
         projekt_id = makler_projekte[0].projekt_id if makler_projekte else None
         render_dokumenten_chat_einfach(user_id, projekt_id)
 
-    # Tab 6: Termine - Kalender und Terminverwaltung
+    # Tab 6: Due Diligence - Virtueller Datenraum
     with tabs[6]:
+        st.subheader("🔒 Due Diligence Datenraum")
+        if makler_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in makler_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt für Datenraum auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="makler_vdr_projekt_auswahl"
+            )
+            if selected_projekt_id:
+                render_vdr_dashboard(user_id, selected_projekt_id)
+        else:
+            st.info("Noch keine Projekte vorhanden.")
+
+    # Tab 7: Termine - Kalender und Terminverwaltung
+    with tabs[7]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -17634,8 +18178,8 @@ def makler_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 7: Einstellungen - Profil, TTS, DSGVO
-    with tabs[7]:
+    # Tab 8: Einstellungen - Profil, TTS, DSGVO
+    with tabs[8]:
         einst_subtabs = st.tabs(["👤 Profil", "🔊 Vorlesen", "🔒 DSGVO"])
         with einst_subtabs[0]:
             makler_profil_view()
@@ -19462,6 +20006,7 @@ def kaeufer_dashboard():
         "💰 Finanzierung",
         "📄 Dokumente",
         "💬 Dokumenten-Chat",
+        "🔒 Due Diligence",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -19521,8 +20066,24 @@ def kaeufer_dashboard():
         projekt_id = kaeufer_projekte[0].projekt_id if kaeufer_projekte else None
         render_dokumenten_chat_einfach(user_id, projekt_id)
 
-    # Tab 5: Termine
+    # Tab 5: Due Diligence - Virtueller Datenraum
     with tabs[5]:
+        st.subheader("🔒 Due Diligence Datenraum")
+        if kaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in kaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt für Datenraum auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="kaeufer_vdr_projekt_auswahl"
+            )
+            if selected_projekt_id:
+                render_vdr_dashboard(user_id, selected_projekt_id)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    # Tab 6: Termine
+    with tabs[6]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -19536,8 +20097,8 @@ def kaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 6: Einstellungen
-    with tabs[6]:
+    # Tab 7: Einstellungen
+    with tabs[7]:
         einst_subtabs = st.tabs(["🔊 Vorlesen"])
         with einst_subtabs[0]:
             st.subheader("🔊 Dokumente vorlesen")
@@ -23118,6 +23679,7 @@ def verkaeufer_dashboard():
         "📈 Preisfindung",
         "📄 Dokumente",
         "💬 Dokumenten-Chat",
+        "🔒 Due Diligence",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -23179,8 +23741,24 @@ def verkaeufer_dashboard():
         projekt_id = verkaeufer_projekte[0].projekt_id if verkaeufer_projekte else None
         render_dokumenten_chat_einfach(user_id, projekt_id)
 
-    # Tab 5: Termine
+    # Tab 5: Due Diligence - Virtueller Datenraum
     with tabs[5]:
+        st.subheader("🔒 Due Diligence Datenraum")
+        if verkaeufer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in verkaeufer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt für Datenraum auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="verkaeufer_vdr_projekt_auswahl"
+            )
+            if selected_projekt_id:
+                render_vdr_dashboard(user_id, selected_projekt_id)
+        else:
+            st.info("Sie sind noch keinem Projekt zugewiesen.")
+
+    # Tab 6: Termine
+    with tabs[6]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -23194,8 +23772,8 @@ def verkaeufer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 6: Einstellungen
-    with tabs[6]:
+    # Tab 7: Einstellungen
+    with tabs[7]:
         einst_subtabs = st.tabs(["🔊 Vorlesen"])
         with einst_subtabs[0]:
             st.subheader("🔊 Dokumente vorlesen")
@@ -24593,6 +25171,7 @@ def finanzierer_dashboard():
     tabs = st.tabs([
         "🏠 Übersicht",
         "💰 Finanzierung",
+        "🔒 Due Diligence",
         "📅 Termine",
         "⚙️ Einstellungen"
     ])
@@ -24613,8 +25192,25 @@ def finanzierer_dashboard():
         with fin_subtabs[3]:
             render_papierkorb_tab(user_id, ist_notar=False)
 
-    # Tab 2: Termine
+    # Tab 2: Due Diligence - Virtueller Datenraum
     with tabs[2]:
+        st.subheader("🔒 Due Diligence Datenraum")
+        finanzierer_projekte = [p for p in st.session_state.projekte.values() if user_id in p.finanzierer_ids]
+        if finanzierer_projekte:
+            projekt_auswahl = {p.projekt_id: p.name for p in finanzierer_projekte}
+            selected_projekt_id = st.selectbox(
+                "Projekt für Datenraum auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="finanzierer_vdr_projekt_auswahl"
+            )
+            if selected_projekt_id:
+                render_vdr_dashboard(user_id, selected_projekt_id)
+        else:
+            st.info("Noch keine Projekte zugewiesen.")
+
+    # Tab 3: Termine
+    with tabs[3]:
         st.subheader("📅 Meine Termine")
         termin_ansicht = st.tabs(["📅 Kalender", "📋 Nach Projekt"])
         with termin_ansicht[0]:
@@ -24628,8 +25224,8 @@ def finanzierer_dashboard():
             else:
                 st.info("Noch keine Projekte vorhanden.")
 
-    # Tab 3: Einstellungen
-    with tabs[3]:
+    # Tab 4: Einstellungen
+    with tabs[4]:
         einst_subtabs = st.tabs(["🔊 Vorlesen"])
         with einst_subtabs[0]:
             st.subheader("🔊 Dokumente vorlesen")
@@ -25120,6 +25716,16 @@ NOTAR_MENU_STRUKTUR = {
             {"name": "Nachrichten", "icon": "✉️", "key": "nachrichten"},
             {"name": "Benachrichtigungen", "icon": "🔔", "key": "benachrichtigungen"},
             {"name": "Dokumentenfreigaben", "icon": "📋", "key": "dokumentenfreigaben"},
+        ]
+    },
+    "Due Diligence": {
+        "icon": "🔒",
+        "items": [
+            {"name": "Datenraum (VDR)", "icon": "📁", "key": "vdr_dashboard"},
+            {"name": "Dokumente", "icon": "📄", "key": "vdr_dokumente"},
+            {"name": "Q&A", "icon": "❓", "key": "vdr_qa"},
+            {"name": "Berechtigungen", "icon": "🔐", "key": "vdr_berechtigungen"},
+            {"name": "Audit-Log", "icon": "📋", "key": "vdr_audit"},
         ]
     },
 }
@@ -26804,6 +27410,117 @@ def render_notar_content(selection: str, user_id: str):
                 st.write(f"{icon} **{n.titel}** - {n.erstellt_am.strftime('%d.%m.%Y %H:%M')}")
         else:
             st.info("Keine System-Benachrichtigungen vorhanden.")
+
+    # === DUE DILIGENCE / VDR MENÜPUNKTE ===
+
+    elif selection == "vdr_dashboard":
+        # Projekt-Auswahl für VDR
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte/Projekt für Datenraum auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vdr_projekt_auswahl"
+            )
+            if selected_projekt_id:
+                render_vdr_dashboard(user_id, selected_projekt_id)
+        else:
+            st.info("Noch keine Akten vorhanden. Erstellen Sie zuerst eine Akte.")
+
+    elif selection == "vdr_dokumente":
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte/Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vdr_dokumente_projekt"
+            )
+            if selected_projekt_id:
+                # Deal prüfen/erstellen
+                deal_id = None
+                for d in st.session_state.vdr_deals.values():
+                    if d.projekt_id == selected_projekt_id:
+                        deal_id = d.deal_id
+                        break
+                if deal_id:
+                    render_vdr_dokumente_tab(deal_id, user_id)
+                else:
+                    st.info("Für dieses Projekt existiert noch kein Datenraum. Erstellen Sie zuerst einen Datenraum.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "vdr_qa":
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte/Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vdr_qa_projekt"
+            )
+            if selected_projekt_id:
+                deal_id = None
+                for d in st.session_state.vdr_deals.values():
+                    if d.projekt_id == selected_projekt_id:
+                        deal_id = d.deal_id
+                        break
+                if deal_id:
+                    render_vdr_qa_tab(deal_id, user_id)
+                else:
+                    st.info("Für dieses Projekt existiert noch kein Datenraum.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "vdr_berechtigungen":
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte/Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vdr_berechtigungen_projekt"
+            )
+            if selected_projekt_id:
+                deal_id = None
+                for d in st.session_state.vdr_deals.values():
+                    if d.projekt_id == selected_projekt_id:
+                        deal_id = d.deal_id
+                        break
+                if deal_id:
+                    render_vdr_berechtigungen_tab(deal_id, user_id)
+                else:
+                    st.info("Für dieses Projekt existiert noch kein Datenraum.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
+
+    elif selection == "vdr_audit":
+        notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+        if notar_projekte:
+            projekt_auswahl = {p.projekt_id: f"{getattr(p, 'aktenzeichen', p.projekt_id[:8])} - {p.name}" for p in notar_projekte}
+            selected_projekt_id = st.selectbox(
+                "Akte/Projekt auswählen",
+                list(projekt_auswahl.keys()),
+                format_func=lambda x: projekt_auswahl[x],
+                key="vdr_audit_projekt"
+            )
+            if selected_projekt_id:
+                deal_id = None
+                for d in st.session_state.vdr_deals.values():
+                    if d.projekt_id == selected_projekt_id:
+                        deal_id = d.deal_id
+                        break
+                if deal_id:
+                    render_vdr_audit_tab(deal_id, user_id)
+                else:
+                    st.info("Für dieses Projekt existiert noch kein Datenraum.")
+        else:
+            st.info("Noch keine Akten vorhanden.")
 
     else:
         st.warning(f"Unbekannter Menüpunkt: {selection}")
@@ -46024,6 +46741,935 @@ def render_globale_email_suche(user_id: str):
                         _render_email_card(email_obj, "", user_id)
         else:
             st.info("Keine E-Mails gefunden.")
+
+
+# ============================================================================
+# DUE DILIGENCE DATENRAUM (VDR) - FUNKTIONEN
+# ============================================================================
+
+def vdr_audit_log(deal_id: str, user_id: str, aktion: str, objekt_typ: str = "",
+                  objekt_id: str = "", meta: dict = None):
+    """
+    Erzeugt einen Audit-Event-Eintrag (append-only!).
+    PFLICHT: Alle Zugriffe müssen protokolliert werden.
+    """
+    if 'vdr_audit_events' not in st.session_state:
+        st.session_state.vdr_audit_events = []
+
+    # Gruppen-Snapshot für den User zum Zeitpunkt des Events
+    gruppen_snapshot = []
+    for gm in st.session_state.vdr_gruppenmitgliedschaften.values():
+        if gm.user_id == user_id:
+            gruppe = st.session_state.vdr_gruppen.get(gm.gruppe_id)
+            if gruppe and gruppe.deal_id == deal_id:
+                gruppen_snapshot.append(gm.gruppe_id)
+
+    event = VDRAuditEvent(
+        event_id=str(uuid.uuid4())[:8],
+        deal_id=deal_id,
+        actor_user_id=user_id,
+        actor_gruppen_snapshot=gruppen_snapshot,
+        ts_utc=datetime.now(),
+        aktion=aktion,
+        objekt_typ=objekt_typ,
+        objekt_id=objekt_id,
+        meta_json=json.dumps(meta) if meta else ""
+    )
+
+    # Append-only: Nur hinzufügen, nie löschen oder ändern
+    st.session_state.vdr_audit_events.append(event)
+
+    return event
+
+
+def vdr_pruefe_nda_status(deal_id: str, user_id: str) -> bool:
+    """
+    Prüft, ob der User die NDA/Vertraulichkeitserklärung für den Deal akzeptiert hat.
+    Käufer-Gruppen benötigen eine akzeptierte NDA.
+    """
+    # Prüfen, ob User in einer Käufer-Gruppe ist
+    kaeufer_gruppen_typen = [
+        VDRGruppenTyp.BUYER_CORE.value,
+        VDRGruppenTyp.BUYER_LEGAL.value,
+        VDRGruppenTyp.BUYER_TAX.value,
+        VDRGruppenTyp.BUYER_TECH.value,
+        VDRGruppenTyp.BUYER_FINANCE.value,
+        VDRGruppenTyp.BUYER_PARTNERS.value,
+    ]
+
+    ist_kaeufer = False
+    for gm in st.session_state.vdr_gruppenmitgliedschaften.values():
+        if gm.user_id == user_id:
+            gruppe = st.session_state.vdr_gruppen.get(gm.gruppe_id)
+            if gruppe and gruppe.deal_id == deal_id and gruppe.typ in kaeufer_gruppen_typen:
+                ist_kaeufer = True
+                break
+
+    # Wenn kein Käufer, NDA nicht erforderlich
+    if not ist_kaeufer:
+        return True
+
+    # Prüfe NDA-Status
+    for nda in st.session_state.vdr_nda_anerkennungen.values():
+        if nda.deal_id == deal_id and nda.user_id == user_id:
+            if nda.status == VDRNDAStatus.ACCEPTED.value:
+                return True
+
+    return False
+
+
+def vdr_get_user_berechtigungen(deal_id: str, user_id: str) -> List[str]:
+    """
+    Ermittelt die effektiven Berechtigungen eines Users für einen Deal.
+    Kombiniert individuelle und Gruppen-Berechtigungen.
+    """
+    berechtigungen = set()
+
+    # 1. Individuelle Mitgliedschaft prüfen
+    for mitgliedschaft in st.session_state.vdr_mitgliedschaften.values():
+        if mitgliedschaft.deal_id == deal_id and mitgliedschaft.user_id == user_id:
+            berechtigungen.update(mitgliedschaft.berechtigungen)
+
+    # 2. Gruppen-Berechtigungen prüfen
+    for gm in st.session_state.vdr_gruppenmitgliedschaften.values():
+        if gm.user_id == user_id:
+            gruppe = st.session_state.vdr_gruppen.get(gm.gruppe_id)
+            if gruppe and gruppe.deal_id == deal_id:
+                berechtigungen.update(gruppe.standard_berechtigungen)
+
+    return list(berechtigungen)
+
+
+def vdr_hat_berechtigung(deal_id: str, user_id: str, berechtigung: str) -> bool:
+    """Prüft, ob ein User eine bestimmte Berechtigung für einen Deal hat."""
+    # NDA-Prüfung für Käufer
+    if not vdr_pruefe_nda_status(deal_id, user_id):
+        # Audit: Zugriff verweigert wegen fehlender NDA
+        vdr_audit_log(deal_id, user_id, VDRAuditAktion.ACCESS_DENIED.value,
+                     "berechtigung", berechtigung, {"grund": "NDA nicht akzeptiert"})
+        return False
+
+    berechtigungen = vdr_get_user_berechtigungen(deal_id, user_id)
+    return berechtigung in berechtigungen
+
+
+def vdr_erstelle_deal(name: str, projekt_id: str, ersteller_id: str) -> VDRDeal:
+    """Erstellt einen neuen VDR-Deal und die Standard-Ordnerstruktur."""
+    deal_id = str(uuid.uuid4())[:8]
+
+    deal = VDRDeal(
+        deal_id=deal_id,
+        name=name,
+        projekt_id=projekt_id,
+        erstellt_von=ersteller_id,
+        datenraum_eroeffnung=datetime.now(),
+        vertraulichkeit_bis=date.today() + timedelta(days=730)  # 24 Monate
+    )
+
+    st.session_state.vdr_deals[deal_id] = deal
+
+    # Standard-Ordnerstruktur erstellen
+    for i, ordner_def in enumerate(VDR_STANDARD_ORDNER_IMMOBILIE):
+        ordner_id = str(uuid.uuid4())[:8]
+        ordner = VDROrdner(
+            ordner_id=ordner_id,
+            deal_id=deal_id,
+            name=ordner_def["name"],
+            pfad=f"/{ordner_def['name']}",
+            sort_order=i,
+            erstellt_von=ersteller_id
+        )
+        st.session_state.vdr_ordner[ordner_id] = ordner
+
+    # Standard-Gruppen erstellen
+    for gruppen_typ in VDRGruppenTyp:
+        gruppe_id = str(uuid.uuid4())[:8]
+        gruppe = VDRGruppe(
+            gruppe_id=gruppe_id,
+            deal_id=deal_id,
+            name=gruppen_typ.value,
+            typ=gruppen_typ.value,
+            standard_berechtigungen=VDR_STANDARD_BERECHTIGUNGEN.get(gruppen_typ.value, [])
+        )
+        st.session_state.vdr_gruppen[gruppe_id] = gruppe
+
+    # Ersteller als Admin hinzufügen
+    mitglied_id = str(uuid.uuid4())[:8]
+    mitgliedschaft = VDRMitgliedschaft(
+        mitgliedschaft_id=mitglied_id,
+        deal_id=deal_id,
+        user_id=ersteller_id,
+        rolle=VDRRolle.ADMIN.value,
+        berechtigungen=[b.value for b in VDRBerechtigung],  # Alle Berechtigungen
+        hinzugefuegt_von=ersteller_id
+    )
+    st.session_state.vdr_mitgliedschaften[mitglied_id] = mitgliedschaft
+
+    # Audit-Log
+    vdr_audit_log(deal_id, ersteller_id, "DEAL_CREATED", "deal", deal_id, {"name": name})
+
+    return deal
+
+
+def vdr_dokument_hochladen(deal_id: str, ordner_id: str, user_id: str, dateiname: str,
+                           datei_bytes: bytes, mime_type: str = "") -> Optional[VDRDokument]:
+    """
+    Lädt ein Dokument in den Datenraum hoch.
+    Erstellt automatisch erste Version.
+    """
+    # Berechtigung prüfen
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.UPLOAD.value):
+        st.error("Keine Berechtigung zum Upload")
+        return None
+
+    dok_id = str(uuid.uuid4())[:8]
+    version_id = str(uuid.uuid4())[:8]
+
+    # Hash berechnen
+    import hashlib
+    sha256_hash = hashlib.sha256(datei_bytes).hexdigest()
+
+    # Version erstellen
+    version = VDRDokumentVersion(
+        version_id=version_id,
+        dokument_id=dok_id,
+        version_no=1,
+        dateiname=dateiname,
+        mime_type=mime_type or "application/octet-stream",
+        dateigroesse=len(datei_bytes),
+        sha256_hash=sha256_hash,
+        datei_bytes=datei_bytes,
+        erstellt_von=user_id
+    )
+    st.session_state.vdr_dokument_versionen[version_id] = version
+
+    # Dokument erstellen
+    dokument = VDRDokument(
+        dokument_id=dok_id,
+        deal_id=deal_id,
+        ordner_id=ordner_id,
+        titel=dateiname,
+        aktuelle_version_id=version_id,
+        version_count=1,
+        erstellt_von=user_id
+    )
+    st.session_state.vdr_dokumente[dok_id] = dokument
+
+    # Audit-Log
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.UPLOAD_DOC.value, "dokument", dok_id,
+                 {"dateiname": dateiname, "groesse": len(datei_bytes), "sha256": sha256_hash[:16]})
+
+    return dokument
+
+
+def vdr_dokument_ansehen(deal_id: str, dokument_id: str, user_id: str) -> Optional[bytes]:
+    """
+    Liefert Dokumentinhalt mit Audit-Logging.
+    PFLICHT: Jeder Zugriff wird protokolliert.
+    """
+    # Berechtigung prüfen
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.VIEW.value):
+        vdr_audit_log(deal_id, user_id, VDRAuditAktion.ACCESS_DENIED.value, "dokument", dokument_id)
+        return None
+
+    dokument = st.session_state.vdr_dokumente.get(dokument_id)
+    if not dokument or dokument.deal_id != deal_id:
+        return None
+
+    version = st.session_state.vdr_dokument_versionen.get(dokument.aktuelle_version_id)
+    if not version:
+        return None
+
+    # Audit-Log: View
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.VIEW_DOC.value, "dokument", dokument_id,
+                 {"version": version.version_no, "dateiname": version.dateiname})
+
+    return version.datei_bytes
+
+
+def vdr_dokument_download(deal_id: str, dokument_id: str, user_id: str) -> Optional[tuple]:
+    """
+    Download eines Dokuments mit Audit-Logging.
+    Returns: (bytes, filename) oder None
+    """
+    # Berechtigung prüfen
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.DOWNLOAD.value):
+        vdr_audit_log(deal_id, user_id, VDRAuditAktion.ACCESS_DENIED.value, "dokument", dokument_id,
+                     {"grund": "Keine Download-Berechtigung"})
+        return None
+
+    dokument = st.session_state.vdr_dokumente.get(dokument_id)
+    if not dokument or dokument.deal_id != deal_id:
+        return None
+
+    version = st.session_state.vdr_dokument_versionen.get(dokument.aktuelle_version_id)
+    if not version:
+        return None
+
+    # Audit-Log: Download
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.DOWNLOAD_DOC.value, "dokument", dokument_id,
+                 {"version": version.version_no, "dateiname": version.dateiname, "groesse": version.dateigroesse})
+
+    return (version.datei_bytes, version.dateiname)
+
+
+def vdr_qa_frage_stellen(deal_id: str, user_id: str, inhalt: str, kategorie: str = "",
+                         dokument_id: str = "") -> Optional[VDRQAThread]:
+    """Stellt eine neue Q&A-Frage."""
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.QA_ASK.value):
+        return None
+
+    thread_id = str(uuid.uuid4())[:8]
+    nachricht_id = str(uuid.uuid4())[:8]
+
+    thread = VDRQAThread(
+        thread_id=thread_id,
+        deal_id=deal_id,
+        kategorie=kategorie or VDRQAKategorie.SONSTIGES.value,
+        dokument_id=dokument_id,
+        erstellt_von=user_id
+    )
+    st.session_state.vdr_qa_threads[thread_id] = thread
+
+    nachricht = VDRQANachricht(
+        nachricht_id=nachricht_id,
+        thread_id=thread_id,
+        autor_user_id=user_id,
+        art="question",
+        inhalt=inhalt
+    )
+    st.session_state.vdr_qa_nachrichten[nachricht_id] = nachricht
+
+    # Audit
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.QA_ASK.value, "qa_thread", thread_id,
+                 {"kategorie": kategorie})
+
+    return thread
+
+
+def vdr_qa_antwort_erstellen(deal_id: str, thread_id: str, user_id: str, inhalt: str,
+                             veroeffentlichen: bool = False) -> Optional[VDRQANachricht]:
+    """Erstellt eine Antwort auf eine Q&A-Frage."""
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.QA_ANSWER.value):
+        return None
+
+    thread = st.session_state.vdr_qa_threads.get(thread_id)
+    if not thread or thread.deal_id != deal_id:
+        return None
+
+    nachricht_id = str(uuid.uuid4())[:8]
+    nachricht = VDRQANachricht(
+        nachricht_id=nachricht_id,
+        thread_id=thread_id,
+        autor_user_id=user_id,
+        art="answer",
+        inhalt=inhalt,
+        ist_veroeffentlicht=veroeffentlichen
+    )
+
+    if veroeffentlichen:
+        nachricht.veroeffentlicht_am = datetime.now()
+        nachricht.veroeffentlicht_von = user_id
+        thread.status = VDRQAStatus.PUBLISHED.value
+        vdr_audit_log(deal_id, user_id, VDRAuditAktion.QA_PUBLISHED.value, "qa_nachricht", nachricht_id)
+    else:
+        thread.status = VDRQAStatus.ANSWERED.value
+        vdr_audit_log(deal_id, user_id, VDRAuditAktion.QA_ANSWER_DRAFT.value, "qa_nachricht", nachricht_id)
+
+    st.session_state.vdr_qa_nachrichten[nachricht_id] = nachricht
+    thread.zuletzt_aktualisiert = datetime.now()
+
+    return nachricht
+
+
+def vdr_nda_akzeptieren(deal_id: str, user_id: str, typ: str = "CONFIRMATION") -> VDRNDAAnerkennung:
+    """Akzeptiert die NDA/Vertraulichkeitserklärung für einen Deal."""
+    nda_id = str(uuid.uuid4())[:8]
+
+    nda = VDRNDAAnerkennung(
+        id=nda_id,
+        deal_id=deal_id,
+        user_id=user_id,
+        typ=typ,
+        status=VDRNDAStatus.ACCEPTED.value,
+        akzeptiert_am=datetime.now()
+    )
+    st.session_state.vdr_nda_anerkennungen[nda_id] = nda
+
+    # Audit
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.NDA_ACCEPTED.value, "nda", nda_id, {"typ": typ})
+
+    return nda
+
+
+def vdr_suche(deal_id: str, user_id: str, suchbegriff: str) -> List[VDRDokument]:
+    """
+    Durchsucht Dokumente im Datenraum.
+    Loggt jeden Suchvorgang.
+    """
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.VIEW.value):
+        return []
+
+    # Audit: Suche protokollieren
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.SEARCH.value, "suche", "",
+                 {"query": suchbegriff})
+
+    ergebnisse = []
+    such = suchbegriff.lower()
+
+    for dok in st.session_state.vdr_dokumente.values():
+        if dok.deal_id != deal_id:
+            continue
+
+        # Suche in Titel, Beschreibung, Tags
+        if (such in dok.titel.lower() or
+            such in dok.beschreibung.lower() or
+            any(such in tag.lower() for tag in dok.tags)):
+            ergebnisse.append(dok)
+
+    return ergebnisse
+
+
+def vdr_export_audit_report(deal_id: str, user_id: str) -> List[dict]:
+    """
+    Exportiert den Audit-Report für einen Deal.
+    Nur für Benutzer mit EXPORT_REPORTS Berechtigung.
+    """
+    if not vdr_hat_berechtigung(deal_id, user_id, VDRBerechtigung.EXPORT_REPORTS.value):
+        return []
+
+    # Audit: Export protokollieren
+    vdr_audit_log(deal_id, user_id, VDRAuditAktion.EXPORT_AUDIT.value, "report", deal_id)
+
+    report = []
+    for event in st.session_state.vdr_audit_events:
+        if event.deal_id == deal_id:
+            user = st.session_state.users.get(event.actor_user_id)
+            report.append({
+                "Zeitpunkt": event.ts_utc.strftime("%d.%m.%Y %H:%M:%S"),
+                "Benutzer": user.name if user else event.actor_user_id,
+                "Aktion": event.aktion,
+                "Objekt": f"{event.objekt_typ}: {event.objekt_id}",
+                "Gruppen": ", ".join(event.actor_gruppen_snapshot),
+                "Details": event.meta_json
+            })
+
+    return report
+
+
+# ============================================================================
+# DUE DILIGENCE DATENRAUM (VDR) - UI KOMPONENTEN
+# ============================================================================
+
+def render_vdr_nda_gate(deal_id: str, user_id: str) -> bool:
+    """
+    Zeigt NDA-Gate an, wenn der User noch nicht akzeptiert hat.
+    Returns True wenn Zugang gewährt.
+    """
+    if vdr_pruefe_nda_status(deal_id, user_id):
+        return True
+
+    deal = st.session_state.vdr_deals.get(deal_id)
+    if not deal:
+        st.error("Deal nicht gefunden")
+        return False
+
+    st.warning("### Vertraulichkeitserklärung erforderlich")
+
+    st.markdown(f"""
+    **Gemäß LOI Ziff. 7 (Vertraulichkeit):**
+
+    Der Inhalt und die Existenz dieses Datenraums sowie alle darin enthaltenen
+    Informationen und Unterlagen sind streng vertraulich.
+
+    Die Nutzung ist ausschließlich für die Prüfung und Transaktionsvorbereitung
+    gestattet (Zweckbindung).
+
+    Die Vertraulichkeit gilt **24 Monate** ab Unterzeichnung des LOI
+    (bis {deal.vertraulichkeit_bis.strftime('%d.%m.%Y') if deal.vertraulichkeit_bis else 'unbefristet'}).
+    """)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Ich akzeptiere die Vertraulichkeitserklärung", type="primary"):
+            vdr_nda_akzeptieren(deal_id, user_id, "CONFIRMATION")
+            st.success("Vielen Dank! Sie haben nun Zugang zum Datenraum.")
+            st.rerun()
+
+    with col2:
+        st.button("Abbrechen", disabled=True)
+
+    return False
+
+
+def render_vdr_dashboard(user_id: str, projekt_id: str = ""):
+    """
+    Hauptansicht des Due-Diligence-Datenraums.
+    Wird für alle Rollen angezeigt.
+    """
+    st.markdown("## Due Diligence Datenraum")
+
+    user = st.session_state.users.get(user_id)
+    if not user:
+        st.error("Benutzer nicht gefunden")
+        return
+
+    # Deals für diesen User finden
+    user_deals = []
+    for deal in st.session_state.vdr_deals.values():
+        # Prüfe ob User Mitglied ist
+        for mitglied in st.session_state.vdr_mitgliedschaften.values():
+            if mitglied.deal_id == deal.deal_id and mitglied.user_id == user_id:
+                user_deals.append(deal)
+                break
+        else:
+            # Prüfe Gruppenmitgliedschaft
+            for gm in st.session_state.vdr_gruppenmitgliedschaften.values():
+                if gm.user_id == user_id:
+                    gruppe = st.session_state.vdr_gruppen.get(gm.gruppe_id)
+                    if gruppe and gruppe.deal_id == deal.deal_id:
+                        if deal not in user_deals:
+                            user_deals.append(deal)
+                        break
+
+    # Wenn projekt_id angegeben, nach passenden Deals filtern
+    if projekt_id:
+        user_deals = [d for d in user_deals if d.projekt_id == projekt_id]
+
+    # Deal erstellen (nur für bestimmte Rollen)
+    if user.rolle in [UserRole.VERKÄUFER.value, UserRole.MAKLER.value, UserRole.NOTAR.value]:
+        with st.expander("Neuen Datenraum erstellen", expanded=not user_deals):
+            with st.form("create_vdr_deal"):
+                name = st.text_input("Name des Datenraums", placeholder="z.B. Due Diligence Nikolaus-Otto-Straße 11")
+
+                # Projekt-Auswahl
+                user_projekte = []
+                for p in st.session_state.projekte.values():
+                    if (p.makler_id == user_id or
+                        user_id in p.verkaeufer_ids or
+                        p.notar_id == user_id):
+                        user_projekte.append(p)
+
+                projekt_optionen = {"": "-- Kein Projekt --"}
+                projekt_optionen.update({p.projekt_id: p.name for p in user_projekte})
+
+                selected_projekt = st.selectbox(
+                    "Mit Projekt verknüpfen",
+                    options=list(projekt_optionen.keys()),
+                    format_func=lambda x: projekt_optionen[x]
+                )
+
+                if st.form_submit_button("Datenraum erstellen", type="primary"):
+                    if name:
+                        deal = vdr_erstelle_deal(name, selected_projekt, user_id)
+                        st.success(f"Datenraum '{name}' wurde erstellt!")
+                        st.rerun()
+                    else:
+                        st.error("Bitte geben Sie einen Namen ein.")
+
+    if not user_deals:
+        st.info("Sie haben noch keinen Zugang zu einem Due-Diligence-Datenraum.")
+        return
+
+    # Deal-Auswahl
+    if len(user_deals) > 1:
+        deal_optionen = {d.deal_id: d.name for d in user_deals}
+        selected_deal_id = st.selectbox(
+            "Datenraum auswählen",
+            options=list(deal_optionen.keys()),
+            format_func=lambda x: deal_optionen[x]
+        )
+        deal = st.session_state.vdr_deals.get(selected_deal_id)
+    else:
+        deal = user_deals[0]
+
+    if not deal:
+        return
+
+    # NDA-Gate prüfen
+    if not render_vdr_nda_gate(deal.deal_id, user_id):
+        return
+
+    # Berechtigungen ermitteln
+    berechtigungen = vdr_get_user_berechtigungen(deal.deal_id, user_id)
+
+    # Tabs für verschiedene Funktionen
+    tab_namen = ["Dokumente", "Q&A"]
+    if VDRBerechtigung.UPLOAD.value in berechtigungen:
+        tab_namen.append("Upload")
+    if VDRBerechtigung.MANAGE_PERMISSIONS.value in berechtigungen:
+        tab_namen.extend(["Berechtigungen", "Mitglieder"])
+    if VDRBerechtigung.EXPORT_REPORTS.value in berechtigungen:
+        tab_namen.append("Audit-Log")
+
+    tabs = st.tabs(tab_namen)
+    tab_index = 0
+
+    # === DOKUMENTE TAB ===
+    with tabs[tab_index]:
+        render_vdr_dokumente_tab(deal, user_id, berechtigungen)
+    tab_index += 1
+
+    # === Q&A TAB ===
+    with tabs[tab_index]:
+        render_vdr_qa_tab(deal, user_id, berechtigungen)
+    tab_index += 1
+
+    # === UPLOAD TAB ===
+    if VDRBerechtigung.UPLOAD.value in berechtigungen:
+        with tabs[tab_index]:
+            render_vdr_upload_tab(deal, user_id)
+        tab_index += 1
+
+    # === BERECHTIGUNGEN TAB ===
+    if VDRBerechtigung.MANAGE_PERMISSIONS.value in berechtigungen:
+        with tabs[tab_index]:
+            render_vdr_berechtigungen_tab(deal, user_id)
+        tab_index += 1
+
+        # === MITGLIEDER TAB ===
+        with tabs[tab_index]:
+            render_vdr_mitglieder_tab(deal, user_id)
+        tab_index += 1
+
+    # === AUDIT-LOG TAB ===
+    if VDRBerechtigung.EXPORT_REPORTS.value in berechtigungen:
+        with tabs[tab_index]:
+            render_vdr_audit_tab(deal, user_id)
+
+
+def render_vdr_dokumente_tab(deal: VDRDeal, user_id: str, berechtigungen: List[str]):
+    """Zeigt die Dokumentenstruktur des Datenraums."""
+    st.markdown("### Dokumente")
+
+    # Suche
+    col_search, col_filter = st.columns([3, 1])
+    with col_search:
+        suchbegriff = st.text_input("Suche", placeholder="Dokumente durchsuchen...",
+                                   key=f"vdr_search_{deal.deal_id}")
+    with col_filter:
+        sortierung = st.selectbox("Sortierung", ["Name", "Datum", "Ordner"],
+                                 key=f"vdr_sort_{deal.deal_id}")
+
+    if suchbegriff:
+        ergebnisse = vdr_suche(deal.deal_id, user_id, suchbegriff)
+        st.markdown(f"**{len(ergebnisse)} Treffer**")
+        for dok in ergebnisse:
+            _render_vdr_dokument_card(dok, deal.deal_id, user_id, berechtigungen)
+        return
+
+    # Ordnerstruktur anzeigen
+    ordner_liste = [o for o in st.session_state.vdr_ordner.values() if o.deal_id == deal.deal_id]
+    ordner_liste.sort(key=lambda o: o.sort_order)
+
+    for ordner in ordner_liste:
+        # Dokumente in diesem Ordner
+        ordner_docs = [d for d in st.session_state.vdr_dokumente.values()
+                      if d.deal_id == deal.deal_id and d.ordner_id == ordner.ordner_id]
+
+        with st.expander(f"📁 {ordner.name} ({len(ordner_docs)})", expanded=False):
+            if ordner_docs:
+                for dok in ordner_docs:
+                    _render_vdr_dokument_card(dok, deal.deal_id, user_id, berechtigungen)
+            else:
+                st.caption("Keine Dokumente in diesem Ordner")
+
+
+def _render_vdr_dokument_card(dok: VDRDokument, deal_id: str, user_id: str, berechtigungen: List[str]):
+    """Rendert eine Dokumentkarte."""
+    version = st.session_state.vdr_dokument_versionen.get(dok.aktuelle_version_id)
+
+    col1, col2, col3 = st.columns([4, 1, 1])
+
+    with col1:
+        st.markdown(f"**{dok.titel}**")
+        if version:
+            st.caption(f"{version.dateiname} | {version.dateigroesse / 1024:.1f} KB | Version {version.version_no}")
+
+    with col2:
+        if VDRBerechtigung.VIEW.value in berechtigungen:
+            if st.button("👁️", key=f"view_{dok.dokument_id}", help="Ansehen"):
+                inhalt = vdr_dokument_ansehen(deal_id, dok.dokument_id, user_id)
+                if inhalt:
+                    st.session_state[f"vdr_preview_{dok.dokument_id}"] = True
+
+    with col3:
+        if VDRBerechtigung.DOWNLOAD.value in berechtigungen and version and version.datei_bytes:
+            st.download_button(
+                "⬇️",
+                data=version.datei_bytes,
+                file_name=version.dateiname,
+                key=f"dl_{dok.dokument_id}",
+                help="Download"
+            )
+            # Audit wird im Download-Button nicht automatisch geloggt, daher manuell
+            if st.session_state.get(f"downloaded_{dok.dokument_id}"):
+                vdr_audit_log(deal_id, user_id, VDRAuditAktion.DOWNLOAD_DOC.value,
+                             "dokument", dok.dokument_id)
+
+
+def render_vdr_qa_tab(deal: VDRDeal, user_id: str, berechtigungen: List[str]):
+    """Q&A-Bereich des Datenraums."""
+    st.markdown("### Q&A - Fragen & Antworten")
+
+    # Neue Frage stellen
+    if VDRBerechtigung.QA_ASK.value in berechtigungen:
+        with st.expander("Neue Frage stellen", expanded=False):
+            with st.form(f"qa_form_{deal.deal_id}"):
+                kategorie = st.selectbox(
+                    "Kategorie",
+                    options=[k.value for k in VDRQAKategorie],
+                    key=f"qa_kat_{deal.deal_id}"
+                )
+                frage = st.text_area("Ihre Frage", key=f"qa_frage_{deal.deal_id}")
+
+                if st.form_submit_button("Frage absenden"):
+                    if frage:
+                        thread = vdr_qa_frage_stellen(deal.deal_id, user_id, frage, kategorie)
+                        if thread:
+                            st.success("Frage wurde gestellt!")
+                            st.rerun()
+                    else:
+                        st.error("Bitte geben Sie eine Frage ein.")
+
+    # Threads anzeigen
+    threads = [t for t in st.session_state.vdr_qa_threads.values() if t.deal_id == deal.deal_id]
+    threads.sort(key=lambda t: t.zuletzt_aktualisiert, reverse=True)
+
+    # Status-Filter
+    status_filter = st.multiselect(
+        "Status filtern",
+        options=[s.value for s in VDRQAStatus],
+        default=[VDRQAStatus.OPEN.value, VDRQAStatus.IN_PROGRESS.value, VDRQAStatus.PUBLISHED.value],
+        key=f"qa_filter_{deal.deal_id}"
+    )
+
+    filtered_threads = [t for t in threads if t.status in status_filter]
+
+    st.markdown(f"**{len(filtered_threads)} Threads**")
+
+    for thread in filtered_threads:
+        # Nachrichten des Threads
+        nachrichten = [n for n in st.session_state.vdr_qa_nachrichten.values()
+                      if n.thread_id == thread.thread_id]
+        nachrichten.sort(key=lambda n: n.erstellt_am)
+
+        frage = next((n for n in nachrichten if n.art == "question"), None)
+        if not frage:
+            continue
+
+        autor = st.session_state.users.get(frage.autor_user_id)
+        autor_name = autor.name if autor else "Unbekannt"
+
+        status_emoji = {
+            VDRQAStatus.OPEN.value: "🔴",
+            VDRQAStatus.IN_PROGRESS.value: "🟡",
+            VDRQAStatus.ANSWERED.value: "🟢",
+            VDRQAStatus.PUBLISHED.value: "✅",
+            VDRQAStatus.CLOSED.value: "⚫"
+        }.get(thread.status, "❓")
+
+        with st.expander(f"{status_emoji} [{thread.kategorie}] {frage.inhalt[:50]}...", expanded=False):
+            st.markdown(f"**Frage von {autor_name}** ({frage.erstellt_am.strftime('%d.%m.%Y %H:%M')})")
+            st.markdown(frage.inhalt)
+
+            # Antworten anzeigen
+            antworten = [n for n in nachrichten if n.art == "answer"]
+            for antwort in antworten:
+                if antwort.ist_veroeffentlicht or VDRBerechtigung.QA_ANSWER.value in berechtigungen:
+                    antwort_autor = st.session_state.users.get(antwort.autor_user_id)
+                    st.markdown("---")
+                    status = "✅ Veröffentlicht" if antwort.ist_veroeffentlicht else "📝 Entwurf"
+                    st.markdown(f"**Antwort von {antwort_autor.name if antwort_autor else 'Unbekannt'}** {status}")
+                    st.markdown(antwort.inhalt)
+
+            # Antwort erstellen
+            if VDRBerechtigung.QA_ANSWER.value in berechtigungen:
+                st.markdown("---")
+                antwort_text = st.text_area("Antwort verfassen", key=f"qa_antwort_{thread.thread_id}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Als Entwurf speichern", key=f"qa_draft_{thread.thread_id}"):
+                        if antwort_text:
+                            vdr_qa_antwort_erstellen(deal.deal_id, thread.thread_id, user_id, antwort_text)
+                            st.rerun()
+                with col2:
+                    if VDRBerechtigung.QA_PUBLISH.value in berechtigungen:
+                        if st.button("Veröffentlichen", key=f"qa_pub_{thread.thread_id}", type="primary"):
+                            if antwort_text:
+                                vdr_qa_antwort_erstellen(deal.deal_id, thread.thread_id, user_id,
+                                                        antwort_text, veroeffentlichen=True)
+                                st.rerun()
+
+
+def render_vdr_upload_tab(deal: VDRDeal, user_id: str):
+    """Upload-Bereich des Datenraums."""
+    st.markdown("### Dokument hochladen")
+
+    # Ordner-Auswahl
+    ordner_liste = [o for o in st.session_state.vdr_ordner.values() if o.deal_id == deal.deal_id]
+    ordner_liste.sort(key=lambda o: o.sort_order)
+
+    ordner_optionen = {o.ordner_id: o.name for o in ordner_liste}
+    selected_ordner = st.selectbox(
+        "Zielordner",
+        options=list(ordner_optionen.keys()),
+        format_func=lambda x: ordner_optionen[x],
+        key=f"upload_ordner_{deal.deal_id}"
+    )
+
+    uploaded_files = st.file_uploader(
+        "Dateien auswählen",
+        accept_multiple_files=True,
+        key=f"vdr_upload_{deal.deal_id}"
+    )
+
+    if uploaded_files:
+        if st.button("Hochladen", type="primary"):
+            for uploaded_file in uploaded_files:
+                datei_bytes = uploaded_file.read()
+                dok = vdr_dokument_hochladen(
+                    deal.deal_id,
+                    selected_ordner,
+                    user_id,
+                    uploaded_file.name,
+                    datei_bytes,
+                    uploaded_file.type
+                )
+                if dok:
+                    st.success(f"✅ {uploaded_file.name} hochgeladen")
+            st.rerun()
+
+
+def render_vdr_berechtigungen_tab(deal: VDRDeal, user_id: str):
+    """Berechtigungsverwaltung."""
+    st.markdown("### Berechtigungen")
+
+    # Gruppen anzeigen
+    gruppen = [g for g in st.session_state.vdr_gruppen.values() if g.deal_id == deal.deal_id]
+
+    for gruppe in gruppen:
+        with st.expander(f"👥 {gruppe.name}", expanded=False):
+            st.markdown(f"**Typ:** {gruppe.typ}")
+            st.markdown("**Standard-Berechtigungen:**")
+            for perm in gruppe.standard_berechtigungen:
+                st.markdown(f"• {perm}")
+
+            # Mitglieder dieser Gruppe
+            mitglieder = [gm for gm in st.session_state.vdr_gruppenmitgliedschaften.values()
+                         if gm.gruppe_id == gruppe.gruppe_id]
+            st.markdown(f"**Mitglieder ({len(mitglieder)}):**")
+            for gm in mitglieder:
+                user = st.session_state.users.get(gm.user_id)
+                st.markdown(f"• {user.name if user else gm.user_id}")
+
+
+def render_vdr_mitglieder_tab(deal: VDRDeal, user_id: str):
+    """Mitgliederverwaltung."""
+    st.markdown("### Mitglieder verwalten")
+
+    # Alle Benutzer zur Auswahl
+    all_users = list(st.session_state.users.values())
+    user_optionen = {u.user_id: f"{u.name} ({u.rolle})" for u in all_users}
+
+    # Gruppen zur Auswahl
+    gruppen = [g for g in st.session_state.vdr_gruppen.values() if g.deal_id == deal.deal_id]
+    gruppen_optionen = {g.gruppe_id: g.name for g in gruppen}
+
+    with st.form(f"add_member_{deal.deal_id}"):
+        st.markdown("**Neues Mitglied hinzufügen**")
+        selected_user = st.selectbox("Benutzer", options=list(user_optionen.keys()),
+                                    format_func=lambda x: user_optionen[x])
+        selected_gruppe = st.selectbox("Gruppe", options=list(gruppen_optionen.keys()),
+                                       format_func=lambda x: gruppen_optionen[x])
+
+        if st.form_submit_button("Hinzufügen"):
+            # Prüfen ob bereits Mitglied
+            existiert = any(gm.user_id == selected_user and gm.gruppe_id == selected_gruppe
+                          for gm in st.session_state.vdr_gruppenmitgliedschaften.values())
+            if existiert:
+                st.warning("Benutzer ist bereits Mitglied dieser Gruppe")
+            else:
+                gm_id = str(uuid.uuid4())[:8]
+                gm = VDRGruppenmitgliedschaft(
+                    id=gm_id,
+                    gruppe_id=selected_gruppe,
+                    user_id=selected_user
+                )
+                st.session_state.vdr_gruppenmitgliedschaften[gm_id] = gm
+
+                # NDA-Anforderung erstellen
+                nda_id = str(uuid.uuid4())[:8]
+                nda = VDRNDAAnerkennung(
+                    id=nda_id,
+                    deal_id=deal.deal_id,
+                    user_id=selected_user,
+                    gruppe_id=selected_gruppe,
+                    status=VDRNDAStatus.PENDING.value
+                )
+                st.session_state.vdr_nda_anerkennungen[nda_id] = nda
+
+                st.success("Mitglied hinzugefügt!")
+                st.rerun()
+
+
+def render_vdr_audit_tab(deal: VDRDeal, user_id: str):
+    """Audit-Log Ansicht."""
+    st.markdown("### Audit-Log")
+
+    # Export-Button
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("📥 Export CSV"):
+            report = vdr_export_audit_report(deal.deal_id, user_id)
+            if report:
+                import csv
+                import io
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=report[0].keys())
+                writer.writeheader()
+                writer.writerows(report)
+                st.download_button(
+                    "Download",
+                    data=output.getvalue(),
+                    file_name=f"audit_log_{deal.deal_id}_{date.today()}.csv",
+                    mime="text/csv"
+                )
+
+    # Filter
+    col1, col2 = st.columns(2)
+    with col1:
+        aktion_filter = st.multiselect(
+            "Aktion filtern",
+            options=[a.value for a in VDRAuditAktion],
+            key=f"audit_filter_{deal.deal_id}"
+        )
+    with col2:
+        user_filter = st.text_input("Benutzer filtern", key=f"audit_user_{deal.deal_id}")
+
+    # Events anzeigen
+    events = [e for e in st.session_state.vdr_audit_events if e.deal_id == deal.deal_id]
+    events.sort(key=lambda e: e.ts_utc, reverse=True)
+
+    if aktion_filter:
+        events = [e for e in events if e.aktion in aktion_filter]
+    if user_filter:
+        events = [e for e in events if user_filter.lower() in
+                 (st.session_state.users.get(e.actor_user_id, User("", "", "", "")).name.lower())]
+
+    st.markdown(f"**{len(events)} Ereignisse**")
+
+    for event in events[:100]:  # Max 100 anzeigen
+        user = st.session_state.users.get(event.actor_user_id)
+        user_name = user.name if user else event.actor_user_id
+
+        col1, col2, col3 = st.columns([2, 2, 3])
+        with col1:
+            st.caption(event.ts_utc.strftime("%d.%m.%Y %H:%M:%S"))
+        with col2:
+            st.caption(f"👤 {user_name}")
+        with col3:
+            st.caption(f"**{event.aktion}** - {event.objekt_typ}: {event.objekt_id}")
 
 
 def main():

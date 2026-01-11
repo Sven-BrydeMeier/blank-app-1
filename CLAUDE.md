@@ -429,6 +429,148 @@ st.session_state.email_anhaenge = {}           # anhang_id -> EmailAnhang
 st.session_state.akten_ordner_auswahl = {}     # akte_id -> ausgewählter_ordner
 ```
 
+## Due Diligence Datenraum (VDR)
+
+### Übersicht
+Das VDR-System (Virtual Data Room) ermöglicht die sichere Bereitstellung von Due-Diligence-Unterlagen für Immobilientransaktionen mit feingranularer Zugriffskontrolle.
+
+### Hauptfunktionen
+
+**Dokumentenverwaltung:**
+- Upload mit Versionierung (SHA256-Hash)
+- 13 Standard-Ordner für Immobilien-DD (gemäß LOI Anlage 1)
+- Volltext-Suche und Metadaten-Tags
+- Vertraulichkeitsstufen (Öffentlich, Intern, Vertraulich, Streng Vertraulich)
+
+**Zugriffskontrolle:**
+- Rollen: Admin, Uploader, Editor, Reviewer, QA Moderator
+- Gruppentypen: Verkäufer Admin/Uploader, Käufer Kernteam/Berater (Legal, Tax, Technical, Financial, ESG)
+- Berechtigungen: Ansehen, Download, Upload, Bearbeiten, Löschen, Drucken, Wasserzeichen, Ordner erstellen, Benutzer verwalten
+- NDA/Vertraulichkeits-Gate für Käufergruppen
+
+**Q&A-System:**
+- Fragen-Threads mit Kategorien (Legal, Financial, Technical, Commercial, Tax, ESG)
+- Prioritäten und Status-Tracking
+- Eskalationsmöglichkeiten
+
+**Audit-Trail:**
+- Append-only Ereignisprotokoll
+- Alle Zugriffe werden protokolliert
+- Export als Report möglich
+
+### VDR Standard-Ordnerstruktur
+
+| Nr | Ordner | Beschreibung |
+|----|--------|-------------|
+| 01 | Grundbuch / Baulasten | Grundbuchauszüge, Baulasten |
+| 02 | Kataster / Vermessung | Katasterunterlagen |
+| 03 | Baugenehmigungen / Öffentliches Recht | Genehmigungen, Baurecht |
+| 04 | Gebäude / Technische DD | Technische Dokumentation |
+| 05 | Umwelt / ESG | Umweltgutachten, Altlasten |
+| 06 | Mietverträge / Einnahmen | Mietverträge, Nebenkostenabrechnungen |
+| 07 | Betriebskosten / Bewirtschaftung | Betriebskostenabrechnungen |
+| 08 | Versicherungen | Versicherungspolicen |
+| 09 | Rechtsstreitigkeiten | Laufende Verfahren |
+| 10 | Steuern | Grundsteuerbescheide |
+| 11 | Finanzierung / Grundpfandrechte | Bestehende Finanzierungen |
+| 12 | Sonstiges | Weitere Unterlagen |
+| 13 | Transaktionsunterlagen | LOI, SPA-Entwürfe |
+
+### VDR Enums
+
+```python
+class VDRRolle(Enum):
+    ADMIN, UPLOADER, EDITOR, REVIEWER, QA_MODERATOR
+
+class VDRGruppenTyp(Enum):
+    SELLER_ADMIN, SELLER_UPLOADER, BUYER_CORE, BUYER_LEGAL,
+    BUYER_TAX, BUYER_TECHNICAL, BUYER_FINANCIAL, BUYER_ESG
+
+class VDRBerechtigung(Enum):
+    VIEW, DOWNLOAD, UPLOAD, EDIT, DELETE, PRINT, WATERMARK,
+    CREATE_FOLDER, MANAGE_USERS, MANAGE_POLICIES, VIEW_AUDIT
+
+class VDRAuditAktion(Enum):
+    LOGIN, VIEW_DOC, DOWNLOAD_DOC, UPLOAD_DOC, EDIT_DOC,
+    DELETE_DOC, CREATE_FOLDER, CHANGE_PERMISSION, QA_POST,
+    NDA_ACCEPT, SEARCH, EXPORT
+```
+
+### VDR Dataclasses
+
+| Dataclass | Beschreibung |
+|-----------|-------------|
+| `VDRDeal` | Ein Due-Diligence-Datenraum (Deal) |
+| `VDRMitgliedschaft` | User-Mitgliedschaft in einem Deal |
+| `VDRGruppe` | Benutzergruppe mit Berechtigungen |
+| `VDROrdner` | Ordner im Datenraum |
+| `VDRDokument` | Dokument mit Metadaten |
+| `VDRDokumentVersion` | Versionierte Dokumentversion (SHA256) |
+| `VDRPolicy` | Zugriffsrichtlinie |
+| `VDRNDAAnerkennung` | NDA-Akzeptanz eines Users |
+| `VDRAuditEvent` | Audit-Eintrag (append-only) |
+| `VDRQAThread` | Q&A-Fragen-Thread |
+| `VDRQANachricht` | Nachricht in Q&A-Thread |
+
+### VDR Session State
+
+```python
+st.session_state.vdr_deals = {}              # deal_id -> VDRDeal
+st.session_state.vdr_mitgliedschaften = {}   # mitgliedschaft_id -> VDRMitgliedschaft
+st.session_state.vdr_gruppen = {}            # gruppe_id -> VDRGruppe
+st.session_state.vdr_ordner = {}             # ordner_id -> VDROrdner
+st.session_state.vdr_dokumente = {}          # dokument_id -> VDRDokument
+st.session_state.vdr_versionen = {}          # version_id -> VDRDokumentVersion
+st.session_state.vdr_policies = {}           # policy_id -> VDRPolicy
+st.session_state.vdr_nda_anerkennungen = {}  # nda_id -> VDRNDAAnerkennung
+st.session_state.vdr_audit_events = []       # Liste von VDRAuditEvent (append-only!)
+st.session_state.vdr_qa_threads = {}         # thread_id -> VDRQAThread
+st.session_state.vdr_qa_nachrichten = {}     # nachricht_id -> VDRQANachricht
+```
+
+### VDR Kernfunktionen
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `vdr_audit_log()` | Audit-Event erstellen (append-only) |
+| `vdr_pruefe_nda_status()` | NDA-Status für Benutzer prüfen |
+| `vdr_get_user_berechtigungen()` | Berechtigungen eines Users ermitteln |
+| `vdr_hat_berechtigung()` | Prüft spezifische Berechtigung |
+| `vdr_erstelle_deal()` | Neuen Datenraum erstellen |
+| `vdr_dokument_hochladen()` | Dokument mit Version hochladen |
+| `vdr_dokument_ansehen()` | Dokument ansehen (mit Audit) |
+| `vdr_dokument_download()` | Dokument herunterladen (mit Audit) |
+| `vdr_qa_frage_stellen()` | Q&A-Frage erstellen |
+| `vdr_qa_antwort_erstellen()` | Q&A-Antwort erstellen |
+| `vdr_nda_akzeptieren()` | NDA akzeptieren |
+| `vdr_suche()` | Volltextsuche in Dokumenten |
+| `vdr_export_audit_report()` | Audit-Report exportieren |
+
+### VDR UI-Komponenten
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `render_vdr_nda_gate()` | NDA-Akzeptanz-Dialog |
+| `render_vdr_dashboard()` | Hauptansicht des VDR |
+| `render_vdr_dokumente_tab()` | Dokumente-Tab mit Ordnerstruktur |
+| `render_vdr_qa_tab()` | Q&A-Tab mit Threads |
+| `render_vdr_upload_tab()` | Upload-Tab |
+| `render_vdr_berechtigungen_tab()` | Berechtigungen verwalten |
+| `render_vdr_mitglieder_tab()` | Mitglieder verwalten |
+| `render_vdr_audit_tab()` | Audit-Log anzeigen |
+
+### VDR Integration in Dashboards
+
+Due Diligence ist in allen Rollen-Dashboards als Tab verfügbar:
+
+| Rolle | Tab-Name | Beschreibung |
+|-------|----------|-------------|
+| Notar | Due Diligence (Menü) | Vollständiges VDR-Management |
+| Makler | 🔒 Due Diligence | VDR-Zugang für Projekte |
+| Käufer | 🔒 Due Diligence | VDR-Zugang (mit NDA-Gate) |
+| Verkäufer | 🔒 Due Diligence | VDR-Zugang und Upload |
+| Finanzierer | 🔒 Due Diligence | VDR-Zugang für Finanzprüfung |
+
 ## Letzte Änderungen
 
 1. **Grundbuch-OCR mit KI** - Automatische Extraktion von Abt. II und III aus PDFs
@@ -443,3 +585,4 @@ st.session_state.akten_ordner_auswahl = {}     # akte_id -> ausgewählter_ordner
 10. **Alle Interaktionen klickbar** - Native Streamlit-Buttons statt HTML-only
 11. **Erklärungs-Modus für Verträge** - Split-View mit verständlichen Erklärungen für Käufer/Verkäufer/Makler
 12. **Email-Import per Drag & Drop** - Erweiterte Ordnerstruktur mit intelligentem Emailverkehr-Ordner
+13. **Due Diligence Datenraum (VDR)** - Virtueller Datenraum mit Audit-Trail, NDA-Gate, Q&A-System für alle Rollen
