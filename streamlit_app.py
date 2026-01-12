@@ -1567,8 +1567,207 @@ def inject_unified_dashboard_styles():
         color: #343a40;
     }
 
+    /* ============================================
+       BLUR-DIALOG / MODAL SYSTEM
+       ============================================ */
+
+    /* Streamlit Dialog (st.dialog) mit Blur-Hintergrund */
+    div[data-testid="stModal"] > div:first-child {
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+    }
+
+    /* Dialog-Fenster selbst */
+    div[data-testid="stModalContent"] {
+        border-radius: 16px !important;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Dialog Header */
+    div[data-testid="stModalContent"] h1,
+    div[data-testid="stModalContent"] h2,
+    div[data-testid="stModalContent"] h3 {
+        color: #343a40;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Custom Modal Overlay (für eigene Implementierungen) */
+    .blur-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9998;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .blur-modal-content {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+        position: relative;
+        z-index: 9999;
+    }
+
+    .blur-modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: #f8f9fa;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: #6c757d;
+        transition: all 0.2s ease;
+    }
+
+    .blur-modal-close:hover {
+        background: #e9ecef;
+        color: #343a40;
+    }
+
+    .blur-modal-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .blur-modal-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #343a40;
+    }
+
+    .blur-modal-body {
+        margin-bottom: 1.5rem;
+    }
+
+    .blur-modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    /* Animation für Modal */
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    .blur-modal-content {
+        animation: modalFadeIn 0.2s ease-out;
+    }
+
     </style>
     """, unsafe_allow_html=True)
+
+
+def render_blur_modal_html(titel: str, icon: str = "📋", inhalt_html: str = "") -> str:
+    """
+    Generiert HTML für ein Modal mit Blur-Hintergrund.
+
+    Args:
+        titel: Titel des Modals
+        icon: Icon für den Header
+        inhalt_html: HTML-Inhalt des Modal-Body
+
+    Returns:
+        HTML-String für das Modal (zur Verwendung mit st.markdown)
+    """
+    return f"""
+    <div class="blur-modal-overlay" id="blur-modal">
+        <div class="blur-modal-content">
+            <div class="blur-modal-header">
+                <span style="font-size: 1.75rem;">{icon}</span>
+                <h2>{titel}</h2>
+            </div>
+            <div class="blur-modal-body">
+                {inhalt_html}
+            </div>
+        </div>
+    </div>
+    """
+
+
+def show_blur_dialog(
+    titel: str,
+    session_key: str,
+    icon: str = "📋",
+    width: str = "large"
+):
+    """
+    Zeigt einen Streamlit-Dialog mit Blur-Hintergrund.
+
+    Verwendung als Decorator:
+    ```python
+    @show_blur_dialog("Mein Titel", "dialog_key", icon="📁")
+    def mein_dialog_inhalt():
+        st.write("Inhalt hier")
+        if st.button("Schließen"):
+            st.session_state.dialog_key = False
+            st.rerun()
+
+    # Aufruf:
+    if st.button("Dialog öffnen"):
+        st.session_state.dialog_key = True
+
+    if st.session_state.get("dialog_key"):
+        mein_dialog_inhalt()
+    ```
+
+    Args:
+        titel: Dialog-Titel
+        session_key: Session-State-Key zum Öffnen/Schließen
+        icon: Icon im Header
+        width: Dialog-Breite ("small", "medium", "large")
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Dialog nur anzeigen wenn session_key True ist
+            if not st.session_state.get(session_key, False):
+                return None
+
+            # Native Streamlit Dialog verwenden (hat automatisch Blur durch CSS)
+            @st.dialog(titel, width=width)
+            def _inner_dialog():
+                func(*args, **kwargs)
+
+            _inner_dialog()
+            return None
+        return wrapper
+    return decorator
 
 
 def render_dashboard_header(rolle: str, user_name: str, unread_count: int = 0):
@@ -36267,23 +36466,32 @@ def analysiere_pdf_struktur(pdf_bytes: bytes, extrahiere_volltext: bool = True) 
             if extrahiere_volltext:
                 struktur["volltext"] = "\n\n".join(volltext_liste)
 
-            # Inhaltsverzeichnis aus Text extrahieren
-            # Suche primär in ersten 5 Seiten nach IVZ
-            ivz_text = "\n".join(volltext_liste[:5])
-            struktur["inhaltsverzeichnis"] = extrahiere_inhaltsverzeichnis_aus_text(ivz_text)
-
-            # Falls kein Inhaltsverzeichnis gefunden, nutze Lesezeichen als Struktur
-            if not struktur["inhaltsverzeichnis"] and struktur["lesezeichen"]:
-                struktur["inhaltsverzeichnis"] = [
+            # PRIMÄR: PDF-Lesezeichen als Strukturquelle verwenden
+            # Lesezeichen sind zuverlässiger als Text-basierte Inhaltsverzeichnisse
+            if struktur["lesezeichen"]:
+                struktur["dokument_struktur"] = [
                     {
                         "prefix": "",
                         "titel": lz["titel"],
                         "seite": lz["seite"] + 1,  # 1-basiert
                         "ebene": lz["ebene"],
-                        "volltext": lz["titel"]
+                        "volltext": lz["titel"],
+                        "quelle": "lesezeichen"
                     }
                     for lz in struktur["lesezeichen"]
                 ]
+
+            # FALLBACK: Inhaltsverzeichnis aus Text extrahieren (nur wenn keine Lesezeichen)
+            if not struktur.get("dokument_struktur"):
+                ivz_text = "\n".join(volltext_liste[:5])
+                ivz_aus_text = extrahiere_inhaltsverzeichnis_aus_text(ivz_text)
+                if ivz_aus_text:
+                    for eintrag in ivz_aus_text:
+                        eintrag["quelle"] = "text"
+                    struktur["dokument_struktur"] = ivz_aus_text
+
+            # Legacy-Kompatibilität: inhaltsverzeichnis bleibt für alte Funktionen
+            struktur["inhaltsverzeichnis"] = struktur.get("dokument_struktur", [])
 
             # Typische Aktenordner-Namen erkennen
             ordner_keywords = {
@@ -36455,18 +36663,18 @@ def erstelle_akte_aus_pdf(
 
 
 def render_akten_import():
-    """Rendert die erweiterte Import-Oberfläche für PDF-Akten mit Inhaltsverzeichnis-Erkennung."""
+    """Rendert die erweiterte Import-Oberfläche für PDF-Akten mit Lesezeichen-basierter Aufteilung."""
     st.subheader("📁 PDF-Aktenimport")
 
     st.info("""
-    **PDF-Akten mit Inhaltsverzeichnis importieren**
+    **PDF-Akten mit Lesezeichen importieren** (z.B. RA-Micro Export)
 
     Laden Sie eine komplette Akte als PDF hoch. Das System analysiert:
-    - **Inhaltsverzeichnis** aus dem PDF-Text
-    - **Lesezeichen/Bookmarks** der PDF
+    - **PDF-Lesezeichen/Bookmarks** (primär - z.B. aus RA-Micro)
+    - **Inhaltsverzeichnis** aus dem PDF-Text (Fallback)
     - **Aktenbeteiligte** aus dem Aktenblatt (mit KI)
 
-    Die Akte wird automatisch in einzelne Dokumente aufgeteilt und den entsprechenden Ordnern zugewiesen.
+    Die Akte wird basierend auf den **PDF-Lesezeichen** automatisch in einzelne Dokumente aufgeteilt.
     """)
 
     notar_id = st.session_state.current_user.user_id
@@ -36486,7 +36694,7 @@ def render_akten_import():
     uploaded_file = st.file_uploader(
         "PDF-Akte hochladen",
         type=["pdf"],
-        help="Ziehen Sie eine PDF-Datei mit Inhaltsverzeichnis hierher",
+        help="Ziehen Sie eine PDF-Datei mit Lesezeichen hierher (z.B. RA-Micro Export)",
         key="akten_pdf_uploader"
     )
 
@@ -36536,23 +36744,27 @@ def render_akten_import():
         if struktur.get("fehler"):
             st.warning(f"⚠️ Hinweis: {struktur['fehler']}")
 
-        # Erkanntes Inhaltsverzeichnis anzeigen
-        ivz = struktur.get("inhaltsverzeichnis", [])
-        if ivz:
-            with st.expander(f"📑 Erkanntes Inhaltsverzeichnis ({len(ivz)} Einträge)", expanded=True):
-                for i, eintrag in enumerate(ivz[:30]):
+        # Erkannte Dokumentstruktur anzeigen (primär aus Lesezeichen)
+        dok_struktur = struktur.get("dokument_struktur", [])
+        quelle = "PDF-Lesezeichen" if dok_struktur and dok_struktur[0].get("quelle") == "lesezeichen" else "Inhaltsverzeichnis (Text)"
+
+        if dok_struktur:
+            with st.expander(f"📑 Erkannte Dokumentstruktur aus {quelle} ({len(dok_struktur)} Einträge)", expanded=True):
+                # Info über Quelle
+                if dok_struktur[0].get("quelle") == "lesezeichen":
+                    st.success("✅ Struktur basiert auf PDF-Lesezeichen (zuverlässig)")
+                else:
+                    st.info("ℹ️ Struktur basiert auf Text-Analyse (keine Lesezeichen gefunden)")
+
+                st.markdown("---")
+                for i, eintrag in enumerate(dok_struktur[:30]):
                     einrueckung = "  " * eintrag.get("ebene", 0)
                     prefix = eintrag.get("prefix", "")
                     st.write(f"{einrueckung}{prefix}{eintrag['titel']} → Seite {eintrag['seite']}")
-                if len(ivz) > 30:
-                    st.write(f"*... und {len(ivz) - 30} weitere Einträge*")
-        elif struktur.get("lesezeichen"):
-            with st.expander(f"📑 PDF-Lesezeichen ({lz_count} Einträge)", expanded=True):
-                for lz in struktur["lesezeichen"][:30]:
-                    einrueckung = "  " * lz.get("ebene", 0)
-                    st.write(f"{einrueckung}• {lz['titel']} (Seite {lz.get('seite', 0) + 1})")
+                if len(dok_struktur) > 30:
+                    st.write(f"*... und {len(dok_struktur) - 30} weitere Einträge*")
         else:
-            st.warning("⚠️ Kein Inhaltsverzeichnis oder Lesezeichen erkannt. Die gesamte PDF wird als ein Dokument importiert.")
+            st.warning("⚠️ Keine PDF-Lesezeichen und kein Inhaltsverzeichnis erkannt. Die gesamte PDF wird als ein Dokument importiert.")
 
         # === SCHRITT 2: AKTENBETEILIGTE EXTRAHIEREN ===
         st.markdown("---")
@@ -36631,11 +36843,12 @@ def render_akten_import():
         st.markdown("---")
         st.markdown("## 3️⃣ Dokumentzuordnung")
 
-        # Struktur für Dokumente erstellen
-        dokument_eintraege = ivz if ivz else []
+        # Struktur für Dokumente erstellen (primär aus Lesezeichen)
+        dokument_eintraege = struktur.get("dokument_struktur", [])
 
         if dokument_eintraege:
-            st.write(f"**{len(dokument_eintraege)} Dokumente** werden aus dem Inhaltsverzeichnis erstellt:")
+            quelle_info = "PDF-Lesezeichen" if dokument_eintraege[0].get("quelle") == "lesezeichen" else "Inhaltsverzeichnis"
+            st.write(f"**{len(dokument_eintraege)} Dokumente** werden aus {quelle_info} erstellt:")
 
             # Initialisiere Zuordnungen
             if not st.session_state.akten_import_state.get('dokument_zuordnungen'):
