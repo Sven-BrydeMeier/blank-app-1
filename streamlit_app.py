@@ -26783,49 +26783,40 @@ def render_notar_bottom_nav():
         st.markdown('<div class="mobile-nav-container">', unsafe_allow_html=True)
 
         menu_items = list(NOTAR_MENU_STRUKTUR.items())
+        total_items = len(menu_items)
 
-        # Alle 8 Gruppen in 2 Reihen à 4 Spalten
-        # Erste Reihe: Akte, Grundbuch, Parteien, Finanzierung
-        cols1 = st.columns(4)
-        for i, (gruppe_name, gruppe_data) in enumerate(menu_items[:4]):
-            with cols1[i]:
-                icon = gruppe_data['icon']
-                is_active = gruppe_name == active_group
-                default_key = gruppe_data['items'][0]['key']
-                if default_key.startswith('_') and default_key in NOTAR_UNTERMENUS:
-                    default_key = NOTAR_UNTERMENUS[default_key][0]['key']
+        # Dynamische Aufteilung: 3 Reihen wenn > 8 Gruppen, sonst 2 Reihen
+        if total_items > 8:
+            # 3 Reihen à 3 Spalten
+            items_per_row = 3
+            rows = [menu_items[i:i+items_per_row] for i in range(0, total_items, items_per_row)]
+        else:
+            # 2 Reihen à 4 Spalten
+            items_per_row = 4
+            rows = [menu_items[:4], menu_items[4:8]]
 
-                if st.button(
-                    icon,
-                    key=f"mobile_nav_{gruppe_name}",
-                    use_container_width=True,
-                    type="primary" if is_active else "secondary",
-                    help=gruppe_name
-                ):
-                    st.session_state.notar_menu_selection = default_key
-                    st.session_state.notar_mobile_group = gruppe_name
-                    st.rerun()
+        for row_items in rows:
+            if not row_items:
+                continue
+            cols = st.columns(len(row_items))
+            for i, (gruppe_name, gruppe_data) in enumerate(row_items):
+                with cols[i]:
+                    icon = gruppe_data['icon']
+                    is_active = gruppe_name == active_group
+                    default_key = gruppe_data['items'][0]['key']
+                    if default_key.startswith('_') and default_key in NOTAR_UNTERMENUS:
+                        default_key = NOTAR_UNTERMENUS[default_key][0]['key']
 
-        # Zweite Reihe: Kaufvertrag, Beurkundung, Vollzug, Kommunikation
-        cols2 = st.columns(4)
-        for i, (gruppe_name, gruppe_data) in enumerate(menu_items[4:]):
-            with cols2[i]:
-                icon = gruppe_data['icon']
-                is_active = gruppe_name == active_group
-                default_key = gruppe_data['items'][0]['key']
-                if default_key.startswith('_') and default_key in NOTAR_UNTERMENUS:
-                    default_key = NOTAR_UNTERMENUS[default_key][0]['key']
-
-                if st.button(
-                    icon,
-                    key=f"mobile_nav_{gruppe_name}",
-                    use_container_width=True,
-                    type="primary" if is_active else "secondary",
-                    help=gruppe_name
-                ):
-                    st.session_state.notar_menu_selection = default_key
-                    st.session_state.notar_mobile_group = gruppe_name
-                    st.rerun()
+                    if st.button(
+                        icon,
+                        key=f"mobile_nav_{gruppe_name}",
+                        use_container_width=True,
+                        type="primary" if is_active else "secondary",
+                        help=gruppe_name
+                    ):
+                        st.session_state.notar_menu_selection = default_key
+                        st.session_state.notar_mobile_group = gruppe_name
+                        st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
 
