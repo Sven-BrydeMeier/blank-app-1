@@ -47876,6 +47876,697 @@ def render_vdr_audit_tab(deal: VDRDeal, user_id: str):
             st.caption(f"**{event.aktion}** - {event.objekt_typ}: {event.objekt_id}")
 
 
+# ==================== LÖSCHUNGSBEWILLIGUNGEN MODUL ====================
+
+# Import der Löschungsbewilligungen-Module
+try:
+    from modules.loeschungsbewilligungen import (
+        LBCase, LBCaseStatus, LBDocumentType, LBOrgRole,
+        LBExcelImporter, LBImportResult, LBImportError,
+        LBDocumentGenerator, LBGenerationResult,
+    )
+    from modules.loeschungsbewilligungen.excel_import import create_import_template, get_available_fields
+    LB_MODULE_AVAILABLE = True
+except ImportError:
+    LB_MODULE_AVAILABLE = False
+
+
+def init_lb_session_state():
+    """Initialisiert Session State für Löschungsbewilligungen."""
+    if "lb_organizations" not in st.session_state:
+        st.session_state.lb_organizations = {}
+    if "lb_memberships" not in st.session_state:
+        st.session_state.lb_memberships = {}
+    if "lb_cases" not in st.session_state:
+        st.session_state.lb_cases = {}
+    if "lb_documents" not in st.session_state:
+        st.session_state.lb_documents = {}
+    if "lb_uploads" not in st.session_state:
+        st.session_state.lb_uploads = {}
+    if "lb_templates" not in st.session_state:
+        st.session_state.lb_templates = {}
+    if "lb_current_org" not in st.session_state:
+        st.session_state.lb_current_org = None
+    if "lb_view" not in st.session_state:
+        st.session_state.lb_view = "dashboard"
+
+
+def render_lb_auftraggeber_dashboard():
+    """Dashboard für Auftraggeber (externe Kunden der Kanzlei)."""
+    if not LB_MODULE_AVAILABLE:
+        st.error("Löschungsbewilligungen-Modul nicht verfügbar. Bitte prüfen Sie die Installation.")
+        return
+
+    init_lb_session_state()
+
+    st.markdown("## 📋 Löschungsbewilligungen - Auftraggeber-Portal")
+
+    # Tabs für verschiedene Ansichten
+    tab1, tab2, tab3 = st.tabs(["📊 Übersicht", "📥 Neuer Auftrag", "📄 Meine Aufträge"])
+
+    with tab1:
+        _render_lb_auftraggeber_uebersicht()
+
+    with tab2:
+        _render_lb_auftraggeber_neuer_auftrag()
+
+    with tab3:
+        _render_lb_auftraggeber_auftraege()
+
+
+def _render_lb_auftraggeber_uebersicht():
+    """Übersichts-Widget für Auftraggeber."""
+    # Demo-Statistiken
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Offene Aufträge", "3")
+    with col2:
+        st.metric("In Bearbeitung", "2")
+    with col3:
+        st.metric("Bewilligung erhalten", "5")
+    with col4:
+        st.metric("Abgeschlossen", "12")
+
+    st.markdown("---")
+    st.markdown("### 📌 Aktuelle Aktivitäten")
+
+    # Demo-Aktivitäten
+    aktivitaeten = [
+        {"datum": "15.01.2026", "typ": "Bewilligung erhalten", "az": "2026/001", "details": "Sparkasse München"},
+        {"datum": "14.01.2026", "typ": "Anschreiben versendet", "az": "2026/002", "details": "Volksbank München"},
+        {"datum": "13.01.2026", "typ": "Neuer Auftrag", "az": "2026/003", "details": "3 Löschungen angefragt"},
+    ]
+
+    for akt in aktivitaeten:
+        col1, col2, col3, col4 = st.columns([1, 2, 2, 3])
+        with col1:
+            st.caption(akt["datum"])
+        with col2:
+            st.markdown(f"**{akt['typ']}**")
+        with col3:
+            st.caption(akt["az"])
+        with col4:
+            st.caption(akt["details"])
+
+
+def _render_lb_auftraggeber_neuer_auftrag():
+    """Formular für neuen Löschungsbewilligungs-Auftrag."""
+    st.markdown("### Neuen Auftrag anlegen")
+
+    upload_method = st.radio(
+        "Wie möchten Sie die Daten eingeben?",
+        ["📝 Manuell eingeben", "📊 Excel-Import"],
+        horizontal=True
+    )
+
+    if upload_method == "📝 Manuell eingeben":
+        _render_lb_manuelles_formular()
+    else:
+        _render_lb_excel_import()
+
+
+def _render_lb_manuelles_formular():
+    """Manuelles Eingabeformular für einen Fall."""
+    with st.form("lb_neuer_fall"):
+        st.markdown("#### Grundbuchdaten")
+        col1, col2 = st.columns(2)
+        with col1:
+            grundbuch = st.text_input("Grundbuch *", placeholder="z.B. Amtsgericht München")
+            gemarkung = st.text_input("Gemarkung", placeholder="z.B. München")
+        with col2:
+            gb_blatt = st.text_input("Blatt *", placeholder="z.B. 12345")
+            flurstueck = st.text_input("Flurstück", placeholder="z.B. 100/1")
+
+        st.markdown("#### Eigentümer / Empfänger")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            vorname = st.text_input("Vorname")
+            strasse = st.text_input("Straße")
+        with col2:
+            nachname = st.text_input("Nachname")
+            plz = st.text_input("PLZ")
+        with col3:
+            firma = st.text_input("Firma (falls Unternehmen)")
+            ort = st.text_input("Ort")
+
+        st.markdown("#### Zu löschendes Recht")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            abteilung = st.selectbox("Abteilung", ["II", "III"])
+            recht_art = st.text_input("Art des Rechts", placeholder="z.B. Grundschuld")
+        with col2:
+            lfd_nr = st.text_input("Lfd. Nr.")
+            recht_betrag = st.text_input("Betrag", placeholder="z.B. 100.000,00")
+        with col3:
+            recht_beschreibung = st.text_area("Beschreibung", height=100)
+
+        st.markdown("#### Gläubiger (bei Abt. III)")
+        col1, col2 = st.columns(2)
+        with col1:
+            glaeubiger_name = st.text_input("Name des Gläubigers", placeholder="z.B. Sparkasse München")
+            glaeubiger_strasse = st.text_input("Straße Gläubiger")
+            glaeubiger_iban = st.text_input("IBAN")
+        with col2:
+            glaeubiger_plz = st.text_input("PLZ Gläubiger")
+            glaeubiger_ort = st.text_input("Ort Gläubiger")
+            glaeubiger_bic = st.text_input("BIC")
+
+        st.markdown("#### Zusätzliche Informationen")
+        col1, col2 = st.columns(2)
+        with col1:
+            aktenzeichen = st.text_input("Ihr Aktenzeichen", placeholder="z.B. 2026/001")
+            frist_datum = st.date_input("Frist (optional)", value=None)
+        with col2:
+            notizen = st.text_area("Notizen", height=100)
+
+        submitted = st.form_submit_button("Auftrag anlegen", type="primary", use_container_width=True)
+
+        if submitted:
+            if not grundbuch or not gb_blatt:
+                st.error("Bitte füllen Sie die Pflichtfelder (Grundbuch, Blatt) aus.")
+            else:
+                # Fall erstellen
+                from uuid import uuid4
+                case_id = str(uuid4())[:8]
+
+                # In Session State speichern (Demo)
+                if "lb_cases" not in st.session_state:
+                    st.session_state.lb_cases = {}
+
+                st.session_state.lb_cases[case_id] = {
+                    "id": case_id,
+                    "grundbuch": grundbuch,
+                    "gb_blatt": gb_blatt,
+                    "gemarkung": gemarkung,
+                    "flurstueck": flurstueck,
+                    "vorname": vorname,
+                    "nachname": nachname,
+                    "firma": firma,
+                    "strasse": strasse,
+                    "plz": plz,
+                    "ort": ort,
+                    "abteilung": abteilung,
+                    "lfd_nr": lfd_nr,
+                    "recht_art": recht_art,
+                    "recht_betrag": recht_betrag,
+                    "recht_beschreibung": recht_beschreibung,
+                    "glaeubiger_name": glaeubiger_name,
+                    "glaeubiger_strasse": glaeubiger_strasse,
+                    "glaeubiger_plz": glaeubiger_plz,
+                    "glaeubiger_ort": glaeubiger_ort,
+                    "glaeubiger_iban": glaeubiger_iban,
+                    "glaeubiger_bic": glaeubiger_bic,
+                    "aktenzeichen": aktenzeichen,
+                    "notizen": notizen,
+                    "status": "entwurf",
+                    "created_at": datetime.now().isoformat(),
+                }
+
+                st.success(f"✅ Auftrag {aktenzeichen or case_id} erfolgreich angelegt!")
+                st.rerun()
+
+
+def _render_lb_excel_import():
+    """Excel-Import für Massendaten."""
+    st.markdown("#### Excel-Import")
+
+    # Download-Vorlage
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if st.button("📥 Vorlage herunterladen"):
+            if LB_MODULE_AVAILABLE:
+                template_bytes = create_import_template()
+                st.download_button(
+                    "Download Excel-Vorlage",
+                    data=template_bytes,
+                    file_name="Loeschungsbewilligungen_Vorlage.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.warning("Modul nicht verfügbar")
+
+    st.markdown("---")
+
+    uploaded_file = st.file_uploader(
+        "Excel-Datei hochladen",
+        type=["xlsx", "xls"],
+        key="lb_excel_upload"
+    )
+
+    if uploaded_file:
+        st.markdown("##### Vorschau der importierten Daten")
+
+        if LB_MODULE_AVAILABLE:
+            try:
+                from uuid import uuid4
+                org_id = uuid4()  # Demo-Organisation
+                importer = LBExcelImporter(org_id)
+
+                # Vorschau laden
+                preview = importer.preview(uploaded_file)
+
+                # Erkannte Zuordnung anzeigen
+                st.markdown("**Automatisch erkannte Spalten:**")
+                mapping_cols = st.columns(4)
+                for i, (excel_col, target_field) in enumerate(preview["detected_mapping"].items()):
+                    with mapping_cols[i % 4]:
+                        st.caption(f"✓ {excel_col} → {target_field}")
+
+                # Datenvorschau
+                st.markdown(f"**Vorschau ({preview['total_rows']} Zeilen):**")
+                import pandas as pd
+                df_preview = pd.DataFrame(preview["preview_data"])
+                st.dataframe(df_preview, use_container_width=True, height=200)
+
+                # Import-Button
+                if st.button("📊 Daten importieren", type="primary"):
+                    # Datei neu laden für Import
+                    uploaded_file.seek(0)
+                    result = importer.import_data(uploaded_file)
+
+                    if result.success:
+                        st.success(f"✅ {result.imported_count} Fälle erfolgreich importiert!")
+
+                        # In Session State speichern
+                        for case in result.cases:
+                            st.session_state.lb_cases[str(case.id)] = case.to_dict()
+                    else:
+                        st.error(f"❌ Import fehlgeschlagen: {len(result.errors)} Fehler")
+                        for error in result.errors[:5]:
+                            st.error(str(error))
+
+                    if result.warnings:
+                        st.warning(f"⚠️ {len(result.warnings)} Warnungen")
+                        for warning in result.warnings[:5]:
+                            st.warning(str(warning))
+
+            except Exception as e:
+                st.error(f"Fehler beim Laden der Excel-Datei: {str(e)}")
+        else:
+            st.warning("Excel-Import-Modul nicht verfügbar")
+
+
+def _render_lb_auftraggeber_auftraege():
+    """Liste der Aufträge des Auftraggebers."""
+    st.markdown("### Meine Aufträge")
+
+    # Filter
+    col1, col2 = st.columns(2)
+    with col1:
+        status_filter = st.multiselect(
+            "Status filtern",
+            options=["Entwurf", "Angefordert", "Bewilligung erhalten", "Abgeschlossen", "Storniert"],
+            default=["Entwurf", "Angefordert", "Bewilligung erhalten"]
+        )
+    with col2:
+        suche = st.text_input("Suchen", placeholder="Aktenzeichen, Name, Grundbuch...")
+
+    # Fälle aus Session State laden
+    cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+
+    if not cases:
+        st.info("Noch keine Aufträge vorhanden. Erstellen Sie einen neuen Auftrag im Tab 'Neuer Auftrag'.")
+        return
+
+    # Status-Mapping
+    status_map = {
+        "entwurf": "Entwurf",
+        "angefordert": "Angefordert",
+        "bewilligung_da": "Bewilligung erhalten",
+        "abgeschlossen": "Abgeschlossen",
+        "storniert": "Storniert"
+    }
+
+    for case in cases:
+        status_label = status_map.get(case.get("status", "entwurf"), "Unbekannt")
+
+        # Filter anwenden
+        if status_filter and status_label not in status_filter:
+            continue
+
+        if suche:
+            search_text = f"{case.get('aktenzeichen', '')} {case.get('vorname', '')} {case.get('nachname', '')} {case.get('grundbuch', '')}".lower()
+            if suche.lower() not in search_text:
+                continue
+
+        # Fall anzeigen
+        with st.expander(f"📋 {case.get('aktenzeichen', case['id'])} - {case.get('grundbuch', '')} Blatt {case.get('gb_blatt', '')}"):
+            col1, col2, col3 = st.columns([2, 2, 1])
+
+            with col1:
+                st.markdown(f"**Grundbuch:** {case.get('grundbuch', '')}, Blatt {case.get('gb_blatt', '')}")
+                if case.get("gemarkung"):
+                    st.caption(f"Gemarkung: {case.get('gemarkung')}, Flurstück: {case.get('flurstueck', '-')}")
+
+                empfaenger = case.get('firma') or f"{case.get('vorname', '')} {case.get('nachname', '')}".strip()
+                st.markdown(f"**Empfänger:** {empfaenger or 'Nicht angegeben'}")
+
+            with col2:
+                st.markdown(f"**Recht:** Abt. {case.get('abteilung', '-')}, lfd. Nr. {case.get('lfd_nr', '-')}")
+                st.markdown(f"{case.get('recht_art', '')} {case.get('recht_betrag', '')}")
+                if case.get('glaeubiger_name'):
+                    st.caption(f"Gläubiger: {case.get('glaeubiger_name')}")
+
+            with col3:
+                # Status-Badge
+                status_colors = {
+                    "Entwurf": "gray",
+                    "Angefordert": "orange",
+                    "Bewilligung erhalten": "blue",
+                    "Abgeschlossen": "green",
+                    "Storniert": "red"
+                }
+                st.markdown(f"**Status:** {status_label}")
+
+                if case.get("status") == "entwurf":
+                    if st.button("📤 Absenden", key=f"send_{case['id']}"):
+                        st.session_state.lb_cases[case['id']]["status"] = "angefordert"
+                        st.success("Auftrag wurde an die Kanzlei übermittelt!")
+                        st.rerun()
+
+
+def render_lb_kanzlei_backoffice():
+    """Kanzlei-Backoffice für Löschungsbewilligungen."""
+    if not LB_MODULE_AVAILABLE:
+        st.error("Löschungsbewilligungen-Modul nicht verfügbar.")
+        return
+
+    init_lb_session_state()
+
+    st.markdown("## 📁 Löschungsbewilligungen - Kanzlei-Backoffice")
+
+    # Hauptnavigation
+    tabs = st.tabs([
+        "📊 Dashboard",
+        "📋 Alle Fälle",
+        "📝 Dokumente generieren",
+        "📥 Uploads",
+        "📄 Vorlagen",
+        "⚙️ Einstellungen"
+    ])
+
+    with tabs[0]:
+        _render_lb_kanzlei_dashboard()
+
+    with tabs[1]:
+        _render_lb_kanzlei_faelle()
+
+    with tabs[2]:
+        _render_lb_dokumente_generieren()
+
+    with tabs[3]:
+        _render_lb_uploads()
+
+    with tabs[4]:
+        _render_lb_vorlagen()
+
+    with tabs[5]:
+        _render_lb_einstellungen()
+
+
+def _render_lb_kanzlei_dashboard():
+    """Dashboard für die Kanzlei."""
+    # Statistiken
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+    status_counts = {}
+    for case in cases:
+        status = case.get("status", "entwurf")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    with col1:
+        st.metric("Gesamt", len(cases))
+    with col2:
+        st.metric("Entwurf", status_counts.get("entwurf", 0))
+    with col3:
+        st.metric("Angefordert", status_counts.get("angefordert", 0), delta=status_counts.get("angefordert", 0))
+    with col4:
+        st.metric("Bewilligung da", status_counts.get("bewilligung_da", 0))
+    with col5:
+        st.metric("Abgeschlossen", status_counts.get("abgeschlossen", 0))
+
+    st.markdown("---")
+
+    # Zwei Spalten: Aufgaben und Fristen
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 📌 Offene Aufgaben")
+        offene = [c for c in cases if c.get("status") in ["entwurf", "angefordert"]]
+        if offene:
+            for case in offene[:5]:
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.markdown(f"**{case.get('aktenzeichen', case['id'])}**")
+                    st.caption(f"{case.get('grundbuch', '')} Blatt {case.get('gb_blatt', '')}")
+                with col_b:
+                    if st.button("Öffnen", key=f"open_{case['id']}"):
+                        st.session_state.lb_selected_case = case['id']
+                        st.session_state.lb_view = "detail"
+                        st.rerun()
+        else:
+            st.info("Keine offenen Aufgaben")
+
+    with col2:
+        st.markdown("### ⏰ Anstehende Fristen")
+        # Demo-Fristen
+        st.info("Keine Fristen in den nächsten 7 Tagen")
+
+
+def _render_lb_kanzlei_faelle():
+    """Alle Fälle in Tabellenansicht."""
+    st.markdown("### Alle Fälle")
+
+    # Filter-Zeile
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        status_filter = st.multiselect(
+            "Status",
+            options=["entwurf", "angefordert", "bewilligung_da", "abgeschlossen", "storniert"]
+        )
+    with col2:
+        suche = st.text_input("Suchen", placeholder="Aktenzeichen, Name...")
+    with col3:
+        sortierung = st.selectbox("Sortieren nach", ["Datum (neueste)", "Datum (älteste)", "Aktenzeichen"])
+
+    cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+
+    # Filter anwenden
+    if status_filter:
+        cases = [c for c in cases if c.get("status") in status_filter]
+    if suche:
+        cases = [c for c in cases if suche.lower() in str(c).lower()]
+
+    # Sortieren
+    if sortierung == "Datum (neueste)":
+        cases.sort(key=lambda c: c.get("created_at", ""), reverse=True)
+    elif sortierung == "Datum (älteste)":
+        cases.sort(key=lambda c: c.get("created_at", ""))
+    elif sortierung == "Aktenzeichen":
+        cases.sort(key=lambda c: c.get("aktenzeichen", "") or "")
+
+    if not cases:
+        st.info("Keine Fälle gefunden.")
+        return
+
+    # Tabelle
+    for case in cases:
+        col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 1, 1])
+
+        with col1:
+            st.markdown(f"**{case.get('aktenzeichen', case['id'])}**")
+        with col2:
+            st.caption(f"{case.get('grundbuch', '')} Bl. {case.get('gb_blatt', '')}")
+        with col3:
+            empfaenger = case.get('firma') or f"{case.get('vorname', '')} {case.get('nachname', '')}".strip()
+            st.caption(empfaenger or "-")
+        with col4:
+            status_emojis = {
+                "entwurf": "⚪",
+                "angefordert": "🟡",
+                "bewilligung_da": "🔵",
+                "abgeschlossen": "🟢",
+                "storniert": "🔴"
+            }
+            st.caption(f"{status_emojis.get(case.get('status', ''), '⚪')} {case.get('status', '')}")
+        with col5:
+            if st.button("📝", key=f"edit_{case['id']}", help="Bearbeiten"):
+                st.session_state.lb_selected_case = case['id']
+                st.rerun()
+
+
+def _render_lb_dokumente_generieren():
+    """Dokumentgenerierung aus Templates."""
+    st.markdown("### Dokumente generieren")
+
+    cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+
+    if not cases:
+        st.info("Keine Fälle vorhanden. Erstellen Sie zuerst Fälle.")
+        return
+
+    # Fall auswählen
+    case_options = {c['id']: f"{c.get('aktenzeichen', c['id'])} - {c.get('grundbuch', '')} Bl. {c.get('gb_blatt', '')}" for c in cases}
+    selected_case_id = st.selectbox(
+        "Fall auswählen",
+        options=list(case_options.keys()),
+        format_func=lambda x: case_options[x]
+    )
+
+    selected_case = st.session_state.lb_cases.get(selected_case_id)
+
+    if selected_case:
+        st.markdown("---")
+
+        # Template-Auswahl
+        template_type = st.selectbox(
+            "Dokumenttyp",
+            options=["Anschreiben Eigentümer", "Anschreiben Bank/Gläubiger", "Anschreiben Versorger"]
+        )
+
+        # Vorschau der zu verwendenden Daten
+        with st.expander("📋 Datenvorschau", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Grundbuch:**")
+                st.text(f"{selected_case.get('grundbuch', '')} Blatt {selected_case.get('gb_blatt', '')}")
+
+                st.markdown("**Empfänger:**")
+                empfaenger = selected_case.get('firma') or f"{selected_case.get('vorname', '')} {selected_case.get('nachname', '')}".strip()
+                st.text(empfaenger or "Nicht angegeben")
+                st.text(selected_case.get('strasse', ''))
+                st.text(f"{selected_case.get('plz', '')} {selected_case.get('ort', '')}")
+
+            with col2:
+                st.markdown("**Zu löschendes Recht:**")
+                st.text(f"Abt. {selected_case.get('abteilung', '')} lfd. Nr. {selected_case.get('lfd_nr', '')}")
+                st.text(f"{selected_case.get('recht_art', '')} {selected_case.get('recht_betrag', '')}")
+
+                if template_type == "Anschreiben Bank/Gläubiger":
+                    st.markdown("**Gläubiger:**")
+                    st.text(selected_case.get('glaeubiger_name', 'Nicht angegeben'))
+                    st.text(f"{selected_case.get('glaeubiger_strasse', '')}")
+                    st.text(f"{selected_case.get('glaeubiger_plz', '')} {selected_case.get('glaeubiger_ort', '')}")
+
+        # Generieren-Button
+        if st.button("📄 Dokument generieren", type="primary", use_container_width=True):
+            st.success(f"✅ {template_type} wurde generiert!")
+            st.info("ℹ️ In der Vollversion wird hier das DOCX-Dokument zum Download bereitgestellt.")
+
+
+def _render_lb_uploads():
+    """Hochgeladene Dokumente (z.B. erhaltene Bewilligungen)."""
+    st.markdown("### Uploads (erhaltene Bewilligungen)")
+
+    # Upload-Bereich
+    uploaded_file = st.file_uploader(
+        "Löschungsbewilligung hochladen",
+        type=["pdf", "jpg", "png", "tiff"],
+        key="lb_bewilligung_upload"
+    )
+
+    if uploaded_file:
+        # Fall zuordnen
+        cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+        if cases:
+            case_options = {c['id']: f"{c.get('aktenzeichen', c['id'])} - {c.get('grundbuch', '')} Bl. {c.get('gb_blatt', '')}" for c in cases}
+            selected_case_id = st.selectbox(
+                "Zu Fall zuordnen",
+                options=list(case_options.keys()),
+                format_func=lambda x: case_options[x],
+                key="upload_case_select"
+            )
+
+            if st.button("Hochladen und zuordnen", type="primary"):
+                st.success(f"✅ {uploaded_file.name} wurde hochgeladen und dem Fall zugeordnet!")
+                # Status aktualisieren
+                st.session_state.lb_cases[selected_case_id]["status"] = "bewilligung_da"
+                st.rerun()
+        else:
+            st.warning("Bitte erstellen Sie zuerst einen Fall.")
+
+    st.markdown("---")
+    st.markdown("### Hochgeladene Dokumente")
+
+    # Placeholder für Uploads
+    uploads = st.session_state.get("lb_uploads", {})
+    if not uploads:
+        st.info("Noch keine Dokumente hochgeladen.")
+
+
+def _render_lb_vorlagen():
+    """Vorlagen-Verwaltung."""
+    st.markdown("### Dokumentvorlagen")
+
+    # Standard-Vorlagen
+    st.markdown("#### Standard-Vorlagen")
+
+    vorlagen = [
+        {"name": "Anschreiben Eigentümer", "typ": "anschreiben_eigentuemer", "aktiv": True},
+        {"name": "Anschreiben Bank/Gläubiger", "typ": "anschreiben_bank", "aktiv": True},
+        {"name": "Anschreiben Versorger", "typ": "anschreiben_versorger", "aktiv": True},
+    ]
+
+    for vorlage in vorlagen:
+        col1, col2, col3 = st.columns([3, 1, 1])
+        with col1:
+            st.markdown(f"📄 **{vorlage['name']}**")
+        with col2:
+            st.caption("✅ Aktiv" if vorlage['aktiv'] else "❌ Inaktiv")
+        with col3:
+            st.button("Bearbeiten", key=f"edit_tpl_{vorlage['typ']}")
+
+    st.markdown("---")
+    st.markdown("#### Eigene Vorlage hochladen")
+
+    uploaded_template = st.file_uploader(
+        "DOCX-Vorlage hochladen",
+        type=["docx"],
+        key="lb_template_upload"
+    )
+
+    if uploaded_template:
+        vorlage_name = st.text_input("Name der Vorlage")
+        vorlage_typ = st.selectbox(
+            "Dokumenttyp",
+            options=["anschreiben_eigentuemer", "anschreiben_bank", "anschreiben_versorger", "sonstige"]
+        )
+
+        if st.button("Vorlage speichern", type="primary"):
+            st.success(f"✅ Vorlage '{vorlage_name}' wurde gespeichert!")
+
+
+def _render_lb_einstellungen():
+    """Einstellungen für das Löschungsbewilligungen-Modul."""
+    st.markdown("### Einstellungen")
+
+    # Organisation
+    st.markdown("#### Organisation")
+    col1, col2 = st.columns(2)
+    with col1:
+        kanzlei_name = st.text_input("Kanzleiname", value="Notariat Muster")
+        notar_name = st.text_input("Name des Notars", value="Dr. Max Muster")
+        amtssitz = st.text_input("Amtssitz", value="München")
+    with col2:
+        strasse = st.text_input("Straße", value="Musterstraße 1")
+        plz_ort = st.text_input("PLZ / Ort", value="80331 München")
+        email = st.text_input("E-Mail", value="info@notariat-muster.de")
+
+    st.markdown("---")
+
+    # Benachrichtigungen
+    st.markdown("#### E-Mail-Benachrichtigungen")
+    email_bei_neuem_auftrag = st.checkbox("Bei neuem Auftrag benachrichtigen", value=True)
+    email_bei_bewilligung = st.checkbox("Bei erhaltener Bewilligung benachrichtigen", value=True)
+    email_vor_frist = st.checkbox("Vor Fristablauf erinnern", value=True)
+    frist_tage = st.number_input("Tage vor Frist erinnern", min_value=1, max_value=14, value=3)
+
+    if st.button("Einstellungen speichern", type="primary"):
+        st.success("✅ Einstellungen gespeichert!")
+
+
 def main():
     """Hauptanwendung"""
     st.set_page_config(

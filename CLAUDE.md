@@ -571,6 +571,111 @@ Due Diligence ist in allen Rollen-Dashboards als Tab verfügbar:
 | Verkäufer | 🔒 Due Diligence | VDR-Zugang und Upload |
 | Finanzierer | 🔒 Due Diligence | VDR-Zugang für Finanzprüfung |
 
+## Löschungsbewilligungen Modul
+
+### Übersicht
+Automatisierte Erstellung von Löschungsbewilligungen (Anschreiben an Eigentümer, Versorger und Gläubiger) mit Multi-Tenant-Architektur und feingranularer Zugriffskontrolle.
+
+### Architektur
+
+**Backend (Supabase):**
+- `lb_organizations` - Kanzleien/Mandanten
+- `lb_memberships` - Benutzer-zu-Organisation mit Rollen und Berechtigungen
+- `lb_cases` - Einzelne Löschungsbewilligungs-Fälle
+- `lb_documents` - Generierte Dokumente
+- `lb_uploads` - Hochgeladene Dokumente (erhaltene Bewilligungen)
+- `lb_templates` - Dokumentvorlagen (DOCX)
+- `lb_audit_log` - Audit-Trail (append-only)
+
+**Storage Buckets:**
+- `lb-templates` - Dokumentvorlagen
+- `lb-uploads` - Hochgeladene Dokumente
+- `lb-generated` - Generierte Dokumente
+
+**Row Level Security (RLS):**
+- Organisations-basierte Isolation
+- Granulare Berechtigungen pro Mitglied
+- Hilfs-Funktionen: `lb_user_org_ids()`, `lb_has_permission()`
+
+### Rollen und Berechtigungen
+
+| Rolle | Beschreibung |
+|-------|-------------|
+| `notar` | Volle Berechtigungen, kann Mitglieder verwalten |
+| `staff` | Mitarbeiter mit konfigurierbaren Berechtigungen |
+| `auftraggeber` | Externe Kunden, eingeschränkter Zugriff |
+
+| Berechtigung | Beschreibung |
+|--------------|-------------|
+| `kann_faelle_erstellen` | Neue Fälle anlegen |
+| `kann_faelle_bearbeiten` | Bestehende Fälle bearbeiten |
+| `kann_faelle_loeschen` | Fälle löschen |
+| `kann_dokumente_generieren` | DOCX-Dokumente generieren |
+| `kann_vorlagen_verwalten` | Templates hochladen/bearbeiten |
+| `kann_mitglieder_verwalten` | Mitglieder hinzufügen/entfernen |
+| `kann_einstellungen_aendern` | Organisationseinstellungen ändern |
+
+### Python Module
+
+**models.py:**
+- `LBOrgRole`, `LBCaseStatus`, `LBDocumentType` - Enums
+- `LBOrganization`, `LBMembership`, `LBCase`, `LBDocument`, `LBUpload`, `LBTemplate`, `LBAuditLog` - Dataclasses
+
+**excel_import.py:**
+- `LBExcelImporter` - Massenimport aus Excel
+- `LBExcelColumnMapping` - Spalten-Zuordnung
+- `LBImportResult`, `LBImportError` - Import-Ergebnis
+- `create_import_template()` - Excel-Vorlage generieren
+
+**docgen.py:**
+- `LBDocumentGenerator` - DOCX-Generierung aus Templates
+- `LBPlaceholder` - Platzhalter-Definition
+- `LBGenerationResult` - Generierungs-Ergebnis
+- `generate_batch()` - Batch-Generierung für mehrere Fälle
+
+**notifications.py:**
+- `LBNotificationService` - E-Mail-Benachrichtigungen
+- `LBEmailConfig` - SMTP-Konfiguration
+- `get_faellige_fristen()` - Frist-Prüfung
+- `get_ueberfaellige_fristen()` - Überfällige Fälle
+
+### Standard-Platzhalter
+
+| Platzhalter | Beschreibung |
+|-------------|-------------|
+| `$Grundbuch` | Name des Grundbuchamts |
+| `$GBBlatt` | Grundbuch-Blattnummer |
+| `$Vorname`, `$Nachname` | Name des Empfängers |
+| `$Firma` | Firmenname |
+| `$Strasse`, `$PLZ`, `$Ort` | Adresse |
+| `$Abteilung`, `$LfdNr` | Grundbuch-Position |
+| `$RechtArt`, `$RechtBetrag` | Art und Betrag des Rechts |
+| `$GlaeubigerName` | Name des Gläubigers |
+| `$Datum`, `$NotarName` | Meta-Informationen |
+
+### UI-Komponenten
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `render_lb_auftraggeber_dashboard()` | Portal für externe Auftraggeber |
+| `render_lb_kanzlei_backoffice()` | Kanzlei-Verwaltung |
+| `_render_lb_excel_import()` | Excel-Import mit Vorschau |
+| `_render_lb_dokumente_generieren()` | Dokumentgenerierung |
+| `_render_lb_vorlagen()` | Vorlagen-Verwaltung |
+
+### Status-Workflow
+
+```
+ENTWURF → ANGEFORDERT → BEWILLIGUNG_DA → ABGESCHLOSSEN
+                                    ↘ STORNIERT
+```
+
+### Dateien
+
+- `/database/migrations/001_loeschungsbewilligungen.sql` - Supabase-Tabellen und RLS
+- `/database/migrations/002_storage_buckets.sql` - Storage-Konfiguration
+- `/modules/loeschungsbewilligungen/` - Python-Module
+
 ## Letzte Änderungen
 
 1. **Grundbuch-OCR mit KI** - Automatische Extraktion von Abt. II und III aus PDFs
@@ -586,3 +691,4 @@ Due Diligence ist in allen Rollen-Dashboards als Tab verfügbar:
 11. **Erklärungs-Modus für Verträge** - Split-View mit verständlichen Erklärungen für Käufer/Verkäufer/Makler
 12. **Email-Import per Drag & Drop** - Erweiterte Ordnerstruktur mit intelligentem Emailverkehr-Ordner
 13. **Due Diligence Datenraum (VDR)** - Virtueller Datenraum mit Audit-Trail, NDA-Gate, Q&A-System für alle Rollen
+14. **Löschungsbewilligungen Modul** - Automatisierte Erstellung von Anschreiben mit Excel-Import, DOCX-Generierung und Multi-Tenant-Architektur
