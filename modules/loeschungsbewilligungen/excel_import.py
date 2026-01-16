@@ -281,8 +281,8 @@ class LBExcelImporter:
 
         result.total_rows = len(self._df)
 
-        # Pflichtfelder prüfen
-        required_fields = [LBExcelColumn.GRUNDBUCH, LBExcelColumn.GB_BLATT]
+        # Pflichtfelder prüfen (nur Grundbuch, GB-Blatt kann später über Auszüge ergänzt werden)
+        required_fields = [LBExcelColumn.GRUNDBUCH]
         mapped_fields = set(self.column_mapping.values())
 
         for field in required_fields:
@@ -339,17 +339,25 @@ class LBExcelImporter:
                     val = int(val)  # 1.0 -> 1
                 values[target_field] = val
 
-        # Pflichtfelder prüfen
+        # Pflichtfelder prüfen (nur Grundbuch ist Pflicht, GB-Blatt kann später ergänzt werden)
         grundbuch = self._get_string_value(values, LBExcelColumn.GRUNDBUCH)
         gb_blatt = self._get_string_value(values, LBExcelColumn.GB_BLATT)
 
-        if not grundbuch or not gb_blatt:
+        if not grundbuch:
             result.warnings.append(LBImportError(
                 row_number=row_num,
-                message="Grundbuch oder Blatt fehlt, Zeile übersprungen.",
+                message="Grundbuch fehlt, Zeile übersprungen.",
                 severity="warning"
             ))
             return None
+
+        # GB-Blatt ist optional - Hinweis wenn es fehlt
+        if not gb_blatt:
+            result.warnings.append(LBImportError(
+                row_number=row_num,
+                message="GB-Blatt fehlt - kann später über Grundbuchauszug ergänzt werden.",
+                severity="warning"
+            ))
 
         # Case erstellen
         case = LBCase(
@@ -358,7 +366,7 @@ class LBExcelImporter:
 
             # Grundbuch
             grundbuch=grundbuch,
-            gb_blatt=gb_blatt,
+            gb_blatt=gb_blatt or "",  # Optional - kann später ergänzt werden
             gemarkung=self._get_string_value(values, LBExcelColumn.GEMARKUNG),
             flur=self._get_string_value(values, LBExcelColumn.FLUR),
             flurstueck=self._get_string_value(values, LBExcelColumn.FLURSTUECK),
