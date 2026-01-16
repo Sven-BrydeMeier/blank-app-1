@@ -48485,15 +48485,346 @@ def _render_lb_dokumente_generieren():
 
         # Generieren-Button
         if st.button("📄 Dokument generieren", type="primary", use_container_width=True):
+            # Demo-Dokument als Text generieren
+            doc_content = _generate_lb_demo_document(selected_case, template_type)
+
             st.success(f"✅ {template_type} wurde generiert!")
-            st.info("ℹ️ In der Vollversion wird hier das DOCX-Dokument zum Download bereitgestellt.")
+
+            # Vorschau anzeigen
+            with st.expander("📄 Dokumentvorschau", expanded=True):
+                st.text(doc_content)
+
+            # Download-Buttons
+            col1, col2 = st.columns(2)
+            with col1:
+                # Als TXT herunterladen
+                st.download_button(
+                    "📥 Als TXT herunterladen",
+                    data=doc_content,
+                    file_name=f"Loeschungsbewilligung_{selected_case.get('aktenzeichen', 'Entwurf')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            with col2:
+                # Als DOCX herunterladen (vereinfacht)
+                docx_bytes = _generate_lb_docx_demo(doc_content, selected_case, template_type)
+                if docx_bytes:
+                    st.download_button(
+                        "📥 Als DOCX herunterladen",
+                        data=docx_bytes,
+                        file_name=f"Loeschungsbewilligung_{selected_case.get('aktenzeichen', 'Entwurf')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+
+
+def _generate_lb_demo_document(case: dict, template_type: str) -> str:
+    """Generiert ein Demo-Dokument als Text."""
+
+    # Empfängerdaten
+    empfaenger_name = case.get('firma') or f"{case.get('vorname', '')} {case.get('nachname', '')}".strip() or "Eigentümer"
+    empfaenger_adresse = f"{case.get('strasse', '')}\n{case.get('plz', '')} {case.get('ort', '')}".strip()
+
+    # Grundbuchdaten
+    grundbuch = case.get('grundbuch', '[Grundbuch]')
+    gb_blatt = case.get('gb_blatt', '[Blatt]')
+
+    # Rechtsdaten
+    abteilung = case.get('abteilung', 'III')
+    lfd_nr = case.get('lfd_nr', '[lfd. Nr.]')
+    recht_art = case.get('recht_art', 'Grundschuld')
+    recht_betrag = case.get('recht_betrag', '[Betrag]')
+
+    # Gläubigerdaten
+    glaeubiger_name = case.get('glaeubiger_name', '[Gläubiger]')
+
+    # Datum
+    heute = datetime.now().strftime("%d.%m.%Y")
+
+    if template_type == "Anschreiben Eigentümer":
+        return f"""
+NOTARIAT MUSTER
+Musterstraße 1
+80331 München
+Tel: 089 / 123456-0
+
+
+{empfaenger_name}
+{empfaenger_adresse}
+
+
+München, {heute}
+
+
+Betreff: Löschungsbewilligung
+         Grundbuch {grundbuch}, Blatt {gb_blatt}
+         Aktenzeichen: {case.get('aktenzeichen', '-')}
+
+
+
+Sehr geehrte Damen und Herren,
+
+im Rahmen einer notariellen Angelegenheit bitten wir Sie um Erteilung einer
+Löschungsbewilligung für folgende im Grundbuch eingetragene Belastung:
+
+    Abteilung {abteilung}, lfd. Nr. {lfd_nr}:
+    {recht_art} über {recht_betrag} EUR
+    zugunsten: {glaeubiger_name}
+
+Bitte übersenden Sie uns die Löschungsbewilligung in notariell beglaubigter
+Form an obige Adresse.
+
+Für Rückfragen stehen wir Ihnen gerne zur Verfügung.
+
+
+Mit freundlichen Grüßen
+
+
+
+_________________________
+Notar Dr. Max Muster
+"""
+
+    elif template_type == "Anschreiben Bank/Gläubiger":
+        glaeubiger_adresse = f"{case.get('glaeubiger_strasse', '')}\n{case.get('glaeubiger_plz', '')} {case.get('glaeubiger_ort', '')}".strip()
+
+        return f"""
+NOTARIAT MUSTER
+Musterstraße 1
+80331 München
+Tel: 089 / 123456-0
+
+
+{glaeubiger_name}
+{glaeubiger_adresse}
+
+
+München, {heute}
+
+
+Betreff: Anforderung Löschungsbewilligung
+         Grundbuch {grundbuch}, Blatt {gb_blatt}
+         Eigentümer: {empfaenger_name}
+         Aktenzeichen: {case.get('aktenzeichen', '-')}
+
+
+
+Sehr geehrte Damen und Herren,
+
+im Rahmen einer bevorstehenden Immobilientransaktion bitten wir um
+Übersendung einer Löschungsbewilligung für folgende zu Ihren Gunsten
+eingetragene Grundschuld/Hypothek:
+
+    Abteilung {abteilung}, lfd. Nr. {lfd_nr}:
+    {recht_art} über {recht_betrag} EUR
+
+Bitte teilen Sie uns den aktuellen Ablösebetrag mit und übersenden Sie
+uns nach Eingang des Ablösebetrags die Löschungsbewilligung in
+notariell beglaubigter Form.
+
+Bankverbindung für Ablösung:
+IBAN: {case.get('glaeubiger_iban', '[IBAN]')}
+BIC:  {case.get('glaeubiger_bic', '[BIC]')}
+
+Für Rückfragen stehen wir Ihnen gerne zur Verfügung.
+
+
+Mit freundlichen Grüßen
+
+
+
+_________________________
+Notar Dr. Max Muster
+"""
+
+    else:  # Anschreiben Versorger
+        return f"""
+NOTARIAT MUSTER
+Musterstraße 1
+80331 München
+Tel: 089 / 123456-0
+
+
+{empfaenger_name}
+{empfaenger_adresse}
+
+
+München, {heute}
+
+
+Betreff: Anfrage Dienstbarkeiten/Leitungsrechte
+         Grundbuch {grundbuch}, Blatt {gb_blatt}
+         Aktenzeichen: {case.get('aktenzeichen', '-')}
+
+
+
+Sehr geehrte Damen und Herren,
+
+im Rahmen einer notariellen Angelegenheit bezüglich des oben genannten
+Grundstücks bitten wir um Auskunft, ob zu Ihren Gunsten Leitungsrechte
+oder sonstige Dienstbarkeiten eingetragen sind.
+
+Falls ja, bitten wir um Mitteilung, ob diese noch benötigt werden oder
+ob eine Löschungsbewilligung erteilt werden kann.
+
+Für Rückfragen stehen wir Ihnen gerne zur Verfügung.
+
+
+Mit freundlichen Grüßen
+
+
+
+_________________________
+Notar Dr. Max Muster
+"""
+
+
+def _generate_lb_docx_demo(text_content: str, case: dict, template_type: str) -> bytes:
+    """Generiert ein einfaches DOCX-Dokument."""
+    try:
+        from docx import Document
+        from docx.shared import Pt, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        import io
+
+        doc = Document()
+
+        # Seitenränder setzen
+        sections = doc.sections
+        for section in sections:
+            section.top_margin = Inches(1)
+            section.bottom_margin = Inches(1)
+            section.left_margin = Inches(1.25)
+            section.right_margin = Inches(1)
+
+        # Text hinzufügen
+        for line in text_content.strip().split('\n'):
+            p = doc.add_paragraph(line)
+            p.style.font.name = 'Arial'
+            p.style.font.size = Pt(11)
+
+        # Dokument in Bytes konvertieren
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+    except ImportError:
+        # Fallback wenn python-docx nicht installiert
+        return None
+    except Exception as e:
+        st.warning(f"DOCX-Generierung fehlgeschlagen: {e}")
+        return None
 
 
 def _render_lb_uploads():
     """Hochgeladene Dokumente (z.B. erhaltene Bewilligungen)."""
-    st.markdown("### Uploads (erhaltene Bewilligungen)")
 
-    # Upload-Bereich
+    # Tabs für verschiedene Upload-Typen
+    tab1, tab2 = st.tabs(["📚 Grundbuchauszüge", "📄 Erhaltene Bewilligungen"])
+
+    with tab1:
+        _render_lb_grundbuch_upload()
+
+    with tab2:
+        _render_lb_bewilligung_upload()
+
+
+def _render_lb_grundbuch_upload():
+    """Upload und automatische Zuordnung von Grundbuchauszügen."""
+    st.markdown("### 📚 Grundbuchauszüge hochladen")
+    st.info("Laden Sie Grundbuchauszüge als PDF hoch. Diese werden automatisch den importierten Fällen zugeordnet.")
+
+    uploaded_files = st.file_uploader(
+        "PDF-Grundbuchauszüge hochladen",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="lb_grundbuch_upload"
+    )
+
+    if uploaded_files:
+        cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+
+        if not cases:
+            st.warning("Bitte importieren Sie zuerst Fälle über den Excel-Import.")
+            return
+
+        st.markdown("---")
+        st.markdown("### Zuordnung der Grundbuchauszüge")
+
+        # Für jede hochgeladene Datei
+        for uploaded_file in uploaded_files:
+            with st.expander(f"📄 {uploaded_file.name}", expanded=True):
+                # Dateiinfo
+                st.caption(f"Größe: {uploaded_file.size / 1024:.1f} KB")
+
+                # Automatische Zuordnung versuchen (Demo: basierend auf Dateiname)
+                # In Produktion: OCR des PDFs und Matching gegen Eigentümernamen
+                auto_match = None
+                filename_lower = uploaded_file.name.lower()
+
+                for case in cases:
+                    # Versuche Match über Namen im Dateinamen
+                    nachname = (case.get('nachname') or '').lower()
+                    firma = (case.get('firma') or '').lower()
+                    if nachname and nachname in filename_lower:
+                        auto_match = case
+                        break
+                    if firma and firma in filename_lower:
+                        auto_match = case
+                        break
+
+                col1, col2 = st.columns([2, 1])
+
+                with col1:
+                    # Manuelle Auswahl mit Vorauswahl falls Match gefunden
+                    case_options = {c['id']: f"{c.get('vorname', '')} {c.get('nachname', '')} {c.get('firma', '')}".strip() or c['id'] for c in cases}
+
+                    default_index = 0
+                    if auto_match:
+                        case_ids = list(case_options.keys())
+                        if auto_match['id'] in case_ids:
+                            default_index = case_ids.index(auto_match['id'])
+                        st.success(f"✨ Automatisch erkannt: {case_options[auto_match['id']]}")
+
+                    selected_case_id = st.selectbox(
+                        "Zuordnen zu:",
+                        options=list(case_options.keys()),
+                        format_func=lambda x: case_options[x],
+                        index=default_index,
+                        key=f"gb_assign_{uploaded_file.name}"
+                    )
+
+                with col2:
+                    if st.button("✅ Zuordnen", key=f"gb_btn_{uploaded_file.name}", type="primary"):
+                        # Grundbuch-Info im Case speichern
+                        if selected_case_id in st.session_state.lb_cases:
+                            # Speichere PDF-Referenz
+                            if "grundbuch_pdfs" not in st.session_state.lb_cases[selected_case_id]:
+                                st.session_state.lb_cases[selected_case_id]["grundbuch_pdfs"] = []
+                            st.session_state.lb_cases[selected_case_id]["grundbuch_pdfs"].append({
+                                "filename": uploaded_file.name,
+                                "size": uploaded_file.size,
+                                "uploaded_at": datetime.now().isoformat()
+                            })
+                            st.success(f"Grundbuchauszug '{uploaded_file.name}' wurde zugeordnet!")
+                            st.rerun()
+
+        # OCR-Hinweis
+        st.markdown("---")
+        st.markdown("##### 🔍 Automatische Erkennung")
+        st.caption("""
+        Die automatische Zuordnung erfolgt über:
+        1. Dateiname (enthält Eigentümername)
+        2. OCR-Texterkennung im PDF (in Produktion)
+        3. Grundbuch/Blatt-Nummer Matching
+        """)
+
+
+def _render_lb_bewilligung_upload():
+    """Upload von erhaltenen Löschungsbewilligungen."""
+    st.markdown("### 📄 Erhaltene Löschungsbewilligungen")
+
     uploaded_file = st.file_uploader(
         "Löschungsbewilligung hochladen",
         type=["pdf", "jpg", "png", "tiff"],
@@ -48501,10 +48832,9 @@ def _render_lb_uploads():
     )
 
     if uploaded_file:
-        # Fall zuordnen
         cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
         if cases:
-            case_options = {c['id']: f"{c.get('aktenzeichen', c['id'])} - {c.get('grundbuch', '')} Bl. {c.get('gb_blatt', '')}" for c in cases}
+            case_options = {c['id']: f"{c.get('aktenzeichen', c['id'])} - {c.get('vorname', '')} {c.get('nachname', '')}".strip() for c in cases}
             selected_case_id = st.selectbox(
                 "Zu Fall zuordnen",
                 options=list(case_options.keys()),
@@ -48521,12 +48851,26 @@ def _render_lb_uploads():
             st.warning("Bitte erstellen Sie zuerst einen Fall.")
 
     st.markdown("---")
-    st.markdown("### Hochgeladene Dokumente")
+    st.markdown("### Hochgeladene Bewilligungen")
 
-    # Placeholder für Uploads
-    uploads = st.session_state.get("lb_uploads", {})
-    if not uploads:
-        st.info("Noch keine Dokumente hochgeladen.")
+    # Zeige Fälle mit erhaltenen Bewilligungen
+    cases = list(st.session_state.lb_cases.values()) if st.session_state.lb_cases else []
+    bewilligungen_da = [c for c in cases if c.get("status") == "bewilligung_da"]
+
+    if bewilligungen_da:
+        for case in bewilligungen_da:
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"✅ **{case.get('vorname', '')} {case.get('nachname', '')}** {case.get('firma', '')}")
+                st.caption(f"Aktenzeichen: {case.get('aktenzeichen', '-')}")
+            with col2:
+                st.caption("Bewilligung erhalten")
+            with col3:
+                if st.button("Abschließen", key=f"close_{case['id']}"):
+                    st.session_state.lb_cases[case['id']]["status"] = "abgeschlossen"
+                    st.rerun()
+    else:
+        st.info("Noch keine Bewilligungen erhalten.")
 
 
 def _render_lb_vorlagen():
