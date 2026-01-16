@@ -281,19 +281,8 @@ class LBExcelImporter:
 
         result.total_rows = len(self._df)
 
-        # Pflichtfelder prüfen (nur Grundbuch, GB-Blatt kann später über Auszüge ergänzt werden)
-        required_fields = [LBExcelColumn.GRUNDBUCH]
-        mapped_fields = set(self.column_mapping.values())
-
-        for field in required_fields:
-            if field not in mapped_fields:
-                result.errors.append(LBImportError(
-                    row_number=0,
-                    message=f"Pflichtfeld '{field.value}' nicht zugeordnet."
-                ))
-
-        if result.has_errors:
-            return result
+        # Keine Pflichtfelder - alle Daten können später ergänzt werden
+        # (Grundbuch aus Adresse, GB-Blatt aus Auszug, etc.)
 
         # Mapping speichern für Ergebnis
         result.mapping_used = {k: v.value for k, v in self.column_mapping.items()}
@@ -339,34 +328,39 @@ class LBExcelImporter:
                     val = int(val)  # 1.0 -> 1
                 values[target_field] = val
 
-        # Pflichtfelder prüfen (nur Grundbuch ist Pflicht, GB-Blatt kann später ergänzt werden)
+        # Alle Felder sind optional - können später ergänzt werden
+        # (Grundbuch aus Adresse, GB-Blatt aus Auszug, etc.)
         grundbuch = self._get_string_value(values, LBExcelColumn.GRUNDBUCH)
         gb_blatt = self._get_string_value(values, LBExcelColumn.GB_BLATT)
 
-        if not grundbuch:
+        # Prüfen ob mindestens ein identifizierendes Merkmal vorhanden ist
+        hat_eigentuemer = bool(
+            self._get_string_value(values, LBExcelColumn.VORNAME) or
+            self._get_string_value(values, LBExcelColumn.NACHNAME) or
+            self._get_string_value(values, LBExcelColumn.FIRMA)
+        )
+        hat_adresse = bool(
+            self._get_string_value(values, LBExcelColumn.STRASSE) or
+            self._get_string_value(values, LBExcelColumn.ORT)
+        )
+        hat_grundbuch = bool(grundbuch or gb_blatt)
+
+        if not (hat_eigentuemer or hat_adresse or hat_grundbuch):
             result.warnings.append(LBImportError(
                 row_number=row_num,
-                message="Grundbuch fehlt, Zeile übersprungen.",
+                message="Zeile übersprungen - keine identifizierenden Daten (Name, Adresse oder Grundbuch).",
                 severity="warning"
             ))
             return None
-
-        # GB-Blatt ist optional - Hinweis wenn es fehlt
-        if not gb_blatt:
-            result.warnings.append(LBImportError(
-                row_number=row_num,
-                message="GB-Blatt fehlt - kann später über Grundbuchauszug ergänzt werden.",
-                severity="warning"
-            ))
 
         # Case erstellen
         case = LBCase(
             organization_id=self.organization_id,
             created_by=self.created_by,
 
-            # Grundbuch
-            grundbuch=grundbuch,
-            gb_blatt=gb_blatt or "",  # Optional - kann später ergänzt werden
+            # Grundbuch (beides optional - kann später aus Adresse/Auszug ergänzt werden)
+            grundbuch=grundbuch or "",
+            gb_blatt=gb_blatt or "",
             gemarkung=self._get_string_value(values, LBExcelColumn.GEMARKUNG),
             flur=self._get_string_value(values, LBExcelColumn.FLUR),
             flurstueck=self._get_string_value(values, LBExcelColumn.FLURSTUECK),
