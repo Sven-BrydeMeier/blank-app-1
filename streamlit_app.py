@@ -27335,7 +27335,7 @@ def render_notar_content(selection: str, user_id: str):
             )
             if selected_projekt_id:
                 projekt = st.session_state.projekte[selected_projekt_id]
-                _render_loeschungs_todos(projekt, user_id)
+                _render_loeschungs_todos(projekt)
         else:
             st.info("Noch keine Akten vorhanden.")
 
