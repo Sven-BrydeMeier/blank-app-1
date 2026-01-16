@@ -25927,6 +25927,16 @@ NOTAR_MENU_STRUKTUR = {
             {"name": "Audit-Log", "icon": "📋", "key": "vdr_audit"},
         ]
     },
+    "Löschungsbew.": {
+        "icon": "📝",
+        "items": [
+            {"name": "Kanzlei-Backoffice", "icon": "🏢", "key": "lb_backoffice"},
+            {"name": "Auftraggeber-Portal", "icon": "👤", "key": "lb_auftraggeber"},
+            {"name": "Excel-Import", "icon": "📊", "key": "lb_excel_import"},
+            {"name": "Dokumente generieren", "icon": "📄", "key": "lb_dokumente"},
+            {"name": "Vorlagen", "icon": "📋", "key": "lb_vorlagen"},
+        ]
+    },
 }
 
 # Keine Untermenüs mehr benötigt - alle Menüpunkte sind direkt zugänglich
@@ -27711,6 +27721,29 @@ def render_notar_content(selection: str, user_id: str):
                     st.info("Für dieses Projekt existiert noch kein Datenraum.")
         else:
             st.info("Noch keine Akten vorhanden.")
+
+    # === LÖSCHUNGSBEWILLIGUNGEN MENÜPUNKTE ===
+
+    elif selection == "lb_backoffice":
+        render_lb_kanzlei_backoffice()
+
+    elif selection == "lb_auftraggeber":
+        render_lb_auftraggeber_dashboard()
+
+    elif selection == "lb_excel_import":
+        st.subheader("📊 Excel-Import für Löschungsbewilligungen")
+        init_lb_session_state()
+        _render_lb_excel_import()
+
+    elif selection == "lb_dokumente":
+        st.subheader("📄 Dokumente generieren")
+        init_lb_session_state()
+        _render_lb_dokumente_generieren()
+
+    elif selection == "lb_vorlagen":
+        st.subheader("📋 Dokumentvorlagen")
+        init_lb_session_state()
+        _render_lb_vorlagen()
 
     else:
         st.warning(f"Unbekannter Menüpunkt: {selection}")
