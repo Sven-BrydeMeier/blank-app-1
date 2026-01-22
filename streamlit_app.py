@@ -25844,6 +25844,12 @@ def render_finanzierer_angebot_card(offer, editable=True, is_draft=False, show_r
 # Phase 1: Akte → Phase 2: Grundbuch → Phase 3: Parteien → Phase 4: Finanzierung
 # Phase 5: Kaufvertrag → Phase 6: Beurkundung → Phase 7: Vollzug → Phase 8: Kommunikation
 NOTAR_MENU_STRUKTUR = {
+    "Dashboard": {
+        "icon": "🏠",
+        "items": [
+            {"name": "Übersicht", "icon": "📊", "key": "dashboard_home"},
+        ]
+    },
     "Akte": {
         "icon": "📁",
         "items": [
@@ -26726,7 +26732,7 @@ def render_notar_bottom_nav():
     Wird nur auf Mobilgeräten angezeigt (via CSS).
     """
     if 'notar_menu_selection' not in st.session_state:
-        st.session_state.notar_menu_selection = 'timeline'
+        st.session_state.notar_menu_selection = 'dashboard_home'
     if 'notar_active_tab' not in st.session_state:
         st.session_state.notar_active_tab = 'Timeline'
     if 'notar_show_submenu' not in st.session_state:
@@ -26839,7 +26845,7 @@ def render_notar_sidebar_menu(user_id: str) -> str:
     """
     # Initialisiere Menü-State
     if 'notar_menu_selection' not in st.session_state:
-        st.session_state.notar_menu_selection = 'timeline'
+        st.session_state.notar_menu_selection = 'dashboard_home'
     if 'notar_menu_expanded' not in st.session_state:
         st.session_state.notar_menu_expanded = {}
     if 'notar_active_submenu' not in st.session_state:
@@ -26932,7 +26938,7 @@ def render_notar_mobile_menu():
     Nur auf Mobile sichtbar (via CSS).
     """
     if 'notar_menu_selection' not in st.session_state:
-        st.session_state.notar_menu_selection = 'timeline'
+        st.session_state.notar_menu_selection = 'dashboard_home'
 
     current_selection = st.session_state.notar_menu_selection
 
@@ -27088,12 +27094,566 @@ def render_notar_hauptmenu_leiste() -> str:
     return aktuelle_selection
 
 
+# ============================================================================
+# NOTAR DASHBOARD HOME - Hauptübersicht mit allen wichtigen Widgets
+# ============================================================================
+
+@dataclass
+class Telefonnotiz:
+    """Telefonnotiz für Notar-Akten"""
+    notiz_id: str
+    akte_id: str  # Projekt-ID der zugeordneten Akte
+    user_id: str  # Notar/Mitarbeiter der die Notiz erstellt hat
+    anrufer_name: str
+    anrufer_telefon: str
+    betreff: str
+    notiz_text: str
+    start_zeit: datetime
+    end_zeit: Optional[datetime] = None
+    ist_aufnahme: bool = False  # True wenn Sprachaufnahme
+    aufnahme_daten: Optional[bytes] = None
+    erstellt_am: datetime = field(default_factory=datetime.now)
+
+
+def render_notar_dashboard_home(user_id: str):
+    """
+    Rendert das Notar-Dashboard mit allen wichtigen Übersichten:
+    - Termine des Tages (mit Links zu Akten)
+    - Posteingang (offene Eingänge)
+    - Urkunden zur Durchsicht
+    - Offene Fragen
+    - Telefonnotiz-Fenster
+    """
+    # Session State für Telefonnotizen initialisieren
+    if 'telefonnotizen' not in st.session_state:
+        st.session_state.telefonnotizen = {}
+
+    # Projekte des Notars laden
+    notar_projekte = [p for p in st.session_state.projekte.values() if p.notar_id == user_id]
+    heute = date.today()
+
+    # CSS für Dashboard-Widgets
+    st.markdown("""
+    <style>
+    .dashboard-widget {
+        background: white;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e9ecef;
+    }
+    .widget-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #1a365d;
+    }
+    .widget-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1a365d;
+        margin: 0;
+    }
+    .widget-badge {
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .termin-item {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #1a365d;
+    }
+    .termin-zeit {
+        font-weight: 700;
+        color: #495057;
+        min-width: 60px;
+    }
+    .termin-info {
+        flex: 1;
+        margin-left: 0.75rem;
+    }
+    .posteingang-item {
+        padding: 0.5rem;
+        background: #fff3cd;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #ffc107;
+    }
+    .urkunde-item {
+        padding: 0.5rem;
+        background: #d1ecf1;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #17a2b8;
+    }
+    .frage-item {
+        padding: 0.5rem;
+        background: #f8d7da;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #dc3545;
+    }
+    .telefon-widget {
+        background: linear-gradient(135deg, #1a365d 0%, #2d4a7c 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .telefon-widget input {
+        border-radius: 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ===== TELEFONNOTIZ-WIDGET (immer oben, kompakt) =====
+    render_telefonnotiz_widget(user_id, notar_projekte)
+
+    # ===== HAUPTBEREICH: 2x2 Grid =====
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # ----- TERMINE DES TAGES -----
+        render_termine_heute_widget(user_id, notar_projekte, heute)
+
+        # ----- URKUNDEN ZUR DURCHSICHT -----
+        render_urkunden_durchsicht_widget(user_id, notar_projekte)
+
+    with col2:
+        # ----- POSTEINGANG -----
+        render_posteingang_widget(user_id, notar_projekte)
+
+        # ----- OFFENE FRAGEN -----
+        render_offene_fragen_widget(user_id, notar_projekte)
+
+
+def render_telefonnotiz_widget(user_id: str, notar_projekte: list):
+    """Zentrales Telefonnotiz-Fenster"""
+    with st.container():
+        st.markdown("### 📞 Telefonnotiz")
+
+        # Session State für aktive Notiz
+        if 'aktive_telefonnotiz' not in st.session_state:
+            st.session_state.aktive_telefonnotiz = None
+        if 'telefonnotiz_start' not in st.session_state:
+            st.session_state.telefonnotiz_start = None
+
+        col_search, col_info, col_actions = st.columns([2, 2, 1])
+
+        with col_search:
+            # Suche nach AZ oder Name
+            such_eingabe = st.text_input(
+                "🔍 Aktenzeichen oder Name",
+                placeholder="z.B. 2025/0001 oder Müller",
+                key="telefonnotiz_suche",
+                label_visibility="collapsed"
+            )
+
+        # Akte suchen und anzeigen
+        gefundene_akte = None
+        anrufer_info = None
+
+        if such_eingabe:
+            such_lower = such_eingabe.lower()
+            for projekt in notar_projekte:
+                # Suche nach Aktenzeichen
+                aktenzeichen = getattr(projekt, 'aktenzeichen', '')
+                if aktenzeichen and such_lower in aktenzeichen.lower():
+                    gefundene_akte = projekt
+                    break
+                # Suche nach Name
+                if such_lower in projekt.name.lower():
+                    gefundene_akte = projekt
+                    break
+                # Suche nach Käufer/Verkäufer Namen
+                for k_id in projekt.kaeufer_ids:
+                    kaeufer = st.session_state.users.get(k_id)
+                    if kaeufer and such_lower in kaeufer.name.lower():
+                        gefundene_akte = projekt
+                        anrufer_info = kaeufer
+                        break
+                for v_id in projekt.verkaeufer_ids:
+                    verkaeufer = st.session_state.users.get(v_id)
+                    if verkaeufer and such_lower in verkaeufer.name.lower():
+                        gefundene_akte = projekt
+                        anrufer_info = verkaeufer
+                        break
+
+        with col_info:
+            if gefundene_akte:
+                aktenzeichen = getattr(gefundene_akte, 'aktenzeichen', gefundene_akte.projekt_id[:8])
+                st.success(f"📁 **{aktenzeichen}** - {gefundene_akte.name[:30]}")
+                if anrufer_info:
+                    telefon = getattr(anrufer_info, 'telefon', 'N/A')
+                    st.caption(f"📱 {anrufer_info.name} | Tel: {telefon}")
+            elif such_eingabe:
+                st.warning("Keine Akte gefunden")
+            else:
+                st.info("Aktenzeichen oder Name eingeben...")
+
+        with col_actions:
+            # Start/Stop Notiz
+            if st.session_state.telefonnotiz_start is None:
+                if st.button("▶️ Start", key="start_notiz", use_container_width=True, type="primary", disabled=not gefundene_akte):
+                    st.session_state.telefonnotiz_start = datetime.now()
+                    st.session_state.aktive_telefonnotiz = {
+                        'akte_id': gefundene_akte.projekt_id if gefundene_akte else None,
+                        'anrufer': anrufer_info.name if anrufer_info else '',
+                        'telefon': getattr(anrufer_info, 'telefon', '') if anrufer_info else ''
+                    }
+                    st.rerun()
+            else:
+                if st.button("⏹️ Stop", key="stop_notiz", use_container_width=True, type="secondary"):
+                    # Notiz beenden - Speicherdialog zeigen
+                    st.session_state.show_telefonnotiz_speichern = True
+                    st.rerun()
+
+        # Notiz-Eingabe wenn aktiv
+        if st.session_state.telefonnotiz_start is not None:
+            st.markdown("---")
+            dauer = datetime.now() - st.session_state.telefonnotiz_start
+            minuten = int(dauer.total_seconds() // 60)
+            sekunden = int(dauer.total_seconds() % 60)
+
+            col_dur, col_note = st.columns([1, 4])
+            with col_dur:
+                st.metric("Dauer", f"{minuten:02d}:{sekunden:02d}")
+
+            with col_note:
+                notiz_text = st.text_area(
+                    "Notiz",
+                    placeholder="Gesprächsnotiz hier eingeben...",
+                    key="telefonnotiz_text",
+                    height=80,
+                    label_visibility="collapsed"
+                )
+
+        # Speicherdialog
+        if st.session_state.get('show_telefonnotiz_speichern', False):
+            with st.form("speichere_telefonnotiz"):
+                st.markdown("##### 💾 Telefonnotiz speichern")
+
+                notiz_text = st.session_state.get('telefonnotiz_text', '')
+                aktive_notiz = st.session_state.aktive_telefonnotiz or {}
+
+                betreff = st.text_input("Betreff", value="Telefonat", key="notiz_betreff")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("💾 Speichern", type="primary"):
+                        # Notiz speichern
+                        notiz_id = f"tel_{uuid.uuid4().hex[:8]}"
+                        neue_notiz = Telefonnotiz(
+                            notiz_id=notiz_id,
+                            akte_id=aktive_notiz.get('akte_id', ''),
+                            user_id=user_id,
+                            anrufer_name=aktive_notiz.get('anrufer', ''),
+                            anrufer_telefon=aktive_notiz.get('telefon', ''),
+                            betreff=betreff,
+                            notiz_text=notiz_text,
+                            start_zeit=st.session_state.telefonnotiz_start,
+                            end_zeit=datetime.now()
+                        )
+                        st.session_state.telefonnotizen[notiz_id] = neue_notiz
+
+                        # Reset
+                        st.session_state.telefonnotiz_start = None
+                        st.session_state.aktive_telefonnotiz = None
+                        st.session_state.show_telefonnotiz_speichern = False
+                        st.success("✅ Telefonnotiz gespeichert!")
+                        st.rerun()
+
+                with col2:
+                    if st.form_submit_button("❌ Verwerfen"):
+                        st.session_state.telefonnotiz_start = None
+                        st.session_state.aktive_telefonnotiz = None
+                        st.session_state.show_telefonnotiz_speichern = False
+                        st.rerun()
+
+
+def render_termine_heute_widget(user_id: str, notar_projekte: list, heute: date):
+    """Widget für Termine des Tages mit Links zu Akten"""
+    st.markdown("### 📅 Termine heute")
+
+    # Termine für heute sammeln
+    termine_heute = []
+    for projekt in notar_projekte:
+        for termin_id in projekt.termine:
+            termin = st.session_state.termine.get(termin_id)
+            if termin and hasattr(termin, 'datum') and termin.datum == heute:
+                termine_heute.append({
+                    'termin': termin,
+                    'projekt': projekt
+                })
+
+    # Nach Uhrzeit sortieren
+    termine_heute.sort(key=lambda x: x['termin'].uhrzeit_start if hasattr(x['termin'], 'uhrzeit_start') else "00:00")
+
+    if termine_heute:
+        for item in termine_heute:
+            termin = item['termin']
+            projekt = item['projekt']
+            aktenzeichen = getattr(projekt, 'aktenzeichen', projekt.projekt_id[:8])
+            uhrzeit = termin.uhrzeit_start if hasattr(termin, 'uhrzeit_start') else "N/A"
+            termin_typ = termin.termin_typ if hasattr(termin, 'termin_typ') else "Termin"
+
+            col_zeit, col_info, col_btn = st.columns([1, 3, 1])
+
+            with col_zeit:
+                st.markdown(f"**{uhrzeit}**")
+
+            with col_info:
+                st.markdown(f"📁 **{aktenzeichen}**")
+                st.caption(f"{termin_typ} - {projekt.name[:25]}...")
+
+            with col_btn:
+                if st.button("📂", key=f"open_akte_{termin.termin_id}", help="Akte öffnen"):
+                    # Zur Akte navigieren
+                    st.session_state.selected_projekt_id = projekt.projekt_id
+                    st.session_state.notar_menu_selection = "projekte"
+                    st.rerun()
+
+            st.markdown("---")
+    else:
+        st.info("📭 Keine Termine für heute")
+
+    # Button für alle Termine
+    if st.button("📆 Alle Termine anzeigen", key="show_all_termine", use_container_width=True):
+        st.session_state.notar_menu_selection = "termine"
+        st.rerun()
+
+
+def render_posteingang_widget(user_id: str, notar_projekte: list):
+    """Widget für Posteingang - Akten mit neuen Dokumenten"""
+    st.markdown("### 📬 Posteingang")
+
+    # Projekte mit neuen Dokumenten finden
+    projekte_mit_eingaengen = []
+
+    for projekt in notar_projekte:
+        # Prüfe auf neue Dokumente (ungelesen)
+        neue_dokumente = 0
+        for doc_id in projekt.dokumente:
+            doc = st.session_state.dokumente.get(doc_id)
+            if doc:
+                # Prüfe ob Dokument als ungelesen markiert ist
+                gelesen_key = f"doc_gelesen_{doc_id}_{user_id}"
+                if not st.session_state.get(gelesen_key, False):
+                    # Prüfe Alter - nur Dokumente der letzten 7 Tage
+                    if hasattr(doc, 'erstellt_am'):
+                        doc_alter = (datetime.now() - doc.erstellt_am).days
+                        if doc_alter <= 7:
+                            neue_dokumente += 1
+
+        # Prüfe auch importierte Emails
+        if hasattr(st.session_state, 'importierte_emails'):
+            for email in st.session_state.importierte_emails.values():
+                if hasattr(email, 'akte_id') and email.akte_id == projekt.projekt_id:
+                    if not getattr(email, 'gelesen', False):
+                        neue_dokumente += 1
+
+        if neue_dokumente > 0:
+            projekte_mit_eingaengen.append({
+                'projekt': projekt,
+                'anzahl': neue_dokumente
+            })
+
+    # Nach Anzahl sortieren
+    projekte_mit_eingaengen.sort(key=lambda x: x['anzahl'], reverse=True)
+
+    if projekte_mit_eingaengen:
+        for item in projekte_mit_eingaengen[:5]:  # Max 5 anzeigen
+            projekt = item['projekt']
+            anzahl = item['anzahl']
+            aktenzeichen = getattr(projekt, 'aktenzeichen', projekt.projekt_id[:8])
+
+            col_info, col_badge, col_btn = st.columns([3, 1, 1])
+
+            with col_info:
+                st.markdown(f"📁 **{aktenzeichen}**")
+                st.caption(f"{projekt.name[:30]}...")
+
+            with col_badge:
+                st.markdown(f"<span style='background:#dc3545;color:white;padding:2px 8px;border-radius:10px;font-size:0.8rem;'>{anzahl}</span>", unsafe_allow_html=True)
+
+            with col_btn:
+                if st.button("📂", key=f"posteingang_{projekt.projekt_id}", help="Akte öffnen"):
+                    st.session_state.selected_projekt_id = projekt.projekt_id
+                    st.session_state.notar_menu_selection = "projekte"
+                    st.rerun()
+
+            st.markdown("---")
+
+        if len(projekte_mit_eingaengen) > 5:
+            st.caption(f"... und {len(projekte_mit_eingaengen) - 5} weitere")
+    else:
+        st.info("📭 Keine neuen Eingänge")
+
+    # Button für Eingänge-Center
+    if st.button("📬 Eingänge-Center öffnen", key="open_eingaenge", use_container_width=True):
+        st.session_state.show_eingaenge_center = True
+        st.rerun()
+
+
+def render_urkunden_durchsicht_widget(user_id: str, notar_projekte: list):
+    """Widget für Urkunden die durchgesehen werden müssen"""
+    st.markdown("### 📜 Urkunden zur Durchsicht")
+
+    # Projekte mit Urkunden zur Durchsicht finden
+    urkunden_zur_durchsicht = []
+
+    for projekt in notar_projekte:
+        # Status-basierte Prüfung
+        status = projekt.status
+
+        # Projekte in bestimmten Status benötigen Urkunden-Durchsicht
+        benoetigt_durchsicht = False
+        urkunden_typ = ""
+
+        if status == ProjektStatus.FINANZIERUNG_GESICHERT.value:
+            benoetigt_durchsicht = True
+            urkunden_typ = "Kaufvertragsentwurf"
+        elif status == ProjektStatus.NOTARTERMIN_VEREINBART.value:
+            benoetigt_durchsicht = True
+            urkunden_typ = "Kaufvertrag zur Beurkundung"
+        elif status == ProjektStatus.AUFLASSUNGSVORMERKUNG_EINGETRAGEN.value:
+            benoetigt_durchsicht = True
+            urkunden_typ = "Vollzugsdokumente"
+
+        # Prüfe ob bereits als durchgesehen markiert
+        durchgesehen_key = f"urkunde_durchgesehen_{projekt.projekt_id}"
+        if benoetigt_durchsicht and not st.session_state.get(durchgesehen_key, False):
+            urkunden_zur_durchsicht.append({
+                'projekt': projekt,
+                'typ': urkunden_typ
+            })
+
+    if urkunden_zur_durchsicht:
+        for item in urkunden_zur_durchsicht[:5]:
+            projekt = item['projekt']
+            urkunden_typ = item['typ']
+            aktenzeichen = getattr(projekt, 'aktenzeichen', projekt.projekt_id[:8])
+
+            col_info, col_btn = st.columns([4, 1])
+
+            with col_info:
+                st.markdown(f"📄 **{urkunden_typ}**")
+                st.caption(f"📁 {aktenzeichen} - {projekt.name[:25]}...")
+
+            with col_btn:
+                if st.button("👁️", key=f"urkunde_{projekt.projekt_id}", help="Zur Urkunde"):
+                    st.session_state.selected_projekt_id = projekt.projekt_id
+                    st.session_state.notar_menu_selection = "kaufvertrag"
+                    st.rerun()
+
+            st.markdown("---")
+
+        if len(urkunden_zur_durchsicht) > 5:
+            st.caption(f"... und {len(urkunden_zur_durchsicht) - 5} weitere")
+    else:
+        st.success("✅ Alle Urkunden durchgesehen")
+
+    # Button für Kaufverträge
+    if st.button("📜 Alle Verträge anzeigen", key="show_all_vertraege", use_container_width=True):
+        st.session_state.notar_menu_selection = "kaufvertrag"
+        st.rerun()
+
+
+def render_offene_fragen_widget(user_id: str, notar_projekte: list):
+    """Widget für offene Fragen/Nachrichten die beantwortet werden müssen"""
+    st.markdown("### ❓ Offene Fragen")
+
+    # Ungelesene Nachrichten sammeln
+    offene_fragen = []
+
+    # Nachrichten prüfen
+    for nachricht in st.session_state.get('nachrichten', {}).values():
+        # Nur eingehende Nachrichten (an den Notar)
+        if hasattr(nachricht, 'empfaenger_id') and nachricht.empfaenger_id == user_id:
+            if not getattr(nachricht, 'gelesen', False):
+                # Zugehöriges Projekt finden
+                projekt_id = getattr(nachricht, 'projekt_id', None)
+                projekt = st.session_state.projekte.get(projekt_id) if projekt_id else None
+
+                offene_fragen.append({
+                    'nachricht': nachricht,
+                    'projekt': projekt,
+                    'absender': st.session_state.users.get(nachricht.absender_id)
+                })
+
+    # Dokumenten-Chat Fragen prüfen
+    for chat_id, chat in st.session_state.get('dokumenten_chats', {}).items():
+        if hasattr(chat, 'nachrichten'):
+            for msg in chat.nachrichten:
+                if hasattr(msg, 'ist_frage') and msg.ist_frage:
+                    if not getattr(msg, 'beantwortet', False):
+                        offene_fragen.append({
+                            'nachricht': msg,
+                            'projekt': None,
+                            'absender': st.session_state.users.get(msg.user_id) if hasattr(msg, 'user_id') else None,
+                            'ist_dokument_frage': True
+                        })
+
+    if offene_fragen:
+        for item in offene_fragen[:5]:
+            nachricht = item['nachricht']
+            projekt = item.get('projekt')
+            absender = item.get('absender')
+
+            col_info, col_btn = st.columns([4, 1])
+
+            with col_info:
+                absender_name = absender.name if absender else "Unbekannt"
+                st.markdown(f"💬 **{absender_name}**")
+
+                betreff = getattr(nachricht, 'betreff', getattr(nachricht, 'inhalt', 'Nachricht'))[:40]
+                st.caption(f"{betreff}...")
+
+                if projekt:
+                    aktenzeichen = getattr(projekt, 'aktenzeichen', projekt.projekt_id[:8])
+                    st.caption(f"📁 {aktenzeichen}")
+
+            with col_btn:
+                if st.button("💬", key=f"frage_{id(nachricht)}", help="Antworten"):
+                    if item.get('ist_dokument_frage'):
+                        st.session_state.notar_menu_selection = "dokumenten_chat"
+                    else:
+                        st.session_state.notar_menu_selection = "nachrichten"
+                    st.rerun()
+
+            st.markdown("---")
+
+        if len(offene_fragen) > 5:
+            st.caption(f"... und {len(offene_fragen) - 5} weitere")
+    else:
+        st.success("✅ Keine offenen Fragen")
+
+    # Button für Nachrichten
+    if st.button("✉️ Alle Nachrichten anzeigen", key="show_all_nachrichten", use_container_width=True):
+        st.session_state.notar_menu_selection = "nachrichten"
+        st.rerun()
+
+
 def render_notar_content(selection: str, user_id: str):
     """
     Rendert den Inhalt basierend auf der Menüauswahl.
     """
     # Mapping von Menü-Keys zu View-Funktionen
-    if selection == "timeline":
+    if selection == "dashboard_home":
+        render_notar_dashboard_home(user_id)
+
+    elif selection == "timeline":
         notar_timeline_view()
 
     elif selection == "reporting":
